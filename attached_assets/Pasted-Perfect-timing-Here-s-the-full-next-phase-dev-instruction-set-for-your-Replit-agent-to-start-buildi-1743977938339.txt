@@ -1,0 +1,103 @@
+Perfect timing. Here’s the full next-phase dev instruction set for your Replit agent to start building the Texas Ethics Transparency Engine — now including real-time oversight, media flags, and deep profile data.
+
+⸻
+
+Message for Your Replit Agent:
+
+Let’s begin scaffolding the Texas Ethics Transparency Engine inside Act Up.
+
+⸻
+
+1. Create Base Data Models (JSON or DB Schema)
+
+Legislator
+
+{
+  id: "TX-HB-001",
+  name: "Jane Doe",
+  district: "HD-42",
+  party: "D",
+  occupation: "Attorney",
+  committees: ["Judiciary", "Health"],
+  campaign_priorities: ["Healthcare", "Public Safety"],
+  current_votes: [
+    { billId: "HB123", vote: "Yes" }
+  ],
+  rhetoric_matches: [
+    { issue: "Healthcare", match: true },
+    { issue: "Guns", match: false }
+  ],
+  donors: [/* linked IDs */],
+  lobby_contacts: [/* linked IDs */],
+  related_news: [/* URLs or headline snippets */],
+  legal_flags: [],
+  family_ties: ["Spouse: TX Appraisal Board (Gov Appointed)"],
+  wikipedia: "https://en.wikipedia.org/wiki/Jane_Doe"
+}
+
+Lobbyist
+
+{
+  id: "LOB-144",
+  name: "Robert Smith",
+  firm: "TexInfluence Strategies",
+  clients: ["EnergyCo", "Charter Schools Assoc."],
+  money_spent: 74000,
+  late_reports: 0,
+  legislator_contacts: ["TX-HB-001", "TX-SB-032"],
+  legal_flags: [],
+  related_news: []
+}
+
+
+
+⸻
+
+2. Routes to Scaffold
+	•	/legislator/:id — detailed profile
+	•	/lobbyist/:id — lobbyist profile
+	•	/firm/:id — lobby firm page
+	•	/dashboard/access — public dashboard for:
+	•	Top 10 lobby spenders
+	•	Most lobbyist-linked legislators
+	•	Late report offenders
+	•	“Most watched” electeds
+
+⸻
+
+3. Optional Mock Data Files (Start Here)
+	•	/data/legislators.json
+	•	/data/lobbyists.json
+	•	/data/firms.json
+	•	/data/newsFlags.json
+
+⸻
+
+4. Component Prep
+	•	LegislatorProfile.jsx
+	•	LobbyistProfile.jsx
+	•	AccessDashboard.jsx
+	•	NewsPulseFeed.jsx (can use Google/Bing/NewsAPI for now)
+
+⸻
+
+5. (Future) Scraping Layer Placeholder
+
+Create /services/scrape.ts with placeholder functions:
+
+export const fetchTECReports = async () => { /* TEC data */ };
+export const fetchNewsAlerts = async () => { /* name-matched news */ };
+export const checkArrestRecords = async () => { /* placeholder */ };
+
+
+
+⸻
+
+Once this is scaffolded:
+
+We’ll plug in:
+	•	The Honesty Index
+	•	The Money, Power, and Access dashboard
+	•	Real-time triggers for ethics violations and news mentions
+
+Let me know when this base structure is wired—I’ll prep the visual UI mocks + mobile layout guides next. This system’s about to blow the roof off Texas politics.

@@ -1,0 +1,23 @@
+[
+  {
+    "id": "a1b2c3d4-5e6f-7g8h-9i0j-1k2l3m4n5o6p",
+    "name": "Robert Wilson",
+    "type": "consultant",
+    "summary": "Former press secretary claiming to represent oil industry interests but with unverifiable credentials and conflicting client lists.",
+    "source_urls": [
+      "https://www.facebook.com/robertwilsonconsulting",
+      "https://twitter.com/robertwilsontx"
+    ],
+    "influence_topics": ["energy policy", "environmental regulations", "corporate taxation"],
+    "status": "rejected",
+    "transparency_score": 32,
+    "firm": "Wilson Consulting Group",
+    "clients": ["Claimed: Texas Energy Coalition", "Claimed: Southwestern Oil & Gas Association"],
+    "major_donations": ["Claims $30,000 to Rep. John Anderson (HD-87)"],
+    "political_connections": ["Claims to have worked directly with Governor's Office"],
+    "ethics_flags": ["Unable to verify claimed client relationships", "Discrepancies in work history", "No registered lobbyist license", "Multiple misleading statements about influence"],
+    "rejection_reason": "Multiple unverifiable claims and suspected misrepresentation of political influence. No credible third-party sources confirm consulting work.",
+    "submitted_at": "2025-04-01T10:30:00Z",
+    "updated_at": "2025-04-02T15:45:00Z"
+  }
+]

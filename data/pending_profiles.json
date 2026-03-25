@@ -1,0 +1,42 @@
+[
+  {
+    "id": "82e6f3c1-112a-4d80-a4e2-cb0eab88acdf",
+    "name": "Alan Blackmore",
+    "type": "consultant",
+    "summary": "Veteran political consultant with expertise in campaign strategy and opposition research for Texas PACs and conservative candidates.",
+    "source_urls": [
+      "https://www.texastribune.org/articles/blackmore-shadow",
+      "https://capitolinsider.tx/interviews/alan-blackmore-2021"
+    ],
+    "influence_topics": ["economic development", "campaign finance", "elections"],
+    "status": "pending",
+    "transparency_score": 65,
+    "firm": "Blackmore Strategies",
+    "clients": ["Texans for Business Growth PAC", "Rep. Laura Martinez (HD-115)"],
+    "major_donations": ["$25,000 to Laura Martinez (HD-115)", "$12,000 to Mark Ellison (HD-47)"],
+    "political_connections": ["House Elections Committee", "Senate Business & Commerce Committee"],
+    "ethics_flags": ["Opposed HB2134 on political consulting disclosure", "Quote: 'Transparency should never get in the way of strategy'"],
+    "submitted_at": "2025-04-06T13:00:00Z",
+    "updated_at": "2025-04-06T13:00:00Z"
+  },
+  {
+    "id": "f2e1497b-553c-44d2-bbd0-349ef23d6b94",
+    "name": "Tillman Fertitta",
+    "type": "mega_influencer",
+    "summary": "Billionaire hospitality magnate and political donor known for strategic contributions to Texas officials supporting casino legalization.",
+    "source_urls": [
+      "https://www.houstonchronicle.com/news/fertitta-pac",
+      "https://www.forbes.com/profile/tillman-fertitta/2023"
+    ],
+    "influence_topics": ["casino legalization", "real estate incentives", "hospitality industry"],
+    "status": "pending",
+    "transparency_score": 72,
+    "firm": "Landry's Inc.",
+    "clients": ["Fertitta PAC"],
+    "major_donations": ["$150,000 to Gov. Taylor Quinn", "$100,000 to Sen. Charles Young (SD-7)"],
+    "political_connections": ["Senate State Affairs Committee", "House Ways & Means Committee"],
+    "ethics_flags": ["Quote: 'Every law impacts business. If you're not influencing, you're being influenced'"],
+    "submitted_at": "2025-04-06T13:05:00Z",
+    "updated_at": "2025-04-06T13:05:00Z"
+  }
+]

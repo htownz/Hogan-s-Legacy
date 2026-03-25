@@ -1,0 +1,35 @@
+Challenges:
+No Centralized Database: The Texas Legislature doesn't have a public, searchable database specifically for points of order and their outcomes.
+Scattered Information: Points of order information can be in House and Senate journals, committee reports, and sometimes news reports or analyses.
+Volume of Data: The legislative sessions involve thousands of bills and resolutions, and there can be many points of order raised throughout the process.
+Dynamic Data: Tracking the outcomes of sustained and overruled points of order can require tracking bill amendments, committee changes, and floor action, which can be a lot of dynamic information. 
+Here's a general overview of the process and where to look for some of the details:
+Finding Information:
+Texas Legislature Online (TLO):
+You can search for specific bills or resolutions to check the actions taken.
+House and Senate Journals: TLO has journals that record the daily proceedings of the House and Senate, which include motions and rulings on points of order.
+Amendments: Use TLO to search for amendments that may have resulted from points of order.
+Legislative Reference Library of Texas (LRL):
+The LRL archives legislative documents, including bill files from various sessions.
+Committee Reports:
+Look for relevant committee reports for details on amendments made and whether a point of order resulted in the committee modifying a bill.
+News Reports and Analyses:
+Search through archives of news organizations that cover the Texas Legislature.
+Look for publications like the Texas Tribune, Dallas Morning News, and others for summaries or analysis of specific points of order. 
+89th Legislative Session House and Senate Rules Analysis
+House Rules:
+Official Source: The official source for House rules is the House Rules Manual, available on the House website. 
+Changes to Committee Structures: It's likely there are changes to committee structures, as is typical from session to session. The number of committees and memberships can vary between legislative sessions. 
+Enforcement of Rules: The House Speaker enforces, applies, and interprets the rules. 
+Senate Rules:
+Official Source: Check the Senate website for the official version of Senate rules. 
+General Senate Procedures: The Lieutenant Governor, as President of the Senate, presides over the chamber and enforces the rules. 
+General Notes about Texas Legislative Rules:
+Adoption of Rules: At the start of each legislative session, the House and Senate adopt rules of procedure. 
+Points of Order Enforcement: Points of order are used to point out potential violations of these rules. 
+Importance of Rules: Adherence to the rules is critical for ensuring the proper functioning of the legislative process. 
+Potential Effects of Sustained Points of Order: These can result in the bill being sent back to committee, an amendment being struck, or causing delays in the process. 
+Further Research Suggestions:
+Start by focusing on specific bills or issues you're interested in to make the research more manageable.
+Contact the Legislative Reference Library or the House Research Organization for more specific information.
+Use advanced search techniques within the TLO and LRL websites. 

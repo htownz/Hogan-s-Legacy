@@ -1,0 +1,698 @@
+jurisdictions
+
+
+GET
+/jurisdictions
+Jurisdiction List
+
+GET
+/jurisdictions/{jurisdiction_id}
+Jurisdiction Detail
+people
+
+
+GET
+/people
+People Search
+Get list of people matching selected criteria.
+
+Must provide either jurisdiction, name, or one or more id parameters.
+
+Parameters
+Cancel
+Name	Description
+jurisdiction
+string
+(query)
+Filter by jurisdiction name or id.
+
+texas
+name
+string
+(query)
+Filter by name, case-insensitive match.
+
+name
+id
+array[string]
+(query)
+Filter by id, can be specified multiple times for multiple people.
+
+Add string item
+org_classification
+string
+(query)
+Filter by current role.
+
+
+legislature
+district
+string
+(query)
+Filter by district name.
+
+district
+include
+array[string]
+(query)
+Additional information to include in response.
+
+--other_namesother_identifierslinkssourcesoffices
+page
+integer
+(query)
+1
+per_page
+integer
+(query)
+10
+apikey
+string
+(query)
+apikey
+x-api-key
+string
+(header)
+x-api-key
+Execute
+Clear
+Responses
+Curl
+
+curl -X 'GET' \
+  'https://v3.openstates.org/people?jurisdiction=texas&org_classification=legislature&page=1&per_page=10' \
+  -H 'accept: application/json'
+Request URL
+https://v3.openstates.org/people?jurisdiction=texas&org_classification=legislature&page=1&per_page=10
+Server response
+Code	Details
+403
+Undocumented
+Error: response status is 403
+
+Response body
+Download
+{
+  "detail": "Must provide API Key as ?apikey or X-API-KEY. Login and visit https://openstates.org/account/profile/ for your API key."
+}
+Response headers
+ content-length: 132 
+ content-type: application/json 
+ date: Sun,25 May 2025 20:01:04 GMT 
+ server: uvicorn 
+Responses
+Code	Description	Links
+200	
+Successful Response
+
+Media type
+
+application/json
+Controls Accept header.
+Example Value
+Schema
+{
+  "results": [
+    {
+      "id": "ocd-person/adb58f21-f2fd-4830-85b6-f490b0867d14",
+      "name": "Angela Augusta",
+      "party": "Democratic",
+      "current_role": {
+        "title": "Senator",
+        "org_classification": "upper",
+        "district": 3,
+        "division_id": "ocd-division/country:us/state:nc/sldu:3"
+      },
+      "jurisdiction": {
+        "id": "ocd-jurisdiction/country:us/state:nc/government",
+        "name": "North Carolina",
+        "classification": "state"
+      },
+      "given_name": "Angela",
+      "family_name": "Augusta",
+      "image": "https://example.com/ncimg/3.png",
+      "email": "aperson@example.com",
+      "gender": "female",
+      "birth_date": "1960-05-04",
+      "death_date": "2019-04-10",
+      "extras": {
+        "profession": "Doctor"
+      },
+      "created_at": "2025-05-25T23:52:45.772Z",
+      "updated_at": "2025-05-25T23:52:45.772Z",
+      "openstates_url": "https://openstates.org/person/amos-l-quick-iii-28NRPPfJA6FGVl9RrjpKjl/",
+      "other_identifiers": [
+        {
+          "identifier": "NCL000123",
+          "scheme": "legacy_openstates"
+        }
+      ],
+      "other_names": [
+        {
+          "name": "Auggie",
+          "note": "nickname"
+        }
+      ],
+      "links": [
+        {
+          "url": "https://example.com/",
+          "note": "homepage"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://example.com/",
+          "note": "homepage"
+        }
+      ],
+      "offices": [
+        {
+          "name": "District Office",
+          "fax": "919-555-1234",
+          "voice": "919-555-0064",
+          "address": "212 Maple Lane; Raleigh NC; 27526",
+          "classification": "capitol"
+        }
+      ]
+    }
+  ],
+  "pagination": {
+    "per_page": 20,
+    "page": 1,
+    "max_page": 3,
+    "total_items": 52
+  }
+}
+No links
+422	
+Validation Error
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": [
+    {
+      "loc": [
+        "string",
+        0
+      ],
+      "msg": "string",
+      "type": "string"
+    }
+  ]
+}
+No links
+
+GET
+/people.geo
+People Geo
+bills
+
+
+GET
+/bills
+Bills Search
+
+GET
+/bills/ocd-bill/{openstates_bill_id}
+Bill Detail By Id
+Obtain bill information by internal ID in the format ocd-bill/uuid.
+
+Parameters
+Try it out
+Name	Description
+openstates_bill_id *
+string
+(path)
+openstates_bill_id
+include
+array[string]
+(query)
+Available values : sponsorships, abstracts, other_titles, other_identifiers, actions, sources, documents, versions, votes, related_bills
+
+Default value : List []
+
+--sponsorshipsabstractsother_titlesother_identifiersactionssourcesdocumentsversionsvotesrelated_bills
+apikey
+string
+(query)
+apikey
+x-api-key
+string
+(header)
+x-api-key
+Responses
+Code	Description	Links
+200	
+Successful Response
+
+Media type
+
+application/json
+Controls Accept header.
+Example Value
+Schema
+{
+  "id": "ocd-bill/f0049138-1ad8-4506-a2a4-f4dd1251bbba",
+  "session": "2020",
+  "jurisdiction": {
+    "id": "ocd-jurisdiction/country:us/state:nc/government",
+    "name": "North Carolina",
+    "classification": "state"
+  },
+  "from_organization": {
+    "id": "ocd-organization/32aab083-d7a0-44e0-9b95-a7790c542605",
+    "name": "North Carolina General Assembly",
+    "classification": "legislature"
+  },
+  "identifier": "SB 113",
+  "title": "Adopting a State Scorpion",
+  "classification": [
+    "resolution"
+  ],
+  "subject": [
+    "SCORPIONS",
+    "SYMBOLS"
+  ],
+  "extras": {},
+  "created_at": "2025-05-25T23:52:45.778Z",
+  "updated_at": "2025-05-25T23:52:45.778Z",
+  "openstates_url": "https://openstates.org/nc/bills/2019/HB1105/",
+  "first_action_date": "2020-01-01",
+  "latest_action_date": "2020-02-01",
+  "latest_action_description": "Introduced in House",
+  "latest_passage_date": "2020-03-01",
+  "related_bills": [
+    {
+      "identifier": "HB 123",
+      "legislative_session": "2022S1",
+      "relation_type": "companion"
+    }
+  ],
+  "abstracts": [
+    {
+      "abstract": "This bill designates a new state arachnid.",
+      "note": "house abstract"
+    }
+  ],
+  "other_titles": [
+    {
+      "title": "Designating the scorpion as the state arachnid.",
+      "note": "short title"
+    }
+  ],
+  "other_identifiers": [
+    {
+      "identifier": "HB 74"
+    }
+  ],
+  "sponsorships": [
+    {
+      "id": "f0049138-1ad8-4506-a2a4-f4dd1251bbba",
+      "name": "JONES",
+      "entity_type": "person",
+      "organization": {
+        "id": "ocd-organization/32aab083-d7a0-44e0-9b95-a7790c542605",
+        "name": "North Carolina General Assembly",
+        "classification": "legislature"
+      },
+      "person": {
+        "id": "ocd-person/adb58f21-f2fd-4830-85b6-f490b0867d14",
+        "name": "Angela Augusta",
+        "party": "Democratic",
+        "current_role": {
+          "title": "Senator",
+          "org_classification": "upper",
+          "district": 3,
+          "division_id": "ocd-division/country:us/state:nc/sldu:3"
+        }
+      },
+      "primary": true,
+      "classification": "primary"
+    }
+  ],
+  "actions": [
+    {
+      "id": "f0049138-1ad8-4506-a2a4-f4dd1251bbba",
+      "organization": {
+        "id": "ocd-organization/32aab083-d7a0-44e0-9b95-a7790c542605",
+        "name": "North Carolina General Assembly",
+        "classification": "legislature"
+      },
+      "description": "Passed 1st Reading",
+      "date": "2020-03-14",
+      "classification": [
+        "passed"
+      ],
+      "order": 0,
+      "related_entities": [
+        {
+          "name": "Senate Committee of the Whole",
+          "entity_type": "organization",
+          "organization": {
+            "id": "ocd-organization/32aab083-d7a0-44e0-9b95-a7790c542605",
+            "name": "North Carolina General Assembly",
+            "classification": "legislature"
+          },
+          "person": {
+            "id": "ocd-person/adb58f21-f2fd-4830-85b6-f490b0867d14",
+            "name": "Angela Augusta",
+            "party": "Democratic",
+            "current_role": {
+              "title": "Senator",
+              "org_classification": "upper",
+              "district": 3,
+              "division_id": "ocd-division/country:us/state:nc/sldu:3"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "url": "https://example.com/",
+      "note": "homepage"
+    }
+  ],
+  "versions": [
+    {
+      "id": "f0049138-1ad8-4506-a2a4-f4dd1251bbba",
+      "note": "Latest Version",
+      "date": "2020-10-01",
+      "classification": "amendment",
+      "links": [
+        {
+          "url": "https://example.com/doc.pdf",
+          "media_type": "application/pdf"
+        }
+      ]
+    }
+  ],
+  "documents": [
+    {
+      "id": "f0049138-1ad8-4506-a2a4-f4dd1251bbba",
+      "note": "Latest Version",
+      "date": "2020-10-01",
+      "classification": "amendment",
+      "links": [
+        {
+          "url": "https://example.com/doc.pdf",
+          "media_type": "application/pdf"
+        }
+      ]
+    }
+  ],
+  "votes": [
+    {
+      "id": "string",
+      "motion_text": "Shall the bill be passed?",
+      "motion_classification": [
+        "passage"
+      ],
+      "start_date": "2020-09-18",
+      "result": "pass",
+      "identifier": "HV #3312",
+      "extras": {},
+      "organization": {
+        "id": "ocd-organization/32aab083-d7a0-44e0-9b95-a7790c542605",
+        "name": "North Carolina General Assembly",
+        "classification": "legislature"
+      },
+      "votes": [
+        {
+          "id": "f0049138-1ad8-4506-a2a4-f4dd1251bbba",
+          "option": "no",
+          "voter_name": "Wu",
+          "voter": {
+            "id": "ocd-person/adb58f21-f2fd-4830-85b6-f490b0867d14",
+            "name": "Angela Augusta",
+            "party": "Democratic",
+            "current_role": {
+              "title": "Senator",
+              "org_classification": "upper",
+              "district": 3,
+              "division_id": "ocd-division/country:us/state:nc/sldu:3"
+            }
+          }
+        }
+      ],
+      "counts": [
+        {
+          "option": "yes",
+          "value": 48
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://example.com/",
+          "note": "homepage"
+        }
+      ]
+    }
+  ]
+}
+No links
+422	
+Validation Error
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": [
+    {
+      "loc": [
+        "string",
+        0
+      ],
+      "msg": "string",
+      "type": "string"
+    }
+  ]
+}
+No links
+
+GET
+/bills/{jurisdiction}/{session}/{bill_id}
+Bill Detail
+committees
+
+
+GET
+/committees
+Committee List
+
+GET
+/committees/{committee_id}
+Committee Detail
+events
+
+
+GET
+/events
+Event List
+
+GET
+/events/{event_id}
+Event Detail
+default
+
+
+GET
+/metrics
+Metrics
+
+Schemas
+AltIdentifier{
+identifier*	Identifier[...]
+scheme*	Scheme[...]
+ 
+}
+AltName{
+name*	Name[...]
+note*	Note[...]
+ 
+}
+Bill{
+id*	Id[...]
+session*	Session[...]
+jurisdiction*	CompactJurisdiction{...}
+from_organization*	Organization{...}
+identifier*	Identifier[...]
+title*	Title[...]
+classification	Classification[...]
+subject	Subject[...]
+extras	Extras{...}
+example: OrderedMap {}
+created_at*	Created At[...]
+updated_at*	Updated At[...]
+openstates_url*	Openstates Url[...]
+first_action_date	First Action Date[...]
+latest_action_date	Latest Action Date[...]
+latest_action_description	Latest Action Description[...]
+latest_passage_date	Latest Passage Date[...]
+related_bills	Related Bills[...]
+abstracts	Abstracts[...]
+other_titles	Other Titles[...]
+other_identifiers	Other Identifiers[...]
+sponsorships	Sponsorships[...]
+actions	Actions[...]
+sources	Sources[...]
+versions	Versions[...]
+documents	Documents[...]
+votes	Votes[...]
+ 
+}
+BillAbstract{
+abstract*	Abstract[...]
+note*	Note[...]
+ 
+}
+BillAction{
+id*	Id[...]
+organization*	Organization{...}
+description*	Description[...]
+date*	Date[...]
+classification*	Classification[...]
+order*	Order[...]
+related_entities	Related Entities[...]
+ 
+}
+BillActionRelatedEntity{
+name*	Name[...]
+entity_type*	Entity Type[...]
+organization	Organization{...}
+person	CompactPerson{...}
+ 
+}
+BillDocumentLink{
+url*	Url[...]
+media_type*	Media Type[...]
+ 
+}
+BillDocumentOrVersion{
+id*	Id[...]
+note*	Note[...]
+date*	Date[...]
+classification*	Classification[...]
+links*	Links[...]
+ 
+}
+BillIdentifier{
+identifier*	Identifier[...]
+ 
+}
+BillIncludestring
+title: BillInclude
+An enumeration.
+
+Enum:
+Array [ 10 ]
+BillList{
+results*	Results[...]
+pagination*	PaginationMeta{...}
+ 
+}
+BillSortOptionstring
+title: BillSortOption
+An enumeration.
+
+Enum:
+Array [ 6 ]
+BillSponsorship{
+id*	Id[...]
+name*	Name[...]
+entity_type*	Entity Type[...]
+organization	Organization{...}
+person	CompactPerson{...}
+primary*	Primary[...]
+classification*	Classification[...]
+ 
+}
+BillTitle{
+title*	Title[...]
+note*	Note[...]
+ 
+}
+Chamber{
+id*	Id[...]
+name*	Name[...]
+classification*	Classification[...]
+districts	Districts[...]
+ 
+}
+Committee{
+id*	Id[...]
+name*	Name[...]
+classification*	CommitteeClassification[...]
+parent_id*	Parent Id[...]
+extras*	Extras{...}
+example: OrderedMap { "room": "Room 4B" }
+memberships	Memberships[...]
+other_names	Other Names[...]
+links	Links[...]
+sources	Sources[...]
+ 
+}
+CommitteeClassificationstring
+title: CommitteeClassification
+An enumeration.
+
+Enum:
+Array [ 2 ]
+CommitteeIncludestring
+title: CommitteeInclude
+An enumeration.
+
+Enum:
+Array [ 3 ]
+CommitteeList{
+results*	Results[...]
+pagination*	PaginationMeta{...}
+ 
+}
+CommitteeMembership{
+person_name*	Person Name[...]
+role*	Role[...]
+person	CompactPerson{...}
+ 
+}
+CompactBill
+CompactJurisdiction
+CompactPerson
+CompactVoteEvent
+CurrentRole
+DataExport{
+created_at*	Created At[...]
+updated_at*	Updated At[...]
+data_type*	Data Type[...]
+url*	Url[...]
+ 
+}
+Event{
+id*	Id[...]
+name*	Name[...]
+jurisdiction*	CompactJurisdiction{...}
+description*	Description[...]
+classification*	Classification[...]
+start_date*	Start Date[...]
+end_date*	End Date[...]
+all_day*	All Day[...]
+status*	Status[...]
+upstream_id*	Upstream Id[...]
+deleted*	Deleted[...]
+location	EventLocation{...}
+links	Links[...]
+sources	Sources[...]
+media	Media[...]
+documents	Documents[...]
+participants	Participants[...]
+agenda	Agenda[...]
+ 
+}

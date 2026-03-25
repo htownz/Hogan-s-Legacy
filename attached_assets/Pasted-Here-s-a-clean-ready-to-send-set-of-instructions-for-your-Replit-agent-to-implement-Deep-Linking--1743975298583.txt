@@ -1,0 +1,81 @@
+Here’s a clean, ready-to-send set of instructions for your Replit agent to implement Deep Linking + Bill Match Score — two powerful upgrades that increase personalization, shareability, and retention.
+
+⸻
+
+Message for Your Replit Agent:
+
+Let’s build the next phase of Act Up:
+Deep Linking + Bill Match Scoring
+
+⸻
+
+1. Deep Linking to Bill Pages
+
+Goal: Allow users to land on /bill/HB123 with optional personalization via URL.
+
+✅ What to Do:
+	•	Enable URL format:
+/bill/HB123?zip=77040&tags=education,guns
+	•	On page load, if ZIP and tags are present:
+	•	Update UserContext.zipCode and UserContext.interests from query params
+	•	Render the Bill Detail view as normal, but with context set
+
+Example:
+
+import { useSearchParams } from "react-router-dom";
+
+useEffect(() => {
+  const [params] = useSearchParams();
+  const zip = params.get("zip");
+  const tags = params.get("tags")?.split(",");
+
+  if (zip || tags?.length) {
+    setUserData(prev => ({
+      ...prev,
+      zipCode: zip || prev.zipCode,
+      interests: tags?.length ? tags : prev.interests
+    }));
+  }
+}, []);
+
+
+
+⸻
+
+2. Bill Match Scoring System
+
+Goal: Score each bill’s relevance to the current user.
+
+✅ What to Do:
+	•	In BillDetail, calculate a match score like this:
+
+function getMatchScore(bill, user) {
+  let score = 0;
+  const matchTags = bill.tags?.filter(tag => user.interests.includes(tag));
+  score += matchTags.length * 15;
+
+  if (bill.regions?.includes(user.zipCode)) {
+    score += 25;
+  }
+
+  if (bill.status === "Scheduled for Vote") {
+    score += 10;
+  }
+
+  return Math.min(score, 100);
+}
+
+	•	Display the match score at top of the page (e.g. “Match Score: 70/100”)
+
+Optional:
+	•	Color-code the score bar or badge
+	•	Add tooltip: “Why this score?” and list what matched
+
+⸻
+
+Once this is in place, we’ll use match score to:
+	•	Sort bill feeds
+	•	Auto-prioritize alerts
+	•	Track what users act on the most
+
+Let me know when this is live—next we’ll animate the timeline or start wiring up live bill data feeds. You’re crushing it.

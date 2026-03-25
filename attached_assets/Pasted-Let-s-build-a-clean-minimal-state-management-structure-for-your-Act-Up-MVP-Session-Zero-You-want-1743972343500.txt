@@ -1,0 +1,118 @@
+Let’s build a clean, minimal state management structure for your Act Up MVP (Session Zero). You want:
+	•	Fast setup
+	•	Easy access to user data (ZIP, interests, tracked bills)
+	•	Clean scalability (React-first, no heavy libraries)
+
+⸻
+
+Recommended Stack: React + Context API + LocalStorage
+
+This combo keeps it:
+	•	Lightweight
+	•	Persistent between reloads
+	•	Shareable across components without prop-drilling
+
+⸻
+
+State Schema (Session Zero)
+
+{
+  zipCode: "77040",
+  interests: ["education", "reproductive rights"],
+  trackedBills: ["HB123", "SB456"],
+  alerts: [ /* optional cache */ ],
+  onboardingComplete: true
+}
+
+
+
+⸻
+
+How to Implement It
+
+1. Create a Global Context
+
+// context/UserContext.jsx
+import { createContext, useContext, useState, useEffect } from "react";
+
+const UserContext = createContext();
+
+export const useUser = () => useContext(UserContext);
+
+export const UserProvider = ({ children }) => {
+  const [userData, setUserData] = useState({
+    zipCode: "",
+    interests: [],
+    trackedBills: [],
+    onboardingComplete: false
+  });
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem("actupUser");
+    if (stored) {
+      setUserData(JSON.parse(stored));
+    }
+  }, []);
+
+  // Save to localStorage on change
+  useEffect(() => {
+    localStorage.setItem("actupUser", JSON.stringify(userData));
+  }, [userData]);
+
+  return (
+    <UserContext.Provider value={{ userData, setUserData }}>
+      {children}
+    </UserContext.Provider>
+  );
+};
+
+
+
+⸻
+
+2. Wrap App in Provider
+
+// main.jsx or App.jsx
+import { UserProvider } from "./context/UserContext";
+
+<UserProvider>
+  <App />
+</UserProvider>
+
+
+
+⸻
+
+3. Use Anywhere
+
+// inside a component
+const { userData, setUserData } = useUser();
+
+const handleZipChange = (zip) => {
+  setUserData(prev => ({ ...prev, zipCode: zip }));
+};
+
+const handleInterestAdd = (interest) => {
+  setUserData(prev => ({
+    ...prev,
+    interests: [...new Set([...prev.interests, interest])]
+  }));
+};
+
+
+
+⸻
+
+4. Onboarding Completion
+
+setUserData(prev => ({
+  ...prev,
+  onboardingComplete: true
+}));
+
+
+
+⸻
+
+Want me to write the full UserContext.jsx file and zip it for your agent to drop in? Or go straight into dashboard personalization with that data?

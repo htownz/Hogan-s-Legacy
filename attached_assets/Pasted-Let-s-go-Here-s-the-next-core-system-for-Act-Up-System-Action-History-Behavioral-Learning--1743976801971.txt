@@ -1,0 +1,94 @@
+Let’s go. Here’s the next core system for Act Up:
+
+⸻
+
+System: Action History + Behavioral Learning
+
+Goal:
+
+Track what each user does — what they read, track, ignore, or act on — to:
+	•	Personalize future alerts, digests, and suggestions
+	•	Improve relevance over time
+	•	Show users their own impact history
+
+⸻
+
+Phase I: User Action Tracking
+
+What to Track (MVP)
+	•	Tracked a bill
+	•	Viewed a bill detail page
+	•	Copied or shared a bill
+	•	Completed a suggested action (e.g. “Called my rep”)
+
+How to Track
+
+Extend UserContext:
+
+userData: {
+  ...,
+  actions: [
+    { type: "track", billId: "HB123", timestamp: "2025-04-08" },
+    { type: "view", billId: "HB123", timestamp: "2025-04-08" },
+    { type: "share", billId: "SB456", timestamp: "2025-04-08" },
+    { type: "complete", actionId: "call-rep", billId: "HB123" }
+  ]
+}
+
+Log events in each relevant component:
+
+setUserData(prev => ({
+  ...prev,
+  actions: [...prev.actions, { type: "track", billId: "HB123", timestamp: new Date().toISOString() }]
+}));
+
+
+
+⸻
+
+Phase II: Behavioral Learning Engine
+
+What to Do With It
+
+Use actions to:
+	•	Boost match score weighting for bills similar to those the user tracked/shared
+	•	Prioritize action suggestions (e.g. user who completes “email your rep” gets more direct asks)
+	•	Auto-sort alerts so highest relevance appears first
+
+⸻
+
+Phase III: “Your Impact” Dashboard (Future UI)
+
+Show a beautiful timeline or stat block on the dashboard:
+
+	•	4 bills tracked
+	•	2 actions taken
+	•	1 bill passed that you followed
+	•	3 shares
+
+This reinforces engagement and gives users a sense of civic power.
+
+⸻
+
+Message for Your Replit Agent:
+
+Let’s add the Action History System to UserContext.
+
+⸻
+
+✅ What to Do:
+	1.	Extend userData with actions array
+	•	Track when a user:
+	•	Views a bill
+	•	Tracks a bill
+	•	Shares a bill
+	•	Completes a suggested action
+	2.	Add tracking calls to relevant components
+	•	BillDetail, AlertCard, share buttons, reminder completion, etc.
+	3.	Create a placeholder “Impact History” section on the dashboard
+	•	Display simple counts:
+	•	X bills tracked
+	•	X actions completed
+	•	X shares
+
+Let me know when this is in motion and I’ll prep the next phase: auto-digest building + email preview system. You’re building something way bigger than an app now.

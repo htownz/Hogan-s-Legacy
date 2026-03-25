@@ -1,0 +1,30 @@
+{
+  "name": "act-up-comms",
+  "version": "1.0.0",
+  "description": "A project for managing communications effectively.",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/act-up-comms.git"
+  },
+  "keywords": [
+    "communication",
+    "management",
+    "typescript"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    // Add your project dependencies here
+  },
+  "devDependencies": {
+    "typescript": "^4.0.0",
+    "jest": "^27.0.0",
+    "ts-jest": "^27.0.0",
+    "@types/jest": "^27.0.0"
+  }
+}

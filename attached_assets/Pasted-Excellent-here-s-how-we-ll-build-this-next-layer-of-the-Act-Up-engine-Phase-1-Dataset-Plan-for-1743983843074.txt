@@ -1,0 +1,62 @@
+Excellent—here’s how we’ll build this next layer of the Act Up engine:
+
+⸻
+
+Phase 1: Dataset Plan for Consultants & Donors
+
+Core Fields to Track Per Profile
+
+Field	Source	Notes
+Name	TEC filings, campaign reports, lobby registration	Use as root for lookup
+Role	“Consultant”, “Lobbyist”, “Influencer”, “Firm Rep”	Inferred from affiliations
+Firm Affiliation(s)	TEC registrations, media mentions	Normalize with org database
+Client List	TEC disclosures, media, news archives	Links to campaigns and PACs
+Donations	Campaign finance reports (TEC)	Track amounts and targets
+Related Legislation	Track bill mentions by client/firm	Optional AI matching
+Quotes / Public Statements	Media/news outlets	Used for card context
+Media Mentions	Google News, Texas Tribune, local papers	Crawler enabled
+Influence Score	Derived from above fields	Custom scoring logic
+
+
+
+⸻
+
+Phase 2: Scraping Target List
+
+Primary Sources
+	•	TEC Lobbyist Search — scrape active lobbyist names + firms
+	•	TEC Campaign Finance Reports — extract donors, consultants listed as payees
+	•	Legislative Reference Library of Texas — check lobbyist-client relationships
+	•	[News Sites + Feeds]
+	•	Texas Tribune
+	•	Houston Chronicle
+	•	Dallas Morning News
+	•	Google News (filtered by name/firm)
+
+⸻
+
+Phase 3: Bot Strategy — “Live Research Scout”
+
+Bot Workflow
+	1.	Trigger: New name appears in a TEC dataset
+	2.	Bot Action:
+	•	Query Google + DuckDuckGo for name + firm
+	•	Scrape first 3–5 links (bios, articles, disclosures)
+	•	Extract: firm, role, known affiliations, issue ties
+	•	Push to pending profile queue for review/ranking
+
+Bot Stack Ideas
+	•	Crawler: Puppeteer + Cheerio (for targeted site parsing)
+	•	Queue: Redis + Node (for async scans)
+	•	Storage: PostgreSQL (connected to profiles DB)
+	•	AI Assist (optional): GPT API to summarize relevance of results
+
+⸻
+
+Next Steps:
+	1.	I’ll generate:
+	•	JSON schema for the bot’s data output
+	•	Sample crawler logic outline
+	2.	Do you want this “Scout Bot” to run on Replit or as a background cloud worker (like a cron or AWS Lambda pattern)?
+
+Let’s make influence trackable in real time.

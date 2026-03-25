@@ -1,0 +1,61 @@
+Done. Here’s how we’ll design the Honesty Index System for Act Up, based on academic research and measurable data—no fluff, no vibes, just receipts.
+
+⸻
+
+ACT UP: Honesty Index (v1 – Quantified Trust Score)
+
+What It Is:
+
+A real, research-backed score that reflects a legislator’s integrity and transparency—updated in real time from hard data. No editorials. No opinions. Just behavior.
+
+⸻
+
+Six Measurable Honesty Factors
+
+Factor	Source	How It’s Measured	Score Range
+1. Truth-Based Communication	Public statements, press releases, campaign material	Ratio of verified facts vs. belief-based claims (manual audit or AI-assist)	+0 to +10
+2. Financial Transparency	Texas Ethics Commission filings	% of filings on time + absence of fines/discrepancies	+0 to +15
+3. Promise-to-Action Alignment	Campaign vs. voting record	Match rate between key pledges and votes	+0 to +15
+4. Ethics Compliance	TEC fines, rulings, complaints	# of violations or formal complaints	-0 to -20
+5. Constituent Accessibility	Public town halls, constituent services, response rate	Proxy score based on office activity reports (scraped or submitted)	+0 to +10
+6. Independent Voting Behavior	Legislative voting record	% of votes that differ from party on key moral/policy issues	+0 to +10
+
+
+
+⸻
+
+Scoring Output
+	•	Total out of 100 points
+	•	Displayed as:
+	•	Score (e.g. 76/100)
+	•	Badge Label:
+	•	90+ = “Highly Trustworthy”
+	•	70–89 = “Generally Honest”
+	•	50–69 = “Mixed Record”
+	•	< 50 = “Low Transparency”
+
+⸻
+
+UX/UI Plan
+
+Where It Appears:
+	•	Legislator profile (right under name + party)
+	•	Filter legislators list by “Honesty Score”
+	•	Search bar: “Show only Highly Trustworthy reps”
+
+Design:
+	•	Badge style:
+	•	Shield icon + score bubble
+	•	Tooltip: “Calculated from 6 public integrity measures. Click to view breakdown.”
+	•	Tap badge → modal with full breakdown (scores per category + data source links)
+
+⸻
+
+Next Steps
+
+Would you like me to:
+	•	Write the data model + context logic for HonestyIndex?
+	•	Create a mock HonestyIndexScoreCard component with dummy data?
+	•	Help you build a public-facing “How We Score” explainer page that builds credibility?
+
+Let’s bake this into the platform before the next session drops. This will make Act Up undeniably powerful.

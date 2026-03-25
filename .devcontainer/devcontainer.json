@@ -1,0 +1,31 @@
+{
+  "name": "ActUp Policy Intel",
+  "dockerComposeFile": [
+    "../docker-compose.policy-intel.yml"
+  ],
+  "service": "policy-intel",
+  "workspaceFolder": "/workspace",
+  "forwardPorts": [5050, 5433, 8080],
+  "postCreateCommand": "npm install && npm run db:push:policy-intel",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "js/ts.tsdk.path": "node_modules/typescript/lib",
+        "editor.formatOnSave": true,
+        "files.exclude": {
+          "**/.turbo": true,
+          "**/dist": true
+        }
+      },
+      "extensions": [
+        "ms-vscode.vscode-typescript-next",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-azuretools.vscode-docker",
+        "ms-vscode-remote.remote-containers",
+        "mtxr.sqltools",
+        "mtxr.sqltools-driver-pg"
+      ]
+    }
+  }
+}

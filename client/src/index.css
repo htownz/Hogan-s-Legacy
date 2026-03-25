@@ -1,0 +1,313 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom animations for enhanced homepage */
+@keyframes fade-in-up {
+  0% {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes gradient {
+  0%, 100% {
+    background-size: 200% 200%;
+    background-position: left center;
+  }
+  50% {
+    background-size: 200% 200%;
+    background-position: right center;
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.8s ease-out forwards;
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient 3s ease infinite;
+}
+
+.delay-300 {
+  animation-delay: 300ms;
+}
+
+.delay-500 {
+  animation-delay: 500ms;
+}
+
+.delay-700 {
+  animation-delay: 700ms;
+}
+
+.delay-1000 {
+  animation-delay: 1000ms;
+}
+
+/* Mobile-First Transparency Portal Styles */
+@layer utilities {
+  .touch-friendly {
+    min-height: 44px;
+    min-width: 44px;
+    touch-action: manipulation;
+  }
+  
+  .slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+  
+  .fade-in {
+    animation: fadeIn 0.2s ease-in;
+  }
+  
+  .pulse-gentle {
+    animation: pulseGentle 2s infinite;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pulseGentle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* Mobile transparency portal specific styles */
+.transparency-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.transparency-card:active {
+  transform: scale(0.98);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.mobile-nav-button {
+  transition: all 0.2s ease;
+}
+
+.mobile-nav-button:active {
+  transform: scale(0.95);
+}
+
+/* Enhanced mobile search */
+.search-expanded {
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    height: 0;
+    opacity: 0;
+  }
+  to {
+    height: auto;
+    opacity: 1;
+  }
+}
+
+/* Mobile-optimized text sizes */
+@media (max-width: 640px) {
+  .text-responsive {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+  
+  .card-mobile {
+    padding: 1rem;
+  }
+  
+  .stats-text {
+    font-size: 1.5rem;
+    font-weight: 700;
+  }
+}
+
+@layer base {
+  :root {
+    /* Act Up color palette from brand guide */
+    --background: 97 14% 95%; /* #0FAFA - Off-white Background */
+    --foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 47.4% 11.2%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 47.4% 11.2%;
+
+    --primary: 242 100% 14%; /* #100244 - Navy blue */
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 242 100% 14%; /* #100244 - Navy blue */
+    --secondary-foreground: 210 40% 98%;
+
+    --accent: 21 100% 50%; /* #FF6400 - Orange */
+    --accent-foreground: 210 40% 98%;
+
+    --success: 164 48% 53%; /* #5DB39E */
+    --success-foreground: 210 40% 98%;
+
+    --support: 212 23% 40%; /* #556475 - Support/Gray */
+    --support-foreground: 210 40% 98%;
+
+    --destructive: 0 100% 50%;
+    --destructive-foreground: 210 40% 98%;
+
+    --ring: 242 100% 14%; /* #100244 - Navy blue (Primary) */
+
+    --radius: 0.5rem;
+
+    /* Act Up chart colors */
+    --chart-1: 242 100% 14%; /* #100244 - Navy blue (Primary) */
+    --chart-2: 21 100% 50%; /* #FF6400 - Orange (Accent) */
+    --chart-3: 164 48% 53%; /* #5DB39E - Success */
+    --chart-4: 212 23% 40%; /* #556475 - Support */
+    --chart-5: 197 78% 41%; /* #1B95B3 - Additional blue */
+    
+    /* Act Up sidebar colors */
+    --sidebar-background: 242 100% 14%; /* #100244 - Navy blue (Primary) */
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 21 100% 50%; /* #FF6400 - Orange (Accent) */
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 164 48% 53%; /* #5DB39E - Success */
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 242 100% 14%; /* #100244 - Navy blue (Secondary) */
+    --sidebar-ring: 21 100% 50%; /* #FF6400 - Orange (Accent) */
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+    font-family: 'Open Sans', sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Montserrat', sans-serif;
+  }
+
+  .role-badge {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    padding: 0.375rem 0.75rem;
+    border-radius: 9999px;
+    font-weight: 600;
+    letter-spacing: 0.025em;
+  }
+
+  .role-badge::before {
+    content: '';
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    margin-right: 0.375rem;
+  }
+
+  .role-badge.catalyst {
+    background-color: rgba(16, 2, 68, 0.1);
+    color: #100244;
+  }
+
+  .role-badge.catalyst::before {
+    background-color: #100244;
+  }
+
+  .role-badge.amplifier {
+    background-color: rgba(255, 100, 0, 0.1);
+    color: #FF6400;
+  }
+
+  .role-badge.amplifier::before {
+    background-color: #FF6400;
+  }
+
+  .role-badge.convincer {
+    background-color: rgba(93, 179, 158, 0.1);
+    color: #5DB39E;
+  }
+
+  .role-badge.convincer::before {
+    background-color: #5DB39E;
+  }
+
+  .progress-circle {
+    position: relative;
+    height: 120px;
+    width: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .progress-circle svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform: rotate(-90deg);
+  }
+
+  .ripple-container {
+    position: relative;
+    width: 100%;
+    height: 220px;
+  }
+
+  .ripple {
+    position: absolute;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    animation: ripple-animation 3s infinite;
+  }
+
+  @keyframes ripple-animation {
+    0% {
+      width: 30px;
+      height: 30px;
+      opacity: 0.8;
+    }
+    100% {
+      width: 200px;
+      height: 200px;
+      opacity: 0;
+    }
+  }
+
+  .card-hover-effect {
+    transition: transform 0.3s, box-shadow 0.3s;
+  }
+
+  .card-hover-effect:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  }
+}

@@ -1,0 +1,135 @@
+
+
+SyntaxError: Unexpected end of input
+    at wrapSafe (node:internal/modules/cjs/loader:1486:18)
+    at Module._compile (node:internal/modules/cjs/loader:1528:20)
+    at Object..js (node:internal/modules/cjs/loader:1706:10)
+    at Module.load (node:internal/modules/cjs/loader:1289:32)
+    at Function._load (node:internal/modules/cjs/loader:1108:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:220:24)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:170:5)
+    at node:internal/main/run_main_module:36:49
+
+Node.js v22.14.0
+PS C:\Users\15125> node legiscan-complete-collector.js
+🚀 COMPLETE TEXAS LEGISLATIVE DATA COLLECTION
+📋 Session: 89th Legislature Regular Session
+📥 Found 11156 bills - processing all...
+
+🎉 COLLECTION COMPLETE!
+📊 Bills: 0
+🔄 Amendments: 0
+🗳️ Votes: 0
+📁 Saved: texas-complete-data-2025-05-25.json
+PS C:\Users\15125> node legiscan-working-collector.js
+node:internal/modules/cjs/loader:1228
+  throw err;
+  ^
+
+Error: Cannot find module 'C:\Users\15125\legiscan-working-collector.js'
+    at Function._resolveFilename (node:internal/modules/cjs/loader:1225:15)
+    at Function._load (node:internal/modules/cjs/loader:1055:27)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:220:24)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:170:5)
+    at node:internal/main/run_main_module:36:49 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v22.14.0
+PS C:\Users\15125> node legiscan-working-collector.js
+🚀 WORKING TEXAS LEGISLATIVE DATA COLLECTOR
+📊 Getting Texas session information...
+📋 Session: 89th Legislature Regular Session
+🆔 Session ID: 2160
+📜 Getting master bill list...
+📥 Found 0 actual bills to process
+🎯 Processing first 0 bills to verify collection...
+
+🎉 WORKING DATA COLLECTION COMPLETE!
+📊 Bills processed: 0/0
+🔄 Amendments collected: 0
+🗳️ Votes collected: 0
+📁 Saved to: texas-working-data-2025-05-25.json
+
+✅ This proves your data collection works! You can now scale up to collect all bills.
+PS C:\Users\15125> node legiscan-debug-collector.js
+🔍 DEBUG TEXAS LEGISLATIVE DATA STRUCTURE
+📊 Getting Texas session information...
+📋 Session: 89th Legislature Regular Session
+🆔 Session ID: 2160
+📜 Getting master bill list...
+
+🔍 DEBUGGING MASTERLIST STRUCTURE:
+📊 Total entries in masterlist: 11156
+
+📋 First 10 entries:
+
+1. Key: 0
+   Type: object
+   Keys: bill_id, number, change_hash, url, status_date, status, last_action_date, last_action, title, description
+   📝 Title: General Appropriations Bill....
+
+2. Key: 1
+   Type: object
+   Keys: bill_id, number, change_hash, url, status_date, status, last_action_date, last_action, title, description
+   📝 Title: Relating to public education and public school fin...
+
+3. Key: 2
+   Type: object
+   Keys: bill_id, number, change_hash, url, status_date, status, last_action_date, last_action, title, description
+   📝 Title: Relating to the establishment of an education savi...
+
+4. Key: 3
+   Type: object
+   Keys: bill_id, number, change_hash, url, status_date, status, last_action_date, last_action, title, description
+   📝 Title: Relating to public school accountability, includin...
+
+5. Key: 4
+   Type: object
+   Keys: bill_id, number, change_hash, url, status_date, status, last_action_date, last_action, title, description
+   📝 Title: Relating to the creation of the Dementia Preventio...
+
+6. Key: 5
+   Type: object
+   Keys: bill_id, number, change_hash, url, status_date, status, last_action_date, last_action, title, description
+   📝 Title: Relating to discipline management and access to te...
+
+7. Key: 6
+   Type: object
+   Keys: bill_id, number, change_hash, url, status_date, status, last_action_date, last_action, title, description
+   📝 Title: Relating to parental rights in public education, t...
+
+8. Key: 7
+   Type: object
+   Keys: bill_id, number, change_hash, url, status_date, status, last_action_date, last_action, title, description
+   📝 Title: Relating to a reduction in the maximum compressed ...
+
+9. Key: 8
+   Type: object
+   Keys: bill_id, number, change_hash, url, status_date, status, last_action_date, last_action, title, description
+   📝 Title: Relating to an exemption from ad valorem taxation ...
+
+10. Key: 9
+   Type: object
+   Keys: bill_id, number, change_hash, url, status_date, status, last_action_date, last_action, title, description
+   📝 Title: Relating to reforming the procedure by which state...
+
+💾 Full masterlist saved to: texas-masterlist-debug.json
+
+🎯 Attempting to collect one real bill...
+✅ Found test bill: Unknown (ID: 1934188)
+📥 Getting detailed bill information...
+
+🎉 SUCCESS! Sample bill data:
+📋 Bill Number: HB1
+📝 Title: General Appropriations Bill....
+🏛️ Chamber: Unknown
+📊 Status: Unknown
+💾 Sample bill saved to: texas-sample-bill-debug.json
+
+✅ SUCCESS! Your LegiScan API can collect authentic Texas legislative data!
+🚀 Ready to build full collector with correct data structure.
+PS C:\Users\15125>

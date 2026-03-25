@@ -1,0 +1,13 @@
+node_modules
+dist
+build
+.git
+.github
+.env
+.env.*
+coverage
+*.log
+temp
+attached_assets
+scout-bot-final-moderator-publisher-bundle.zip
+Act-Up-v2-main.zip

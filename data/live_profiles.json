@@ -1,0 +1,42 @@
+[
+  {
+    "id": "5bf8c1e4-332d-49a9-bd9c-c5695d366db7",
+    "name": "Michael Harrison",
+    "type": "consultant",
+    "summary": "Veteran campaign strategist with deep ties to the Texas oil and gas industry, specializing in media relations and crisis management.",
+    "source_urls": [
+      "https://www.texasmonthly.com/politics/power-brokers-2024/",
+      "https://www.dallasnews.com/news/politics/2023/09/15/profile-harrison-consultant/"
+    ],
+    "influence_topics": ["energy policy", "tax reform", "regulatory affairs"],
+    "status": "approved",
+    "transparency_score": 61,
+    "firm": "Harrison & Associates",
+    "clients": ["Texas Petroleum Alliance", "Gov. Taylor Quinn", "Southwest Energy Coalition"],
+    "major_donations": ["$50,000 to Gov. Taylor Quinn", "$25,000 to Sen. James Wright (SD-12)"],
+    "political_connections": ["Senate Natural Resources Committee", "House Energy Resources Committee"],
+    "ethics_flags": ["Lobbied against HB1429 oil well disclosure requirements", "Undisclosed conflicts with regulatory appointment nominees"],
+    "submitted_at": "2025-04-03T08:45:00Z",
+    "updated_at": "2025-04-05T10:15:00Z"
+  },
+  {
+    "id": "973e2a49-7cd1-4f89-a8d7-26bfcb9e1f38",
+    "name": "Victoria Chen",
+    "type": "mega_influencer",
+    "summary": "Tech entrepreneur and major political donor focused on expanding Texas' technology sector and supporting pro-immigration policies.",
+    "source_urls": [
+      "https://www.austinbusinessjournal.com/profiles/victoria-chen",
+      "https://www.forbes.com/texas-power-players/2024"
+    ],
+    "influence_topics": ["technology policy", "innovation incentives", "immigration reform"],
+    "status": "approved",
+    "transparency_score": 84,
+    "firm": "Horizon Technologies",
+    "clients": ["Texas Technology Council"],
+    "major_donations": ["$200,000 to Texas Innovation PAC", "$75,000 to Rep. David Garcia (HD-35)"],
+    "political_connections": ["Governor's Technology Advisory Board", "House Technology Committee"],
+    "ethics_flags": [],
+    "submitted_at": "2025-04-02T14:20:00Z",
+    "updated_at": "2025-04-04T11:30:00Z"
+  }
+]

@@ -1,0 +1,89 @@
+Let’s do both—here’s how we’ll line up timeline animation and real-time legislative sync so Act Up feels alive, smart, and urgent.
+
+⸻
+
+I. Timeline Animation Upgrade
+
+Goal:
+
+Bring bill movement to life with animated transitions, tooltips, and interactivity.
+
+Message for Your Replit Agent:
+
+Let’s enhance the TrackedTimeline.jsx component with animation and interaction.
+
+⸻
+
+✅ What to Do:
+	1.	Add Motion Transitions
+Use Framer Motion (or CSS for lightweight):
+
+npm install framer-motion
+
+	2.	Animate Stage Entry
+Fade/slide in the current stage:
+
+<motion.div
+  initial={{ opacity: 0, y: 10 }}
+  animate={{ opacity: 1, y: 0 }}
+  transition={{ duration: 0.4 }}
+>
+  <div className="bg-blue-500 ...">In Committee</div>
+</motion.div>
+
+	3.	Add Hover Tooltips
+Use a simple tooltip or title attribute:
+
+<div title="Filed on Jan 12, 2025">Filed</div>
+
+	4.	Add Stage Metadata (Optional)
+Include date, vote outcome, or hearing link per stage from mock data.
+
+⸻
+
+II. Real-Time Legislative Sync (Texas Capitol)
+
+Goal:
+
+Automate bill tracking with live session data from the Texas Legislature’s open data sources.
+
+⸻
+
+✅ What to Do (Initial MVP Mock or Live Integration):
+
+Option A: Mock API Approach
+	1.	Create a mock endpoint or JSON file:
+
+[
+  {
+    "billId": "HB123",
+    "status": "Hearing Scheduled",
+    "lastUpdated": "2025-04-09"
+  }
+]
+
+	2.	On load or interval (every 15 sec), pull updated status.
+	3.	If tracked bill status changes:
+	•	Update UserContext
+	•	Trigger new reminders
+	•	Trigger StatusUpdateBanner
+
+Option B: TX Capitol Data (Full Integration)
+
+Texas has an open government API, but it’s fragmented. You can:
+	•	Use Texas Legislature Online (TLO)
+	•	Scrape or sync from:
+	•	Bill Detail pages
+	•	RSS Feeds
+	•	External services like LegiScan or Open States (with API keys)
+
+I can help map this data if you want a scraping or proxy-layer setup next.
+
+⸻
+
+Once both are wired, we’ll have:
+	•	An animated, living bill timeline
+	•	Auto-updating reminders + urgency triggers
+	•	The foundation for live alerts, public digests, and more
+
+Let me know once these are underway—I’ll prep the next system: Action History + Behavioral Learning so Act Up gets smarter every time someone uses it.

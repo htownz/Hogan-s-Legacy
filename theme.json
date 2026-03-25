@@ -1,0 +1,18 @@
+{
+  "primary": "#3A86FF",
+  "variant": "tint",
+  "appearance": "light",
+  "radius": 0.25,
+  "colors": {
+    "accent": "#FF006E",
+    "secondary": "#2B2D42",
+    "success": "#36AE7C",
+    "support": "#8D99AE",
+    "background": "#F8F9FA",
+    "surface": "#FFFFFF",
+    "text": "#2B2D42",
+    "subtle": "#EDF2F7",
+    "muted": "#E2E8F0",
+    "border": "#E2E8F0"
+  }
+}

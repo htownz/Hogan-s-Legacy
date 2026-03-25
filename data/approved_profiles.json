@@ -1,0 +1,22 @@
+[
+  {
+    "id": "c9e7f3d2-445a-48b0-b541-895ec2a74f1a",
+    "name": "Sarah Reynolds",
+    "type": "consultant",
+    "summary": "Communications director turned political strategist specializing in crafting persuasive messaging for progressive campaigns in Texas.",
+    "source_urls": [
+      "https://www.texasmonthly.com/politics/top-consultants-2024",
+      "https://www.politico.com/news/texas/campaign-consultants"
+    ],
+    "influence_topics": ["healthcare policy", "education reform", "voting rights"],
+    "status": "approved",
+    "transparency_score": 78,
+    "firm": "Bluebonnet Strategy Group",
+    "clients": ["Texas Teachers Association PAC", "Sen. Maria Gonzalez (SD-29)"],
+    "major_donations": ["$5,000 to Maria Gonzalez (SD-29)", "$3,500 to John Chen (HD-108)"],
+    "political_connections": ["House Public Education Committee", "Senate Health & Human Services Committee"],
+    "ethics_flags": [],
+    "submitted_at": "2025-04-05T09:15:00Z",
+    "updated_at": "2025-04-06T14:22:00Z"
+  }
+]

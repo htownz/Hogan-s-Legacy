@@ -1,0 +1,106 @@
+# Act Up Platform: Full Project Summary & Dev Notes
+
+## Overview
+**Act Up** is a 100% free, open-source civic engagement platform built to empower individuals to understand, engage with, and influence the legislative process. Initially focused on Texas (state level), it will later scale to city, county, and federal levels.
+
+**Core Message**: _“We don’t editorialize. We reveal. We don’t judge. We expose. We don’t tell you what matters. We help you see what does—clearly and personally.”_
+
+**Mission**: Make government transparency accessible and actionable for everyone—empowering communities to take control, demand accountability, and create meaningful change.
+
+**Vision**: A future where informed, engaged communities reshape the relationship between government and the people.
+
+---
+
+## Key Features (Planned or In Progress)
+- Full bill search and legislative database with real-time updates
+- Personalized bill impact explanation AI ("If this bill passes, it means... for YOU")
+- Track amendments, regulations, historical data, statutes, and rules
+- Points of order and rules violations flagged in real-time
+- Public and private user modes
+- User-generated issue lists and community watch lists
+- Notification and alert system for tracked items
+- Scorecard alternatives (non-partisan, non-editorialized)
+- Super User Program with roles:
+  - **Catalyst** (knowledge drivers)
+  - **Amplifier** (message spreaders)
+  - **Convincer** (influencers of belief/action)
+
+---
+
+## Tech Stack (Planned/In Progress)
+- **Frontend**: React (preferred)
+- **Backend**: Python (FastAPI preferred)
+- **Database**: PostgreSQL (likely)
+- **API Gateway**: Alpaca (for trading alerts – optional feature)
+- **AI Tools**: GPT/OpenAI or similar for personalized impact generation
+- **Open-source delivery**: GitHub
+- **Social deployment**: Instagram (initial traction + education delivery)
+
+---
+
+## Current Coding Assets and Development Progress
+- Backend scripting for legislative and bill tracking database
+- API design for:
+  - Bill search
+  - Real-time status updates
+  - User alerts and tracking
+- Draft implementation for:
+  - Personalized legislative impact using AI
+  - Amendments and regulations tracking
+  - Public/private data views
+
+---
+
+## Immediate Needs for Coding AI Platform (Next Developer)
+1. **Finalize Backend**:
+   - Connect to state legislative databases or scrape reliably
+   - Optimize API endpoints for performance and scale
+   
+2. **Develop Frontend MVP**:
+   - Build clean, minimal React interface for:
+     - Search
+     - Tracking
+     - Alerts
+     - User dashboard
+
+3. **Integrate AI Bill Impact Tool**:
+   - Take user profile inputs
+   - Use AI to explain impact of bills
+
+4. **Data Structuring**:
+   - Efficient handling of amendments, statutes, and historical data
+
+5. **Super User Role Pathway Setup**
+   - User account and tiering logic
+   - Progression and action tracking
+
+---
+
+## Future Feature Ideas
+- Comment threads tied to legislation (moderated)
+- Community spotlight on local government decisions
+- Integration with existing tools (like Telicon for imports only)
+- Cross-platform alerts (SMS/email/Slack)
+
+---
+
+## Misc Notes
+- No media-style commentary or political slant.
+- No personal branding; platform identity is distinct.
+- Inspired by Malcolm Gladwell’s Tipping Point, aiming for 25% engagement.
+- Platform will grow with user-generated traction and community ownership.
+- MVP should be up by January 2025 (Texas Legislative Session start).
+
+---
+
+## Repository Handoff Instructions
+To continue:
+- Import this document as README.md
+- Review all backend scripts and endpoints in current repository
+- Focus MVP on core loop: **search ➝ understand ➝ track ➝ act**
+- Add proper testing, error handling, and minimal UX polish
+- Optional: integrate PineScript trading alerts for politically driven financial plays (future)
+
+---
+
+_This document serves as the complete summary and tech spec handoff for developers or platforms continuing the build of Act Up._

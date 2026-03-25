@@ -1,0 +1,81 @@
+LegiScan API Status
+Thanks for signing up! From this page you will be able to monitor and control settings for your account. Also below are some sample API calls and source examples along with a link to the API documentation. If you have any questions or feedback please contact us.
+API Key: d533b82a244ad44caa7d7399391908d9
+Created: 2025-05-01
+Expires: Never
+
+API Type: Pull (Free Public Service)
+API Status: Available
+
+Pull Throttle: Yes (30,000 monthly query limit)
+
+May Requests: 0
+Lifetime Requests: 0
+Push & Pull API Subscription Services
+
+Subscription Inquiry
+Subscription Price List
+API Documentation and Reference
+
+LegiScan API 60-second Crash Course
+LegiScan API Manual
+LegiScan API Static Lookups
+LegiScan API Weekly Datasets
+LegiScan API Client Documentation
+LegiScan API Client (legiscan-1.4.1.tar.gz)
+LegiScan API by LegiScan LLC is licensed under CC BY 4.0
+
+Sample Pull API Calls (Note document blobs and datasets are Base64 encoded for JSON transport):
+
+getDatasetList	https://api.legiscan.com/?key=d533b82a244ad44caa7d7399391908d9&op=getDatasetList&state=TX
+getDataset	https://api.legiscan.com/?key=d533b82a244ad44caa7d7399391908d9&op=getDataset&access_key=3rrzG8Gl1PmMDFZa2Plfer&id=2160
+getDatasetRaw	https://api.legiscan.com/?key=d533b82a244ad44caa7d7399391908d9&op=getDatasetRaw&access_key=3rrzG8Gl1PmMDFZa2Plfer&id=2160&format=csv
+getSessionList	https://api.legiscan.com/?key=d533b82a244ad44caa7d7399391908d9&op=getSessionList&state=TX
+getSessionPeople	https://api.legiscan.com/?key=d533b82a244ad44caa7d7399391908d9&op=getSessionPeople&id=2160
+getMonitorListRaw	https://api.legiscan.com/?key=d533b82a244ad44caa7d7399391908d9&op=getMonitorListRaw&record=current
+getMonitorList	https://api.legiscan.com/?key=d533b82a244ad44caa7d7399391908d9&op=getMonitorList&record=all
+getMasterListRaw	https://api.legiscan.com/?key=d533b82a244ad44caa7d7399391908d9&op=getMasterListRaw&id=2160
+getMasterList	https://api.legiscan.com/?key=d533b82a244ad44caa7d7399391908d9&op=getMasterList&id=2160
+getBill	https://api.legiscan.com/?key=d533b82a244ad44caa7d7399391908d9&op=getBill&id=2027857
+getBillText	https://api.legiscan.com/?key=d533b82a244ad44caa7d7399391908d9&op=getBillText&id=3226965
+getAmendment	https://api.legiscan.com/?key=d533b82a244ad44caa7d7399391908d9&op=getAmendment&id=254045
+getSupplement	https://api.legiscan.com/?key=d533b82a244ad44caa7d7399391908d9&op=getSupplement&id=589430
+getRollCall	https://api.legiscan.com/?key=d533b82a244ad44caa7d7399391908d9&op=getRollCall&id=1563631
+getPerson	https://api.legiscan.com/?key=d533b82a244ad44caa7d7399391908d9&op=getPerson&id=26345
+getSearch	https://api.legiscan.com/?key=d533b82a244ad44caa7d7399391908d9&op=getSearch&state=TX&query=tax
+getSearchRaw	https://api.legiscan.com/?key=d533b82a244ad44caa7d7399391908d9&op=getSearchRaw&state=TX&query=tax
+LegiScan API Services
+The LegiScan API comes in two interface flavors: pull and push across three service levels: Public, Pull, Push; all service levels have access to the same national legislative database.
+
+Public API
+Free public service of the pull interface, meaning you are responsible for spending queries on API operations to obtain and update bill data; limited to 30,000 queries per month.
+Pull API
+Introductory subscription service in the same pull interface as the Public service with 100,000-250,000 queries per month.
+Push API
+The enterprise interface used to drive third party applications that fully replicates the national database with updates every 4 hours as standard or optionally every 15 minutes.
+LegiScan API Client
+This application is provided as a means to quickly get started working with API data with a provided database schema (ERD).
+
+The bulk import utility is a great place to start to immediately onboard data. For experimenting with API try the command line interface or the web interface.
+
+And for a deeper dive into the API internals look into LegiScan_Pull and LegiScan_Process.
+
+Bulk Import
+Using the getDataset API hooks automatically, a manually downloaded copy of a weekly Public Datasets, or a custom subscriber bulk-load snapshot, this script will extract the contents of the archive and import/update data as needed.
+
+Pull Update Daemon
+This provides a background daemon process that will keep a local database synchronized with the LegiScan Pull API using one of four different methods:
+
+Monitored
+Synchronize a specific user defined list of individual bills.
+State
+Synchronize the entire master list of bills from one or more states.
+Search (National)
+Pulls the results of full-text searches ran against the national database with relevance cutoffs.
+State Search
+Combines both of the other methods such that the searches are ran against the states list instead of national.
+Push Endpoint
+Serves as the endpoint listener for LegiScan Push API subscription services which will receive payloads from the LegiScan Push server and process them into the provided SQL database.
+
+Middleware Signaling
+Supports signaling a third party application when bill and related data changes so that additional processing can be done. The use case for this would be when the LegiScan API database is used as staging for another custom production system already in place.

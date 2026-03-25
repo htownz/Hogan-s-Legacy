@@ -1,0 +1,86 @@
+Here’s a JSON schema structure for the Consultant & Influencer Character Cards you want to include in Act Up’s Ethics Transparency Engine. This will support scraping, enrichment, ranking, and dynamic profile generation.
+
+⸻
+
+Character Card JSON Schema
+
+{
+  "id": "uuid",
+  "name": "string",
+  "type": "consultant | influencer | strategist | corporate",
+  "photo_url": "string",
+  "known_aliases": ["string"],
+  "associated_firms": [
+    {
+      "name": "string",
+      "role": "founder | partner | employee | consultant",
+      "years_active": "string"
+    }
+  ],
+  "known_clients_or_affiliations": [
+    {
+      "entity_name": "string",
+      "type": "PAC | Corporation | Campaign | Lobby Firm",
+      "timeframe": "string",
+      "notes": "string"
+    }
+  ],
+  "donations": {
+    "total_amount": "number",
+    "top_recipients": [
+      {
+        "legislator_name": "string",
+        "amount": "number",
+        "date": "string",
+        "district": "string"
+      }
+    ]
+  },
+  "influence_map": {
+    "key_issues": ["education", "real estate", "gaming"],
+    "committee_targets": ["House Appropriations", "Senate State Affairs"],
+    "linked_legislation": [
+      {
+        "bill_id": "string",
+        "bill_title": "string",
+        "action": "support | oppose | neutral",
+        "year": "number"
+      }
+    ]
+  },
+  "public_statements_or_quotes": [
+    {
+      "source": "string",
+      "quote": "string",
+      "date": "string"
+    }
+  ],
+  "media_mentions": [
+    {
+      "source": "string",
+      "headline": "string",
+      "date": "string",
+      "url": "string"
+    }
+  ],
+  "last_updated": "timestamp"
+}
+
+
+
+⸻
+
+Powerful Use Cases This Schema Enables
+	•	Sort/Rank cards by total influence, top targets, or issue alignment
+	•	Link to live bills, PACs, campaign finance, and legislator profiles
+	•	Display heatmaps or power trails across districts or votes
+	•	Flag dark money, closed networks, or coordinated timing
+
+⸻
+
+Want me to now:
+	•	Create sample JSON entries for Alan Blackmore and Tillman Fertitta?
+	•	Build the UI card layout wireframe?
+	•	Define the crawler targets and tags needed for scraping these connections?
+
+Let’s expose the influence game.

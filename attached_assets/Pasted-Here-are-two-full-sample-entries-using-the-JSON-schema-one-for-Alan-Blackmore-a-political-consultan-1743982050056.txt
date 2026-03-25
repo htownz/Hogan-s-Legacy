@@ -1,0 +1,169 @@
+Here are two full sample entries using the JSON schema—one for Alan Blackmore (a political consultant) and one for Tillman Fertitta (a billionaire business influencer).
+
+⸻
+
+Sample: Alan Blackmore (Consultant)
+
+{
+  "id": "82e6f3c1-112a-4d80-a4e2-cb0eab88acdf",
+  "name": "Alan Blackmore",
+  "type": "consultant",
+  "photo_url": "https://example.com/blackmore.jpg",
+  "known_aliases": ["A. Blackmore", "Alan B"],
+  "associated_firms": [
+    {
+      "name": "Blackmore Strategies",
+      "role": "founder",
+      "years_active": "2008–present"
+    }
+  ],
+  "known_clients_or_affiliations": [
+    {
+      "entity_name": "Texans for Business Growth PAC",
+      "type": "PAC",
+      "timeframe": "2015–2024",
+      "notes": "Handled campaign strategy, ad placement, and opposition research."
+    },
+    {
+      "entity_name": "Rep. Laura Martinez (HD-115)",
+      "type": "Campaign",
+      "timeframe": "2020–2022",
+      "notes": "Senior consultant during re-election campaign."
+    }
+  ],
+  "donations": {
+    "total_amount": 124000,
+    "top_recipients": [
+      {
+        "legislator_name": "Laura Martinez",
+        "amount": 25000,
+        "date": "2022-10-14",
+        "district": "HD-115"
+      },
+      {
+        "legislator_name": "Mark Ellison",
+        "amount": 12000,
+        "date": "2023-03-21",
+        "district": "HD-47"
+      }
+    ]
+  },
+  "influence_map": {
+    "key_issues": ["economic development", "campaign finance reform"],
+    "committee_targets": ["House Elections", "Senate Business & Commerce"],
+    "linked_legislation": [
+      {
+        "bill_id": "HB2134",
+        "bill_title": "Disclosure of Political Consulting Relationships",
+        "action": "oppose",
+        "year": 2023
+      }
+    ]
+  },
+  "public_statements_or_quotes": [
+    {
+      "source": "Capitol Insider Interview",
+      "quote": "Transparency should never get in the way of strategy.",
+      "date": "2021-07-09"
+    }
+  ],
+  "media_mentions": [
+    {
+      "source": "Texas Tribune",
+      "headline": "Alan Blackmore's Shadow Network",
+      "date": "2022-04-11",
+      "url": "https://www.texastribune.org/articles/blackmore-shadow"
+    }
+  ],
+  "last_updated": "2025-04-06T13:00:00Z"
+}
+
+
+
+⸻
+
+Sample: Tillman Fertitta (Influencer)
+
+{
+  "id": "f2e1497b-553c-44d2-bbd0-349ef23d6b94",
+  "name": "Tillman Fertitta",
+  "type": "influencer",
+  "photo_url": "https://example.com/fertitta.jpg",
+  "known_aliases": ["King of Hospitality"],
+  "associated_firms": [
+    {
+      "name": "Landry's Inc.",
+      "role": "CEO",
+      "years_active": "1986–present"
+    },
+    {
+      "name": "Fertitta Entertainment",
+      "role": "Chairman",
+      "years_active": "2005–present"
+    }
+  ],
+  "known_clients_or_affiliations": [
+    {
+      "entity_name": "Fertitta PAC",
+      "type": "PAC",
+      "timeframe": "2018–2025",
+      "notes": "Main political vehicle for strategic donations."
+    }
+  ],
+  "donations": {
+    "total_amount": 875000,
+    "top_recipients": [
+      {
+        "legislator_name": "Sen. Charles Young",
+        "amount": 100000,
+        "date": "2024-05-02",
+        "district": "SD-7"
+      },
+      {
+        "legislator_name": "Gov. Taylor Quinn",
+        "amount": 150000,
+        "date": "2023-11-17",
+        "district": "TX"
+      }
+    ]
+  },
+  "influence_map": {
+    "key_issues": ["casino legalization", "real estate incentives", "hospitality industry tax breaks"],
+    "committee_targets": ["Senate State Affairs", "House Ways & Means"],
+    "linked_legislation": [
+      {
+        "bill_id": "SB1220",
+        "bill_title": "Casino Legalization Act",
+        "action": "support",
+        "year": 2023
+      }
+    ]
+  },
+  "public_statements_or_quotes": [
+    {
+      "source": "Forbes",
+      "quote": "Every law impacts business. If you’re not influencing, you’re being influenced.",
+      "date": "2023-10-03"
+    }
+  ],
+  "media_mentions": [
+    {
+      "source": "Houston Chronicle",
+      "headline": "Fertitta's Political Machine: How Money Talks in Austin",
+      "date": "2023-12-15",
+      "url": "https://www.houstonchronicle.com/news/fertitta-pac"
+    }
+  ],
+  "last_updated": "2025-04-06T13:05:00Z"
+}
+
+
+
+⸻
+
+Would you like me to now:
+	•	Mock up a character card UI design (mobile-first)?
+	•	Build the API schema and route handlers to serve these cards live?
+	•	Start a dataset plan and scraping target list for real consultant & donor profiles?
+
+Let’s map power like never before.

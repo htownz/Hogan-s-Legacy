@@ -1,0 +1,1100 @@
+import { Button } from "@/components/ui/button";
+import { Link } from "wouter";
+import { useUser } from "@/hooks/use-user";
+import { 
+  ArrowRight, 
+  Users, 
+  BarChart3, 
+  CheckCircle2, 
+  BookOpen, 
+  Shield, 
+  LucideIcon, 
+  LineChart, 
+  Network, 
+  Share2, 
+  TrendingUp, 
+  Calendar, 
+  Activity, 
+  Play,
+  AlertTriangle,
+  Eye,
+  MessageSquare,
+  ExternalLink,
+  ChevronRight,
+  Clock
+} from "lucide-react";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+export default function Home() {
+  const { user } = useUser();
+  
+  // Helper function to format date
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit'
+    }).format(date);
+  };
+
+  // Mock data for live activity feed
+  const recentActivity = [
+    { 
+      id: 1, 
+      type: 'bill-track', 
+      user: 'Sarah Johnson', 
+      action: 'is now tracking', 
+      target: 'TX-HB100', 
+      time: '2023-05-15T14:30:00Z',
+      icon: BookOpen
+    },
+    { 
+      id: 2, 
+      type: 'action-circle', 
+      user: 'Miguel Reyes', 
+      action: 'created a new Action Circle', 
+      target: 'Education Reform Advocates', 
+      time: '2023-05-15T13:45:00Z',
+      icon: Users
+    },
+    { 
+      id: 3, 
+      type: 'comment', 
+      user: 'Jasmine Clark', 
+      action: 'commented on', 
+      target: 'TX-SB10', 
+      time: '2023-05-15T12:20:00Z',
+      icon: MessageSquare
+    },
+    { 
+      id: 4, 
+      type: 'war-room', 
+      user: 'Robert Chen', 
+      action: 'launched War Room campaign', 
+      target: 'Climate Action Now', 
+      time: '2023-05-15T11:05:00Z',
+      icon: Shield
+    }
+  ];
+  
+  // Mock data for upcoming critical legislation
+  const upcomingBills = [
+    { 
+      id: 'TX-HB123', 
+      title: 'Tax Reform and Relief Act', 
+      voteDate: '2023-05-20', 
+      status: 'scheduled',
+      impact: 'high' 
+    },
+    { 
+      id: 'TX-SB45', 
+      title: 'Education Funding Initiative', 
+      voteDate: '2023-05-25', 
+      status: 'committee',
+      impact: 'critical' 
+    },
+    { 
+      id: 'TX-HB78', 
+      title: 'Healthcare Accessibility Plan', 
+      voteDate: '2023-06-02', 
+      status: 'scheduled',
+      impact: 'medium' 
+    }
+  ];
+  
+  // Feature icons with their types
+  type FeatureIconProps = {
+    icon: LucideIcon;
+    bgColor: string;
+    iconColor: string;
+  };
+
+  const FeatureIcon = ({ icon: Icon, bgColor, iconColor }: FeatureIconProps) => (
+    <div className={`rounded-full ${bgColor} w-12 h-12 flex items-center justify-center mb-4`}>
+      <Icon className={`h-6 w-6 ${iconColor}`} />
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      {/* Header */}
+      <header className="bg-white py-4 shadow-sm sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+          <div className="flex items-center">
+            <svg className="h-8 w-8 text-primary" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2L1 21h22L12 2zm0 4.2L19.6 19H4.4L12 6.2zm1 9.8h-2v2h2v-2zm0-6h-2v4h2v-4z"/>
+            </svg>
+            <span className="ml-2 text-2xl font-bold text-primary">Act Up</span>
+          </div>
+          <div className="flex items-center space-x-4">
+            {user ? (
+              <Link href="/dashboard">
+                <Button>Go to Dashboard</Button>
+              </Link>
+            ) : (
+              <>
+                <Link href="/login">
+                  <Button variant="ghost">Log in</Button>
+                </Link>
+                <Link href="/register">
+                  <Button>Sign up</Button>
+                </Link>
+              </>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* Hero Section with Visual Elements */}
+      <section className="bg-gradient-to-br from-indigo-700 via-primary to-indigo-800 text-white py-20 relative overflow-hidden">
+        {/* Background pattern overlay */}
+        <div className="absolute inset-0 opacity-20">
+          <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <defs>
+              <pattern id="grid" width="8" height="8" patternUnits="userSpaceOnUse">
+                <path d="M 8 0 L 0 0 0 8" fill="none" stroke="white" strokeWidth="0.5" />
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#grid)" />
+          </svg>
+        </div>
+        
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="md:flex md:items-center md:justify-between">
+            <div className="md:w-1/2 mb-10 md:mb-0">
+              <Badge className="mb-4 bg-white/20 hover:bg-white/30 text-white border-none">
+                100% Free & Open Source
+              </Badge>
+              <h1 className="text-4xl sm:text-6xl font-extrabold mb-6 leading-tight">
+                Transform <span className="bg-clip-text text-transparent bg-gradient-to-r from-white to-blue-200">Civic Engagement</span> Through Social Impact
+              </h1>
+              <p className="text-xl mb-8 text-blue-100 max-w-lg">
+                Join a movement of Super Users creating a new standard of transparency and accountability in government
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Link href={user ? "/dashboard" : "/register"}>
+                  <Button size="lg" className="w-full sm:w-auto bg-white text-primary hover:bg-blue-50">
+                    {user ? "Go to Dashboard" : "Join the Movement"}
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </Button>
+                </Link>
+                <Button size="lg" variant="outline" className="w-full sm:w-auto border-white text-white hover:bg-white/10">
+                  Watch Demo
+                  <Play className="ml-2 h-4 w-4" />
+                </Button>
+              </div>
+              
+              {/* Key metrics */}
+              <div className="grid grid-cols-3 gap-4 mt-10 text-center">
+                <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3">
+                  <div className="text-2xl font-bold">25%</div>
+                  <div className="text-xs text-blue-100">Tipping Point</div>
+                </div>
+                <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3">
+                  <div className="text-2xl font-bold">17,328</div>
+                  <div className="text-xs text-blue-100">Active Members</div>
+                </div>
+                <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3">
+                  <div className="text-2xl font-bold">8.2%</div>
+                  <div className="text-xs text-blue-100">Progress</div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Hero visual */}
+            <div className="md:w-1/2 flex justify-center">
+              <div className="relative w-full max-w-md">
+                {/* Abstract visual - a simplified texas map with network nodes */}
+                <svg className="w-full h-auto" viewBox="0 0 400 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M200,50 L100,100 L50,200 L100,300 L200,350 L300,300 L350,200 L300,100 Z" 
+                    fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.3)" strokeWidth="2" />
+                  
+                  {/* Network nodes */}
+                  <circle cx="200" cy="50" r="8" fill="white" />
+                  <circle cx="100" cy="100" r="6" fill="white" />
+                  <circle cx="50" cy="200" r="5" fill="white" />
+                  <circle cx="100" cy="300" r="7" fill="white" />
+                  <circle cx="200" cy="350" r="6" fill="white" />
+                  <circle cx="300" cy="300" r="8" fill="white" />
+                  <circle cx="350" cy="200" r="5" fill="white" />
+                  <circle cx="300" cy="100" r="7" fill="white" />
+                  <circle cx="200" cy="200" r="12" fill="white" />
+                  
+                  {/* Connection lines */}
+                  <line x1="200" y1="50" x2="100" y2="100" stroke="rgba(255,255,255,0.5)" strokeWidth="1" />
+                  <line x1="100" y1="100" x2="50" y2="200" stroke="rgba(255,255,255,0.5)" strokeWidth="1" />
+                  <line x1="50" y1="200" x2="100" y2="300" stroke="rgba(255,255,255,0.5)" strokeWidth="1" />
+                  <line x1="100" y1="300" x2="200" y2="350" stroke="rgba(255,255,255,0.5)" strokeWidth="1" />
+                  <line x1="200" y1="350" x2="300" y2="300" stroke="rgba(255,255,255,0.5)" strokeWidth="1" />
+                  <line x1="300" y1="300" x2="350" y2="200" stroke="rgba(255,255,255,0.5)" strokeWidth="1" />
+                  <line x1="350" y1="200" x2="300" y2="100" stroke="rgba(255,255,255,0.5)" strokeWidth="1" />
+                  <line x1="300" y1="100" x2="200" y2="50" stroke="rgba(255,255,255,0.5)" strokeWidth="1" />
+                  
+                  {/* Center connections */}
+                  <line x1="200" y1="200" x2="200" y2="50" stroke="rgba(255,255,255,0.5)" strokeWidth="1" />
+                  <line x1="200" y1="200" x2="100" y2="100" stroke="rgba(255,255,255,0.5)" strokeWidth="1" />
+                  <line x1="200" y1="200" x2="50" y2="200" stroke="rgba(255,255,255,0.5)" strokeWidth="1" />
+                  <line x1="200" y1="200" x2="100" y2="300" stroke="rgba(255,255,255,0.5)" strokeWidth="1" />
+                  <line x1="200" y1="200" x2="200" y2="350" stroke="rgba(255,255,255,0.5)" strokeWidth="1" />
+                  <line x1="200" y1="200" x2="300" y2="300" stroke="rgba(255,255,255,0.5)" strokeWidth="1" />
+                  <line x1="200" y1="200" x2="350" y2="200" stroke="rgba(255,255,255,0.5)" strokeWidth="1" />
+                  <line x1="200" y1="200" x2="300" y2="100" stroke="rgba(255,255,255,0.5)" strokeWidth="1" />
+                  
+                  {/* Animated pulse */}
+                  <circle cx="200" cy="200" r="30" fill="none" stroke="white" strokeWidth="2" opacity="0.6">
+                    <animate attributeName="r" from="10" to="50" dur="2s" repeatCount="indefinite" />
+                    <animate attributeName="opacity" from="0.6" to="0" dur="2s" repeatCount="indefinite" />
+                  </circle>
+                </svg>
+                
+                {/* Floating badges */}
+                <div className="absolute top-10 right-10 bg-white text-primary px-3 py-1 rounded-full text-sm font-medium animate-bounce">
+                  New Bills Added
+                </div>
+                <div className="absolute bottom-20 left-10 bg-white text-primary px-3 py-1 rounded-full text-sm font-medium animate-pulse">
+                  Live Updates
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Live Activity + Critical Bills Section */}
+      <section className="py-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid md:grid-cols-2 gap-8">
+            {/* Live Activity Feed */}
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Live Activity</CardTitle>
+                    <CardDescription>Real-time updates from the movement</CardDescription>
+                  </div>
+                  <Badge variant="outline" className="flex items-center gap-1">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                    </span>
+                    Live
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {recentActivity.map((activity) => {
+                    const Icon = activity.icon;
+                    return (
+                      <div key={activity.id} className="flex items-start gap-3">
+                        <div className="rounded-full p-2 bg-primary/10 text-primary shrink-0">
+                          <Icon className="h-4 w-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-neutral-900 truncate">
+                            <span className="font-semibold">{activity.user}</span> {activity.action}{' '}
+                            <span className="font-semibold">{activity.target}</span>
+                          </p>
+                          <p className="text-xs text-neutral-500">{formatDate(activity.time)}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+              <CardFooter className="border-t pt-4 flex justify-center">
+                <Button variant="ghost" className="text-primary text-sm w-full">
+                  View All Activity
+                  <ChevronRight className="ml-2 h-4 w-4" />
+                </Button>
+              </CardFooter>
+            </Card>
+            
+            {/* Critical Bills */}
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Upcoming Critical Legislation</CardTitle>
+                    <CardDescription>Bills that need your attention soon</CardDescription>
+                  </div>
+                  <Badge variant="destructive" className="flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3" />
+                    Urgent
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {upcomingBills.map((bill) => (
+                    <div key={bill.id} className="border rounded-lg p-3 hover:bg-gray-50 transition-colors">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <Badge variant={bill.impact === 'critical' ? 'destructive' : bill.impact === 'high' ? 'default' : 'secondary'}>
+                              {bill.impact}
+                            </Badge>
+                            <span className="font-medium text-sm">{bill.id}</span>
+                          </div>
+                          <h4 className="font-medium">{bill.title}</h4>
+                        </div>
+                        <div className="flex flex-col items-end">
+                          <div className="flex items-center text-xs text-neutral-500">
+                            <Clock className="h-3 w-3 mr-1" />
+                            {new Date(bill.voteDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          </div>
+                          <Badge variant="outline" className="mt-1 text-xs">
+                            {bill.status === 'scheduled' ? 'Vote Scheduled' : 'In Committee'}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="flex justify-between mt-3">
+                        <Button variant="outline" size="sm" className="text-xs">
+                          <Eye className="h-3 w-3 mr-1" />
+                          View Details
+                        </Button>
+                        <Button size="sm" className="text-xs">
+                          Track Bill
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+              <CardFooter className="border-t pt-4 flex justify-center">
+                <Button variant="ghost" className="text-primary text-sm w-full">
+                  View All Legislation
+                  <ChevronRight className="ml-2 h-4 w-4" />
+                </Button>
+              </CardFooter>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* Key Features Section */}
+      <section className="py-16 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <Badge className="mb-4">Platform Features</Badge>
+            <h2 className="text-3xl font-bold text-neutral-900 mb-4">Tools For Civic Transformation</h2>
+            <p className="text-lg text-neutral-600 max-w-3xl mx-auto">
+              Act Up provides everything you need to track, analyze, and influence legislation
+              while building a network of engaged citizens.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            {/* Feature 1 */}
+            <Card className="border-none shadow-lg hover:shadow-xl transition-shadow">
+              <CardHeader>
+                <FeatureIcon 
+                  icon={BookOpen} 
+                  bgColor="bg-blue-100" 
+                  iconColor="text-blue-600" 
+                />
+                <CardTitle>Legislative Tracking</CardTitle>
+                <CardDescription>
+                  Follow bills through every stage with real-time updates and impact analysis
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2">
+                  <li className="flex items-start">
+                    <CheckCircle2 className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm">Real-time bill status changes</span>
+                  </li>
+                  <li className="flex items-start">
+                    <CheckCircle2 className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm">AI-powered impact summaries</span>
+                  </li>
+                  <li className="flex items-start">
+                    <CheckCircle2 className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm">Customizable alerts and notifications</span>
+                  </li>
+                </ul>
+              </CardContent>
+              <CardFooter>
+                <Button variant="outline" className="w-full">
+                  Explore Legislation
+                </Button>
+              </CardFooter>
+            </Card>
+
+            {/* Feature 2 */}
+            <Card className="border-none shadow-lg hover:shadow-xl transition-shadow">
+              <CardHeader>
+                <FeatureIcon 
+                  icon={Users} 
+                  bgColor="bg-purple-100" 
+                  iconColor="text-purple-600" 
+                />
+                <CardTitle>Action Circles</CardTitle>
+                <CardDescription>
+                  Create and join focused groups working toward specific civic goals
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2">
+                  <li className="flex items-start">
+                    <CheckCircle2 className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm">Coordinate with like-minded citizens</span>
+                  </li>
+                  <li className="flex items-start">
+                    <CheckCircle2 className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm">Distribute tasks and track progress</span>
+                  </li>
+                  <li className="flex items-start">
+                    <CheckCircle2 className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm">Share resources and success stories</span>
+                  </li>
+                </ul>
+              </CardContent>
+              <CardFooter>
+                <Button variant="outline" className="w-full">
+                  Join Action Circles
+                </Button>
+              </CardFooter>
+            </Card>
+
+            {/* Feature 3 */}
+            <Card className="border-none shadow-lg hover:shadow-xl transition-shadow">
+              <CardHeader>
+                <FeatureIcon 
+                  icon={Shield} 
+                  bgColor="bg-red-100" 
+                  iconColor="text-red-600" 
+                />
+                <CardTitle>War Room Campaigns</CardTitle>
+                <CardDescription>
+                  Mobilize rapid-response teams for high-priority legislative efforts
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2">
+                  <li className="flex items-start">
+                    <CheckCircle2 className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm">Organize focused campaign efforts</span>
+                  </li>
+                  <li className="flex items-start">
+                    <CheckCircle2 className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm">Real-time chat and collaboration</span>
+                  </li>
+                  <li className="flex items-start">
+                    <CheckCircle2 className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm">Resource sharing and campaign analytics</span>
+                  </li>
+                </ul>
+              </CardContent>
+              <CardFooter>
+                <Button variant="outline" className="w-full">
+                  Deploy War Rooms
+                </Button>
+              </CardFooter>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* How It Works Section */}
+      <section className="py-16 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <Badge className="mb-4">How It Works</Badge>
+            <h2 className="text-3xl font-bold text-neutral-900 mb-4">Creating Civic Super Spreaders</h2>
+            <p className="text-lg text-neutral-600 max-w-3xl mx-auto">
+              Act Up's unique approach turns engaged citizens into "super spreaders" of civic information
+              and action, creating a viral spread of transparency and accountability.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-4 gap-16 items-center">
+            {/* Step 1 */}
+            <div className="text-center relative">
+              <div className="w-16 h-16 bg-primary text-white rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-4">1</div>
+              <h3 className="text-xl font-bold mb-2">Join & Learn</h3>
+              <p className="text-neutral-600">Create your profile and learn about key legislation</p>
+              
+              {/* Connector line */}
+              <div className="hidden md:block absolute top-8 left-full w-full h-0.5 bg-primary"></div>
+            </div>
+
+            {/* Step 2 */}
+            <div className="text-center relative">
+              <div className="w-16 h-16 bg-primary text-white rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-4">2</div>
+              <h3 className="text-xl font-bold mb-2">Take Action</h3>
+              <p className="text-neutral-600">Join action circles and participate in campaigns</p>
+              
+              {/* Connector line */}
+              <div className="hidden md:block absolute top-8 left-full w-full h-0.5 bg-primary"></div>
+            </div>
+
+            {/* Step 3 */}
+            <div className="text-center relative">
+              <div className="w-16 h-16 bg-primary text-white rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-4">3</div>
+              <h3 className="text-xl font-bold mb-2">Invite Others</h3>
+              <p className="text-neutral-600">Grow your network by bringing in friends and family</p>
+              
+              {/* Connector line */}
+              <div className="hidden md:block absolute top-8 left-full w-full h-0.5 bg-primary"></div>
+            </div>
+
+            {/* Step 4 */}
+            <div className="text-center">
+              <div className="w-16 h-16 bg-primary text-white rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-4">4</div>
+              <h3 className="text-xl font-bold mb-2">Create Change</h3>
+              <p className="text-neutral-600">Watch your influence grow and drive real civic impact</p>
+            </div>
+          </div>
+          
+          {/* CTA Button */}
+          <div className="text-center mt-16">
+            <Link href={user ? "/dashboard" : "/register"}>
+              <Button size="lg" className="bg-primary hover:bg-primary/90">
+                {user ? "Go to Your Dashboard" : "Start Your Journey"} 
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}      {/* Super User Roles Tabs */}
+      <section className="py-16 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <Badge className="mb-4">Find Your Path</Badge>
+            <h2 className="text-3xl font-bold text-neutral-900 mb-4">Discover Your Super User Role</h2>
+            <p className="text-lg text-neutral-600 max-w-3xl mx-auto">
+              Every great movement needs different types of change-makers. 
+              Find your unique contribution to civic transformation.
+            </p>
+          </div>
+
+          <Tabs defaultValue="catalyst" className="max-w-4xl mx-auto">
+            <TabsList className="grid w-full grid-cols-3 mb-8">
+              <TabsTrigger value="catalyst" className="text-sm sm:text-base">Catalyst</TabsTrigger>
+              <TabsTrigger value="amplifier" className="text-sm sm:text-base">Amplifier</TabsTrigger>
+              <TabsTrigger value="convincer" className="text-sm sm:text-base">Convincer</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="catalyst">
+              <div className="grid md:grid-cols-2 gap-8 items-center">
+                <div>
+                  <div className="rounded-full bg-blue-100 w-12 h-12 flex items-center justify-center mb-4">
+                    <BarChart3 className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-neutral-900 mb-4">Information Specialists</h3>
+                  <p className="text-neutral-700 mb-6">
+                    Knowledge-driven information specialists who research, verify, and share critical insights 
+                    that fuel informed action. Catalysts power the movement with facts and analysis.
+                  </p>
+                  <ul className="space-y-3 mb-6">
+                    <li className="flex items-start bg-blue-50 p-3 rounded-lg">
+                      <CheckCircle2 className="h-5 w-5 text-blue-500 mr-3 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-medium">Research and verify information</span>
+                        <p className="text-sm text-neutral-600 mt-1">Ensure all shared information is accurate and trustworthy</p>
+                      </div>
+                    </li>
+                    <li className="flex items-start bg-blue-50 p-3 rounded-lg">
+                      <CheckCircle2 className="h-5 w-5 text-blue-500 mr-3 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-medium">Translate complex policies</span>
+                        <p className="text-sm text-neutral-600 mt-1">Make legislative language accessible to everyone</p>
+                      </div>
+                    </li>
+                    <li className="flex items-start bg-blue-50 p-3 rounded-lg">
+                      <CheckCircle2 className="h-5 w-5 text-blue-500 mr-3 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-medium">Build knowledge resources</span>
+                        <p className="text-sm text-neutral-600 mt-1">Create guides and references for community education</p>
+                      </div>
+                    </li>
+                  </ul>
+                  <Button className="bg-blue-600 hover:bg-blue-700">Become a Catalyst</Button>
+                </div>
+                <div className="bg-blue-50 rounded-2xl p-8 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-blue-100 rounded-full -mr-16 -mt-16"></div>
+                  <div className="relative z-10">
+                    <h4 className="text-xl font-bold mb-4">Catalyst Impact</h4>
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span>Information Quality</span>
+                          <span className="font-medium">97%</span>
+                        </div>
+                        <Progress value={97} className="h-2 bg-blue-200" />
+                      </div>
+                      <div>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span>Knowledge Sharing</span>
+                          <span className="font-medium">84%</span>
+                        </div>
+                        <Progress value={84} className="h-2 bg-blue-200" />
+                      </div>
+                      <div>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span>Issue Analysis</span>
+                          <span className="font-medium">92%</span>
+                        </div>
+                        <Progress value={92} className="h-2 bg-blue-200" />
+                      </div>
+                    </div>
+                    
+                    <div className="mt-6 pt-6 border-t border-blue-200">
+                      <div className="font-medium mb-2">Primary Tools:</div>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="outline" className="bg-white">Bill Tracking</Badge>
+                        <Badge variant="outline" className="bg-white">Impact Analysis</Badge>
+                        <Badge variant="outline" className="bg-white">Resource Library</Badge>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="amplifier">
+              <div className="grid md:grid-cols-2 gap-8 items-center">
+                <div>
+                  <div className="rounded-full bg-purple-100 w-12 h-12 flex items-center justify-center mb-4">
+                    <Network className="h-6 w-6 text-purple-600" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-neutral-900 mb-4">Network Connectors</h3>
+                  <p className="text-neutral-700 mb-6">
+                    Network-building connectors who spread information and mobilize communities to 
+                    create waves of coordinated civic action. Amplifiers grow the movement exponentially.
+                  </p>
+                  <ul className="space-y-3 mb-6">
+                    <li className="flex items-start bg-purple-50 p-3 rounded-lg">
+                      <CheckCircle2 className="h-5 w-5 text-purple-500 mr-3 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-medium">Expand action networks</span>
+                        <p className="text-sm text-neutral-600 mt-1">Bring new members into the civic ecosystem</p>
+                      </div>
+                    </li>
+                    <li className="flex items-start bg-purple-50 p-3 rounded-lg">
+                      <CheckCircle2 className="h-5 w-5 text-purple-500 mr-3 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-medium">Coordinate community advocacy</span>
+                        <p className="text-sm text-neutral-600 mt-1">Organize groups for maximum collective impact</p>
+                      </div>
+                    </li>
+                    <li className="flex items-start bg-purple-50 p-3 rounded-lg">
+                      <CheckCircle2 className="h-5 w-5 text-purple-500 mr-3 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-medium">Lead Action Circles</span>
+                        <p className="text-sm text-neutral-600 mt-1">Create focused groups working toward specific goals</p>
+                      </div>
+                    </li>
+                  </ul>
+                  <Button className="bg-purple-600 hover:bg-purple-700">Become an Amplifier</Button>
+                </div>
+                <div className="bg-purple-50 rounded-2xl p-8 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-purple-100 rounded-full -mr-16 -mt-16"></div>
+                  <div className="relative z-10">
+                    <h4 className="text-xl font-bold mb-4">Amplifier Impact</h4>
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span>Network Growth</span>
+                          <span className="font-medium">89%</span>
+                        </div>
+                        <Progress value={89} className="h-2 bg-purple-200" />
+                      </div>
+                      <div>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span>Community Engagement</span>
+                          <span className="font-medium">94%</span>
+                        </div>
+                        <Progress value={94} className="h-2 bg-purple-200" />
+                      </div>
+                      <div>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span>Coordination Efficiency</span>
+                          <span className="font-medium">82%</span>
+                        </div>
+                        <Progress value={82} className="h-2 bg-purple-200" />
+                      </div>
+                    </div>
+                    
+                    <div className="mt-6 pt-6 border-t border-purple-200">
+                      <div className="font-medium mb-2">Primary Tools:</div>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="outline" className="bg-white">Action Circles</Badge>
+                        <Badge variant="outline" className="bg-white">Network Dashboard</Badge>
+                        <Badge variant="outline" className="bg-white">Community Forum</Badge>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="convincer">
+              <div className="grid md:grid-cols-2 gap-8 items-center">
+                <div>
+                  <div className="rounded-full bg-red-100 w-12 h-12 flex items-center justify-center mb-4">
+                    <Share2 className="h-6 w-6 text-red-600" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-neutral-900 mb-4">Persuasive Storytellers</h3>
+                  <p className="text-neutral-700 mb-6">
+                    Persuasive storytellers who transform data into compelling narratives
+                    that inspire action and drive civic participation. Convincers motivate people to act.
+                  </p>
+                  <ul className="space-y-3 mb-6">
+                    <li className="flex items-start bg-red-50 p-3 rounded-lg">
+                      <CheckCircle2 className="h-5 w-5 text-red-500 mr-3 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-medium">Craft compelling narratives</span>
+                        <p className="text-sm text-neutral-600 mt-1">Create stories that motivate action and participation</p>
+                      </div>
+                    </li>
+                    <li className="flex items-start bg-red-50 p-3 rounded-lg">
+                      <CheckCircle2 className="h-5 w-5 text-red-500 mr-3 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-medium">Persuade through personalization</span>
+                        <p className="text-sm text-neutral-600 mt-1">Connect legislative issues to personal experiences</p>
+                      </div>
+                    </li>
+                    <li className="flex items-start bg-red-50 p-3 rounded-lg">
+                      <CheckCircle2 className="h-5 w-5 text-red-500 mr-3 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-medium">Inspire sustained action</span>
+                        <p className="text-sm text-neutral-600 mt-1">Keep communities engaged and active over time</p>
+                      </div>
+                    </li>
+                  </ul>
+                  <Button className="bg-red-600 hover:bg-red-700">Become a Convincer</Button>
+                </div>
+                <div className="bg-red-50 rounded-2xl p-8 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-red-100 rounded-full -mr-16 -mt-16"></div>
+                  <div className="relative z-10">
+                    <h4 className="text-xl font-bold mb-4">Convincer Impact</h4>
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span>Narrative Impact</span>
+                          <span className="font-medium">93%</span>
+                        </div>
+                        <Progress value={93} className="h-2 bg-red-200" />
+                      </div>
+                      <div>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span>Engagement Conversion</span>
+                          <span className="font-medium">86%</span>
+                        </div>
+                        <Progress value={86} className="h-2 bg-red-200" />
+                      </div>
+                      <div>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span>Message Reach</span>
+                          <span className="font-medium">91%</span>
+                        </div>
+                        <Progress value={91} className="h-2 bg-red-200" />
+                      </div>
+                    </div>
+                    
+                    <div className="mt-6 pt-6 border-t border-red-200">
+                      <div className="font-medium mb-2">Primary Tools:</div>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="outline" className="bg-white">Story Builder</Badge>
+                        <Badge variant="outline" className="bg-white">Impact Visuals</Badge>
+                        <Badge variant="outline" className="bg-white">Message Testing</Badge>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </div>
+      </section>
+
+      {/* Tipping Point Section with improved visualization */}
+      <section className="py-16 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="md:flex md:items-center md:justify-between">
+            <div className="md:w-1/2 mb-8 md:mb-0 md:pr-8">
+              <Badge className="mb-4">Our Goal</Badge>
+              <h2 className="text-3xl font-bold text-neutral-900 mb-4">The 25% Tipping Point</h2>
+              <p className="text-lg text-neutral-700 mb-6">
+                Research shows that when just 25% of a population actively adopts a new social standard, 
+                it creates an unstoppable momentum toward systemic change.
+              </p>
+              <p className="text-neutral-600 mb-6">
+                At Act Up, we're building a civic virus of transparency and accountability that spreads 
+                exponentially through our Super User network, reshaping how citizens expect their 
+                government to behave.
+              </p>
+              
+              {/* Impact stats */}
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <Card className="bg-primary/5 border-none">
+                  <CardContent className="p-4">
+                    <div className="text-3xl font-bold text-primary">8.2%</div>
+                    <div className="text-sm text-neutral-600">Current Progress</div>
+                  </CardContent>
+                </Card>
+                <Card className="bg-primary/5 border-none">
+                  <CardContent className="p-4">
+                    <div className="text-3xl font-bold text-primary">17,328</div>
+                    <div className="text-sm text-neutral-600">Active Users</div>
+                  </CardContent>
+                </Card>
+                <Card className="bg-primary/5 border-none">
+                  <CardContent className="p-4">
+                    <div className="text-3xl font-bold text-primary">4.3M</div>
+                    <div className="text-sm text-neutral-600">Citizens Reached</div>
+                  </CardContent>
+                </Card>
+                <Card className="bg-primary/5 border-none">
+                  <CardContent className="p-4">
+                    <div className="text-3xl font-bold text-primary">2.4x</div>
+                    <div className="text-sm text-neutral-600">Growth Rate</div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+            
+            <div className="md:w-1/2">
+              <Card className="border-none shadow-lg overflow-hidden">
+                <CardHeader className="pb-2 border-b">
+                  <CardTitle>Movement Growth Visualization</CardTitle>
+                  <CardDescription>Tracking progress to our 25% tipping point goal</CardDescription>
+                </CardHeader>
+                <CardContent className="p-6">
+                  {/* Tipping Point Visualization */}
+                  <div className="relative h-64">
+                    {/* Background grid */}
+                    <div className="absolute inset-0">
+                      <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                            <path d="M 0 0 L 40 0 40 40 0 40 Z" fill="none" stroke="#e5e7eb" strokeWidth="1" />
+                          </pattern>
+                        </defs>
+                        <rect width="100%" height="100%" fill="url(#grid)" />
+                      </svg>
+                    </div>
+                    
+                    {/* 25% Tipping point line */}
+                    <div className="absolute top-0 left-[25%] h-full w-0.5 bg-orange-500 z-10">
+                      <div className="absolute -left-[30px] top-1/2 -translate-y-1/2 bg-orange-100 text-orange-700 px-2 py-1 rounded font-medium text-sm">
+                        25% Tipping Point
+                      </div>
+                    </div>
+                    
+                    {/* Progress curve */}
+                    <svg className="absolute inset-0" viewBox="0 0 100 100" preserveAspectRatio="none">
+                      {/* Area under curve */}
+                      <path d="M0,100 C10,95 15,90 25,80 S40,65 50,50 S70,25 90,10 L100,10 L100,100 Z" 
+                        fill="rgba(59, 130, 246, 0.1)" />
+                      
+                      {/* Curve line */}
+                      <path d="M0,100 C10,95 15,90 25,80 S40,65 50,50 S70,25 90,10" 
+                        fill="none" stroke="#3b82f6" strokeWidth="2" />
+                      
+                      {/* Current position dot */}
+                      <circle cx="8.2" cy="95" r="2" fill="#3b82f6" />
+                    </svg>
+                    
+                    {/* Current progress marker */}
+                    <div className="absolute top-[95%] left-[8.2%] transform -translate-x-1/2 -translate-y-1/2">
+                      <div className="w-4 h-4 bg-primary rounded-full animate-pulse"></div>
+                      <div className="absolute -mt-8 -ml-6 bg-white shadow px-2 py-1 rounded text-xs font-medium">
+                        We are here
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Progress bar */}
+                  <div className="mt-6">
+                    <div className="flex justify-between mb-2">
+                      <span className="text-sm font-medium text-neutral-600">Overall Progress</span>
+                      <span className="text-sm font-medium text-primary">8.2%</span>
+                    </div>
+                    <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden relative">
+                      <div className="h-full bg-primary rounded-full" style={{width: '8.2%'}}></div>
+                      <div className="absolute top-0 left-[25%] h-full w-0.5 bg-orange-500">
+                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-1 text-[10px] text-orange-600 font-medium">
+                          Goal
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+                <CardFooter className="border-t pt-4 pb-4 flex justify-center">
+                  <Link href={user ? "/dashboard" : "/register"}>
+                    <Button className="w-full">
+                      {user ? "View Your Impact" : "Join the Movement"} 
+                      <ArrowRight className="ml-2 h-5 w-5" />
+                    </Button>
+                  </Link>
+                </CardFooter>
+              </Card>
+            </div>
+          </div>
+        </div>
+      </section>      {/* CTA Section with Testimonials */}
+      <section className="py-20 bg-gradient-to-br from-primary-800 to-indigo-900 text-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="md:flex md:items-center md:justify-between">
+            <div className="md:w-1/2 mb-10 md:mb-0">
+              <Badge variant="outline" className="bg-white/10 hover:bg-white/20 border-transparent text-white mb-4">
+                Join Today
+              </Badge>
+              <h2 className="text-4xl font-bold mb-6 leading-tight">Ready to Drive Real Civic Change?</h2>
+              <p className="text-xl text-blue-100 mb-8 max-w-lg">
+                Join thousands of Super Users who are reshaping the relationship between 
+                citizens and government through transparency and accountability.
+              </p>
+              <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
+                <Link href={user ? "/dashboard" : "/register"}>
+                  <Button size="lg" className="bg-white text-primary-800 hover:bg-blue-50">
+                    {user ? "Go to Your Dashboard" : "Join Act Up Today"}
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </Button>
+                </Link>
+                <Button size="lg" variant="outline" className="border-white text-white hover:bg-white/10">
+                  Learn More About Our Mission
+                </Button>
+              </div>
+              
+              {/* Stats */}
+              <div className="grid grid-cols-3 gap-6 mt-10">
+                <div>
+                  <div className="text-3xl font-bold">100%</div>
+                  <div className="text-sm text-blue-200">Free & Open Source</div>
+                </div>
+                <div>
+                  <div className="text-3xl font-bold">780+</div>
+                  <div className="text-sm text-blue-200">Bills Tracked</div>
+                </div>
+                <div>
+                  <div className="text-3xl font-bold">24/7</div>
+                  <div className="text-sm text-blue-200">Live Updates</div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="md:w-1/2 md:pl-8">
+              {/* Testimonials */}
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 mb-6">
+                <div className="flex items-center mb-4">
+                  <div className="w-12 h-12 rounded-full bg-primary-700 flex items-center justify-center text-white font-bold text-xl mr-4">
+                    M
+                  </div>
+                  <div>
+                    <h4 className="font-bold">Michael Torres</h4>
+                    <p className="text-sm text-blue-200">Catalyst Super User</p>
+                  </div>
+                </div>
+                <p className="italic text-blue-100">
+                  "Act Up has completely transformed how I engage with my government. I went from feeling powerless 
+                  to leading an Action Circle with over 200 members. We've successfully influenced three bills!"
+                </p>
+              </div>
+              
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6">
+                <div className="flex items-center mb-4">
+                  <div className="w-12 h-12 rounded-full bg-primary-700 flex items-center justify-center text-white font-bold text-xl mr-4">
+                    J
+                  </div>
+                  <div>
+                    <h4 className="font-bold">Jasmine Washington</h4>
+                    <p className="text-sm text-blue-200">Amplifier Super User</p>
+                  </div>
+                </div>
+                <p className="italic text-blue-100">
+                  "The network effect is real. I've brought in 37 people who've brought in hundreds more. 
+                  We're approaching 8.2% of our district, and I can already see officials starting to respond differently."
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-neutral-900 text-neutral-300 py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid md:grid-cols-4 gap-8">
+            <div className="col-span-1">
+              <div className="flex items-center mb-4">
+                <svg className="h-8 w-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2L1 21h22L12 2zm0 4.2L19.6 19H4.4L12 6.2zm1 9.8h-2v2h2v-2zm0-6h-2v4h2v-4z"/>
+                </svg>
+                <span className="ml-2 text-2xl font-bold text-white">Act Up</span>
+              </div>
+              <p className="text-sm mb-4">
+                Driving civic engagement through collective action and creating a new standard of transparency and accountability.
+              </p>
+              <div className="flex space-x-4">
+                <a href="#" className="text-neutral-400 hover:text-white">
+                  <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.179 0-5.515 2.966-4.797 6.045-4.091-.205-7.719-2.165-10.148-5.144-1.29 2.213-.669 5.108 1.523 6.574-.806-.026-1.566-.247-2.229-.616-.054 2.281 1.581 4.415 3.949 4.89-.693.188-1.452.232-2.224.084.626 1.956 2.444 3.379 4.6 3.419-2.07 1.623-4.678 2.348-7.29 2.04 2.179 1.397 4.768 2.212 7.548 2.212 9.142 0 14.307-7.721 13.995-14.646.962-.695 1.797-1.562 2.457-2.549z" />
+                  </svg>
+                </a>
+                <a href="#" className="text-neutral-400 hover:text-white">
+                  <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 0C5.374 0 0 5.374 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z" />
+                  </svg>
+                </a>
+                <a href="#" className="text-neutral-400 hover:text-white">
+                  <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z" />
+                  </svg>
+                </a>
+              </div>
+            </div>
+            
+            <div>
+              <h3 className="text-white font-medium mb-3">Platform</h3>
+              <ul className="space-y-2 text-sm">
+                <li><a href="#" className="text-neutral-400 hover:text-white">Legislation Tracking</a></li>
+                <li><a href="#" className="text-neutral-400 hover:text-white">Action Circles</a></li>
+                <li><a href="#" className="text-neutral-400 hover:text-white">War Room Campaigns</a></li>
+                <li><a href="#" className="text-neutral-400 hover:text-white">Super User Program</a></li>
+                <li><a href="#" className="text-neutral-400 hover:text-white">Impact Analytics</a></li>
+              </ul>
+            </div>
+            
+            <div>
+              <h3 className="text-white font-medium mb-3">Resources</h3>
+              <ul className="space-y-2 text-sm">
+                <li><a href="#" className="text-neutral-400 hover:text-white">Super User Guide</a></li>
+                <li><a href="#" className="text-neutral-400 hover:text-white">Action Toolkit</a></li>
+                <li><a href="#" className="text-neutral-400 hover:text-white">Video Tutorials</a></li>
+                <li><a href="#" className="text-neutral-400 hover:text-white">Community Forums</a></li>
+                <li><a href="#" className="text-neutral-400 hover:text-white">API Documentation</a></li>
+              </ul>
+            </div>
+            
+            <div>
+              <h3 className="text-white font-medium mb-3">Company</h3>
+              <ul className="space-y-2 text-sm">
+                <li><a href="#" className="text-neutral-400 hover:text-white">About Act Up</a></li>
+                <li><a href="#" className="text-neutral-400 hover:text-white">Our Mission</a></li>
+                <li><a href="#" className="text-neutral-400 hover:text-white">Contact Us</a></li>
+                <li><a href="#" className="text-neutral-400 hover:text-white">Privacy Policy</a></li>
+                <li><a href="#" className="text-neutral-400 hover:text-white">Terms of Service</a></li>
+              </ul>
+            </div>
+          </div>
+          
+          <div className="mt-12 pt-8 border-t border-neutral-800 text-sm text-neutral-500 flex flex-col md:flex-row justify-between items-center">
+            <p>© 2023 Act Up. All rights reserved.</p>
+            <p className="mt-4 md:mt-0">
+              100% open-source and free for everyone, forever. No revenue model.
+            </p>
+          </div>
+        </div>
+      </footer>

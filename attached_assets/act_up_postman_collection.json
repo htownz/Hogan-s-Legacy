@@ -1,0 +1,107 @@
+{
+    "info": {
+        "name": "Act Up API Collection",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+        {
+            "name": "Legislation API",
+            "item": [
+                {
+                    "name": "Search Bills",
+                    "request": {
+                        "method": "GET",
+                        "url": "{{base_url}}/api/legislation/search?keyword=education&status=pending"
+                    }
+                },
+                {
+                    "name": "Get Bill Details",
+                    "request": {
+                        "method": "GET",
+                        "url": "{{base_url}}/api/legislation/bill/HB1001"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Advocacy API",
+            "item": [
+                {
+                    "name": "Submit Advocacy Action",
+                    "request": {
+                        "method": "POST",
+                        "url": "{{base_url}}/api/advocacy/submit",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\"bill_id\": \"HB1001\", \"user_id\": \"11111111-1111-1111-1111-111111111111\", \"channel\": \"email\", \"message\": \"Please support funding for public education.\"}"
+                        }
+                    }
+                },
+                {
+                    "name": "Track Advocacy Action",
+                    "request": {
+                        "method": "GET",
+                        "url": "{{base_url}}/api/advocacy/track/987654"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Inside Track API",
+            "item": [
+                {
+                    "name": "Submit Crowdsourced Update",
+                    "request": {
+                        "method": "POST",
+                        "url": "{{base_url}}/api/inside_track/submit",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\"contributor_id\": \"contrib-001\", \"bill_id\": \"HB3003\", \"update_type\": \"live_update\", \"content\": \"Amendment added to reduce sentence lengths for non-violent offenses.\", \"urgency\": \"high\"}"
+                        }
+                    }
+                },
+                {
+                    "name": "Retrieve Inside Track Feed",
+                    "request": {
+                        "method": "GET",
+                        "url": "{{base_url}}/api/inside_track/feed"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "User API",
+            "item": [
+                {
+                    "name": "Register New User",
+                    "request": {
+                        "method": "POST",
+                        "url": "{{base_url}}/api/user/register",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\"name\": \"John Doe\", \"email\": \"johndoe@example.com\", \"password\": \"securepassword\"}"
+                        }
+                    }
+                },
+                {
+                    "name": "Login User",
+                    "request": {
+                        "method": "POST",
+                        "url": "{{base_url}}/api/user/login",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\"email\": \"johndoe@example.com\", \"password\": \"securepassword\"}"
+                        }
+                    }
+                }
+            ]
+        }
+    ],
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://localhost:5000",
+            "type": "string"
+        }
+    ]
+}

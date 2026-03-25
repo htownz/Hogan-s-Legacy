@@ -1,0 +1,196 @@
+    at node:internal/main/run_main_module:36:49 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v22.14.0
+PS C:\Users\15125\Desktop> notepad legiscan-collector.js
+PS C:\Users\15125\Desktop> node legiscan-collector.js
+🚀 Collecting authentic Texas legislative data from LegiScan...
+📊 Fetching Texas legislative session info...
+📋 Using Texas session: 89th Legislature Regular Session
+👥 Fetching Texas legislators...
+📥 Found 181 authentic Texas legislators
+✅ House: Alma Allen (D) - District HD-131
+✅ Senate: Carol Alvarado (D) - District SD-006
+✅ House: Rafael Anchia (D) - District HD-103
+✅ House: Angie Button (R) - District HD-112
+✅ House: Tom Craddick (R) - District HD-082
+✅ Senate: Charles Creighton (R) - District SD-004
+✅ House: Drew Darby (R) - District HD-072
+✅ House: Yvonne Davis (D) - District HD-111
+✅ House: Harold Dutton (D) - District HD-142
+✅ House: Charlie Geren (R) - District HD-099
+✅ House: Ryan Guillen (R) - District HD-031
+✅ Senate: Roland Gutierrez (D) - District SD-019
+✅ Senate: Kelly Hancock (R) - District SD-009
+✅ House: Ana Hernandez (D) - District HD-143
+✅ House: Donna Howard (D) - District HD-048
+✅ Senate: Bryan Hughes (R) - District SD-001
+✅ House: Todd Hunter (R) - District HD-032
+✅ House: Phil King (R) - District SD-010
+✅ Senate: Lois Kolkhorst (R) - District SD-018
+✅ House: Trey Martinez Fischer (D) - District HD-116
+✅ House: Armando Martinez (D) - District HD-039
+✅ Senate: Jose Menendez (D) - District SD-026
+✅ House: Joseph Moody (D) - District HD-078
+✅ Senate: Tan Parker (R) - District SD-012
+✅ House: Richard Raymond (D) - District HD-042
+✅ House: John Smithee (R) - District HD-086
+✅ House: Hubert Vo (D) - District HD-149
+✅ House: Armando Walle (D) - District HD-140
+✅ Senate: Juan Hinojosa (D) - District SD-020
+✅ Senate: Joan Huffman (R) - District SD-017
+✅ Senate: Robert Nichols (R) - District SD-003
+✅ Senate: Royce West (D) - District SD-023
+✅ Senate: Judith Zaffirini (D) - District SD-021
+✅ Senate: Charles Perry (R) - District SD-028
+✅ Senate: Charles Schwertner (R) - District SD-005
+✅ Senate: Brian Birdwell (R) - District SD-022
+✅ House: J.M. Lozano (R) - District HD-043
+✅ House: Sergio Munoz (D) - District HD-036
+✅ House: Ron Reynolds (D) - District HD-027
+✅ Senate: Borris Miles (D) - District SD-013
+✅ House: Senfronia Thompson (D) - District HD-141
+✅ House: Jeff Leach (R) - District HD-067
+✅ House: Terry Canales (D) - District HD-040
+✅ House: Philip Cortez (D) - District HD-117
+✅ House: Cecil Bell (R) - District HD-003
+✅ House: Greg Bonnen (R) - District HD-024
+✅ House: Giovanni Capriglione (R) - District HD-098
+✅ House: Robert Guerra (D) - District HD-041
+✅ House: Mary Gonzalez (D) - District HD-075
+✅ Senate: Donna Campbell (R) - District SD-025
+✅ House: Trent Ashby (R) - District HD-009
+✅ House: Nicole Collier (D) - District HD-095
+✅ House: Steve Toth (R) - District HD-015
+✅ House: Ken King (R) - District HD-088
+✅ House: Oscar Longoria (D) - District HD-035
+✅ House: Mary Perez (D) - District HD-144
+✅ House: Eugene Wu (D) - District HD-137
+✅ House: James Frank (R) - District HD-069
+✅ Senate: Paul Bettencourt (R) - District SD-007
+✅ House: William Metcalf (R) - District HD-016
+✅ House: Brooks Landgraf (R) - District HD-081
+✅ Senate: Cesar Blanco (D) - District SD-029
+✅ House: Dustin Burrows (R) - District HD-083
+✅ House: Morgan Meyer (R) - District HD-108
+✅ House: Dennis Paul (R) - District HD-129
+✅ House: Dade Phelan (R) - District HD-021
+✅ House: Ramon Romero (D) - District HD-090
+✅ House: Mike Schofield (R) - District HD-132
+✅ House: Matthew Shaheen (R) - District HD-066
+✅ House: Gary Vandeaver (R) - District HD-001
+✅ House: Tony Tinderholt (R) - District HD-094
+✅ Senate: Bob Hall (R) - District SD-002
+✅ House: Toni Rose (D) - District HD-110
+✅ House: Chris Turner (D) - District HD-101
+✅ House: Diego Bernal (D) - District HD-123
+✅ House: Tom Oliverson (R) - District HD-130
+✅ House: Barbara Gervin-Hawkins (D) - District HD-120
+✅ House: Jay Dean (R) - District HD-007
+✅ House: Cole Hefner (R) - District HD-005
+✅ House: Gina Hinojosa (D) - District HD-049
+✅ House: Stan Lambert (R) - District HD-071
+✅ House: Valoree Swanson (R) - District HD-150
+✅ House: Terry Wilson (R) - District HD-020
+✅ House: Briscoe Cain (R) - District HD-128
+✅ Senate: Peter Flores (R) - District SD-024
+✅ Senate: Angela Paxton (R) - District SD-008
+✅ House: Jon Rosenthal (D) - District HD-135
+✅ Senate: Mayes Middleton (R) - District SD-011
+✅ House: Brad Buckley (R) - District HD-054
+✅ House: Jared Patterson (R) - District HD-106
+✅ House: Keith Bell (R) - District HD-004
+✅ House: Rhetta Bowers (D) - District HD-113
+✅ House: John Bucy (D) - District HD-136
+✅ House: Sheryl Cole (D) - District HD-046
+✅ House: Jessica Gonzalez (D) - District HD-104
+✅ House: Vikki Goodwin (D) - District HD-047
+✅ House: Sam Harless (R) - District HD-126
+✅ House: Cody Harris (R) - District HD-008
+✅ House: Terry Meza (D) - District HD-105
+✅ House: Candy Noble (R) - District HD-089
+✅ House: Ana-Maria Rodriguez Ramos (D) - District HD-102
+✅ House: James Talarico (D) - District HD-050
+✅ House: Erin Zwiener (D) - District HD-045
+✅ Senate: Nathan Johnson (D) - District SD-016
+✅ House: Christina Morales (D) - District HD-145
+✅ House: Ray Lopez (D) - District HD-125
+✅ House: Gary Gates (R) - District HD-028
+✅ Senate: Sarah Eckhardt (D) - District SD-014
+✅ House: Eddie Morales (D) - District HD-074
+✅ House: David Cook (R) - District HD-096
+✅ House: Claudia Ordaz Perez (D) - District HD-079
+✅ House: Cody Vasut (R) - District HD-025
+✅ House: Elizabeth Campos (D) - District HD-119
+✅ House: Lacey Hull (R) - District HD-138
+✅ House: Ann Johnson (D) - District HD-134
+✅ House: Shelby Slawson (R) - District HD-059
+✅ House: Penny Morales Shaw (D) - District HD-148
+✅ House: David Spiller (R) - District HD-068
+✅ House: Brian Harrison (R) - District HD-010
+✅ House: John Lujan (R) - District HD-118
+✅ House: Erin Gamez (D) - District HD-038
+✅ House: Jolanda Jones (D) - District HD-147
+✅ House: Terri Leo-Wilson (R) - District HD-023
+✅ House: Ellen Troxclair (R) - District HD-019
+✅ House: Mihaela Plesa (D) - District HD-070
+✅ House: Nate Schatzline (R) - District HD-093
+✅ House: Carl Tepper (R) - District HD-084
+✅ House: Charles Cunningham (R) - District HD-127
+✅ House: Salman Bhojani (D) - District HD-092
+✅ House: John Bryant (D) - District HD-114
+✅ House: Ben Bumgarner (R) - District HD-063
+✅ House: Mano DeAyala (R) - District HD-133
+✅ House: Mark Dorazio (R) - District HD-122
+✅ House: Maria Flores (D) - District HD-051
+✅ House: Josey Garcia (D) - District HD-124
+✅ House: Stan Gerdes (R) - District HD-017
+✅ House: Caroline Harris Davila (R) - District HD-052
+✅ House: Richard Hayes (R) - District HD-057
+✅ House: Carrie Isaac (R) - District HD-073
+✅ House: Venton Jones (D) - District HD-100
+✅ House: Stan Kitzman (R) - District HD-085
+✅ House: Suleman Lalani (D) - District HD-076
+✅ House: Janie Lopez (R) - District HD-037
+✅ House: Angelia Orr (R) - District HD-013
+✅ House: Christian Manuel (D) - District HD-022
+✅ Senate: Kevin Sparks (R) - District SD-031
+✅ Senate: Molly Cook (D) - District SD-015
+✅ House: Pat Curry (R) - District HD-056
+✅ House: Cassandra Garcia Hernandez (D) - District HD-115
+✅ House: Mike Olcott (R) - District HD-060
+✅ House: Lauren Ashley Simmons (D) - District HD-146
+✅ House: Alan Schoolcraft (R) - District HD-044
+✅ House: Katrina Pierson (R) - District HD-033
+✅ House: Andy Hopper (R) - District HD-064
+✅ House: Hillary Hickland (R) - District HD-055
+✅ House: Mitch Little (R) - District HD-065
+✅ House: Wesley Virdell (R) - District HD-053
+✅ House: Caroline Fairly (R) - District HD-087
+✅ House: AJ Louderback (R) - District HD-030
+✅ House: Daniel Alders (R) - District HD-006
+✅ House: Jeff Barry (R) - District HD-029
+✅ House: Helen Kerwin (R) - District HD-058
+✅ House: Paul Dyson (R) - District HD-014
+✅ House: Joanne Shofner (R) - District HD-011
+✅ House: Aicha Davis (D) - District HD-109
+✅ House: Linda Garcia (D) - District HD-107
+✅ House: Janis Holt (R) - District HD-018
+✅ House: Marc LaHood (R) - District HD-121
+✅ House: David Lowe (R) - District HD-091
+✅ House: Shelley Luther (R) - District HD-062
+✅ House: Don McLaughlin (R) - District HD-080
+✅ House: John McQueeney (R) - District HD-097
+✅ House: Brent Money (R) - District HD-002
+✅ House: Matt Morgan (R) - District HD-026
+✅ House: Vincent Perez (D) - District HD-077
+✅ House: Keresa Richardson (R) - District HD-061
+✅ House: Denise Villalobos (R) - District HD-034
+✅ House: Charlene Ward Johnson (D) - District HD-139
+✅ House: Trey Wharton (R) - District HD-012
+✅ Senate: Brent Hagenbuch (R) - District SD-030
+✅ Senate: Adam Hinojosa (R) - District SD-027
+🎉 Successfully collected 181 authentic Texas legislators!
+PS C:\Users\15125\Desktop>

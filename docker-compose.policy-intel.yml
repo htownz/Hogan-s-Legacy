@@ -1,0 +1,53 @@
+services:
+  policy-intel:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: npm run dev:policy-intel
+    ports:
+      - "5050:5050"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/actup_policy_intel
+      POLICY_INTEL_PORT: 5050
+      NODE_ENV: development
+      SESSION_SECRET: ${SESSION_SECRET:-change-me-in-local-dev}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      CONGRESS_API_KEY: ${CONGRESS_API_KEY:-}
+      OPENSTATES_API_KEY: ${OPENSTATES_API_KEY:-}
+      FEC_API_KEY: ${FEC_API_KEY:-}
+      PROPUBLICA_API_KEY: ${PROPUBLICA_API_KEY:-}
+    volumes:
+      - .:/workspace
+      - /workspace/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: actup_policy_intel
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d actup_policy_intel"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  adminer:
+    image: adminer:4
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+
+volumes:
+  postgres-data:

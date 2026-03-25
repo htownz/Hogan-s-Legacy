@@ -1,0 +1,42 @@
+15125@H-Town MINGW64 ~ (master)
+$ npm install
+npm error code ENOENT
+npm error syscall open
+npm error path C:\Users\15125\package.json
+npm error errno -4058
+npm error enoent Could not read package.json: Error: ENOENT: no such file or directory, open 'C:\Users\15125\package.json'
+npm error enoent This is related to npm not being able to find a file.
+npm error enoent
+npm error A complete log of this run can be found in: C:\Users\15125\AppData\Local\npm-cache\_logs\2025-05-24T23_38_38_109Z-debug-0.log
+
+15125@H-Town MINGW64 ~ (master)
+$ npm install
+npm run collect    # Collects all 181 Texas legislators
+npm run upload     # Uploads to your Act Up platform
+npm error code ENOENT
+npm error syscall open
+npm error path C:\Users\15125\package.json
+npm error errno -4058
+npm error enoent Could not read package.json: Error: ENOENT: no such file or directory, open 'C:\Users\15125\package.json'
+npm error enoent This is related to npm not being able to find a file.
+npm error enoent
+npm error A complete log of this run can be found in: C:\Users\15125\AppData\Local\npm-cache\_logs\2025-05-24T23_38_55_069Z-debug-0.log
+npm error code ENOENT
+npm error syscall open
+npm error path C:\Users\15125\package.json
+npm error errno -4058
+npm error enoent Could not read package.json: Error: ENOENT: no such file or directory, open 'C:\Users\15125\package.json'
+npm error enoent This is related to npm not being able to find a file.
+npm error enoent
+npm error A complete log of this run can be found in: C:\Users\15125\AppData\Local\npm-cache\_logs\2025-05-24T23_38_56_211Z-debug-0.log
+npm error code ENOENT
+npm error syscall open
+npm error path C:\Users\15125\package.json
+npm error errno -4058
+npm error enoent Could not read package.json: Error: ENOENT: no such file or directory, open 'C:\Users\15125\package.json'
+npm error enoent This is related to npm not being able to find a file.
+npm error enoent
+npm error A complete log of this run can be found in: C:\Users\15125\AppData\Local\npm-cache\_logs\2025-05-24T23_38_56_949Z-debug-0.log
+
+15125@H-Town MINGW64 ~ (master)
+$

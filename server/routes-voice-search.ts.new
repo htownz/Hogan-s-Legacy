@@ -1,0 +1,379 @@
+import { Express, Request, Response } from 'express';
+import { Server as HttpServer } from 'http';
+import { WebSocketServer, WebSocket } from 'ws';
+import { db } from './db';
+import { bills } from '../shared/schema';
+import { eq, like, or } from 'drizzle-orm';
+import { isAuthenticated } from './auth';
+import { getBillSummaryById } from '../server/services/bill-summary-service';
+import OpenAI from 'openai';
+
+// Initialize OpenAI API
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// Regular expressions for bill ID detection
+const BILL_ID_REGEX = /\b([HS][BCR])\s*[-.]?\s*(\d+)\b/i;
+const FULL_BILL_NAME_REGEX = /\b(house|senate)\s+(bill|concurrent resolution|resolution)\s+(\d+)\b/i;
+
+// Store active WebSocket connections
+const activeConnections = new Set<WebSocket>();
+
+/**
+ * Register voice search API routes and WebSocket server
+ */
+export function registerVoiceSearchRoutes(app: Express, server?: HttpServer): void {
+  // Set up WebSocket server if HTTP server is provided
+  if (server) {
+    // Initialize WebSocket server on a distinct path to avoid conflict with Vite's HMR
+    const wss = new WebSocketServer({ 
+      server: server, 
+      path: '/ws/voice-search' 
+    });
+  
+    // WebSocket connection handling
+    wss.on('connection', (ws: WebSocket) => {
+      console.log('New WebSocket connection established for voice search');
+      
+      // Add to active connections
+      activeConnections.add(ws);
+      
+      // Send welcome message
+      ws.send(JSON.stringify({
+        type: 'connection',
+        message: 'Voice search WebSocket connection established'
+      }));
+      
+      // Handle incoming messages
+      ws.on('message', async (message) => {
+        try {
+          // Ensure message is converted to string before parsing
+          const data = JSON.parse(message.toString());
+          
+          if (data.type === 'voice-query') {
+            // Process voice query
+            const query = data.query;
+            
+            if (!query || typeof query !== 'string') {
+              ws.send(JSON.stringify({
+                type: 'error',
+                message: 'Invalid query parameter'
+              }));
+              return;
+            }
+            
+            // Analyze the query intention using NLP
+            const intention = await analyzeQueryIntention(query);
+            
+            switch (intention.action) {
+              case 'search':
+                // Perform bill search based on the extracted topic
+                const searchResults = await searchBillsByTopic(intention.topic);
+                ws.send(JSON.stringify({ 
+                  type: 'search-results', 
+                  action: 'search', 
+                  results: searchResults 
+                }));
+                break;
+                
+              case 'navigate':
+                // Navigate to a specific bill
+                ws.send(JSON.stringify({ 
+                  type: 'navigation', 
+                  action: 'navigate', 
+                  billId: intention.billId, 
+                  path: `/bills/${intention.billId}` 
+                }));
+                break;
+                
+              case 'summarize':
+                // Retrieve and return bill summary
+                const summary = await getBillSummary(intention.billId);
+                ws.send(JSON.stringify({ 
+                  type: 'summary',
+                  action: 'summarize', 
+                  billId: intention.billId, 
+                  summary 
+                }));
+                break;
+                
+              default:
+                // For any other intent, default to search
+                const defaultResults = await searchBillsByTopic(query);
+                ws.send(JSON.stringify({ 
+                  type: 'search-results',
+                  action: 'search', 
+                  results: defaultResults 
+                }));
+                break;
+            }
+          }
+        } catch (error) {
+          console.error('WebSocket message handling error:', error);
+          ws.send(JSON.stringify({
+            type: 'error',
+            message: 'Error processing voice search query'
+          }));
+        }
+      });
+      
+      // Handle connection close
+      ws.on('close', () => {
+        console.log('WebSocket connection closed for voice search');
+        activeConnections.delete(ws);
+      });
+      
+      // Handle errors
+      ws.on('error', (error) => {
+        console.error('WebSocket error:', error);
+        activeConnections.delete(ws);
+      });
+    });
+  } else {
+    console.warn('Voice search WebSocket server not set up: HTTP server not provided');
+  }
+  
+  // REST API routes for voice search
+  /**
+   * Process voice search queries
+   */
+  app.post('/api/voice-search', async (req: Request, res: Response) => {
+    try {
+      const { query } = req.body;
+      
+      if (!query || typeof query !== 'string') {
+        return res.status(400).json({ error: 'Invalid query parameter' });
+      }
+      
+      // Analyze the query intention using NLP
+      const intention = await analyzeQueryIntention(query);
+      
+      switch (intention.action) {
+        case 'search':
+          // Perform bill search based on the extracted topic
+          const searchResults = await searchBillsByTopic(intention.topic);
+          return res.json({ action: 'search', results: searchResults });
+          
+        case 'navigate':
+          // Navigate to a specific bill
+          return res.json({ 
+            action: 'navigate', 
+            billId: intention.billId, 
+            path: `/bills/${intention.billId}` 
+          });
+          
+        case 'summarize':
+          // Retrieve and return bill summary
+          const summary = await getBillSummary(intention.billId);
+          return res.json({ 
+            action: 'summarize', 
+            billId: intention.billId, 
+            summary 
+          });
+          
+        default:
+          // For any other intent, default to search
+          const defaultResults = await searchBillsByTopic(query);
+          return res.json({ action: 'search', results: defaultResults });
+      }
+    } catch (error) {
+      console.error('Voice search error:', error);
+      return res.status(500).json({ error: 'Error processing voice search query' });
+    }
+  });
+  
+  /**
+   * Get available voices for speech synthesis
+   */
+  app.get('/api/voice-search/voices', async (_req: Request, res: Response) => {
+    // This endpoint will be implemented on the client side since browser voices
+    // are only available in the browser context
+    return res.json({ message: 'Voice information is handled client-side' });
+  });
+  
+  /**
+   * Get voice search command examples
+   */
+  app.get('/api/voice-search/examples', async (_req: Request, res: Response) => {
+    const examples = [
+      {
+        category: 'General Search',
+        commands: [
+          'Find bills about education',
+          'Search for healthcare bills',
+          'Show me bills related to transportation',
+          'What bills are about climate change',
+        ]
+      },
+      {
+        category: 'Specific Bill Lookup',
+        commands: [
+          'Show me House Bill 1',
+          'Find Senate Bill 100',
+          'Open HB 10',
+          'Go to SB 20',
+        ]
+      },
+      {
+        category: 'Bill Summaries',
+        commands: [
+          'Summarize House Bill 1',
+          'What does Senate Bill 100 do',
+          'Give me a summary of HB 10',
+          'Explain SB 20',
+        ]
+      }
+    ];
+    
+    return res.json(examples);
+  });
+}
+
+/**
+ * Analyze the user's voice query to determine their intention
+ */
+async function analyzeQueryIntention(query: string): Promise<{
+  action: 'search' | 'navigate' | 'summarize';
+  topic?: string;
+  billId?: string;
+}> {
+  // Check for direct bill ID references first
+  const billId = extractBillId(query);
+  if (billId) {
+    // Determine if this is a request for summary or navigation
+    if (/summar|what does|explain|tell me about|what is|about/i.test(query)) {
+      return { action: 'summarize', billId: billId || '' };
+    } else {
+      return { action: 'navigate', billId: billId || '' };
+    }
+  }
+  
+  // If no bill ID found, use OpenAI to better understand the intent
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
+      messages: [
+        {
+          role: "system",
+          content: `You are analyzing a voice command about Texas legislative bills. 
+          Determine if the user is trying to:
+          1. Search for bills by topic (action: "search")
+          2. Ask about a specific bill (action: "navigate" or "summarize")
+          
+          Respond with JSON in the format: { "action": "search"|"navigate"|"summarize", "topic": "topic_if_search" }
+          For search queries, extract the main topic they want to search for.`
+        },
+        {
+          role: "user",
+          content: query
+        }
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.1,
+      max_tokens: 100
+    });
+    
+    // Safely parse the content, ensuring it's a string
+    const messageContent = response.choices[0].message.content;
+    const content = typeof messageContent === 'string' ? messageContent : '{}';
+    const result = JSON.parse(content);
+    
+    if (result.action === 'search' && result.topic) {
+      return { action: 'search', topic: result.topic };
+    }
+    
+    // Default to search with the original query if the AI analysis is inconclusive
+    return { action: 'search', topic: query };
+    
+  } catch (error) {
+    console.error('Error analyzing query with OpenAI:', error);
+    // Fallback to simple keyword matching if OpenAI fails
+    return { action: 'search', topic: query };
+  }
+}
+
+/**
+ * Extract bill ID from user query
+ */
+function extractBillId(query: string): string | undefined {
+  // Try the abbreviated format first (HB 123, SB 45, etc.)
+  const abbreviatedMatch = query.match(BILL_ID_REGEX);
+  if (abbreviatedMatch) {
+    const [_, chamber, number] = abbreviatedMatch;
+    const formattedChamber = chamber.toUpperCase();
+    return `TX-${formattedChamber}${number.padStart(4, '0')}`;
+  }
+  
+  // Try the full name format (House Bill 123, Senate Bill 45, etc.)
+  const fullNameMatch = query.match(FULL_BILL_NAME_REGEX);
+  if (fullNameMatch) {
+    const [_, chamber, type, number] = fullNameMatch;
+    const chamberPrefix = chamber.toLowerCase() === 'house' ? 'HB' : 'SB';
+    return `TX-${chamberPrefix}${number.padStart(4, '0')}`;
+  }
+  
+  return undefined;
+}
+
+/**
+ * Search bills by topic
+ */
+async function searchBillsByTopic(topic: string | undefined): Promise<any[]> {
+  try {
+    if (!topic) {
+      return [];
+    }
+    
+    // Prepare search terms
+    const searchTerms = topic.split(' ')
+      .filter(term => term.length > 2)
+      .map(term => `%${term}%`);
+    
+    if (searchTerms.length === 0) {
+      return [];
+    }
+    
+    // Build search conditions for title and description only
+    const searchConditions = searchTerms.map(term => {
+      return or(
+        like(bills.title, term),
+        like(bills.description, term)
+        // We'll skip topics search for now due to complexity with array fields
+      );
+    });
+    
+    // Get bills matching the search terms (limiting to 10 for performance)
+    const results = await db
+      .select({
+        id: bills.id,
+        displayName: bills.title, // Using title as displayName
+        shortDescription: bills.description, // Using description as shortDescription
+        lastUpdated: bills.lastUpdated,
+        status: bills.status,
+        keywords: bills.topics // Using topics as keywords
+      })
+      .from(bills)
+      .where(or(...searchConditions))
+      .limit(10);
+    
+    return results;
+  } catch (error) {
+    console.error('Error searching bills by topic:', error);
+    return [];
+  }
+}
+
+/**
+ * Get bill summary
+ */
+async function getBillSummary(billId: string | undefined): Promise<any> {
+  try {
+    if (!billId) {
+      console.warn('No bill ID provided for summary');
+      return null;
+    }
+    return await getBillSummaryById(billId);
+  } catch (error) {
+    console.error(`Error retrieving summary for bill ${billId}:`, error);
+    return null;
+  }
+}

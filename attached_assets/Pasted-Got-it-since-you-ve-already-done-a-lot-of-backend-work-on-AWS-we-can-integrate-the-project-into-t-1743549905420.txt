@@ -1,0 +1,83 @@
+Got it — since you’ve already done a lot of backend work on AWS, we can integrate the project into that environment instead of Supabase. Here’s how to get rolling with your existing AWS setup:
+
+⸻
+
+🚀 Deploy Act Up Backend on AWS
+
+Option A: AWS EC2 (Straightforward FastAPI Deployment)
+
+If you’re comfortable with SSH and instance management:
+
+🔧 1. Launch EC2 instance
+	•	Ubuntu 22.04 or Amazon Linux 2023
+	•	Open ports: 22, 80, 443, and 8000 (for dev)
+	•	Assign an Elastic IP (optional but helpful)
+
+🧩 2. Connect & Install Dependencies
+
+ssh -i "your-key.pem" ec2-user@your-ec2-ip
+
+# Update & install
+sudo apt update && sudo apt upgrade -y
+sudo apt install python3-pip python3-venv nginx git -y
+
+📂 3. Upload your code (from local machine)
+
+Either scp or clone from GitHub:
+
+git clone https://github.com/your-username/act-up.git
+cd act-up
+python3 -m venv venv
+source venv/bin/activate
+pip install -r backend/requirements.txt
+
+🚀 4. Run FastAPI (Dev mode)
+
+cd backend
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+Test via: http://your-ec2-ip:8000
+
+⸻
+
+Option B: AWS Lambda + API Gateway (Serverless)
+
+If you’re aiming for scalable, serverless architecture, you can use:
+	•	AWS Lambda for FastAPI endpoints
+	•	API Gateway as entrypoint
+	•	RDS (PostgreSQL) as DB
+
+Let me know if you want me to prep a FastAPI → Lambda conversion using Mangum and help you deploy it via:
+	•	AWS CLI
+	•	Serverless Framework
+	•	or SAM (Serverless Application Model)
+
+⸻
+
+✅ Optional AWS Services You May Already Be Using:
+
+Use Case	AWS Service
+Postgres DB	RDS (PostgreSQL)
+Object/File Storage	S3
+Secret Management	AWS Secrets Manager
+Compute/Server	EC2 / Lambda
+API Management	API Gateway
+Dockerized App	ECS / Fargate
+Monitoring/Logging	CloudWatch
+
+
+
+⸻
+
+Next Step Options:
+	1.	Set up AWS deployment on EC2
+	2.	Convert FastAPI to Lambda serverless
+	3.	Push your code using GitHub Actions → AWS
+	4.	Use S3 + CloudFront for a frontend React build
+
+Would you like me to:
+	•	Prep your code for EC2 deployment?
+	•	Convert it to serverless using Lambda + API Gateway?
+	•	Walk you through GitHub Actions to deploy to AWS?
+
+Let’s pick a track based on how you’ve been using AWS.

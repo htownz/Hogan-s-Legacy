@@ -1,0 +1,103 @@
+Let’s wire in tracked bill timelines, personalized action items, and reminder logic—this is where Act Up shifts from informative to transformative.
+
+⸻
+
+Feature: Tracked Bill Timelines + Action Reminders
+
+Goal:
+	•	Show each tracked bill’s timeline
+	•	Highlight where it is right now
+	•	Display what the user can do today
+	•	Remind them when something changes
+
+⸻
+
+1. Tracked Bill Timeline Component
+
+Create: /components/TrackedTimeline.jsx
+Input: billId
+Logic:
+	•	Pull that bill’s timeline data
+	•	Display progress:
+Filed → In Committee → Hearing Scheduled → Passed House → In Senate → Signed
+	•	Highlight the current stage
+
+const stages = ["Filed", "In Committee", "Hearing Scheduled", "Passed House", "In Senate", "Signed"];
+const currentStatus = "Hearing Scheduled"; // from mock bill object
+
+UI:
+	•	Vertical or horizontal stepper
+	•	Add a small date tag to each step if available
+
+⸻
+
+2. Action Item Generator (AIExplain Add-on)
+
+Logic:
+If bill is:
+	•	In Committee → Show: “Contact committee members”
+	•	Hearing scheduled → Show: “Testify or submit written comment”
+	•	Up for vote → Show: “Call your rep before [date]”
+
+Example Output:
+
+"This bill is in the Senate Committee on Education. You can submit testimony or call key members today."
+
+Optional Smart Template System:
+
+function generateAction(status, chamber) {
+  if (status.includes("Hearing")) return "Submit public comment or prepare to testify.";
+  if (status.includes("In Committee")) return `Call committee members in the ${chamber}.`;
+  if (status.includes("Scheduled for Vote")) return "Contact your rep before it’s too late.";
+  return "Track updates and share this bill.";
+}
+
+
+
+⸻
+
+3. Reminder System (MVP Version)
+
+Store Reminders in Context or LocalStorage:
+
+reminders: [
+  { billId: "HB123", action: "Call before vote", date: "2025-04-15" }
+]
+
+Basic Display:
+At top of dashboard:
+
+<h3>Upcoming Actions</h3>
+<ul>
+  {reminders.map(item => (
+    <li key={item.billId}>
+      {item.action} for {item.billId} by {item.date}
+    </li>
+  ))}
+</ul>
+
+
+
+⸻
+
+Message for Your Replit Agent:
+
+Let’s now build Tracked Bill Timelines + Action Reminders.
+
+1. Create TrackedTimeline.jsx Component
+	•	Input: billId
+	•	Show a visual stepper of:
+Filed → In Committee → Hearing → Floor Vote → Passed
+	•	Highlight current status
+
+2. Add “Action Item” Below Each Timeline
+	•	Based on status, show a next step
+	•	Committee? → “Contact committee”
+	•	Hearing? → “Submit comment”
+	•	Floor vote? → “Call your rep”
+
+3. Create reminders array in UserContext
+	•	Store mock reminders
+	•	Display list at top of dashboard
+
+Let me know when this is live—next we’ll wire live alert triggers, shareable bills, or user timeline digest emails.
