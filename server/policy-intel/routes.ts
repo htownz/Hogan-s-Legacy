@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, gt, inArray } from "drizzle-orm";
 import { policyIntelDb } from "./db";
 import { activities, alerts, briefs, deliverables, matters, matterWatchlists, monitoringJobs, sourceDocuments, stakeholders, stakeholderObservations, watchlists, workspaces } from "@shared/schema-policy-intel";
 import { seedGraceMcEwan } from "./seed/grace-mcewan";
@@ -33,7 +33,8 @@ export function createPolicyIntelRouter() {
         "/api/intel/activities",
         "/api/intel/stakeholders",
         "/api/intel/jobs",
-        "/api/intel/jobs/run-local-feeds"
+        "/api/intel/jobs/run-local-feeds",
+        "/api/intel/workspaces/:id/digest"
       ]
     });
   });
@@ -210,7 +211,7 @@ export function createPolicyIntelRouter() {
           whyItMatters: alertReason ?? null,
           status: resolvedStatus,
           relevanceScore,
-          reasonsJson: metadataJson ? [JSON.stringify(metadataJson)] : [],
+          reasonsJson: metadataJson ? [{ manual: true, data: metadataJson }] : [],
         })
         .returning();
 
@@ -224,6 +225,181 @@ export function createPolicyIntelRouter() {
     try {
       const rows = await policyIntelDb.select().from(alerts).orderBy(desc(alerts.id));
       res.json(rows);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  // ── Phase 7: Reviewer feedback ────────────────────────────────────────────
+
+  router.patch("/alerts/:id", async (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      const { status, reviewerNote } = req.body ?? {};
+
+      const validStatuses = ["pending_review", "ready", "sent", "suppressed"] as const;
+      type AlertStatus = typeof validStatuses[number];
+
+      const updates: Record<string, unknown> = {};
+      if (status && validStatuses.includes(status as AlertStatus)) {
+        updates.status = status;
+      }
+      if (reviewerNote !== undefined) {
+        updates.reviewerNote = reviewerNote;
+      }
+      updates.reviewedAt = new Date();
+
+      if (Object.keys(updates).length <= 1) {
+        return res.status(400).json({ message: "Provide status and/or reviewerNote" });
+      }
+
+      const [updated] = await policyIntelDb
+        .update(alerts)
+        .set(updates)
+        .where(eq(alerts.id, id))
+        .returning();
+
+      if (!updated) return res.status(404).json({ message: "alert not found" });
+
+      // Log activity if alert is linked to a matter via watchlist
+      if (updated.watchlistId) {
+        const links = await policyIntelDb
+          .select()
+          .from(matterWatchlists)
+          .where(eq(matterWatchlists.watchlistId, updated.watchlistId));
+
+        for (const link of links) {
+          await policyIntelDb.insert(activities).values({
+            workspaceId: updated.workspaceId,
+            matterId: link.matterId,
+            alertId: updated.id,
+            type: "review_completed",
+            summary: `Alert "${updated.title}" reviewed → ${updated.status}`,
+            detailText: reviewerNote ?? null,
+          });
+        }
+      }
+
+      res.json(updated);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  // ── Phase 7: Weekly digest ────────────────────────────────────────────────
+
+  router.get("/workspaces/:id/digest", async (req, res, next) => {
+    try {
+      const workspaceId = Number(req.params.id);
+      const weekParam = req.query.week as string | undefined;
+
+      // Parse ISO week format YYYY-Www or default to current week
+      let weekStart: Date;
+      let weekEnd: Date;
+
+      if (weekParam && /^\d{4}-W\d{2}$/.test(weekParam)) {
+        const [yearStr, weekStr] = weekParam.split("-W");
+        const year = Number(yearStr);
+        const week = Number(weekStr);
+        // ISO week: Monday of week 1 is the week containing Jan 4
+        const jan4 = new Date(year, 0, 4);
+        const dayOfWeek = jan4.getDay() || 7;
+        weekStart = new Date(jan4);
+        weekStart.setDate(jan4.getDate() - dayOfWeek + 1 + (week - 1) * 7);
+        weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 7);
+      } else {
+        // Current week (Monday-Sunday)
+        const now = new Date();
+        const dayOfWeek = now.getDay() || 7;
+        weekStart = new Date(now);
+        weekStart.setDate(now.getDate() - dayOfWeek + 1);
+        weekStart.setHours(0, 0, 0, 0);
+        weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 7);
+      }
+
+      // Get alerts for this workspace in the date range
+      const weekAlerts = await policyIntelDb
+        .select()
+        .from(alerts)
+        .where(
+          and(
+            eq(alerts.workspaceId, workspaceId),
+            gt(alerts.createdAt, weekStart),
+          ),
+        )
+        .orderBy(desc(alerts.relevanceScore));
+
+      // Filter by week end date in JS (Drizzle doesn't have lt easily without importing)
+      const filtered = weekAlerts.filter((a) => a.createdAt < weekEnd);
+
+      // Group by watchlist
+      const grouped: Record<number, { watchlistId: number; alerts: typeof filtered }> = {};
+      for (const alert of filtered) {
+        const wlId = alert.watchlistId ?? 0;
+        if (!grouped[wlId]) grouped[wlId] = { watchlistId: wlId, alerts: [] };
+        grouped[wlId].alerts.push(alert);
+      }
+
+      // Fetch watchlist names
+      const wlIds = Object.keys(grouped).map(Number).filter((id) => id > 0);
+      const wlRows = wlIds.length > 0
+        ? await policyIntelDb.select().from(watchlists).where(inArray(watchlists.id, wlIds))
+        : [];
+      const wlNameMap = new Map(wlRows.map((w) => [w.id, w.name]));
+
+      // Build digest sections
+      const sections = Object.values(grouped).map((g) => ({
+        watchlist: wlNameMap.get(g.watchlistId) ?? "Unlinked",
+        alertCount: g.alerts.length,
+        highPriority: g.alerts.filter((a) => a.relevanceScore >= 70).length,
+        alerts: g.alerts.map((a) => ({
+          id: a.id,
+          title: a.title,
+          score: a.relevanceScore,
+          status: a.status,
+          whyItMatters: a.whyItMatters,
+        })),
+      }));
+
+      // Get activities for the period
+      const weekActivities = await policyIntelDb
+        .select()
+        .from(activities)
+        .where(
+          and(
+            eq(activities.workspaceId, workspaceId),
+            gt(activities.createdAt, weekStart),
+          ),
+        )
+        .orderBy(desc(activities.createdAt));
+
+      const filteredActivities = weekActivities.filter((a) => a.createdAt < weekEnd);
+
+      res.json({
+        workspace: workspaceId,
+        period: {
+          start: weekStart.toISOString(),
+          end: weekEnd.toISOString(),
+          week: weekParam ?? `${weekStart.getFullYear()}-W${String(Math.ceil((weekStart.getDate() + weekStart.getDay()) / 7)).padStart(2, "0")}`,
+        },
+        summary: {
+          totalAlerts: filtered.length,
+          highPriority: filtered.filter((a) => a.relevanceScore >= 70).length,
+          pendingReview: filtered.filter((a) => a.status === "pending_review").length,
+          reviewed: filtered.filter((a) => a.status !== "pending_review").length,
+          activitiesLogged: filteredActivities.length,
+        },
+        sections,
+        recentActivities: filteredActivities.slice(0, 20).map((a) => ({
+          id: a.id,
+          type: a.type,
+          summary: a.summary,
+          matterId: a.matterId,
+          createdAt: a.createdAt,
+        })),
+      });
     } catch (err: any) {
       next(err);
     }
@@ -251,6 +427,17 @@ export function createPolicyIntelRouter() {
         sourceDocumentIds: sourceDocumentIds.map(Number),
         title,
       });
+
+      // Log activity if linked to a matter
+      if (matterId) {
+        await policyIntelDb.insert(activities).values({
+          workspaceId: Number(workspaceId),
+          matterId: Number(matterId),
+          type: "brief_drafted",
+          summary: `Brief "${result.title ?? title ?? "Untitled"}" generated from ${sourceDocumentIds.length} source(s)`,
+        });
+      }
+
       res.status(201).json(result);
     } catch (err: any) {
       next(err);

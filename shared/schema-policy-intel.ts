@@ -118,7 +118,8 @@ export const alerts = pgTable("policy_intel_alerts", {
   whyItMatters: text("why_it_matters"),
   status: alertStatusEnum("status").notNull().default("pending_review"),
   relevanceScore: integer("relevance_score").notNull().default(0),
-  reasonsJson: jsonb("reasons_json").$type<string[]>().notNull().default([]),
+  reasonsJson: jsonb("reasons_json").$type<Record<string, unknown>[]>().notNull().default([]),
+  reviewerNote: text("reviewer_note"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
 });

@@ -10,6 +10,7 @@ import { policyIntelDb } from "../db";
 import { alerts, watchlists, type PolicyIntelSourceDocument } from "@shared/schema-policy-intel";
 import { matchDocumentToAllWatchlists, type WatchlistMatch } from "../engine/match-watchlists";
 import { scoreAlert, buildWhyItMatters } from "../engine/score-alert";
+import { buildScorecard } from "../engine/evaluators";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -93,12 +94,15 @@ export async function processDocumentAlerts(
       continue;
     }
 
-    // Build alert payload
-    const score = scoreAlert(match.reasons);
+    // Build alert payload with structured scorecard
+    const scorecard = buildScorecard(doc.title, doc.summary, match.reasons);
     const whyItMatters = buildWhyItMatters(doc.title, match.reasons);
-    const reasonsJson = match.reasons.map(
-      (r) => `[${r.dimension}] ${r.rule}: ${r.excerpt.slice(0, 120)}`,
-    );
+    const reasonsJson: Record<string, unknown>[] = scorecard.evaluators.map((e) => ({
+      evaluator: e.evaluator,
+      evaluatorScore: e.score,
+      maxScore: e.maxScore,
+      rationale: e.rationale,
+    }));
 
     const [created] = await policyIntelDb
       .insert(alerts)
@@ -108,9 +112,9 @@ export async function processDocumentAlerts(
         sourceDocumentId: doc.id,
         title: doc.title,
         summary: doc.summary,
-        whyItMatters,
+        whyItMatters: `${whyItMatters}\n\nScorecard: ${scorecard.summary}`,
         status: "pending_review",
-        relevanceScore: score,
+        relevanceScore: scorecard.totalScore,
         reasonsJson,
       })
       .returning({ id: alerts.id });
@@ -119,7 +123,7 @@ export async function processDocumentAlerts(
     result.details.push({
       alertId: created.id,
       watchlist: match.watchlist.name,
-      score,
+      score: scorecard.totalScore,
     });
   }
 
