@@ -1,11 +1,13 @@
 import { Router } from "express";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { policyIntelDb } from "./db";
-import { activities, alerts, briefs, deliverables, matters, matterWatchlists, monitoringJobs, sourceDocuments, watchlists, workspaces } from "@shared/schema-policy-intel";
+import { activities, alerts, briefs, deliverables, matters, matterWatchlists, monitoringJobs, sourceDocuments, stakeholders, stakeholderObservations, watchlists, workspaces } from "@shared/schema-policy-intel";
 import { seedGraceMcEwan } from "./seed/grace-mcewan";
 import { runTloRssJob } from "./jobs/run-tlo-rss";
 import { processDocumentAlerts } from "./services/alert-service";
 import { generateBrief } from "./services/brief-service";
+import { upsertStakeholder, addObservation, getStakeholderWithObservations, getStakeholdersForMatter } from "./services/stakeholder-service";
+import { fetchTecData } from "./connectors/texas/tec-filings";
 
 export function createPolicyIntelRouter() {
   const router = Router();
@@ -28,6 +30,7 @@ export function createPolicyIntelRouter() {
         "/api/intel/deliverables",
         "/api/intel/matters",
         "/api/intel/activities",
+        "/api/intel/stakeholders",
         "/api/intel/jobs"
       ]
     });
@@ -430,6 +433,95 @@ export function createPolicyIntelRouter() {
     try {
       const rows = await policyIntelDb.select().from(activities).orderBy(desc(activities.id));
       res.json(rows);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  // ── Stakeholders ──────────────────────────────────────────────────────────
+
+  router.get("/stakeholders", async (_req, res, next) => {
+    try {
+      const rows = await policyIntelDb.select().from(stakeholders).orderBy(desc(stakeholders.id));
+      res.json(rows);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.post("/stakeholders", async (req, res, next) => {
+    try {
+      const { workspaceId, type, name, title, organization, jurisdiction, tagsJson, sourceSummary } = req.body ?? {};
+      if (!workspaceId || !type || !name) {
+        return res.status(400).json({ message: "workspaceId, type, and name are required" });
+      }
+      const result = await upsertStakeholder({
+        workspaceId: Number(workspaceId),
+        type,
+        name,
+        title,
+        organization,
+        jurisdiction,
+        tagsJson: tagsJson ?? [],
+        sourceSummary,
+      });
+      res.status(result.created ? 201 : 200).json(result.stakeholder);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.get("/stakeholders/:id", async (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      const result = await getStakeholderWithObservations(id);
+      if (!result) return res.status(404).json({ message: "stakeholder not found" });
+      res.json(result);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.post("/stakeholders/:id/observations", async (req, res, next) => {
+    try {
+      const stakeholderId = Number(req.params.id);
+      const { sourceDocumentId, matterId, observationText, confidence } = req.body ?? {};
+      if (!observationText) {
+        return res.status(400).json({ message: "observationText is required" });
+      }
+      const obs = await addObservation({
+        stakeholderId,
+        sourceDocumentId: sourceDocumentId ? Number(sourceDocumentId) : undefined,
+        matterId: matterId ? Number(matterId) : undefined,
+        observationText,
+        confidence,
+      });
+      res.status(201).json(obs);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.get("/matters/:id/stakeholders", async (req, res, next) => {
+    try {
+      const matterId = Number(req.params.id);
+      const rows = await getStakeholdersForMatter(matterId);
+      res.json(rows);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  // ── TEC Connector ─────────────────────────────────────────────────────────
+
+  router.post("/jobs/fetch-tec", async (req, res, next) => {
+    try {
+      const { searchTerm } = req.body ?? {};
+      if (!searchTerm) {
+        return res.status(400).json({ message: "searchTerm is required" });
+      }
+      const result = await fetchTecData(searchTerm);
+      res.json(result);
     } catch (err: any) {
       next(err);
     }

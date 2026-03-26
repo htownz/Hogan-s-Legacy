@@ -211,6 +211,41 @@ export const deliverables = pgTable("policy_intel_deliverables", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+// ── Phase 5: Stakeholders ───────────────────────────────────────────────────
+
+export const stakeholderTypeEnum = pgEnum("policy_intel_stakeholder_type", [
+  "legislator",
+  "lobbyist",
+  "agency_official",
+  "pac",
+  "organization",
+  "individual",
+]);
+
+export const stakeholders = pgTable("policy_intel_stakeholders", {
+  id: serial("id").primaryKey(),
+  workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+  type: stakeholderTypeEnum("type").notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  title: varchar("title", { length: 255 }),
+  organization: varchar("organization", { length: 255 }),
+  jurisdiction: varchar("jurisdiction", { length: 64 }),
+  tagsJson: jsonb("tags_json").$type<string[]>().notNull().default([]),
+  sourceSummary: text("source_summary"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const stakeholderObservations = pgTable("policy_intel_stakeholder_observations", {
+  id: serial("id").primaryKey(),
+  stakeholderId: integer("stakeholder_id").notNull().references(() => stakeholders.id, { onDelete: "cascade" }),
+  sourceDocumentId: integer("source_document_id").references(() => sourceDocuments.id, { onDelete: "set null" }),
+  matterId: integer("matter_id").references(() => matters.id, { onDelete: "set null" }),
+  observationText: text("observation_text").notNull(),
+  confidence: varchar("confidence", { length: 32 }).notNull().default("medium"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export type PolicyIntelWorkspace = typeof workspaces.$inferSelect;
 export type InsertPolicyIntelWorkspace = typeof workspaces.$inferInsert;
 export type PolicyIntelWatchlist = typeof watchlists.$inferSelect;
@@ -231,3 +266,7 @@ export type PolicyIntelActivity = typeof activities.$inferSelect;
 export type InsertPolicyIntelActivity = typeof activities.$inferInsert;
 export type PolicyIntelDeliverable = typeof deliverables.$inferSelect;
 export type InsertPolicyIntelDeliverable = typeof deliverables.$inferInsert;
+export type PolicyIntelStakeholder = typeof stakeholders.$inferSelect;
+export type InsertPolicyIntelStakeholder = typeof stakeholders.$inferInsert;
+export type PolicyIntelStakeholderObservation = typeof stakeholderObservations.$inferSelect;
+export type InsertPolicyIntelStakeholderObservation = typeof stakeholderObservations.$inferInsert;
