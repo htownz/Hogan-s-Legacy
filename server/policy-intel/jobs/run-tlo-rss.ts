@@ -1,15 +1,20 @@
 /**
  * Job: run-tlo-rss
- * Orchestrates: fetch TLO RSS feeds → checksum dedupe → upsert source documents.
+ * Orchestrates: fetch TLO RSS feeds → checksum dedupe → upsert source documents
+ *   → match against watchlists → generate alerts.
  *
  * Designed to be called:
  *  - manually via POST /api/intel/jobs/run-tlo-rss (dev + operations)
  *  - on a cron schedule once node-cron is wired in app.ts
  *
- * Idempotent: running this job twice in a row produces zero duplicate rows.
+ * Idempotent: running this job twice in a row produces zero duplicate rows
+ * and zero duplicate alerts.
  */
 import { fetchAllTloFeeds } from "../connectors/texas/tlo-rss";
 import { upsertSourceDocument } from "../services/source-document-service";
+import { processDocumentAlerts, type AlertCreationResult } from "../services/alert-service";
+import { policyIntelDb } from "../db";
+import { workspaces } from "@shared/schema-policy-intel";
 
 export interface RunTloRssResult {
   feedsAttempted: number;
@@ -18,6 +23,12 @@ export interface RunTloRssResult {
   inserted: number;
   skipped: number;
   errors: { title: string; error: string }[];
+  alerts: {
+    created: number;
+    skippedDuplicate: number;
+    skippedCooldown: number;
+    details: { alertId: number; watchlist: string; score: number }[];
+  };
 }
 
 export async function runTloRssJob(): Promise<RunTloRssResult> {
@@ -28,7 +39,11 @@ export async function runTloRssJob(): Promise<RunTloRssResult> {
     inserted: 0,
     skipped: 0,
     errors: [],
+    alerts: { created: 0, skippedDuplicate: 0, skippedCooldown: 0, details: [] },
   };
+
+  // Load all workspace ids so we match across all workspaces
+  const allWorkspaces = await policyIntelDb.select({ id: workspaces.id }).from(workspaces);
 
   const feedResults = await fetchAllTloFeeds();
   result.feedsAttempted = feedResults.length;
@@ -43,11 +58,20 @@ export async function runTloRssJob(): Promise<RunTloRssResult> {
 
     for (const doc of feedResult.documents) {
       try {
-        const { inserted } = await upsertSourceDocument(doc);
+        const { doc: savedDoc, inserted } = await upsertSourceDocument(doc);
         if (inserted) {
           result.inserted++;
         } else {
           result.skipped++;
+        }
+
+        // Run matching against every workspace's watchlists
+        for (const ws of allWorkspaces) {
+          const alertResult = await processDocumentAlerts(savedDoc, ws.id);
+          result.alerts.created += alertResult.created;
+          result.alerts.skippedDuplicate += alertResult.skippedDuplicate;
+          result.alerts.skippedCooldown += alertResult.skippedCooldown;
+          result.alerts.details.push(...alertResult.details);
         }
       } catch (err: any) {
         result.errors.push({

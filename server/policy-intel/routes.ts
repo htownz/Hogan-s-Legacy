@@ -4,6 +4,7 @@ import { policyIntelDb } from "./db";
 import { alerts, briefs, monitoringJobs, sourceDocuments, watchlists, workspaces } from "@shared/schema-policy-intel";
 import { seedGraceMcEwan } from "./seed/grace-mcewan";
 import { runTloRssJob } from "./jobs/run-tlo-rss";
+import { processDocumentAlerts } from "./services/alert-service";
 
 export function createPolicyIntelRouter() {
   const router = Router();
@@ -257,6 +258,29 @@ export function createPolicyIntelRouter() {
       const result = await runTloRssJob();
       const status = result.feedErrors.length === result.feedsAttempted ? 500 : 200;
       res.status(status).json(result);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.post("/jobs/match-existing", async (_req, res, next) => {
+    try {
+      const allDocs = await policyIntelDb.select().from(sourceDocuments);
+      const allWorkspaces = await policyIntelDb.select({ id: workspaces.id }).from(workspaces);
+
+      const totals = { created: 0, skippedDuplicate: 0, skippedCooldown: 0, details: [] as { alertId: number; watchlist: string; score: number }[] };
+
+      for (const doc of allDocs) {
+        for (const ws of allWorkspaces) {
+          const r = await processDocumentAlerts(doc, ws.id);
+          totals.created += r.created;
+          totals.skippedDuplicate += r.skippedDuplicate;
+          totals.skippedCooldown += r.skippedCooldown;
+          totals.details.push(...r.details);
+        }
+      }
+
+      res.json({ docsProcessed: allDocs.length, workspaces: allWorkspaces.length, alerts: totals });
     } catch (err: any) {
       next(err);
     }
