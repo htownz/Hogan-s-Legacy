@@ -35,6 +35,23 @@ export const briefStatusEnum = pgEnum("policy_intel_brief_status", [
   "published",
 ]);
 
+export const matterStatusEnum = pgEnum("policy_intel_matter_status", [
+  "active",
+  "watching",
+  "closed",
+  "archived",
+]);
+
+export const activityTypeEnum = pgEnum("policy_intel_activity_type", [
+  "alert_received",
+  "brief_drafted",
+  "note_added",
+  "task_assigned",
+  "status_changed",
+  "document_linked",
+  "review_completed",
+]);
+
 export const workspaces = pgTable("policy_intel_workspaces", {
   id: serial("id").primaryKey(),
   slug: varchar("slug", { length: 100 }).notNull().unique(),
@@ -122,6 +139,54 @@ export const monitoringJobs = pgTable("policy_intel_monitoring_jobs", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+// ── Phase 3: Matters + Activities ───────────────────────────────────────────
+
+export const matters = pgTable("policy_intel_matters", {
+  id: serial("id").primaryKey(),
+  workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+  slug: varchar("slug", { length: 150 }).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  clientName: varchar("client_name", { length: 255 }),
+  practiceArea: varchar("practice_area", { length: 128 }),
+  jurisdictionScope: varchar("jurisdiction_scope", { length: 64 }).notNull().default("texas"),
+  status: matterStatusEnum("status").notNull().default("active"),
+  ownerUserId: integer("owner_user_id"),
+  description: text("description"),
+  tagsJson: jsonb("tags_json").$type<string[]>().notNull().default([]),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const matterWatchlists = pgTable(
+  "policy_intel_matter_watchlists",
+  {
+    id: serial("id").primaryKey(),
+    matterId: integer("matter_id").notNull().references(() => matters.id, { onDelete: "cascade" }),
+    watchlistId: integer("watchlist_id").notNull().references(() => watchlists.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    matterWatchlistUnique: uniqueIndex("policy_intel_matter_watchlists_unique_idx").on(
+      table.matterId,
+      table.watchlistId,
+    ),
+  }),
+);
+
+export const activities = pgTable("policy_intel_activities", {
+  id: serial("id").primaryKey(),
+  workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+  matterId: integer("matter_id").references(() => matters.id, { onDelete: "cascade" }),
+  alertId: integer("alert_id").references(() => alerts.id, { onDelete: "set null" }),
+  type: activityTypeEnum("type").notNull(),
+  ownerUserId: integer("owner_user_id"),
+  summary: text("summary").notNull(),
+  detailText: text("detail_text"),
+  dueAt: timestamp("due_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export type PolicyIntelWorkspace = typeof workspaces.$inferSelect;
 export type InsertPolicyIntelWorkspace = typeof workspaces.$inferInsert;
 export type PolicyIntelWatchlist = typeof watchlists.$inferSelect;
@@ -134,3 +199,9 @@ export type PolicyIntelBrief = typeof briefs.$inferSelect;
 export type InsertPolicyIntelBrief = typeof briefs.$inferInsert;
 export type PolicyIntelMonitoringJob = typeof monitoringJobs.$inferSelect;
 export type InsertPolicyIntelMonitoringJob = typeof monitoringJobs.$inferInsert;
+export type PolicyIntelMatter = typeof matters.$inferSelect;
+export type InsertPolicyIntelMatter = typeof matters.$inferInsert;
+export type PolicyIntelMatterWatchlist = typeof matterWatchlists.$inferSelect;
+export type InsertPolicyIntelMatterWatchlist = typeof matterWatchlists.$inferInsert;
+export type PolicyIntelActivity = typeof activities.$inferSelect;
+export type InsertPolicyIntelActivity = typeof activities.$inferInsert;

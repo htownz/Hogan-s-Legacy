@@ -1,13 +1,13 @@
 /**
  * Grace & McEwan LLC — Seed script
- * Creates the firm workspace and its three starter watchlists.
+ * Creates the firm workspace, watchlists, and starter matters.
  * Run via: POST /api/intel/seed  (dev-only)
  */
 import { policyIntelDb } from "../db";
-import { workspaces, watchlists } from "@shared/schema-policy-intel";
-import { eq } from "drizzle-orm";
+import { workspaces, watchlists, matters, matterWatchlists } from "@shared/schema-policy-intel";
+import { and, eq } from "drizzle-orm";
 
-export async function seedGraceMcEwan(): Promise<{ workspace: { id: number; slug: string }; watchlistIds: number[] }> {
+export async function seedGraceMcEwan(): Promise<{ workspace: { id: number; slug: string }; watchlistIds: number[]; matterIds: number[] }> {
   // ── 1. Upsert workspace ───────────────────────────────────────────────
   let workspace: { id: number; slug: string };
 
@@ -150,5 +150,80 @@ export async function seedGraceMcEwan(): Promise<{ workspace: { id: number; slug
     watchlistIds.push(created.id);
   }
 
-  return { workspace, watchlistIds };
+  // ── 3. Seed matters + link to watchlists ─────────────────────────────
+  const matterDefs = [
+    {
+      slug: "txdot-mobility-89r",
+      name: "TxDOT & Mobility — 89th Legislature",
+      clientName: "Grace & McEwan (internal)",
+      practiceArea: "Transportation & Infrastructure",
+      description: "Monitoring all 89R bills, hearings, and agency actions related to TxDOT, METRO, and Texas mobility corridor projects.",
+      tagsJson: ["txdot", "metro", "89R", "transportation"],
+      linkWatchlist: "Transportation / Infrastructure / Mobility",
+    },
+    {
+      slug: "houston-procurement-89r",
+      name: "Houston & Harris County Procurement",
+      clientName: "Grace & McEwan (internal)",
+      practiceArea: "Local Government Affairs",
+      description: "Track City of Houston, Harris County, and METRO procurement opportunities and policy actions.",
+      tagsJson: ["houston", "procurement", "harris_county"],
+      linkWatchlist: "Houston Local Government / Procurement",
+    },
+    {
+      slug: "workforce-edtech-89r",
+      name: "Workforce & EdTech — 89th Legislature",
+      clientName: "Grace & McEwan (internal)",
+      practiceArea: "Education & Technology Policy",
+      description: "Monitor TEA, workforce, broadband, AI policy, and economic development initiatives for the 89th Legislature.",
+      tagsJson: ["workforce", "education", "AI", "89R"],
+      linkWatchlist: "Workforce / Education / Technology",
+    },
+  ];
+
+  const matterIds: number[] = [];
+
+  for (const def of matterDefs) {
+    const existingMatter = await policyIntelDb
+      .select({ id: matters.id })
+      .from(matters)
+      .where(and(eq(matters.workspaceId, workspace.id), eq(matters.slug, def.slug)));
+
+    let matterId: number;
+    if (existingMatter.length > 0) {
+      matterId = existingMatter[0].id;
+    } else {
+      const [created] = await policyIntelDb
+        .insert(matters)
+        .values({
+          workspaceId: workspace.id,
+          slug: def.slug,
+          name: def.name,
+          clientName: def.clientName,
+          practiceArea: def.practiceArea,
+          description: def.description,
+          tagsJson: def.tagsJson,
+        })
+        .returning({ id: matters.id });
+      matterId = created.id;
+    }
+    matterIds.push(matterId);
+
+    // Link matter → watchlist
+    const targetWl = watchlistIds[matterDefs.indexOf(def)];
+    if (targetWl) {
+      const existingLink = await policyIntelDb
+        .select({ id: matterWatchlists.id })
+        .from(matterWatchlists)
+        .where(and(eq(matterWatchlists.matterId, matterId), eq(matterWatchlists.watchlistId, targetWl)));
+
+      if (existingLink.length === 0) {
+        await policyIntelDb
+          .insert(matterWatchlists)
+          .values({ matterId, watchlistId: targetWl });
+      }
+    }
+  }
+
+  return { workspace, watchlistIds, matterIds };
 }

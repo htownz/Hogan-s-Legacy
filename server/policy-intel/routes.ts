@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { policyIntelDb } from "./db";
-import { alerts, briefs, monitoringJobs, sourceDocuments, watchlists, workspaces } from "@shared/schema-policy-intel";
+import { activities, alerts, briefs, matters, matterWatchlists, monitoringJobs, sourceDocuments, watchlists, workspaces } from "@shared/schema-policy-intel";
 import { seedGraceMcEwan } from "./seed/grace-mcewan";
 import { runTloRssJob } from "./jobs/run-tlo-rss";
 import { processDocumentAlerts } from "./services/alert-service";
@@ -23,6 +23,8 @@ export function createPolicyIntelRouter() {
         "/api/intel/source-documents",
         "/api/intel/alerts",
         "/api/intel/briefs",
+        "/api/intel/matters",
+        "/api/intel/activities",
         "/api/intel/jobs"
       ]
     });
@@ -237,6 +239,156 @@ export function createPolicyIntelRouter() {
     }
   });
 
+  // ── Matters ────────────────────────────────────────────────────────────────
+
+  router.get("/matters", async (_req, res, next) => {
+    try {
+      const rows = await policyIntelDb.select().from(matters).orderBy(desc(matters.id));
+      res.json(rows);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.post("/matters", async (req, res, next) => {
+    try {
+      const { workspaceId, slug, name, clientName, practiceArea, jurisdictionScope, status, ownerUserId, description, tagsJson } = req.body ?? {};
+      if (!workspaceId || !slug || !name) {
+        return res.status(400).json({ message: "workspaceId, slug, and name are required" });
+      }
+      const [created] = await policyIntelDb
+        .insert(matters)
+        .values({
+          workspaceId: Number(workspaceId),
+          slug,
+          name,
+          clientName,
+          practiceArea,
+          jurisdictionScope: jurisdictionScope ?? "texas",
+          status: status ?? "active",
+          ownerUserId: ownerUserId ? Number(ownerUserId) : null,
+          description,
+          tagsJson: tagsJson ?? [],
+        })
+        .returning();
+      res.status(201).json(created);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.get("/matters/:id", async (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      const [matter] = await policyIntelDb.select().from(matters).where(eq(matters.id, id));
+      if (!matter) return res.status(404).json({ message: "matter not found" });
+      res.json(matter);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  // Link a watchlist to a matter
+  router.post("/matters/:id/watchlists", async (req, res, next) => {
+    try {
+      const matterId = Number(req.params.id);
+      const { watchlistId } = req.body ?? {};
+      if (!watchlistId) {
+        return res.status(400).json({ message: "watchlistId is required" });
+      }
+      const [created] = await policyIntelDb
+        .insert(matterWatchlists)
+        .values({ matterId, watchlistId: Number(watchlistId) })
+        .returning();
+      res.status(201).json(created);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  // Get watchlists linked to a matter
+  router.get("/matters/:id/watchlists", async (req, res, next) => {
+    try {
+      const matterId = Number(req.params.id);
+      const links = await policyIntelDb.select().from(matterWatchlists).where(eq(matterWatchlists.matterId, matterId));
+      if (links.length === 0) return res.json([]);
+      const wlIds = links.map((l) => l.watchlistId);
+      const rows = await policyIntelDb.select().from(watchlists).where(inArray(watchlists.id, wlIds));
+      res.json(rows);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  // Get alerts for a matter (via its linked watchlists)
+  router.get("/matters/:id/alerts", async (req, res, next) => {
+    try {
+      const matterId = Number(req.params.id);
+      const links = await policyIntelDb.select().from(matterWatchlists).where(eq(matterWatchlists.matterId, matterId));
+      if (links.length === 0) return res.json([]);
+      const wlIds = links.map((l) => l.watchlistId);
+      const rows = await policyIntelDb
+        .select()
+        .from(alerts)
+        .where(inArray(alerts.watchlistId, wlIds))
+        .orderBy(desc(alerts.id));
+      res.json(rows);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  // ── Activities ────────────────────────────────────────────────────────────
+
+  router.post("/matters/:id/activities", async (req, res, next) => {
+    try {
+      const matterId = Number(req.params.id);
+      const { workspaceId, alertId, type, ownerUserId, summary, detailText, dueAt } = req.body ?? {};
+      if (!workspaceId || !type || !summary) {
+        return res.status(400).json({ message: "workspaceId, type, and summary are required" });
+      }
+      const [created] = await policyIntelDb
+        .insert(activities)
+        .values({
+          workspaceId: Number(workspaceId),
+          matterId,
+          alertId: alertId ? Number(alertId) : null,
+          type,
+          ownerUserId: ownerUserId ? Number(ownerUserId) : null,
+          summary,
+          detailText,
+          dueAt: dueAt ? new Date(dueAt) : null,
+        })
+        .returning();
+      res.status(201).json(created);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.get("/matters/:id/activities", async (req, res, next) => {
+    try {
+      const matterId = Number(req.params.id);
+      const rows = await policyIntelDb
+        .select()
+        .from(activities)
+        .where(eq(activities.matterId, matterId))
+        .orderBy(desc(activities.id));
+      res.json(rows);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.get("/activities", async (_req, res, next) => {
+    try {
+      const rows = await policyIntelDb.select().from(activities).orderBy(desc(activities.id));
+      res.json(rows);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
   // ── Dev-only: seed Grace & McEwan workspace + watchlists ──────────────────
   router.post("/seed", async (_req, res, next) => {
     try {
@@ -245,6 +397,7 @@ export function createPolicyIntelRouter() {
         message: "Grace & McEwan workspace seeded",
         workspaceId: result.workspace.id,
         watchlistIds: result.watchlistIds,
+        matterIds: result.matterIds,
       });
     } catch (err: any) {
       next(err);
