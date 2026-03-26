@@ -12,23 +12,31 @@ This repo is too large and too coupled to run the whole legacy app cleanly for t
 
 ## First-time setup
 
-1. Optional: copy `.env.policy-intel.example` to `.env` if you want to override defaults or add API keys
+1. Copy `.env.policy-intel.example` to `.env.policy-intel` and update any API keys or overrides you need
 2. Start the local stack:
 
 ```bash
 docker compose -f docker-compose.policy-intel.yml up --build
 ```
 
-3. In another terminal, push the policy-intel schema:
+3. Open:
+  - Policy Intel UI: http://localhost:5173
+  - API health: http://localhost:5050/health
+  - Policy Intel API root: http://localhost:5050/api/intel
+  - Adminer: http://localhost:8080
+
+The backend container now waits for Postgres and pushes the policy-intel schema automatically during startup.
+
+## Production-style compose flow
+
+1. Copy `.env.policy-intel.prod.example` to `.env.policy-intel.prod` and set production secrets.
+2. Build and start the backend image with the production compose file:
 
 ```bash
-docker compose -f docker-compose.policy-intel.yml exec policy-intel npm run db:push:policy-intel
+docker compose --env-file .env.policy-intel.prod -f docker-compose.policy-intel.prod.yml up --build -d
 ```
 
-4. Open:
-   - API health: http://localhost:5050/health
-   - Policy Intel API root: http://localhost:5050/api/intel
-   - Adminer: http://localhost:8080
+This path uses `Dockerfile.policy-intel` and avoids the dev bind mounts and Vite container.
 
 ## VS Code devcontainer flow
 

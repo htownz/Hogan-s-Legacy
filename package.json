@@ -10,6 +10,7 @@
     "check": "tsc",
     "db:push": "drizzle-kit push",
     "dev:policy-intel": "tsx watch server/policy-intel/index.ts",
+    "dev:policy-intel:container": "tsx server/policy-intel/index.ts",
     "start:policy-intel": "node --enable-source-maps dist-policy-intel/index.js",
     "build:policy-intel": "esbuild server/policy-intel/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist-policy-intel",
     "db:push:policy-intel": "drizzle-kit push --config=drizzle.policy-intel.config.ts"
