@@ -1,4 +1,6 @@
-FROM node:22-trixie-slim AS build
+FROM node:22.22.2-alpine3.22 AS build
+
+RUN apk upgrade --no-cache
 
 WORKDIR /app
 
@@ -8,11 +10,10 @@ RUN npm ci
 COPY . .
 RUN npm run build:policy-intel
 
-FROM node:22-trixie-slim AS runtime
+FROM node:22.22.2-alpine3.22 AS runtime
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk upgrade --no-cache \
+	&& apk add --no-cache ca-certificates
 
 WORKDIR /app
 

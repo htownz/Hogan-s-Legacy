@@ -30,13 +30,32 @@ The backend container now waits for Postgres and pushes the policy-intel schema 
 ## Production-style compose flow
 
 1. Copy `.env.policy-intel.prod.example` to `.env.policy-intel.prod` and set production secrets.
-2. Build and start the backend image with the production compose file:
+2. Build and start the stack with the production compose file:
 
 ```bash
 docker compose --env-file .env.policy-intel.prod -f docker-compose.policy-intel.prod.yml up --build -d
 ```
 
 This path uses `Dockerfile.policy-intel` and avoids the dev bind mounts and Vite container.
+It also runs a one-shot `policy-intel-migrate` service before the backend starts.
+
+If you need to rerun schema migration manually:
+
+```bash
+docker compose --env-file .env.policy-intel.prod -f docker-compose.policy-intel.prod.yml run --rm policy-intel-migrate
+```
+
+### Production runbook shortcuts
+
+From the repo root, you can use npm scripts to avoid retyping compose flags:
+
+```bash
+npm run policy-intel:prod:up
+npm run policy-intel:prod:ps
+npm run policy-intel:prod:logs
+npm run policy-intel:prod:migrate
+npm run policy-intel:prod:down
+```
 
 ## VS Code devcontainer flow
 
