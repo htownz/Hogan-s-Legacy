@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { api, type Alert } from "../api";
 import { useAsync } from "../hooks";
 
@@ -6,6 +7,7 @@ export function AlertQueuePage() {
   const { data: alerts, loading, error, refetch } = useAsync(() => api.getAlerts());
   const [filter, setFilter] = useState<"all" | "pending_review" | "ready" | "suppressed">("all");
   const [reviewing, setReviewing] = useState<number | null>(null);
+  const [creatingIssueRoom, setCreatingIssueRoom] = useState<number | null>(null);
   const [note, setNote] = useState("");
 
   if (loading) return <p>Loading alerts...</p>;
@@ -22,6 +24,23 @@ export function AlertQueuePage() {
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e);
       window.alert("Review failed: " + message);
+    }
+  }
+
+  async function handleCreateIssueRoom(alert: Alert) {
+    try {
+      setCreatingIssueRoom(alert.id);
+      const result = await api.createIssueRoomFromAlert(alert.id, {
+        title: alert.title,
+        summary: alert.whyItMatters ?? alert.summary ?? undefined,
+      });
+      window.alert(`Issue room created: ${result.issueRoom.title}`);
+      refetch();
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      window.alert("Create issue room failed: " + message);
+    } finally {
+      setCreatingIssueRoom(null);
     }
   }
 
@@ -94,6 +113,14 @@ export function AlertQueuePage() {
             <div style={{ fontSize: 11, color: "#aaa", marginTop: 8 }}>
               {a.status} · {new Date(a.createdAt).toLocaleString()}
               {a.reviewerNote && <span> · Note: {a.reviewerNote}</span>}
+              {a.issueRoomId && (
+                <span>
+                  {" "}·{" "}
+                  <Link href={`/issue-rooms/${a.issueRoomId}`}>
+                    <span style={{ color: "#3498db", cursor: "pointer" }}>Issue room #{a.issueRoomId}</span>
+                  </Link>
+                </span>
+              )}
             </div>
 
             {/* Review actions */}
@@ -121,12 +148,23 @@ export function AlertQueuePage() {
                     </div>
                   </div>
                 ) : (
-                  <button
-                    onClick={() => setReviewing(a.id)}
-                    style={{ padding: "6px 14px", fontSize: 12, background: "#3498db", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer" }}
-                  >
-                    Review
-                  </button>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <button
+                      onClick={() => setReviewing(a.id)}
+                      style={{ padding: "6px 14px", fontSize: 12, background: "#3498db", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer" }}
+                    >
+                      Review
+                    </button>
+                    {!a.issueRoomId && (
+                      <button
+                        onClick={() => handleCreateIssueRoom(a)}
+                        disabled={creatingIssueRoom === a.id}
+                        style={{ padding: "6px 14px", fontSize: 12, background: "#16213e", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", opacity: creatingIssueRoom === a.id ? 0.7 : 1 }}
+                      >
+                        {creatingIssueRoom === a.id ? "Creating..." : "Create Issue Room"}
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             )}

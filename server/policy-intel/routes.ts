@@ -759,6 +759,50 @@ export function createPolicyIntelRouter() {
     }
   });
 
+  router.patch("/issue-rooms/:issueRoomId/tasks/:taskId", async (req, res, next) => {
+    try {
+      const issueRoomId = Number(req.params.issueRoomId);
+      const taskId = Number(req.params.taskId);
+      const { status, priority, assignee, dueDate, completedAt } = req.body ?? {};
+
+      const [existing] = await policyIntelDb
+        .select()
+        .from(issueRoomTasks)
+        .where(and(eq(issueRoomTasks.id, taskId), eq(issueRoomTasks.issueRoomId, issueRoomId)));
+
+      if (!existing) {
+        return res.status(404).json({ message: "task not found" });
+      }
+
+      const updateValues: Record<string, unknown> = {};
+
+      if (status !== undefined) updateValues.status = status;
+      if (priority !== undefined) updateValues.priority = priority;
+      if (assignee !== undefined) updateValues.assignee = assignee;
+      if (dueDate !== undefined) updateValues.dueDate = dueDate ? new Date(dueDate) : null;
+
+      if (completedAt !== undefined) {
+        updateValues.completedAt = completedAt ? new Date(completedAt) : null;
+      } else if (status !== undefined) {
+        updateValues.completedAt = status === "done" ? new Date() : null;
+      }
+
+      if (Object.keys(updateValues).length === 0) {
+        return res.status(400).json({ message: "at least one field is required" });
+      }
+
+      const [updated] = await policyIntelDb
+        .update(issueRoomTasks)
+        .set(updateValues)
+        .where(and(eq(issueRoomTasks.id, taskId), eq(issueRoomTasks.issueRoomId, issueRoomId)))
+        .returning();
+
+      res.json(updated);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
   router.post("/issue-rooms/:id/stakeholders", async (req, res, next) => {
     try {
       const issueRoomId = Number(req.params.id);
@@ -1051,6 +1095,7 @@ export function createPolicyIntelRouter() {
         workspaceId: result.workspace.id,
         watchlistIds: result.watchlistIds,
         matterIds: result.matterIds,
+        issueRoomIds: result.issueRoomIds,
       });
     } catch (err: any) {
       next(err);

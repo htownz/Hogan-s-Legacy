@@ -5,11 +5,14 @@ import { AlertQueuePage } from "./pages/AlertQueuePage";
 import { SourceDocsPage } from "./pages/SourceDocsPage";
 import { DigestPage } from "./pages/DigestPage";
 import { DashboardPage } from "./pages/DashboardPage";
+import { IssueRoomsPage } from "./pages/IssueRoomsPage";
+import { IssueRoomDetailPage } from "./pages/IssueRoomDetailPage";
 
 const NAV_ITEMS = [
   { path: "/", label: "Dashboard" },
   { path: "/matters", label: "Matters" },
   { path: "/alerts", label: "Alert Queue" },
+  { path: "/issue-rooms", label: "Issue Rooms" },
   { path: "/sources", label: "Sources" },
   { path: "/digest", label: "Digest" },
 ];
@@ -57,6 +60,8 @@ export function App() {
           <Route path="/matters" component={MattersPage} />
           <Route path="/matters/:id">{(params) => <MatterDetailPage id={Number(params.id)} />}</Route>
           <Route path="/alerts" component={AlertQueuePage} />
+          <Route path="/issue-rooms" component={IssueRoomsPage} />
+          <Route path="/issue-rooms/:id">{(params) => <IssueRoomDetailPage id={Number(params.id)} />}</Route>
           <Route path="/sources" component={SourceDocsPage} />
           <Route path="/digest" component={DigestPage} />
           <Route>

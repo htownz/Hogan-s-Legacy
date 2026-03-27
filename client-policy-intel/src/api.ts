@@ -28,6 +28,49 @@ export const api = {
   getAlerts: () => apiFetch<Alert[]>("/alerts"),
   patchAlert: (id: number, body: { status?: string; reviewerNote?: string }) =>
     apiFetch<Alert>(`/alerts/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  createIssueRoomFromAlert: (id: number, body?: { matterId?: number; title?: string; issueType?: string; summary?: string }) =>
+    apiFetch<{ issueRoom: IssueRoom; alert: Alert }>(`/alerts/${id}/create-issue-room`, { method: "POST", body: JSON.stringify(body ?? {}) }),
+
+  // Issue rooms
+  getIssueRooms: (workspaceId?: number) => apiFetch<IssueRoom[]>(`/issue-rooms${workspaceId ? `?workspaceId=${workspaceId}` : ""}`),
+  getIssueRoom: (id: number) => apiFetch<IssueRoomDetail>(`/issue-rooms/${id}`),
+  getIssueRoomAlerts: (id: number) => apiFetch<Alert[]>(`/issue-rooms/${id}/alerts`),
+  createIssueRoomUpdate: (id: number, body: { title: string; body: string; updateType?: string }) =>
+    apiFetch<unknown>(`/issue-rooms/${id}/updates`, { method: "POST", body: JSON.stringify(body) }),
+  createIssueRoomStrategyOption: (
+    id: number,
+    body: {
+      label: string;
+      description?: string;
+      prosJson?: string[];
+      consJson?: string[];
+      politicalFeasibility?: string;
+      legalDurability?: string;
+      implementationComplexity?: string;
+      recommendationRank?: number;
+    },
+  ) => apiFetch<unknown>(`/issue-rooms/${id}/strategy-options`, { method: "POST", body: JSON.stringify(body) }),
+  createIssueRoomTask: (
+    id: number,
+    body: { title: string; description?: string; status?: string; priority?: string; assignee?: string; dueDate?: string },
+  ) => apiFetch<unknown>(`/issue-rooms/${id}/tasks`, { method: "POST", body: JSON.stringify(body) }),
+  updateIssueRoomTask: (
+    issueRoomId: number,
+    taskId: number,
+    body: { status?: string; priority?: string; assignee?: string; dueDate?: string | null; completedAt?: string | null },
+  ) => apiFetch<unknown>(`/issue-rooms/${issueRoomId}/tasks/${taskId}`, { method: "PATCH", body: JSON.stringify(body) }),
+  createIssueRoomStakeholder: (
+    id: number,
+    body: {
+      type: string;
+      name: string;
+      title?: string;
+      organization?: string;
+      jurisdiction?: string;
+      tagsJson?: string[];
+      sourceSummary?: string;
+    },
+  ) => apiFetch<unknown>(`/issue-rooms/${id}/stakeholders`, { method: "POST", body: JSON.stringify(body) }),
 
   // Source documents
   getSourceDocuments: () => apiFetch<SourceDocument[]>("/source-documents"),
@@ -70,15 +113,77 @@ export interface Alert {
   workspaceId: number;
   watchlistId: number | null;
   sourceDocumentId: number | null;
+  issueRoomId: number | null;
   title: string;
   summary: string | null;
   whyItMatters: string | null;
   status: string;
   relevanceScore: number;
+  confidenceScore: number;
   reasonsJson: EvaluatorBreakdown[];
   reviewerNote: string | null;
   createdAt: string;
   reviewedAt: string | null;
+}
+
+export interface IssueRoom {
+  id: number;
+  workspaceId: number;
+  matterId: number | null;
+  slug: string;
+  title: string;
+  issueType: string | null;
+  jurisdiction: string;
+  status: string;
+  summary: string | null;
+  recommendedPath: string | null;
+  relatedBillIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IssueRoomDetail {
+  issueRoom: IssueRoom;
+  sourceDocuments: SourceDocument[];
+  sourceLinks: Array<{
+    id: number;
+    issueRoomId: number;
+    sourceDocumentId: number;
+    relationshipType: string;
+    createdAt: string;
+  }>;
+  updates: Array<{
+    id: number;
+    issueRoomId: number;
+    title: string;
+    body: string;
+    updateType: string;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+  strategyOptions: Array<{
+    id: number;
+    issueRoomId: number;
+    label: string;
+    description: string | null;
+    prosJson: string[];
+    consJson: string[];
+    politicalFeasibility: string | null;
+    legalDurability: string | null;
+    implementationComplexity: string | null;
+    recommendationRank: number;
+  }>;
+  tasks: Array<{
+    id: number;
+    issueRoomId: number;
+    title: string;
+    description: string | null;
+    status: string;
+    priority: string;
+    assignee: string | null;
+    dueDate: string | null;
+  }>;
+  stakeholders: Stakeholder[];
 }
 
 export interface EvaluatorBreakdown {
@@ -116,11 +221,14 @@ export interface SourceDocument {
 export interface Stakeholder {
   id: number;
   workspaceId: number;
+  issueRoomId: number | null;
   type: string;
   name: string;
   title: string | null;
   organization: string | null;
   jurisdiction: string | null;
+  tagsJson?: string[];
+  sourceSummary?: string | null;
 }
 
 export interface StakeholderDetail extends Stakeholder {
