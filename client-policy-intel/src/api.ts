@@ -79,6 +79,12 @@ export const api = {
   getDigest: (workspaceId: number, week?: string) =>
     apiFetch<Digest>(`/workspaces/${workspaceId}/digest${week ? `?week=${week}` : ""}`),
 
+  // Watchlists
+  getWatchlists: () => apiFetch<Watchlist[]>("/watchlists"),
+  getWatchlist: (id: number) => apiFetch<Watchlist>(`/watchlists/${id}`),
+  createWatchlist: (body: { workspaceId: number; name: string; topic?: string; description?: string }) =>
+    apiFetch<Watchlist>("/watchlists", { method: "POST", body: JSON.stringify(body) }),
+
   // Stakeholders
   getStakeholders: () => apiFetch<Stakeholder[]>("/stakeholders"),
   getStakeholder: (id: number) => apiFetch<StakeholderDetail>(`/stakeholders/${id}`),
@@ -250,6 +256,18 @@ export interface Deliverable {
   bodyMarkdown: string | null;
   generatedBy: string;
   createdAt: string;
+}
+
+export interface Watchlist {
+  id: number;
+  workspaceId: number;
+  name: string;
+  description: string | null;
+  topic: string | null;
+  isActive: boolean;
+  rulesJson: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Digest {
