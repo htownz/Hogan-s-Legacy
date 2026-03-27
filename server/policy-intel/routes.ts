@@ -797,6 +797,18 @@ export function createPolicyIntelRouter() {
         .where(and(eq(issueRoomTasks.id, taskId), eq(issueRoomTasks.issueRoomId, issueRoomId)))
         .returning();
 
+      const [issueRoom] = await policyIntelDb.select().from(issueRooms).where(eq(issueRooms.id, issueRoomId));
+      if (issueRoom) {
+        await policyIntelDb.insert(activities).values({
+          workspaceId: issueRoom.workspaceId,
+          matterId: issueRoom.matterId,
+          issueRoomId,
+          type: "status_changed",
+          summary: `Issue room task updated: ${updated.title}`,
+          detailText: `status=${updated.status}; priority=${updated.priority}; assignee=${updated.assignee ?? ""}`,
+        });
+      }
+
       res.json(updated);
     } catch (err: any) {
       next(err);

@@ -10,7 +10,7 @@ export function IssueRoomDetailPage({ id }: { id: number }) {
   const [newOption, setNewOption] = useState({ label: "", description: "", recommendationRank: "0", politicalFeasibility: "unknown", legalDurability: "unknown", implementationComplexity: "unknown" });
   const [newTask, setNewTask] = useState({ title: "", description: "", priority: "medium", assignee: "" });
   const [newStakeholder, setNewStakeholder] = useState({ type: "organization", name: "", title: "", organization: "", jurisdiction: "", tags: "", sourceSummary: "" });
-  const [taskDrafts, setTaskDrafts] = useState<Record<number, { status: string; priority: string; assignee: string }>>({});
+  const [taskDrafts, setTaskDrafts] = useState<Record<number, { status: string; priority: string; assignee: string; dueDate: string; completedAt: string | null }>>({});
 
   const [savingUpdate, setSavingUpdate] = useState(false);
   const [savingOption, setSavingOption] = useState(false);
@@ -123,22 +123,24 @@ export function IssueRoomDetailPage({ id }: { id: number }) {
     }
   }
 
-  function getTaskDraft(task: { id: number; status: string; priority: string; assignee: string | null }) {
+  function getTaskDraft(task: { id: number; status: string; priority: string; assignee: string | null; dueDate: string | null; completedAt: string | null }) {
     return taskDrafts[task.id] ?? {
       status: task.status,
       priority: task.priority,
       assignee: task.assignee ?? "",
+      dueDate: task.dueDate ? task.dueDate.slice(0, 10) : "",
+      completedAt: task.completedAt,
     };
   }
 
-  function patchTaskDraft(taskId: number, patch: Partial<{ status: string; priority: string; assignee: string }>) {
+  function patchTaskDraft(taskId: number, patch: Partial<{ status: string; priority: string; assignee: string; dueDate: string; completedAt: string | null }>) {
     setTaskDrafts((prev) => {
-      const existing = prev[taskId] ?? { status: "todo", priority: "medium", assignee: "" };
+      const existing = prev[taskId] ?? { status: "todo", priority: "medium", assignee: "", dueDate: "", completedAt: null };
       return { ...prev, [taskId]: { ...existing, ...patch } };
     });
   }
 
-  async function saveTaskCard(task: { id: number; status: string; priority: string; assignee: string | null }) {
+  async function saveTaskCard(task: { id: number; status: string; priority: string; assignee: string | null; dueDate: string | null; completedAt: string | null }) {
     const draft = getTaskDraft(task);
     try {
       setSavingTaskUpdateId(task.id);
@@ -146,6 +148,8 @@ export function IssueRoomDetailPage({ id }: { id: number }) {
         status: draft.status,
         priority: draft.priority,
         assignee: draft.assignee.trim() || undefined,
+        dueDate: draft.dueDate || null,
+        completedAt: draft.completedAt,
       });
       refetch();
     } catch (e: unknown) {
@@ -335,7 +339,8 @@ export function IssueRoomDetailPage({ id }: { id: number }) {
                 <div style={{ fontSize: 11, color: "#888", marginTop: 4 }}>{task.status.replace(/_/g, " ")} · {task.priority}</div>
                 {task.description && <p style={{ fontSize: 12, color: "#555", marginTop: 4 }}>{task.description}</p>}
                 {task.assignee && <div style={{ fontSize: 11, color: "#666", marginTop: 4 }}>Assignee: {task.assignee}</div>}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(110px, 1fr))", gap: 8, marginTop: 8 }}>
+                {task.completedAt && <div style={{ fontSize: 11, color: "#2c7a4b", marginTop: 4 }}>Completed: {new Date(task.completedAt).toLocaleString()}</div>}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(110px, 1fr))", gap: 8, marginTop: 8 }}>
                   <select
                     value={getTaskDraft(task).status}
                     onChange={(e) => patchTaskDraft(task.id, { status: e.target.value })}
@@ -362,14 +367,28 @@ export function IssueRoomDetailPage({ id }: { id: number }) {
                     placeholder="Assignee"
                     style={fieldStyle}
                   />
+                  <input
+                    type="date"
+                    value={getTaskDraft(task).dueDate}
+                    onChange={(e) => patchTaskDraft(task.id, { dueDate: e.target.value })}
+                    style={fieldStyle}
+                  />
                 </div>
-                <button
-                  onClick={() => saveTaskCard(task)}
-                  disabled={savingTaskUpdateId === task.id}
-                  style={{ ...primaryButtonStyle, marginTop: 8 }}
-                >
-                  {savingTaskUpdateId === task.id ? "Updating..." : "Update task"}
-                </button>
+                <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                  <button
+                    onClick={() => patchTaskDraft(task.id, getTaskDraft(task).completedAt ? { status: "todo", completedAt: null } : { status: "done", completedAt: new Date().toISOString() })}
+                    style={{ ...secondaryButtonStyle, background: getTaskDraft(task).completedAt ? "#eceff1" : "#e8f5e9" }}
+                  >
+                    {getTaskDraft(task).completedAt ? "Mark not done" : "Mark done"}
+                  </button>
+                  <button
+                    onClick={() => saveTaskCard(task)}
+                    disabled={savingTaskUpdateId === task.id}
+                    style={primaryButtonStyle}
+                  >
+                    {savingTaskUpdateId === task.id ? "Updating..." : "Update task"}
+                  </button>
+                </div>
               </div>
             ))}
           </Section>
@@ -489,6 +508,16 @@ const primaryButtonStyle: React.CSSProperties = {
   background: "#16213e",
   color: "#fff",
   border: "none",
+  borderRadius: 4,
+  cursor: "pointer",
+};
+
+const secondaryButtonStyle: React.CSSProperties = {
+  padding: "7px 12px",
+  fontSize: 12,
+  background: "#eceff1",
+  color: "#1f2937",
+  border: "1px solid #d0d7de",
   borderRadius: 4,
   cursor: "pointer",
 };

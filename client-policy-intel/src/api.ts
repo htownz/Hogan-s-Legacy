@@ -182,6 +182,7 @@ export interface IssueRoomDetail {
     priority: string;
     assignee: string | null;
     dueDate: string | null;
+    completedAt: string | null;
   }>;
   stakeholders: Stakeholder[];
 }

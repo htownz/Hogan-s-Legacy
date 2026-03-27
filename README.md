@@ -77,6 +77,17 @@ npm run build:policy-intel
 npm run build
 ```
 
+## Container vulnerability governance
+
+The current policy-intel Docker images use the Node 22 Alpine line and can report a single upstream High CVE in scanner output.
+
+- Temporary exception: `CVE-2026-33671`
+- Exception file: `.trivyignore`
+- Review cadence: weekly (or immediately after Node/Alpine base tag updates)
+- Automated reminder: `.github/workflows/cve-review-reminder.yml` opens an issue when `.trivyignore` reaches its `Next review` date
+
+CI now scans policy-intel container images and fails on new High/Critical findings outside the documented exception.
+
 ## What comes next
 
 The next implementation phase is to turn the current monitoring scaffold into one end-to-end issue-room workflow:

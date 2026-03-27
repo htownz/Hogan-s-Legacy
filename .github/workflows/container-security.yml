@@ -1,0 +1,74 @@
+name: Container Security
+
+on:
+  push:
+    branches: [ "main", "master" ]
+    paths:
+      - "Dockerfile.dev"
+      - "Dockerfile.policy-intel"
+      - "client-policy-intel/Dockerfile.dev"
+      - ".trivyignore"
+      - ".github/workflows/container-security.yml"
+  pull_request:
+    branches: [ "main", "master" ]
+    paths:
+      - "Dockerfile.dev"
+      - "Dockerfile.policy-intel"
+      - "client-policy-intel/Dockerfile.dev"
+      - ".trivyignore"
+      - ".github/workflows/container-security.yml"
+  schedule:
+    # Weekly review of base-image vulnerability drift (Friday 14:00 UTC)
+    - cron: "0 14 * * 5"
+
+jobs:
+  trivy-images:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build policy-intel dev image
+        run: docker build -f Dockerfile.dev -t local/policy-intel-dev:ci .
+
+      - name: Build policy-intel prod image
+        run: docker build -f Dockerfile.policy-intel -t local/policy-intel-prod:ci .
+
+      - name: Build policy-intel ui dev image
+        run: docker build -f client-policy-intel/Dockerfile.dev -t local/policy-intel-ui-dev:ci client-policy-intel
+
+      - name: Scan policy-intel dev image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: local/policy-intel-dev:ci
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          format: table
+          exit-code: 1
+          trivyignores: .trivyignore
+
+      - name: Scan policy-intel prod image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: local/policy-intel-prod:ci
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          format: table
+          exit-code: 1
+          trivyignores: .trivyignore
+
+      - name: Scan policy-intel ui dev image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: local/policy-intel-ui-dev:ci
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          format: table
+          exit-code: 1
+          trivyignores: .trivyignore

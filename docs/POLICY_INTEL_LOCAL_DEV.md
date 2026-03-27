@@ -151,3 +151,10 @@ Build one full pipeline for **Texas legislative RSS/TLO updates**:
 
 - The legacy app currently imports many routes and initializes optional AI clients at module load time. That makes a full local boot brittle.
 - This isolated service avoids that problem and gives you a clean path to the commercial product.
+
+## Container vulnerability policy
+
+- CI scans `Dockerfile.dev`, `Dockerfile.policy-intel`, and `client-policy-intel/Dockerfile.dev` for High/Critical vulnerabilities.
+- The current Node 22 Alpine upstream line has one temporary documented exception: `CVE-2026-33671`.
+- The exception is tracked in `.trivyignore` and must be reviewed weekly.
+- Remove the ignore entry as soon as an upstream base image resolves the CVE.
