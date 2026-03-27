@@ -88,6 +88,8 @@ The current policy-intel Docker images use the Node 22 Alpine line and can repor
 
 CI now scans policy-intel container images and fails on new High/Critical findings outside the documented exception.
 
+Workflow safety is additionally enforced by `.github/workflows/workflow-lint.yml`, which lint-checks all workflow files on push and pull request.
+
 ## What comes next
 
 The next implementation phase is to turn the current monitoring scaffold into one end-to-end issue-room workflow:
