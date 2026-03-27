@@ -4,6 +4,7 @@ import { policyIntelDb } from "./db";
 import { activities, alerts, briefs, deliverables, issueRoomSourceDocuments, issueRoomStrategyOptions, issueRoomTasks, issueRoomUpdates, issueRooms, matters, matterWatchlists, monitoringJobs, sourceDocuments, stakeholders, stakeholderObservations, watchlists, workspaces } from "@shared/schema-policy-intel";
 import { seedGraceMcEwan } from "./seed/grace-mcewan";
 import { runTloRssJob } from "./jobs/run-tlo-rss";
+import { runLegiscanJob } from "./jobs/run-legiscan";
 import { processDocumentAlerts } from "./services/alert-service";
 import { generateBrief } from "./services/brief-service";
 import { upsertStakeholder, addObservation, getStakeholderWithObservations, getStakeholdersForMatter } from "./services/stakeholder-service";
@@ -43,6 +44,7 @@ export function createPolicyIntelRouter() {
         "/api/intel/stakeholders",
         "/api/intel/jobs",
         "/api/intel/jobs/run-local-feeds",
+        "/api/intel/jobs/run-legiscan",
         "/api/intel/workspaces/:id/digest"
       ]
     });
@@ -1121,6 +1123,20 @@ export function createPolicyIntelRouter() {
       const result = await runTloRssJob();
       const status = result.feedErrors.length === result.feedsAttempted ? 500 : 200;
       res.status(status).json(result);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.post("/jobs/run-legiscan", async (req, res, next) => {
+    try {
+      const { mode, sinceDays, limit } = req.body ?? {};
+      const result = await runLegiscanJob({
+        mode: mode === "full" ? "full" : "recent",
+        sinceDays: sinceDays ? Number(sinceDays) : undefined,
+        limit: limit ? Number(limit) : undefined,
+      });
+      res.json(result);
     } catch (err: any) {
       next(err);
     }
