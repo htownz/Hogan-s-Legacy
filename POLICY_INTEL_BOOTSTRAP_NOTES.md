@@ -29,22 +29,25 @@ The current app is too coupled to Replit-era assumptions and loads many optional
 
 ```bash
 # optional if you want custom keys
-cp .env.policy-intel.example .env
+cp .env.policy-intel.example .env.policy-intel
 docker compose -f docker-compose.policy-intel.yml up --build
-docker compose -f docker-compose.policy-intel.yml exec policy-intel npm run db:push:policy-intel
 ```
+
+The backend container now waits for Postgres and pushes the policy-intel schema automatically during startup.
 
 ## First URLs
 
+- `http://localhost:5173`
 - `http://localhost:5050/health`
 - `http://localhost:5050/api/intel`
 - `http://localhost:8080`
 
 ## Suggested next coding story
 
-Implement a Texas source ingest path that:
+Implement one source-backed issue-room workflow inside the policy-intel bounded context:
 
-1. fetches one official item
+1. ingests one official Texas source item
 2. stores it in `policy_intel_source_documents`
-3. matches one watchlist
+3. matches one watchlist deterministically
 4. creates one alert with reasons
+5. promotes that alert into an issue room with linked evidence

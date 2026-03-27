@@ -60,6 +60,45 @@ export const activityTypeEnum = pgEnum("policy_intel_activity_type", [
   "review_completed",
 ]);
 
+export const issueRoomStatusEnum = pgEnum("policy_intel_issue_room_status", [
+  "active",
+  "watching",
+  "resolved",
+  "archived",
+]);
+
+export const issueRoomRelationshipTypeEnum = pgEnum("policy_intel_issue_room_relationship_type", [
+  "primary_authority",
+  "background",
+  "opposition_signal",
+  "funding_context",
+  "stakeholder_signal",
+  "timeline_event",
+]);
+
+export const issueRoomUpdateTypeEnum = pgEnum("policy_intel_issue_room_update_type", [
+  "analysis",
+  "status",
+  "political",
+  "legal",
+  "funding",
+  "meeting_note",
+]);
+
+export const issueRoomTaskStatusEnum = pgEnum("policy_intel_issue_room_task_status", [
+  "todo",
+  "in_progress",
+  "blocked",
+  "done",
+]);
+
+export const issueRoomTaskPriorityEnum = pgEnum("policy_intel_issue_room_task_priority", [
+  "low",
+  "medium",
+  "high",
+  "critical",
+]);
+
 export const workspaces = pgTable("policy_intel_workspaces", {
   id: serial("id").primaryKey(),
   slug: varchar("slug", { length: 100 }).notNull().unique(),
@@ -113,11 +152,13 @@ export const alerts = pgTable("policy_intel_alerts", {
   workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
   watchlistId: integer("watchlist_id").references(() => watchlists.id, { onDelete: "set null" }),
   sourceDocumentId: integer("source_document_id").references(() => sourceDocuments.id, { onDelete: "set null" }),
+  issueRoomId: integer("issue_room_id"),
   title: text("title").notNull(),
   summary: text("summary"),
   whyItMatters: text("why_it_matters"),
   status: alertStatusEnum("status").notNull().default("pending_review"),
   relevanceScore: integer("relevance_score").notNull().default(0),
+  confidenceScore: integer("confidence_score").notNull().default(0),
   reasonsJson: jsonb("reasons_json").$type<Record<string, unknown>[]>().notNull().default([]),
   reviewerNote: text("reviewer_note"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -128,6 +169,7 @@ export const briefs = pgTable("policy_intel_briefs", {
   id: serial("id").primaryKey(),
   workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
   watchlistId: integer("watchlist_id").references(() => watchlists.id, { onDelete: "set null" }),
+  issueRoomId: integer("issue_room_id"),
   title: text("title").notNull(),
   status: briefStatusEnum("status").notNull().default("draft"),
   briefText: text("brief_text"),
@@ -182,10 +224,94 @@ export const matterWatchlists = pgTable(
   }),
 );
 
+export const issueRooms = pgTable(
+  "policy_intel_issue_rooms",
+  {
+    id: serial("id").primaryKey(),
+    workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    matterId: integer("matter_id").references(() => matters.id, { onDelete: "set null" }),
+    slug: varchar("slug", { length: 150 }).notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    issueType: varchar("issue_type", { length: 128 }),
+    jurisdiction: varchar("jurisdiction", { length: 64 }).notNull().default("texas"),
+    status: issueRoomStatusEnum("status").notNull().default("active"),
+    summary: text("summary"),
+    recommendedPath: text("recommended_path"),
+    ownerUserId: integer("owner_user_id"),
+    relatedBillIds: jsonb("related_bill_ids").$type<string[]>().notNull().default([]),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    workspaceSlugUnique: uniqueIndex("policy_intel_issue_rooms_workspace_slug_idx").on(
+      table.workspaceId,
+      table.slug,
+    ),
+  }),
+);
+
+export const issueRoomSourceDocuments = pgTable(
+  "policy_intel_issue_room_source_documents",
+  {
+    id: serial("id").primaryKey(),
+    issueRoomId: integer("issue_room_id").notNull().references(() => issueRooms.id, { onDelete: "cascade" }),
+    sourceDocumentId: integer("source_document_id").notNull().references(() => sourceDocuments.id, { onDelete: "cascade" }),
+    relationshipType: issueRoomRelationshipTypeEnum("relationship_type").notNull().default("background"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    issueRoomSourceUnique: uniqueIndex("policy_intel_issue_room_source_documents_unique_idx").on(
+      table.issueRoomId,
+      table.sourceDocumentId,
+    ),
+  }),
+);
+
+export const issueRoomUpdates = pgTable("policy_intel_issue_room_updates", {
+  id: serial("id").primaryKey(),
+  issueRoomId: integer("issue_room_id").notNull().references(() => issueRooms.id, { onDelete: "cascade" }),
+  title: varchar("title", { length: 255 }).notNull(),
+  body: text("body").notNull(),
+  updateType: issueRoomUpdateTypeEnum("update_type").notNull().default("analysis"),
+  sourcePackJson: jsonb("source_pack_json").$type<Record<string, unknown>[]>().notNull().default([]),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const issueRoomStrategyOptions = pgTable("policy_intel_issue_room_strategy_options", {
+  id: serial("id").primaryKey(),
+  issueRoomId: integer("issue_room_id").notNull().references(() => issueRooms.id, { onDelete: "cascade" }),
+  label: varchar("label", { length: 255 }).notNull(),
+  description: text("description"),
+  prosJson: jsonb("pros_json").$type<string[]>().notNull().default([]),
+  consJson: jsonb("cons_json").$type<string[]>().notNull().default([]),
+  politicalFeasibility: varchar("political_feasibility", { length: 32 }).default("unknown"),
+  legalDurability: varchar("legal_durability", { length: 32 }).default("unknown"),
+  implementationComplexity: varchar("implementation_complexity", { length: 32 }).default("unknown"),
+  recommendationRank: integer("recommendation_rank").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const issueRoomTasks = pgTable("policy_intel_issue_room_tasks", {
+  id: serial("id").primaryKey(),
+  issueRoomId: integer("issue_room_id").notNull().references(() => issueRooms.id, { onDelete: "cascade" }),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  status: issueRoomTaskStatusEnum("status").notNull().default("todo"),
+  priority: issueRoomTaskPriorityEnum("priority").notNull().default("medium"),
+  assignee: varchar("assignee", { length: 255 }),
+  dueDate: timestamp("due_date", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const activities = pgTable("policy_intel_activities", {
   id: serial("id").primaryKey(),
   workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
   matterId: integer("matter_id").references(() => matters.id, { onDelete: "cascade" }),
+  issueRoomId: integer("issue_room_id").references(() => issueRooms.id, { onDelete: "cascade" }),
   alertId: integer("alert_id").references(() => alerts.id, { onDelete: "set null" }),
   type: activityTypeEnum("type").notNull(),
   ownerUserId: integer("owner_user_id"),
@@ -227,6 +353,7 @@ export const stakeholderTypeEnum = pgEnum("policy_intel_stakeholder_type", [
 export const stakeholders = pgTable("policy_intel_stakeholders", {
   id: serial("id").primaryKey(),
   workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+  issueRoomId: integer("issue_room_id").references(() => issueRooms.id, { onDelete: "set null" }),
   type: stakeholderTypeEnum("type").notNull(),
   name: varchar("name", { length: 255 }).notNull(),
   title: varchar("title", { length: 255 }),
@@ -264,6 +391,16 @@ export type PolicyIntelMatter = typeof matters.$inferSelect;
 export type InsertPolicyIntelMatter = typeof matters.$inferInsert;
 export type PolicyIntelMatterWatchlist = typeof matterWatchlists.$inferSelect;
 export type InsertPolicyIntelMatterWatchlist = typeof matterWatchlists.$inferInsert;
+export type PolicyIntelIssueRoom = typeof issueRooms.$inferSelect;
+export type InsertPolicyIntelIssueRoom = typeof issueRooms.$inferInsert;
+export type PolicyIntelIssueRoomSourceDocument = typeof issueRoomSourceDocuments.$inferSelect;
+export type InsertPolicyIntelIssueRoomSourceDocument = typeof issueRoomSourceDocuments.$inferInsert;
+export type PolicyIntelIssueRoomUpdate = typeof issueRoomUpdates.$inferSelect;
+export type InsertPolicyIntelIssueRoomUpdate = typeof issueRoomUpdates.$inferInsert;
+export type PolicyIntelIssueRoomStrategyOption = typeof issueRoomStrategyOptions.$inferSelect;
+export type InsertPolicyIntelIssueRoomStrategyOption = typeof issueRoomStrategyOptions.$inferInsert;
+export type PolicyIntelIssueRoomTask = typeof issueRoomTasks.$inferSelect;
+export type InsertPolicyIntelIssueRoomTask = typeof issueRoomTasks.$inferInsert;
 export type PolicyIntelActivity = typeof activities.$inferSelect;
 export type InsertPolicyIntelActivity = typeof activities.$inferInsert;
 export type PolicyIntelDeliverable = typeof deliverables.$inferSelect;
