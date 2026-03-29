@@ -96,7 +96,7 @@ export const api = {
   runTloRss: () => apiFetch<unknown>("/jobs/run-tlo-rss", { method: "POST" }),
   runLocalFeeds: () => apiFetch<unknown>("/jobs/run-local-feeds", { method: "POST" }),
   runMatchExisting: () => apiFetch<unknown>("/jobs/match-existing", { method: "POST" }),
-  runLegiscan: (body?: { mode?: "recent" | "full"; sinceDays?: number; limit?: number; sessionId?: number; detailConcurrency?: number }) =>
+  runLegiscan: (body?: { mode?: "recent" | "full" | "backfill"; sinceDays?: number; limit?: number; sessionId?: number; detailConcurrency?: number }) =>
     apiFetch<unknown>("/jobs/run-legiscan", { method: "POST", body: JSON.stringify(body ?? {}) }),
 };
 

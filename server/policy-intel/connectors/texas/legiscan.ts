@@ -45,6 +45,13 @@ export interface LegiscanFetchResult {
   errors: Array<{ billId: number; error: string }>;
 }
 
+export interface LegiscanBackfillResult {
+  sessionId: number;
+  sessionName: string;
+  totalInMaster: number;
+  documents: InsertPolicyIntelSourceDocument[];
+}
+
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const BASE_URL = "https://api.legiscan.com/";
@@ -98,11 +105,13 @@ async function getCurrentTexasSession(
 interface MasterListEntry {
   bill_id: number;
   number: string;
+  change_hash?: string;
   title: string;
   description: string;
-  status: string;
+  status: string | number;
   status_date: string;
   last_action_date: string;
+  last_action?: string;
   url: string;
 }
 
@@ -220,6 +229,7 @@ export function normaliseToSourceDocument(
     normalizedText,
     rawPayload: {
       legiscanBillId: bill.billId,
+      billId: bill.billNumber,
       billNumber: bill.billNumber,
       chamber: bill.chamber,
       status: bill.status,
@@ -231,6 +241,76 @@ export function normaliseToSourceDocument(
     },
     tagsJson: tags,
     checksum: null, // computed by source-document-service
+  };
+}
+
+function inferChamberFromBillNumber(billNumber: string): string {
+  const upper = billNumber.trim().toUpperCase();
+  if (upper.startsWith("H")) return "House";
+  if (upper.startsWith("S")) return "Senate";
+  return "Unknown";
+}
+
+function normalizeStatus(status: string | number): string {
+  if (typeof status === "string") {
+    return status;
+  }
+
+  return `status_${status}`;
+}
+
+export function normaliseMasterListEntryToSourceDocument(
+  entry: MasterListEntry,
+  sessionId: number,
+  sessionName: string,
+): InsertPolicyIntelSourceDocument {
+  const chamber = inferChamberFromBillNumber(entry.number);
+  const status = normalizeStatus(entry.status);
+  const lastAction = entry.last_action ?? "";
+  const normalizedText = [
+    entry.number,
+    entry.title,
+    entry.description,
+    status,
+    chamber,
+    lastAction ? `Last action: ${lastAction}` : "",
+    sessionName,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const tags = [
+    entry.number.replace(/\s+/g, "_").toUpperCase(),
+    `chamber:${chamber.toLowerCase()}`,
+    `status:${status.toLowerCase().replace(/\s+/g, "_")}`,
+    "legiscan_masterlist",
+  ];
+
+  return {
+    sourceType: "texas_legislation",
+    publisher: "LegiScan / Texas Legislature",
+    sourceUrl: entry.url || `https://legiscan.com/TX/bill/${entry.number}/${new Date().getFullYear()}`,
+    externalId: `legiscan:${entry.bill_id}`,
+    title: `${entry.number} — ${entry.title}`.slice(0, 500),
+    summary: (entry.description || lastAction || entry.title).slice(0, 1000) || null,
+    publishedAt: entry.last_action_date ? new Date(entry.last_action_date) : entry.status_date ? new Date(entry.status_date) : null,
+    normalizedText,
+    rawPayload: {
+      legiscanBillId: entry.bill_id,
+      billId: entry.number,
+      billNumber: entry.number,
+      chamber,
+      status,
+      statusCode: entry.status,
+      changeHash: entry.change_hash ?? null,
+      lastAction,
+      lastActionDate: entry.last_action_date,
+      sourceKind: "master_list_backfill",
+      sessionId,
+      sessionName,
+    },
+    tagsJson: tags,
+    checksum: null,
   };
 }
 
@@ -247,6 +327,49 @@ export interface FetchOptions {
   detailConcurrency?: number;
 }
 
+async function resolveSession(
+  apiKey: string,
+  requestedSessionId?: number,
+): Promise<{ sessionId: number; sessionName: string }> {
+  if (requestedSessionId) {
+    const res = await axios.get(BASE_URL, {
+      params: { key: apiKey, op: "getSessionList", state: "TX" },
+      timeout: 30_000,
+    });
+    const match = (res.data?.sessions ?? []).find((s: any) => s.session_id === requestedSessionId);
+    return {
+      sessionId: requestedSessionId,
+      sessionName: match?.session_name ?? `Session ${requestedSessionId}`,
+    };
+  }
+
+  return getCurrentTexasSession(apiKey);
+}
+
+export async function fetchLegiscanMasterListBackfill(
+  opts: Pick<FetchOptions, "limit" | "since" | "sessionId"> = {},
+): Promise<LegiscanBackfillResult> {
+  const apiKey = getApiKey();
+  const { sessionId, sessionName } = await resolveSession(apiKey, opts.sessionId);
+  const masterList = await fetchMasterList(apiKey, sessionId);
+
+  let candidates = masterList;
+  if (opts.since) {
+    candidates = candidates.filter((entry) => entry.last_action_date >= opts.since!);
+  }
+
+  if (opts.limit && opts.limit > 0) {
+    candidates = candidates.slice(0, opts.limit);
+  }
+
+  return {
+    sessionId,
+    sessionName,
+    totalInMaster: masterList.length,
+    documents: candidates.map((entry) => normaliseMasterListEntryToSourceDocument(entry, sessionId, sessionName)),
+  };
+}
+
 /**
  * Fetch Texas bills from LegiScan and return normalised source documents.
  *
@@ -259,24 +382,7 @@ export async function fetchLegiscanBills(
 ): Promise<LegiscanFetchResult> {
   const apiKey = getApiKey();
 
-  let sessionId: number;
-  let sessionName: string;
-
-  if (opts.sessionId) {
-    // Use the explicitly requested session
-    sessionId = opts.sessionId;
-    // Fetch session list to resolve the name
-    const res = await axios.get(BASE_URL, {
-      params: { key: apiKey, op: "getSessionList", state: "TX" },
-      timeout: 30_000,
-    });
-    const match = (res.data?.sessions ?? []).find((s: any) => s.session_id === sessionId);
-    sessionName = match?.session_name ?? `Session ${sessionId}`;
-  } else {
-    const current = await getCurrentTexasSession(apiKey);
-    sessionId = current.sessionId;
-    sessionName = current.sessionName;
-  }
+  const { sessionId, sessionName } = await resolveSession(apiKey, opts.sessionId);
 
   const masterList = await fetchMasterList(apiKey, sessionId);
 

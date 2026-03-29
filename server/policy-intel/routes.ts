@@ -1132,7 +1132,7 @@ export function createPolicyIntelRouter() {
     try {
       const { mode, sinceDays, limit, sessionId, detailConcurrency } = req.body ?? {};
       const result = await runLegiscanJob({
-        mode: mode === "full" ? "full" : "recent",
+        mode: mode === "full" || mode === "backfill" ? mode : "recent",
         sinceDays: sinceDays ? Number(sinceDays) : undefined,
         limit: limit ? Number(limit) : undefined,
         sessionId: sessionId ? Number(sessionId) : undefined,

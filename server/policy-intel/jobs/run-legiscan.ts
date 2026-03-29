@@ -14,13 +14,13 @@
  * Idempotent: checksums prevent duplicate source documents,
  * dedup guards prevent duplicate alerts.
  */
-import { fetchLegiscanBills } from "../connectors/texas/legiscan";
+import { fetchLegiscanBills, fetchLegiscanMasterListBackfill } from "../connectors/texas/legiscan";
 import { upsertSourceDocument } from "../services/source-document-service";
 import { processDocumentAlerts } from "../services/alert-service";
 import { loadActiveWatchlistsByWorkspace } from "./load-active-watchlists";
 
 export interface RunLegiscanResult {
-  mode: "recent" | "full";
+  mode: "recent" | "full" | "backfill";
   sessionId: number;
   sessionName: string;
   totalInMaster: number;
@@ -38,8 +38,8 @@ export interface RunLegiscanResult {
 }
 
 export interface LegiscanJobOptions {
-  /** "recent" = last 7 days (default); "full" = everything in session */
-  mode?: "recent" | "full";
+  /** "recent" = last 7 days (default); "full" = detail fetch; "backfill" = master-list only */
+  mode?: "recent" | "full" | "backfill";
   /** Override number of days for "recent" mode (default: 7) */
   sinceDays?: number;
   /** Cap number of bills to fetch detail for (useful for testing) */
@@ -78,20 +78,38 @@ export async function runLegiscanJob(
   };
 
   // 1. Fetch from LegiScan API
-  const legiscanResult = await fetchLegiscanBills({
-    since,
-    limit: opts.limit,
-    sessionId: opts.sessionId,
-    detailConcurrency: opts.detailConcurrency,
-  });
+  let documents = [] as Awaited<ReturnType<typeof fetchLegiscanMasterListBackfill>>["documents"];
 
-  result.sessionId = legiscanResult.sessionId;
-  result.sessionName = legiscanResult.sessionName;
-  result.totalInMaster = legiscanResult.totalInMaster;
-  result.fetched = legiscanResult.fetched;
-  result.fetchErrors = legiscanResult.errors;
+  if (mode === "backfill") {
+    const fetchResult = await fetchLegiscanMasterListBackfill({
+      since,
+      limit: opts.limit,
+      sessionId: opts.sessionId,
+    });
 
-  if (legiscanResult.documents.length === 0) {
+    result.sessionId = fetchResult.sessionId;
+    result.sessionName = fetchResult.sessionName;
+    result.totalInMaster = fetchResult.totalInMaster;
+    result.fetched = fetchResult.documents.length;
+    result.fetchErrors = [];
+    documents = fetchResult.documents;
+  } else {
+    const fetchResult = await fetchLegiscanBills({
+      since,
+      limit: opts.limit,
+      sessionId: opts.sessionId,
+      detailConcurrency: opts.detailConcurrency,
+    });
+
+    result.sessionId = fetchResult.sessionId;
+    result.sessionName = fetchResult.sessionName;
+    result.totalInMaster = fetchResult.totalInMaster;
+    result.fetched = fetchResult.documents.length;
+    result.fetchErrors = fetchResult.errors;
+    documents = fetchResult.documents;
+  }
+
+  if (documents.length === 0) {
     return result;
   }
 
@@ -99,7 +117,7 @@ export async function runLegiscanJob(
   const { allWorkspaces, watchlistsByWorkspace } = await loadActiveWatchlistsByWorkspace();
 
   // 3. Upsert documents → match watchlists → create alerts
-  for (const doc of legiscanResult.documents) {
+  for (const doc of documents) {
     try {
       const { doc: savedDoc, inserted } = await upsertSourceDocument(doc);
       if (inserted) {
