@@ -1,19 +1,38 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Link } from "wouter";
 import { api, type Alert } from "../api";
 import { useAsync } from "../hooks";
 
 export function AlertQueuePage() {
-  const { data: alerts, loading, error, refetch } = useAsync(() => api.getAlerts());
+  const [page, setPage] = useState(1);
   const [filter, setFilter] = useState<"all" | "pending_review" | "ready" | "suppressed">("all");
+  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
   const [reviewing, setReviewing] = useState<number | null>(null);
   const [creatingIssueRoom, setCreatingIssueRoom] = useState<number | null>(null);
   const [note, setNote] = useState("");
+  const LIMIT = 50;
 
-  if (loading) return <p>Loading alerts...</p>;
-  if (error) return <p style={{ color: "red" }}>{error}</p>;
+  const fetchAlerts = useCallback(
+    () => api.getAlerts({ page, limit: LIMIT, status: filter, search: search || undefined }),
+    [page, filter, search],
+  );
+  const { data: result, loading, error, refetch } = useAsync(fetchAlerts, [page, filter, search]);
 
-  const filtered = (alerts ?? []).filter((a) => filter === "all" || a.status === filter);
+  const alerts = result?.data ?? [];
+  const total = result?.total ?? 0;
+  const totalPages = result?.totalPages ?? 1;
+
+  function changeFilter(f: typeof filter) {
+    setFilter(f);
+    setPage(1);
+  }
+
+  function handleSearch(e: React.FormEvent) {
+    e.preventDefault();
+    setSearch(searchInput);
+    setPage(1);
+  }
 
   async function handleReview(alert: Alert, status: string) {
     try {
@@ -48,12 +67,31 @@ export function AlertQueuePage() {
     <div>
       <h1 style={{ fontSize: 22, marginBottom: 16 }}>Alert Review Queue</h1>
 
+      {/* Search */}
+      <form onSubmit={handleSearch} style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <input
+          type="text"
+          placeholder="Search alerts by title..."
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          style={{ flex: 1, padding: "8px 12px", fontSize: 13, border: "1px solid #ddd", borderRadius: 6 }}
+        />
+        <button type="submit" style={{ padding: "8px 16px", fontSize: 13, background: "#3498db", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}>
+          Search
+        </button>
+        {search && (
+          <button type="button" onClick={() => { setSearch(""); setSearchInput(""); setPage(1); }} style={{ padding: "8px 12px", fontSize: 13, background: "#e0e0e0", border: "none", borderRadius: 6, cursor: "pointer" }}>
+            Clear
+          </button>
+        )}
+      </form>
+
       {/* Filters */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 20, alignItems: "center" }}>
         {(["all", "pending_review", "ready", "suppressed"] as const).map((f) => (
           <button
             key={f}
-            onClick={() => setFilter(f)}
+            onClick={() => changeFilter(f)}
             style={{
               padding: "6px 14px",
               borderRadius: 16,
@@ -65,13 +103,19 @@ export function AlertQueuePage() {
               color: filter === f ? "#fff" : "#555",
             }}
           >
-            {f.replace(/_/g, " ")} ({(alerts ?? []).filter((a) => f === "all" || a.status === f).length})
+            {f.replace(/_/g, " ")}
           </button>
         ))}
+        <span style={{ marginLeft: "auto", fontSize: 12, color: "#888" }}>
+          {total.toLocaleString()} alert{total !== 1 ? "s" : ""}
+        </span>
       </div>
 
+      {loading && <p>Loading...</p>}
+      {error && <p style={{ color: "red" }}>{error}</p>}
+
       <div style={{ display: "grid", gap: 10 }}>
-        {filtered.map((a) => (
+        {alerts.map((a) => (
           <div key={a.id} style={{
             background: "#fff",
             borderRadius: 8,
@@ -171,10 +215,33 @@ export function AlertQueuePage() {
           </div>
         ))}
 
-        {filtered.length === 0 && (
+        {alerts.length === 0 && !loading && (
           <p style={{ color: "#888" }}>No alerts match the current filter.</p>
         )}
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 12, marginTop: 24 }}>
+          <button
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page <= 1}
+            style={{ padding: "6px 14px", fontSize: 12, border: "1px solid #ddd", borderRadius: 4, cursor: page <= 1 ? "not-allowed" : "pointer", background: "#fff", opacity: page <= 1 ? 0.5 : 1 }}
+          >
+            ← Previous
+          </button>
+          <span style={{ fontSize: 13, color: "#555" }}>
+            Page {page} of {totalPages}
+          </span>
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page >= totalPages}
+            style={{ padding: "6px 14px", fontSize: 12, border: "1px solid #ddd", borderRadius: 4, cursor: page >= totalPages ? "not-allowed" : "pointer", background: "#fff", opacity: page >= totalPages ? 0.5 : 1 }}
+          >
+            Next →
+          </button>
+        </div>
+      )}
     </div>
   );
 }

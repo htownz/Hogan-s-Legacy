@@ -25,7 +25,17 @@ export const api = {
   getMatterStakeholders: (id: number) => apiFetch<Stakeholder[]>(`/matters/${id}/stakeholders`),
 
   // Alerts
-  getAlerts: () => apiFetch<Alert[]>("/alerts"),
+  getAlerts: (params?: { page?: number; limit?: number; status?: string; watchlistId?: number; minScore?: number; search?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.page) q.set("page", String(params.page));
+    if (params?.limit) q.set("limit", String(params.limit));
+    if (params?.status && params.status !== "all") q.set("status", params.status);
+    if (params?.watchlistId) q.set("watchlistId", String(params.watchlistId));
+    if (params?.minScore !== undefined) q.set("minScore", String(params.minScore));
+    if (params?.search) q.set("search", params.search);
+    const qs = q.toString();
+    return apiFetch<PaginatedResponse<Alert>>(`/alerts${qs ? `?${qs}` : ""}`);
+  },
   patchAlert: (id: number, body: { status?: string; reviewerNote?: string }) =>
     apiFetch<Alert>(`/alerts/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   createIssueRoomFromAlert: (id: number, body?: { matterId?: number; title?: string; issueType?: string; summary?: string }) =>
@@ -73,7 +83,18 @@ export const api = {
   ) => apiFetch<unknown>(`/issue-rooms/${id}/stakeholders`, { method: "POST", body: JSON.stringify(body) }),
 
   // Source documents
-  getSourceDocuments: () => apiFetch<SourceDocument[]>("/source-documents"),
+  getSourceDocuments: (params?: { page?: number; limit?: number; sourceType?: string; search?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.page) q.set("page", String(params.page));
+    if (params?.limit) q.set("limit", String(params.limit));
+    if (params?.sourceType) q.set("sourceType", params.sourceType);
+    if (params?.search) q.set("search", params.search);
+    const qs = q.toString();
+    return apiFetch<PaginatedResponse<SourceDocument>>(`/source-documents${qs ? `?${qs}` : ""}`);
+  },
+
+  // Dashboard
+  getDashboardStats: () => apiFetch<DashboardStats>("/dashboard/stats"),
 
   // Digest
   getDigest: (workspaceId: number, week?: string) =>
@@ -289,4 +310,25 @@ export interface Digest {
     alerts: Array<{ id: number; title: string; score: number; status: string; whyItMatters: string | null }>;
   }>;
   recentActivities: Array<{ id: number; type: string; summary: string; matterId: number | null; createdAt: string }>;
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface DashboardStats {
+  totalAlerts: number;
+  pendingReview: number;
+  highPriority: number;
+  totalDocuments: number;
+  activeMatters: number;
+  activeWatchlists: number;
+  recentAlerts: Alert[];
+  recentDocuments: SourceDocument[];
+  alertsByWatchlist: Array<{ watchlistId: number | null; watchlistName: string; count: number }>;
+  alertsByStatus: Array<{ status: string; count: number }>;
 }

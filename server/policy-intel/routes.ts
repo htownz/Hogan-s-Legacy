@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { and, desc, eq, gt, inArray, or } from "drizzle-orm";
+import { and, count, desc, eq, gt, gte, ilike, inArray, lt, or, sql } from "drizzle-orm";
 import { policyIntelDb } from "./db";
 import { activities, alerts, briefs, deliverables, issueRoomSourceDocuments, issueRoomStrategyOptions, issueRoomTasks, issueRoomUpdates, issueRooms, matters, matterWatchlists, monitoringJobs, sourceDocuments, stakeholders, stakeholderObservations, watchlists, workspaces } from "@shared/schema-policy-intel";
 import { seedGraceMcEwan } from "./seed/grace-mcewan";
@@ -32,6 +32,7 @@ export function createPolicyIntelRouter() {
       scope: ["us_federal", "texas"],
       routes: [
         "/api/intel/workspaces",
+        "/api/intel/dashboard/stats",
         "/api/intel/watchlists",
         "/api/intel/source-documents",
         "/api/intel/alerts",
@@ -54,6 +55,87 @@ export function createPolicyIntelRouter() {
     try {
       const rows = await policyIntelDb.select().from(workspaces).orderBy(workspaces.id);
       res.json(rows);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  // ── Dashboard aggregate stats (no full scans) ────────────────────────────
+
+  router.get("/dashboard/stats", async (_req, res, next) => {
+    try {
+      const [
+        [totalAlertsRow],
+        [pendingRow],
+        [highPriorityRow],
+        [totalDocsRow],
+        [activeMattersRow],
+        [activeWatchlistsRow],
+        recentAlerts,
+        recentDocs,
+        alertsByWatchlist,
+        alertsByStatus,
+      ] = await Promise.all([
+        policyIntelDb.select({ count: count() }).from(alerts),
+        policyIntelDb.select({ count: count() }).from(alerts).where(eq(alerts.status, "pending_review")),
+        policyIntelDb.select({ count: count() }).from(alerts).where(gte(alerts.relevanceScore, 70)),
+        policyIntelDb.select({ count: count() }).from(sourceDocuments),
+        policyIntelDb.select({ count: count() }).from(matters).where(eq(matters.status, "active")),
+        policyIntelDb.select({ count: count() }).from(watchlists).where(eq(watchlists.isActive, true)),
+        policyIntelDb
+          .select()
+          .from(alerts)
+          .orderBy(desc(alerts.id))
+          .limit(10),
+        policyIntelDb
+          .select()
+          .from(sourceDocuments)
+          .orderBy(desc(sourceDocuments.id))
+          .limit(5),
+        policyIntelDb
+          .select({
+            watchlistId: alerts.watchlistId,
+            count: count(),
+          })
+          .from(alerts)
+          .groupBy(alerts.watchlistId)
+          .orderBy(desc(count()))
+          .limit(10),
+        policyIntelDb
+          .select({
+            status: alerts.status,
+            count: count(),
+          })
+          .from(alerts)
+          .groupBy(alerts.status),
+      ]);
+
+      // Resolve watchlist names for the breakdown
+      const wlIds = alertsByWatchlist.map((r) => r.watchlistId).filter((id): id is number => id !== null);
+      const wlRows = wlIds.length > 0
+        ? await policyIntelDb.select({ id: watchlists.id, name: watchlists.name }).from(watchlists).where(inArray(watchlists.id, wlIds))
+        : [];
+      const wlNameMap = new Map(wlRows.map((w) => [w.id, w.name]));
+
+      res.json({
+        totalAlerts: totalAlertsRow?.count ?? 0,
+        pendingReview: pendingRow?.count ?? 0,
+        highPriority: highPriorityRow?.count ?? 0,
+        totalDocuments: totalDocsRow?.count ?? 0,
+        activeMatters: activeMattersRow?.count ?? 0,
+        activeWatchlists: activeWatchlistsRow?.count ?? 0,
+        recentAlerts,
+        recentDocuments: recentDocs,
+        alertsByWatchlist: alertsByWatchlist.map((r) => ({
+          watchlistId: r.watchlistId,
+          watchlistName: r.watchlistId ? wlNameMap.get(r.watchlistId) ?? "Unknown" : "Unlinked",
+          count: r.count,
+        })),
+        alertsByStatus: alertsByStatus.map((r) => ({
+          status: r.status,
+          count: r.count,
+        })),
+      });
     } catch (err: any) {
       next(err);
     }
@@ -168,10 +250,36 @@ export function createPolicyIntelRouter() {
     }
   });
 
-  router.get("/source-documents", async (_req, res, next) => {
+  router.get("/source-documents", async (req, res, next) => {
     try {
-      const rows = await policyIntelDb.select().from(sourceDocuments).orderBy(desc(sourceDocuments.id));
-      res.json(rows);
+      const page = Math.max(1, Number(req.query.page) || 1);
+      const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+      const offset = (page - 1) * limit;
+      const sourceType = req.query.sourceType as string | undefined;
+      const search = req.query.search as string | undefined;
+
+      const conditions = [];
+      if (sourceType) conditions.push(eq(sourceDocuments.sourceType, sourceType as any));
+      if (search) conditions.push(ilike(sourceDocuments.title, `%${search}%`));
+
+      const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+      const [rows, [totalRow]] = await Promise.all([
+        policyIntelDb
+          .select()
+          .from(sourceDocuments)
+          .where(where)
+          .orderBy(desc(sourceDocuments.id))
+          .limit(limit)
+          .offset(offset),
+        policyIntelDb
+          .select({ count: count() })
+          .from(sourceDocuments)
+          .where(where),
+      ]);
+
+      const total = totalRow?.count ?? 0;
+      res.json({ data: rows, total, page, limit, totalPages: Math.ceil(total / limit) });
     } catch (err: any) {
       next(err);
     }
@@ -232,10 +340,40 @@ export function createPolicyIntelRouter() {
     }
   });
 
-  router.get("/alerts", async (_req, res, next) => {
+  router.get("/alerts", async (req, res, next) => {
     try {
-      const rows = await policyIntelDb.select().from(alerts).orderBy(desc(alerts.id));
-      res.json(rows);
+      const page = Math.max(1, Number(req.query.page) || 1);
+      const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+      const offset = (page - 1) * limit;
+      const status = req.query.status as string | undefined;
+      const watchlistId = req.query.watchlistId ? Number(req.query.watchlistId) : undefined;
+      const minScore = req.query.minScore ? Number(req.query.minScore) : undefined;
+      const search = req.query.search as string | undefined;
+
+      const conditions = [];
+      if (status && status !== "all") conditions.push(eq(alerts.status, status as any));
+      if (watchlistId) conditions.push(eq(alerts.watchlistId, watchlistId));
+      if (minScore !== undefined) conditions.push(gte(alerts.relevanceScore, minScore));
+      if (search) conditions.push(ilike(alerts.title, `%${search}%`));
+
+      const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+      const [rows, [totalRow]] = await Promise.all([
+        policyIntelDb
+          .select()
+          .from(alerts)
+          .where(where)
+          .orderBy(desc(alerts.id))
+          .limit(limit)
+          .offset(offset),
+        policyIntelDb
+          .select({ count: count() })
+          .from(alerts)
+          .where(where),
+      ]);
+
+      const total = totalRow?.count ?? 0;
+      res.json({ data: rows, total, page, limit, totalPages: Math.ceil(total / limit) });
     } catch (err: any) {
       next(err);
     }
