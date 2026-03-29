@@ -1130,11 +1130,13 @@ export function createPolicyIntelRouter() {
 
   router.post("/jobs/run-legiscan", async (req, res, next) => {
     try {
-      const { mode, sinceDays, limit } = req.body ?? {};
+      const { mode, sinceDays, limit, sessionId, detailConcurrency } = req.body ?? {};
       const result = await runLegiscanJob({
         mode: mode === "full" ? "full" : "recent",
         sinceDays: sinceDays ? Number(sinceDays) : undefined,
         limit: limit ? Number(limit) : undefined,
+        sessionId: sessionId ? Number(sessionId) : undefined,
+        detailConcurrency: detailConcurrency ? Number(detailConcurrency) : undefined,
       });
       res.json(result);
     } catch (err: any) {

@@ -1,5 +1,6 @@
 import {
   boolean,
+  index,
   integer,
   jsonb,
   pgEnum,
@@ -124,6 +125,10 @@ export const watchlists = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => ({
+    workspaceActiveIdx: index("policy_intel_watchlists_workspace_active_idx").on(
+      table.workspaceId,
+      table.isActive,
+    ),
     workspaceNameUnique: uniqueIndex("policy_intel_watchlists_workspace_name_idx").on(
       table.workspaceId,
       table.name,
@@ -131,39 +136,69 @@ export const watchlists = pgTable(
   }),
 );
 
-export const sourceDocuments = pgTable("policy_intel_source_documents", {
-  id: serial("id").primaryKey(),
-  sourceType: sourceTypeEnum("source_type").notNull(),
-  publisher: varchar("publisher", { length: 255 }).notNull(),
-  sourceUrl: text("source_url").notNull(),
-  externalId: varchar("external_id", { length: 255 }),
-  title: text("title").notNull(),
-  summary: text("summary"),
-  publishedAt: timestamp("published_at", { withTimezone: true }),
-  fetchedAt: timestamp("fetched_at", { withTimezone: true }).defaultNow().notNull(),
-  checksum: varchar("checksum", { length: 128 }),
-  rawPayload: jsonb("raw_payload").$type<Record<string, unknown>>().notNull().default({}),
-  normalizedText: text("normalized_text"),
-  tagsJson: jsonb("tags_json").$type<string[]>().notNull().default([]),
-});
+export const sourceDocuments = pgTable(
+  "policy_intel_source_documents",
+  {
+    id: serial("id").primaryKey(),
+    sourceType: sourceTypeEnum("source_type").notNull(),
+    publisher: varchar("publisher", { length: 255 }).notNull(),
+    sourceUrl: text("source_url").notNull(),
+    externalId: varchar("external_id", { length: 255 }),
+    title: text("title").notNull(),
+    summary: text("summary"),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).defaultNow().notNull(),
+    checksum: varchar("checksum", { length: 128 }),
+    rawPayload: jsonb("raw_payload").$type<Record<string, unknown>>().notNull().default({}),
+    normalizedText: text("normalized_text"),
+    tagsJson: jsonb("tags_json").$type<string[]>().notNull().default([]),
+  },
+  (table) => ({
+    checksumUniqueIdx: uniqueIndex("policy_intel_source_documents_checksum_idx").on(table.checksum),
+    externalIdIdx: index("policy_intel_source_documents_external_id_idx").on(table.externalId),
+    sourceTypePublishedIdx: index("policy_intel_source_documents_source_type_published_idx").on(
+      table.sourceType,
+      table.publishedAt,
+    ),
+  }),
+);
 
-export const alerts = pgTable("policy_intel_alerts", {
-  id: serial("id").primaryKey(),
-  workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
-  watchlistId: integer("watchlist_id").references(() => watchlists.id, { onDelete: "set null" }),
-  sourceDocumentId: integer("source_document_id").references(() => sourceDocuments.id, { onDelete: "set null" }),
-  issueRoomId: integer("issue_room_id"),
-  title: text("title").notNull(),
-  summary: text("summary"),
-  whyItMatters: text("why_it_matters"),
-  status: alertStatusEnum("status").notNull().default("pending_review"),
-  relevanceScore: integer("relevance_score").notNull().default(0),
-  confidenceScore: integer("confidence_score").notNull().default(0),
-  reasonsJson: jsonb("reasons_json").$type<Record<string, unknown>[]>().notNull().default([]),
-  reviewerNote: text("reviewer_note"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
-});
+export const alerts = pgTable(
+  "policy_intel_alerts",
+  {
+    id: serial("id").primaryKey(),
+    workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    watchlistId: integer("watchlist_id").references(() => watchlists.id, { onDelete: "set null" }),
+    sourceDocumentId: integer("source_document_id").references(() => sourceDocuments.id, { onDelete: "set null" }),
+    issueRoomId: integer("issue_room_id"),
+    title: text("title").notNull(),
+    summary: text("summary"),
+    whyItMatters: text("why_it_matters"),
+    status: alertStatusEnum("status").notNull().default("pending_review"),
+    relevanceScore: integer("relevance_score").notNull().default(0),
+    confidenceScore: integer("confidence_score").notNull().default(0),
+    reasonsJson: jsonb("reasons_json").$type<Record<string, unknown>[]>().notNull().default([]),
+    reviewerNote: text("reviewer_note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  },
+  (table) => ({
+    sourceWatchlistUniqueIdx: uniqueIndex("policy_intel_alerts_source_watchlist_idx").on(
+      table.sourceDocumentId,
+      table.watchlistId,
+    ),
+    cooldownLookupIdx: index("policy_intel_alerts_watchlist_workspace_title_created_idx").on(
+      table.watchlistId,
+      table.workspaceId,
+      table.title,
+      table.createdAt,
+    ),
+    statusCreatedIdx: index("policy_intel_alerts_status_created_idx").on(
+      table.status,
+      table.createdAt,
+    ),
+  }),
+);
 
 export const briefs = pgTable("policy_intel_briefs", {
   id: serial("id").primaryKey(),

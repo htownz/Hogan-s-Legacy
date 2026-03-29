@@ -7,7 +7,7 @@
  */
 import { and, eq, gt } from "drizzle-orm";
 import { policyIntelDb } from "../db";
-import { alerts, watchlists, type PolicyIntelSourceDocument } from "@shared/schema-policy-intel";
+import { alerts, watchlists, type PolicyIntelSourceDocument, type PolicyIntelWatchlist } from "@shared/schema-policy-intel";
 import { matchDocumentToAllWatchlists, type WatchlistMatch } from "../engine/match-watchlists";
 import { scoreAlert, buildWhyItMatters } from "../engine/score-alert";
 import { buildScorecard } from "../engine/evaluators";
@@ -33,6 +33,7 @@ const COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
 export async function processDocumentAlerts(
   doc: PolicyIntelSourceDocument,
   workspaceId: number,
+  activeWatchlists?: PolicyIntelWatchlist[],
 ): Promise<AlertCreationResult> {
   const result: AlertCreationResult = {
     created: 0,
@@ -42,20 +43,22 @@ export async function processDocumentAlerts(
   };
 
   // Fetch active watchlists for this workspace
-  const activeWatchlists = await policyIntelDb
-    .select()
-    .from(watchlists)
-    .where(
-      and(
-        eq(watchlists.workspaceId, workspaceId),
-        eq(watchlists.isActive, true),
-      ),
-    );
+  const workspaceWatchlists =
+    activeWatchlists ??
+    await policyIntelDb
+      .select()
+      .from(watchlists)
+      .where(
+        and(
+          eq(watchlists.workspaceId, workspaceId),
+          eq(watchlists.isActive, true),
+        ),
+      );
 
-  if (activeWatchlists.length === 0) return result;
+  if (workspaceWatchlists.length === 0) return result;
 
   // Run matching engine
-  const matches = matchDocumentToAllWatchlists(doc, activeWatchlists);
+  const matches = matchDocumentToAllWatchlists(doc, workspaceWatchlists);
   if (matches.length === 0) return result;
 
   for (const match of matches) {
@@ -137,6 +140,7 @@ export async function processDocumentAlerts(
 export async function processDocumentBatch(
   docs: PolicyIntelSourceDocument[],
   workspaceId: number,
+  activeWatchlists?: PolicyIntelWatchlist[],
 ): Promise<AlertCreationResult> {
   const aggregate: AlertCreationResult = {
     created: 0,
@@ -146,7 +150,7 @@ export async function processDocumentBatch(
   };
 
   for (const doc of docs) {
-    const r = await processDocumentAlerts(doc, workspaceId);
+    const r = await processDocumentAlerts(doc, workspaceId, activeWatchlists);
     aggregate.created += r.created;
     aggregate.skippedDuplicate += r.skippedDuplicate;
     aggregate.skippedCooldown += r.skippedCooldown;

@@ -16,9 +16,8 @@
  */
 import { fetchLegiscanBills } from "../connectors/texas/legiscan";
 import { upsertSourceDocument } from "../services/source-document-service";
-import { processDocumentAlerts, type AlertCreationResult } from "../services/alert-service";
-import { policyIntelDb } from "../db";
-import { workspaces } from "@shared/schema-policy-intel";
+import { processDocumentAlerts } from "../services/alert-service";
+import { loadActiveWatchlistsByWorkspace } from "./load-active-watchlists";
 
 export interface RunLegiscanResult {
   mode: "recent" | "full";
@@ -45,6 +44,10 @@ export interface LegiscanJobOptions {
   sinceDays?: number;
   /** Cap number of bills to fetch detail for (useful for testing) */
   limit?: number;
+  /** Specific LegiScan session ID (default: current session) */
+  sessionId?: number;
+  /** Number of parallel LegiScan detail fetches (default: env or 6) */
+  detailConcurrency?: number;
 }
 
 export async function runLegiscanJob(
@@ -78,6 +81,8 @@ export async function runLegiscanJob(
   const legiscanResult = await fetchLegiscanBills({
     since,
     limit: opts.limit,
+    sessionId: opts.sessionId,
+    detailConcurrency: opts.detailConcurrency,
   });
 
   result.sessionId = legiscanResult.sessionId;
@@ -91,9 +96,7 @@ export async function runLegiscanJob(
   }
 
   // 2. Load all workspaces for cross-workspace matching
-  const allWorkspaces = await policyIntelDb
-    .select({ id: workspaces.id })
-    .from(workspaces);
+  const { allWorkspaces, watchlistsByWorkspace } = await loadActiveWatchlistsByWorkspace();
 
   // 3. Upsert documents → match watchlists → create alerts
   for (const doc of legiscanResult.documents) {
@@ -108,7 +111,12 @@ export async function runLegiscanJob(
 
       // Run matching against every workspace's watchlists
       for (const ws of allWorkspaces) {
-        const alertResult = await processDocumentAlerts(savedDoc, ws.id);
+        const workspaceWatchlists = watchlistsByWorkspace.get(ws.id) ?? [];
+        if (workspaceWatchlists.length === 0) {
+          continue;
+        }
+
+        const alertResult = await processDocumentAlerts(savedDoc, ws.id, workspaceWatchlists);
         result.alerts.created += alertResult.created;
         result.alerts.skippedDuplicate += alertResult.skippedDuplicate;
         result.alerts.skippedCooldown += alertResult.skippedCooldown;

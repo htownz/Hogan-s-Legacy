@@ -48,19 +48,27 @@ export interface LegiscanFetchResult {
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const BASE_URL = "https://api.legiscan.com/";
-const REQUEST_DELAY_MS = 250; // be polite to API
-const BATCH_DETAIL_SIZE = 20; // number of bill details to request per batch
+const DEFAULT_DETAIL_CONCURRENCY = 6;
+const MAX_DETAIL_CONCURRENCY = 12;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-function delay(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
-}
 
 function getApiKey(): string {
   const key = process.env.LEGISCAN_API_KEY;
   if (!key) throw new Error("LEGISCAN_API_KEY is not set");
   return key;
+}
+
+function resolveDetailConcurrency(requested?: number): number {
+  const raw =
+    requested ??
+    Number.parseInt(process.env.LEGISCAN_DETAIL_CONCURRENCY ?? `${DEFAULT_DETAIL_CONCURRENCY}`, 10);
+
+  if (!Number.isFinite(raw) || raw < 1) {
+    return DEFAULT_DETAIL_CONCURRENCY;
+  }
+
+  return Math.max(1, Math.min(MAX_DETAIL_CONCURRENCY, Math.floor(raw)));
 }
 
 // ── Fetch session ────────────────────────────────────────────────────────────
@@ -233,6 +241,10 @@ export interface FetchOptions {
   limit?: number;
   /** Only fetch bills with last_action_date >= this (YYYY-MM-DD) */
   since?: string;
+  /** Specific LegiScan session ID (default: current session) */
+  sessionId?: number;
+  /** Number of parallel detail requests (default: env or 6) */
+  detailConcurrency?: number;
 }
 
 /**
@@ -246,7 +258,25 @@ export async function fetchLegiscanBills(
   opts: FetchOptions = {},
 ): Promise<LegiscanFetchResult> {
   const apiKey = getApiKey();
-  const { sessionId, sessionName } = await getCurrentTexasSession(apiKey);
+
+  let sessionId: number;
+  let sessionName: string;
+
+  if (opts.sessionId) {
+    // Use the explicitly requested session
+    sessionId = opts.sessionId;
+    // Fetch session list to resolve the name
+    const res = await axios.get(BASE_URL, {
+      params: { key: apiKey, op: "getSessionList", state: "TX" },
+      timeout: 30_000,
+    });
+    const match = (res.data?.sessions ?? []).find((s: any) => s.session_id === sessionId);
+    sessionName = match?.session_name ?? `Session ${sessionId}`;
+  } else {
+    const current = await getCurrentTexasSession(apiKey);
+    sessionId = current.sessionId;
+    sessionName = current.sessionName;
+  }
 
   const masterList = await fetchMasterList(apiKey, sessionId);
 
@@ -271,11 +301,19 @@ export async function fetchLegiscanBills(
     errors: [],
   };
 
-  // Fetch bill details in batches with rate-limiting
-  for (let i = 0; i < candidates.length; i += BATCH_DETAIL_SIZE) {
-    const batch = candidates.slice(i, i + BATCH_DETAIL_SIZE);
+  const detailConcurrency = Math.min(resolveDetailConcurrency(opts.detailConcurrency), candidates.length || 1);
+  let nextIndex = 0;
 
-    for (const entry of batch) {
+  // Controlled parallelism drastically cuts ingest time without flooding the API.
+  const workers = Array.from({ length: detailConcurrency }, async () => {
+    while (true) {
+      const currentIndex = nextIndex++;
+      if (currentIndex >= candidates.length) {
+        return;
+      }
+
+      const entry = candidates[currentIndex];
+
       try {
         const bill = await fetchBillDetail(apiKey, entry.bill_id);
         if (!bill) {
@@ -292,10 +330,10 @@ export async function fetchLegiscanBills(
           error: err?.message ?? String(err),
         });
       }
-
-      await delay(REQUEST_DELAY_MS);
     }
-  }
+  });
+
+  await Promise.all(workers);
 
   return result;
 }
