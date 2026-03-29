@@ -10,6 +10,7 @@ import { generateBrief } from "./services/brief-service";
 import { upsertStakeholder, addObservation, getStakeholderWithObservations, getStakeholdersForMatter } from "./services/stakeholder-service";
 import { fetchTecData } from "./connectors/texas/tec-filings";
 import { runLocalFeedsJob } from "./jobs/run-local-feeds";
+import { getSchedulerStatus, triggerJob, getJobHistory } from "./scheduler";
 
 function slugifyIssueRoom(value: string) {
   return value
@@ -1300,6 +1301,33 @@ export function createPolicyIntelRouter() {
       }
 
       res.json({ docsProcessed: allDocs.length, workspaces: allWorkspaces.length, alerts: totals });
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  // ── Scheduler ─────────────────────────────────────────────────────────────
+
+  router.get("/scheduler/status", (_req, res) => {
+    res.json(getSchedulerStatus());
+  });
+
+  router.get("/scheduler/history", (_req, res) => {
+    res.json(getJobHistory());
+  });
+
+  router.post("/scheduler/trigger/:jobName", async (req, res, next) => {
+    try {
+      const { jobName } = req.params;
+      const validJobs = ["legiscan-recent", "tlo-rss", "local-feeds"];
+      if (!validJobs.includes(jobName)) {
+        return res.status(400).json({ message: `Invalid job name. Valid: ${validJobs.join(", ")}` });
+      }
+      const record = await triggerJob(jobName);
+      if (!record) {
+        return res.status(404).json({ message: "Job not found" });
+      }
+      res.json(record);
     } catch (err: any) {
       next(err);
     }

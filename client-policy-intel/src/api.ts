@@ -119,6 +119,11 @@ export const api = {
   runMatchExisting: () => apiFetch<unknown>("/jobs/match-existing", { method: "POST" }),
   runLegiscan: (body?: { mode?: "recent" | "full" | "backfill"; sinceDays?: number; limit?: number; sessionId?: number; detailConcurrency?: number }) =>
     apiFetch<unknown>("/jobs/run-legiscan", { method: "POST", body: JSON.stringify(body ?? {}) }),
+
+  // Scheduler
+  getSchedulerStatus: () => apiFetch<SchedulerStatus>("/scheduler/status"),
+  getSchedulerHistory: () => apiFetch<JobRunRecord[]>("/scheduler/history"),
+  triggerScheduledJob: (jobName: string) => apiFetch<JobRunRecord>(`/scheduler/trigger/${jobName}`, { method: "POST" }),
 };
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -331,4 +336,28 @@ export interface DashboardStats {
   recentDocuments: SourceDocument[];
   alertsByWatchlist: Array<{ watchlistId: number | null; watchlistName: string; count: number }>;
   alertsByStatus: Array<{ status: string; count: number }>;
+}
+
+export interface JobRunRecord {
+  jobName: string;
+  startedAt: string;
+  finishedAt: string;
+  durationMs: number;
+  status: "success" | "error";
+  summary: Record<string, unknown>;
+  error?: string;
+}
+
+export interface SchedulerStatus {
+  enabled: boolean;
+  startedAt: string | null;
+  jobs: Array<{
+    name: string;
+    cronExpression: string;
+    enabled: boolean;
+    running: boolean;
+    lastRun: JobRunRecord | null;
+    nextRun: string | null;
+  }>;
+  recentHistory: JobRunRecord[];
 }

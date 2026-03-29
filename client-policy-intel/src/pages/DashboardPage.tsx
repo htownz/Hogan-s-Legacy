@@ -1,8 +1,23 @@
-import { api } from "../api";
+import { api, type SchedulerStatus, type JobRunRecord } from "../api";
 import { useAsync } from "../hooks";
+import { useState, useCallback } from "react";
 
 export function DashboardPage() {
   const { data: stats, loading, error } = useAsync(() => api.getDashboardStats());
+  const { data: scheduler, loading: schedLoading, refetch: refetchScheduler } = useAsync(() => api.getSchedulerStatus());
+  const [triggering, setTriggering] = useState<string | null>(null);
+
+  const handleTrigger = useCallback(async (jobName: string) => {
+    setTriggering(jobName);
+    try {
+      await api.triggerScheduledJob(jobName);
+      refetchScheduler();
+    } catch {
+      // ignore - result will show in status
+    } finally {
+      setTriggering(null);
+    }
+  }, [refetchScheduler]);
 
   if (loading) return <p>Loading dashboard...</p>;
   if (error) return <p style={{ color: "red" }}>{error}</p>;
@@ -83,6 +98,104 @@ export function DashboardPage() {
           ))}
         </div>
       </div>
+
+      {/* Scheduler Status */}
+      {scheduler && (
+        <div style={{ marginBottom: 32 }}>
+          <h3 style={{ marginBottom: 12, fontSize: 15, display: "flex", alignItems: "center", gap: 8 }}>
+            Scheduled Ingestion
+            <span style={{
+              fontSize: 11,
+              padding: "2px 8px",
+              borderRadius: 10,
+              background: scheduler.enabled ? "#27ae60" : "#95a5a6",
+              color: "#fff",
+              fontWeight: 600,
+            }}>
+              {scheduler.enabled ? "ACTIVE" : "DISABLED"}
+            </span>
+          </h3>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
+            {scheduler.jobs.map((job) => (
+              <div key={job.name} style={{
+                background: "#fff",
+                borderRadius: 8,
+                padding: 16,
+                boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+                borderLeft: `3px solid ${job.running ? "#3498db" : job.lastRun?.status === "error" ? "#e74c3c" : "#27ae60"}`,
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <span style={{ fontSize: 14, fontWeight: 600 }}>{job.name}</span>
+                  <button
+                    onClick={() => handleTrigger(job.name)}
+                    disabled={triggering === job.name || job.running}
+                    style={{
+                      fontSize: 11,
+                      padding: "4px 10px",
+                      borderRadius: 4,
+                      border: "1px solid #ddd",
+                      background: triggering === job.name || job.running ? "#eee" : "#fff",
+                      cursor: triggering === job.name || job.running ? "not-allowed" : "pointer",
+                      fontWeight: 500,
+                    }}
+                  >
+                    {triggering === job.name ? "Running..." : job.running ? "In Progress" : "Run Now"}
+                  </button>
+                </div>
+                <div style={{ fontSize: 11, color: "#888", marginBottom: 4 }}>
+                  Schedule: <code style={{ background: "#f5f5f5", padding: "1px 4px", borderRadius: 3 }}>{job.cronExpression}</code>
+                </div>
+                {job.lastRun && (
+                  <div style={{ fontSize: 11, color: job.lastRun.status === "error" ? "#e74c3c" : "#555", marginTop: 4 }}>
+                    Last: {new Date(job.lastRun.finishedAt).toLocaleString()} ({job.lastRun.durationMs}ms)
+                    {job.lastRun.status === "error" && <span> — {job.lastRun.error}</span>}
+                    {job.lastRun.status === "success" && job.lastRun.summary && (
+                      <span> — {Object.entries(job.lastRun.summary).map(([k, v]) => `${k}: ${v}`).join(", ")}</span>
+                    )}
+                  </div>
+                )}
+                {!job.lastRun && <div style={{ fontSize: 11, color: "#aaa" }}>No runs yet</div>}
+              </div>
+            ))}
+          </div>
+          {scheduler.recentHistory.length > 0 && (
+            <details style={{ marginTop: 12 }}>
+              <summary style={{ cursor: "pointer", fontSize: 13, color: "#555" }}>
+                Recent job history ({scheduler.recentHistory.length})
+              </summary>
+              <div style={{
+                marginTop: 8,
+                background: "#fff",
+                borderRadius: 8,
+                overflow: "hidden",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+                maxHeight: 300,
+                overflowY: "auto",
+              }}>
+                {scheduler.recentHistory.map((run, i) => (
+                  <div key={i} style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "8px 14px",
+                    borderBottom: i < scheduler.recentHistory.length - 1 ? "1px solid #f0f0f0" : "none",
+                    fontSize: 12,
+                  }}>
+                    <span style={{ fontWeight: 500, minWidth: 120 }}>{run.jobName}</span>
+                    <span style={{ color: "#888" }}>{new Date(run.finishedAt).toLocaleString()}</span>
+                    <span style={{ color: "#888" }}>{run.durationMs}ms</span>
+                    <span style={{
+                      fontWeight: 600,
+                      color: run.status === "error" ? "#e74c3c" : "#27ae60",
+                    }}>
+                      {run.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+        </div>
+      )}
     </div>
   );
 }
