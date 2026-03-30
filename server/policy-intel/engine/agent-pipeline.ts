@@ -383,61 +383,266 @@ const timelinessAgent: ScoringAgent = {
   },
 };
 
-// ── Regime Agent (NEW — session phase awareness) ─────────────────────────────
-// Analogous to Hogan's MacroAgent. Detects legislative "regime" —
-// whether we're in session, interim, special session, etc. — and adjusts
-// scoring thresholds accordingly.
+// ── Regime Agent — Granular Legislative Calendar ─────────────────────────────
+// Analogous to Hogan's MacroAgent regime detection (trending_up, ranging,
+// volatile, etc.) but for the Texas legislative calendar.
+//
+// 8 regimes map the full legislative lifecycle:
+//   pre_filing       → Nov-Dec even year: bills filed, positioning
+//   early_session     → Jan odd year: session convenes, referrals begin
+//   committee_season  → Feb-Mar odd year: hearings, testimony, markups
+//   floor_action      → Apr-early May: 2nd/3rd readings, floor votes
+//   conference        → mid-May: conference committees reconcile
+//   sine_die          → late May: final passage, enrollment, governor action
+//   interim           → Jun even year - Oct even year: studies, charges
+//   special_session   → called at any time by governor
+//
+// Detection uses (1) document content signals first, then (2) calendar math.
 
-type LegislativeRegime = "in_session" | "special_session" | "interim" | "pre_session" | "unknown";
+export type LegislativeRegime =
+  | "pre_filing"
+  | "early_session"
+  | "committee_season"
+  | "floor_action"
+  | "conference"
+  | "sine_die"
+  | "special_session"
+  | "interim";
+
+// Content-based regime signals (checked before calendar fallback)
+const REGIME_CONTENT_SIGNALS: { regime: LegislativeRegime; patterns: RegExp[] }[] = [
+  {
+    regime: "special_session",
+    patterns: [
+      /special\s+session/i,
+      /called\s+session/i,
+      /extraordinary\s+session/i,
+    ],
+  },
+  {
+    regime: "sine_die",
+    patterns: [
+      /sine\s+die/i,
+      /signed\s+by\s+(the\s+)?governor/i,
+      /enrolled/i,
+      /final\s+passage/i,
+      /vetoed/i,
+      /line[- ]item\s+veto/i,
+    ],
+  },
+  {
+    regime: "conference",
+    patterns: [
+      /conference\s+committee/i,
+      /free\s+conference/i,
+      /conferees\s+appointed/i,
+      /conference\s+report/i,
+    ],
+  },
+  {
+    regime: "floor_action",
+    patterns: [
+      /floor\s+vote/i,
+      /third\s+reading/i,
+      /second\s+reading/i,
+      /passed\s+(house|senate)/i,
+      /record\s+vote/i,
+      /yeas\s+and\s+nays/i,
+      /calendar/i,
+      /point\s+of\s+order/i,
+    ],
+  },
+  {
+    regime: "committee_season",
+    patterns: [
+      /committee\s+hearing/i,
+      /public\s+hearing/i,
+      /witness\s+list/i,
+      /reported\s+favorably/i,
+      /substitute/i,
+      /committee\s+vote/i,
+      /referred\s+to\s+committee/i,
+      /testimony/i,
+      /markup/i,
+    ],
+  },
+  {
+    regime: "early_session",
+    patterns: [
+      /convened/i,
+      /session\s+opened/i,
+      /first\s+reading/i,
+      /filed/i,
+      /introduced/i,
+    ],
+  },
+  {
+    regime: "pre_filing",
+    patterns: [
+      /pre[- ]?fil(e|ing)/i,
+      /interim\s+charge/i,
+      /interim\s+report/i,
+      /interim\s+study/i,
+    ],
+  },
+];
+
+/**
+ * Texas regular session: odd years, 140 days starting 2nd Tuesday in January.
+ * Computes the exact start/end dates for the session year.
+ */
+function getTexasSessionWindow(year: number): { start: Date; end: Date } | null {
+  if (year % 2 === 0) return null;
+  // 2nd Tuesday in January
+  const jan1 = new Date(year, 0, 1);
+  const dayOfWeek = jan1.getDay(); // 0=Sun
+  const daysToFirstTue = (2 - dayOfWeek + 7) % 7;
+  const firstTue = 1 + daysToFirstTue;
+  const secondTue = firstTue + 7;
+  const start = new Date(year, 0, secondTue);
+  const end = new Date(start.getTime() + 139 * 24 * 60 * 60 * 1000); // 140 days inclusive
+  return { start, end };
+}
 
 function detectLegislativeRegime(ctx: AgentContext): LegislativeRegime {
   const text = `${ctx.docTitle} ${ctx.docSummary ?? ""}`.toLowerCase();
 
-  // Check for special session indicators
-  if (text.includes("special session") || text.includes("called session")) {
-    return "special_session";
+  // 1. Content-signal detection (highest priority)
+  //    Walk signals in priority order; first match wins.
+  for (const { regime, patterns } of REGIME_CONTENT_SIGNALS) {
+    for (const re of patterns) {
+      if (re.test(text)) {
+        return regime;
+      }
+    }
   }
 
-  // Texas regular session: odd years, Jan-May (140 days starting 2nd Tues in Jan)
+  // 2. Calendar-based fallback
   const now = new Date();
   const year = now.getFullYear();
-  const month = now.getMonth() + 1;
+  const month = now.getMonth() + 1; // 1-indexed
+  const day = now.getDate();
 
-  if (year % 2 === 1 && month >= 1 && month <= 6) {
-    return "in_session";
+  // Check if we're in a regular session year
+  const session = getTexasSessionWindow(year);
+  if (session) {
+    const dayOfSession = Math.floor(
+      (now.getTime() - session.start.getTime()) / (24 * 60 * 60 * 1000),
+    );
+
+    if (dayOfSession < 0) {
+      // Before session starts in an odd year (early Jan)
+      return "pre_filing";
+    }
+    if (dayOfSession <= 14) {
+      // Days 1-14: convening, first readings, referrals
+      return "early_session";
+    }
+    if (dayOfSession <= 80) {
+      // Days 15-80 (~Feb-Mar): committee hearings peak
+      return "committee_season";
+    }
+    if (dayOfSession <= 120) {
+      // Days 81-120 (~Apr-early May): floor calendars, 2nd/3rd readings
+      return "floor_action";
+    }
+    if (dayOfSession <= 133) {
+      // Days 121-133 (~mid May): conference committees
+      return "conference";
+    }
+    if (dayOfSession <= 150) {
+      // Days 134-150 (~late May + governor action window)
+      return "sine_die";
+    }
+    // Past session + governor window
+    return "interim";
   }
 
-  // Pre-filing period: Nov-Dec before odd year
+  // Even year: check for pre-filing season
   if (year % 2 === 0 && month >= 11) {
-    return "pre_session";
+    return "pre_filing";
   }
 
   return "interim";
 }
 
-const REGIME_CONFIG: Record<LegislativeRegime, { urgencyMultiplier: number; label: string }> = {
-  in_session: { urgencyMultiplier: 1.2, label: "Legislative session active — heightened urgency" },
-  special_session: { urgencyMultiplier: 1.4, label: "Special session — maximum urgency" },
-  pre_session: { urgencyMultiplier: 1.0, label: "Pre-filing period — preparing for session" },
-  interim: { urgencyMultiplier: 0.8, label: "Interim — reduced legislative urgency" },
-  unknown: { urgencyMultiplier: 1.0, label: "Legislative regime unknown" },
+interface RegimeProfile {
+  urgencyMultiplier: number;
+  label: string;
+  /** What kind of documents matter most in this regime */
+  focus: string;
+}
+
+const REGIME_CONFIG: Record<LegislativeRegime, RegimeProfile> = {
+  pre_filing: {
+    urgencyMultiplier: 0.7,
+    label: "Pre-filing season — bills being drafted and positioned",
+    focus: "Track bill filings, interim charges, stakeholder positioning",
+  },
+  early_session: {
+    urgencyMultiplier: 0.9,
+    label: "Early session — convened, referrals and first readings underway",
+    focus: "Committee assignments, bill referrals, early amendments",
+  },
+  committee_season: {
+    urgencyMultiplier: 1.15,
+    label: "Committee season — hearings, testimony, and markups at peak",
+    focus: "Committee hearings, witness lists, substitutes, favorable reports",
+  },
+  floor_action: {
+    urgencyMultiplier: 1.3,
+    label: "Floor action — bills moving through 2nd/3rd readings and votes",
+    focus: "Floor votes, calendars, amendments, points of order",
+  },
+  conference: {
+    urgencyMultiplier: 1.35,
+    label: "Conference period — chambers reconciling competing versions",
+    focus: "Conference committee reports, final amendments, deal-making",
+  },
+  sine_die: {
+    urgencyMultiplier: 1.4,
+    label: "Sine die — final passage, enrollment, governor action window",
+    focus: "Enrolled bills, governor signatures/vetoes, effective dates",
+  },
+  special_session: {
+    urgencyMultiplier: 1.4,
+    label: "Special session — compressed timeline, governor-set agenda",
+    focus: "Governor's call items only — fast-track action required",
+  },
+  interim: {
+    urgencyMultiplier: 0.6,
+    label: "Interim — legislature not in session",
+    focus: "Interim studies, agency rulemaking, stakeholder engagement",
+  },
 };
 
 const regimeAgent: ScoringAgent = {
   name: "regime",
   analyze(ctx: AgentContext): AgentScore {
     const regime = detectLegislativeRegime(ctx);
-    const config = REGIME_CONFIG[regime];
+    const profile = REGIME_CONFIG[regime];
 
-    // Score represents urgency level
-    const score = Math.min(config.urgencyMultiplier / 1.4, 1.0); // Normalize to 0-1
+    // Score represents urgency level, normalized 0-1
+    const score = Math.min(profile.urgencyMultiplier / 1.4, 1.0);
+
+    // Content-detected regimes get higher confidence than calendar defaults
+    const text = `${ctx.docTitle} ${ctx.docSummary ?? ""}`.toLowerCase();
+    const contentDetected = REGIME_CONTENT_SIGNALS.some(({ patterns }) =>
+      patterns.some((re) => re.test(text)),
+    );
+    const confidence = contentDetected ? 0.85 : 0.65;
 
     return {
       agent: "regime",
       score,
-      confidence: regime === "unknown" ? 0.3 : 0.7,
-      rationale: config.label,
-      details: { regime, urgencyMultiplier: config.urgencyMultiplier },
+      confidence,
+      rationale: `${profile.label}. Focus: ${profile.focus}`,
+      details: {
+        regime,
+        urgencyMultiplier: profile.urgencyMultiplier,
+        contentDetected,
+        focus: profile.focus,
+      },
     };
   },
 };
@@ -470,12 +675,16 @@ const DEFAULT_CONFIG: MetaWeigherConfig = {
 };
 
 // Regime-specific weight adjustments (like Hogan's RegimeConfig.meta_*_delta)
+// Each regime shifts how much each agent matters.
 const REGIME_WEIGHT_DELTAS: Record<LegislativeRegime, Partial<Record<string, number>>> = {
-  in_session: { procedural: 0.05, actionability: 0.05, timeliness: 0.03, relevance: -0.08, stakeholder: -0.05 },
-  special_session: { procedural: 0.08, actionability: 0.08, timeliness: 0.05, relevance: -0.12, stakeholder: -0.09 },
-  pre_session: { relevance: 0.05, stakeholder: 0.03, procedural: -0.05, actionability: -0.03 },
-  interim: { stakeholder: 0.05, relevance: 0.05, procedural: -0.05, actionability: -0.05 },
-  unknown: {},
+  pre_filing:       { relevance: 0.05, stakeholder: 0.05, procedural: -0.05, actionability: -0.05 },
+  early_session:    { procedural: 0.03, relevance: 0.02, actionability: -0.03, stakeholder: -0.02 },
+  committee_season: { actionability: 0.06, procedural: 0.04, stakeholder: 0.02, relevance: -0.08, timeliness: -0.04 },
+  floor_action:     { procedural: 0.08, actionability: 0.06, timeliness: 0.04, relevance: -0.10, stakeholder: -0.08 },
+  conference:       { procedural: 0.08, actionability: 0.08, timeliness: 0.04, relevance: -0.12, stakeholder: -0.08 },
+  sine_die:         { procedural: 0.10, actionability: 0.08, timeliness: 0.05, relevance: -0.13, stakeholder: -0.10 },
+  special_session:  { procedural: 0.08, actionability: 0.08, timeliness: 0.05, relevance: -0.12, stakeholder: -0.09 },
+  interim:          { stakeholder: 0.05, relevance: 0.05, procedural: -0.05, actionability: -0.05 },
 };
 
 function normalizeWeights(weights: Record<string, number>): Record<string, number> {
