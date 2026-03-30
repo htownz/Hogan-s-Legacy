@@ -101,6 +101,13 @@ export const api = {
   getDashboardStats: () => apiFetch<DashboardStats>("/dashboard/stats"),
   getDashboardKpis: () => apiFetch<DashboardKpis>("/dashboard/kpis"),
 
+  // Champion / Challenger
+  getChampionStatus: () => apiFetch<ChampionStatus>("/champion/status"),
+  getChampionHistory: (limit?: number) =>
+    apiFetch<ChampionSnapshot[]>(`/champion/history${limit ? `?limit=${limit}` : ""}`),
+  triggerRetrain: () =>
+    apiFetch<RetrainResult>("/champion/retrain", { method: "POST" }),
+
   // Digest
   getDigest: (workspaceId: number, week?: string) =>
     apiFetch<Digest>(`/workspaces/${workspaceId}/digest${week ? `?week=${week}` : ""}`),
@@ -462,4 +469,39 @@ export interface DashboardKpis {
   regime: string;
   agents: Array<{ agent: string; count: number; sum: number; mean: number }>;
   sparklines: SparklinePoint[];
+}
+
+// ── Champion / Challenger types ─────────────────────────────────────────────
+
+export interface ChampionStatus {
+  generation: number;
+  weights: Record<string, number>;
+  escalateThreshold: number;
+  archiveThreshold: number;
+  accuracy: number;
+  feedbackCount: number;
+  promotedAt: string;
+  isDefault: boolean;
+}
+
+export interface ChampionSnapshot {
+  generation: number;
+  weights: Record<string, number>;
+  escalateThreshold: number;
+  archiveThreshold: number;
+  accuracy: number;
+  feedbackCount: number;
+  promotedAt: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface RetrainResult {
+  promoted: boolean;
+  championAccuracy: number;
+  challengerAccuracy: number;
+  newGeneration: number | null;
+  trainSize: number;
+  holdoutSize: number;
+  challengerWeights: Record<string, number>;
+  challengerThresholds: { escalate: number; archive: number };
 }

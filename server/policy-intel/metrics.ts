@@ -317,3 +317,10 @@ metrics.histogram("policy_intel_job_duration_seconds", "Job execution duration",
 // HTTP
 metrics.counter("policy_intel_http_requests_total", "HTTP requests by method and route");
 metrics.histogram("policy_intel_http_duration_ms", "HTTP request duration in ms", [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000]);
+
+// Champion / Challenger
+metrics.counter("policy_intel_feedback_events_total", "Feedback events by outcome (promoted/suppressed/strong_positive)");
+metrics.counter("policy_intel_champion_retrains_total", "Total retraining cycles executed");
+metrics.counter("policy_intel_champion_promotions_total", "Number of challenger-to-champion promotions");
+metrics.gauge("policy_intel_champion_accuracy", "Current champion model accuracy on holdout");
+metrics.gauge("policy_intel_champion_generation", "Current champion generation number");

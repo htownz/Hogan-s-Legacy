@@ -21,6 +21,7 @@
 import type { MatchReason } from "./match-watchlists";
 import type { EvaluatorScore, Scorecard } from "./evaluators";
 import { metrics } from "../metrics";
+import { getChampionConfig } from "./champion";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -793,8 +794,9 @@ const ALL_AGENTS: ScoringAgent[] = [
 /**
  * Run the full multi-agent pipeline.
  * Returns a PipelineSignal with full diagnostics.
+ * Now async — reads champion weights from the champion store.
  */
-export function runAgentPipeline(
+export async function runAgentPipeline(
   docTitle: string,
   docSummary: string | null | undefined,
   reasons: MatchReason[],
@@ -802,7 +804,7 @@ export function runAgentPipeline(
     docDate?: Date | null;
     rawPayload?: Record<string, unknown>;
   },
-): PipelineSignal {
+): Promise<PipelineSignal> {
   const t0 = Date.now();
 
   const ctx: AgentContext = {
@@ -819,8 +821,16 @@ export function runAgentPipeline(
   // Run all agents
   const agentScores = ALL_AGENTS.map((agent) => agent.analyze(ctx));
 
-  // Combine via MetaWeigher
-  const signal = metaWeigh(agentScores, regime);
+  // Load champion weights (falls back to DEFAULT_CONFIG if no champion exists)
+  const championConfig = await getChampionConfig();
+  const config: MetaWeigherConfig = {
+    weights: championConfig.weights,
+    escalateThreshold: championConfig.escalateThreshold,
+    archiveThreshold: championConfig.archiveThreshold,
+  };
+
+  // Combine via MetaWeigher using champion weights
+  const signal = metaWeigh(agentScores, regime, config);
 
   // ── Record Prometheus metrics ──
   const durationMs = Date.now() - t0;
@@ -848,7 +858,7 @@ export function runAgentPipeline(
  * Run the agent pipeline and produce a Scorecard compatible with the
  * existing alert-service.ts. Drop-in replacement for buildScorecard().
  */
-export function buildAgentScorecard(
+export async function buildAgentScorecard(
   docTitle: string,
   docSummary: string | null | undefined,
   reasons: MatchReason[],
@@ -856,8 +866,8 @@ export function buildAgentScorecard(
     docDate?: Date | null;
     rawPayload?: Record<string, unknown>;
   },
-): Scorecard & { pipelineSignal: PipelineSignal } {
-  const signal = runAgentPipeline(docTitle, docSummary, reasons, opts);
+): Promise<Scorecard & { pipelineSignal: PipelineSignal }> {
+  const signal = await runAgentPipeline(docTitle, docSummary, reasons, opts);
 
   // Convert agent scores to EvaluatorScore format for backwards compatibility
   // Map 6 agents → 4 evaluator slots (merge timeliness & regime into existing ones)

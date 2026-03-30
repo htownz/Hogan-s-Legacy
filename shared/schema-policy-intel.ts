@@ -1,5 +1,6 @@
 import {
   boolean,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -409,6 +410,54 @@ export const stakeholderObservations = pgTable("policy_intel_stakeholder_observa
   confidence: varchar("confidence", { length: 32 }).notNull().default("medium"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+// ── Champion / Challenger tables ─────────────────────────────────────────────
+
+export const feedbackOutcomeEnum = pgEnum("policy_intel_feedback_outcome", [
+  "promoted",
+  "suppressed",
+  "strong_positive",
+]);
+
+export const feedbackLog = pgTable(
+  "policy_intel_feedback_log",
+  {
+    id: serial("id").primaryKey(),
+    alertId: integer("alert_id").notNull().references(() => alerts.id, { onDelete: "cascade" }),
+    outcome: feedbackOutcomeEnum("outcome").notNull(),
+    originalScore: integer("original_score").notNull(),
+    originalConfidence: doublePrecision("original_confidence").notNull().default(0),
+    agentScoresJson: jsonb("agent_scores_json").$type<Record<string, unknown>[]>().notNull().default([]),
+    weightsJson: jsonb("weights_json").$type<Record<string, number>>().notNull().default({}),
+    regime: varchar("regime", { length: 32 }).notNull().default("interim"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    alertIdx: index("policy_intel_feedback_log_alert_idx").on(table.alertId),
+    outcomeIdx: index("policy_intel_feedback_log_outcome_idx").on(table.outcome),
+    createdIdx: index("policy_intel_feedback_log_created_idx").on(table.createdAt),
+  }),
+);
+
+export const championSnapshots = pgTable(
+  "policy_intel_champion_snapshots",
+  {
+    id: serial("id").primaryKey(),
+    generation: integer("generation").notNull().default(1),
+    weightsJson: jsonb("weights_json").$type<Record<string, number>>().notNull(),
+    escalateThreshold: integer("escalate_threshold").notNull().default(60),
+    archiveThreshold: integer("archive_threshold").notNull().default(20),
+    accuracy: doublePrecision("accuracy").notNull().default(0),
+    feedbackCount: integer("feedback_count").notNull().default(0),
+    promotedAt: timestamp("promoted_at", { withTimezone: true }).defaultNow().notNull(),
+    metadataJson: jsonb("metadata_json").$type<Record<string, unknown>>().default({}),
+  },
+);
+
+export type PolicyIntelFeedbackLog = typeof feedbackLog.$inferSelect;
+export type InsertPolicyIntelFeedbackLog = typeof feedbackLog.$inferInsert;
+export type PolicyIntelChampionSnapshot = typeof championSnapshots.$inferSelect;
+export type InsertPolicyIntelChampionSnapshot = typeof championSnapshots.$inferInsert;
 
 export type PolicyIntelWorkspace = typeof workspaces.$inferSelect;
 export type InsertPolicyIntelWorkspace = typeof workspaces.$inferInsert;

@@ -1,4 +1,4 @@
-import { api, type DashboardKpis, type SparklinePoint, type SchedulerStatus, type JobRunRecord } from "../api";
+import { api, type DashboardKpis, type SparklinePoint, type SchedulerStatus, type JobRunRecord, type ChampionStatus, type RetrainResult } from "../api";
 import { useAsync } from "../hooks";
 import { useState, useCallback, useEffect, useRef } from "react";
 
@@ -218,6 +218,9 @@ export function DashboardPage() {
   const [triggering, setTriggering] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [champion, setChampion] = useState<ChampionStatus | null>(null);
+  const [retraining, setRetraining] = useState(false);
+  const [retrainResult, setRetrainResult] = useState<RetrainResult | null>(null);
 
   // Auto-refresh KPIs every 15 seconds
   const fetchKpis = useCallback(async () => {
@@ -227,6 +230,12 @@ export function DashboardPage() {
       setLastRefresh(new Date());
     } catch {
       // silent — KPI overlay is optional
+    }
+    try {
+      const cs = await api.getChampionStatus();
+      setChampion(cs);
+    } catch {
+      // silent — champion data is optional
     }
   }, []);
 
@@ -247,6 +256,22 @@ export function DashboardPage() {
       setTriggering(null);
     }
   }, [refetchScheduler]);
+
+  const handleRetrain = useCallback(async () => {
+    setRetraining(true);
+    setRetrainResult(null);
+    try {
+      const result = await api.triggerRetrain();
+      setRetrainResult(result);
+      // Refresh champion status
+      const cs = await api.getChampionStatus();
+      setChampion(cs);
+    } catch {
+      // ignore
+    } finally {
+      setRetraining(false);
+    }
+  }, []);
 
   if (loading) return <p>Loading dashboard...</p>;
   if (error) return <p style={{ color: "red" }}>{error}</p>;
@@ -356,6 +381,97 @@ export function DashboardPage() {
             {kpis.agents.map((a) => (
               <AgentScoreBar key={a.agent} agent={a.agent} mean={a.mean} />
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Champion Model Panel ── */}
+      {champion && (
+        <div style={{ background: "#fff", borderRadius: 10, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.08)", marginBottom: 24 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <h3 style={{ fontSize: 14, margin: 0, color: "#333" }}>
+              Champion Model
+              <span style={{
+                marginLeft: 8,
+                fontSize: 11,
+                padding: "2px 8px",
+                borderRadius: 10,
+                background: champion.isDefault ? "#95a5a6" : "#27ae60",
+                color: "#fff",
+                fontWeight: 600,
+              }}>
+                {champion.isDefault ? "DEFAULT" : `GEN ${champion.generation}`}
+              </span>
+            </h3>
+            <button
+              onClick={handleRetrain}
+              disabled={retraining}
+              style={{
+                fontSize: 11,
+                padding: "5px 14px",
+                borderRadius: 4,
+                border: "1px solid #ddd",
+                background: retraining ? "#eee" : "#fff",
+                cursor: retraining ? "not-allowed" : "pointer",
+                fontWeight: 500,
+              }}
+            >
+              {retraining ? "Retraining..." : "Run Retrain"}
+            </button>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            {/* Weights */}
+            <div>
+              <div style={{ fontSize: 12, color: "#888", marginBottom: 8 }}>Agent Weights</div>
+              {Object.entries(champion.weights).map(([agent, weight]) => (
+                <div key={agent} style={{ display: "flex", alignItems: "center", marginBottom: 4 }}>
+                  <span style={{ fontSize: 12, width: 100, textTransform: "capitalize" }}>{agent}</span>
+                  <div style={{ flex: 1, height: 8, background: "#f0f0f0", borderRadius: 4, overflow: "hidden" }}>
+                    <div style={{
+                      width: `${(weight as number) * 100}%`,
+                      height: "100%",
+                      background: "#3498db",
+                      borderRadius: 4,
+                    }} />
+                  </div>
+                  <span style={{ fontSize: 11, color: "#666", marginLeft: 8, width: 40, textAlign: "right" }}>
+                    {((weight as number) * 100).toFixed(0)}%
+                  </span>
+                </div>
+              ))}
+            </div>
+            {/* Stats */}
+            <div>
+              <div style={{ fontSize: 12, color: "#888", marginBottom: 8 }}>Status</div>
+              <div style={{ fontSize: 12, marginBottom: 6 }}>
+                <strong>Accuracy:</strong> {champion.accuracy > 0 ? `${(champion.accuracy * 100).toFixed(1)}%` : "—"}
+              </div>
+              <div style={{ fontSize: 12, marginBottom: 6 }}>
+                <strong>Feedback:</strong> {champion.feedbackCount} samples
+              </div>
+              <div style={{ fontSize: 12, marginBottom: 6 }}>
+                <strong>Thresholds:</strong> escalate ≥{champion.escalateThreshold}, archive ≤{champion.archiveThreshold}
+              </div>
+              <div style={{ fontSize: 12, color: "#aaa" }}>
+                {champion.isDefault ? "No retraining yet" : `Promoted ${new Date(champion.promotedAt).toLocaleDateString()}`}
+              </div>
+              {retrainResult && (
+                <div style={{
+                  marginTop: 10,
+                  padding: 8,
+                  borderRadius: 6,
+                  background: retrainResult.promoted ? "#eafaf1" : "#fef9e7",
+                  fontSize: 11,
+                }}>
+                  {retrainResult.promoted
+                    ? `Challenger promoted! Gen ${retrainResult.newGeneration} (${(retrainResult.challengerAccuracy * 100).toFixed(1)}% vs ${(retrainResult.championAccuracy * 100).toFixed(1)}%)`
+                    : retrainResult.trainSize === 0
+                      ? `Need ≥20 feedback samples (have ${champion.feedbackCount})`
+                      : `No promotion — challenger ${(retrainResult.challengerAccuracy * 100).toFixed(1)}% vs champion ${(retrainResult.championAccuracy * 100).toFixed(1)}%`
+                  }
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

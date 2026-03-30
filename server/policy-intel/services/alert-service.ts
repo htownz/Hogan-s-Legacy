@@ -104,7 +104,7 @@ export async function processDocumentAlerts(
     }
 
     // Build alert payload with multi-agent pipeline scorecard
-    const scorecard = buildAgentScorecard(
+    const scorecard = await buildAgentScorecard(
       doc.title,
       doc.summary,
       match.reasons,

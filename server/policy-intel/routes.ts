@@ -14,6 +14,8 @@ import { runTecImportJob } from "./jobs/run-tec";
 import { getSchedulerStatus, triggerJob, getJobHistory } from "./scheduler";
 import { getPipelineConfig, runAgentPipeline } from "./engine/agent-pipeline";
 import { metrics, timeSeries } from "./metrics";
+import { recordFeedback, getChampionStatus, getChampionHistory, runRetraining, bootstrapFeedback } from "./engine/champion";
+import type { FeedbackOutcome } from "./engine/champion";
 
 function slugifyIssueRoom(value: string) {
   return value
@@ -50,7 +52,10 @@ export function createPolicyIntelRouter() {
         "/api/intel/jobs",
         "/api/intel/jobs/run-local-feeds",
         "/api/intel/jobs/run-legiscan",
-        "/api/intel/workspaces/:id/digest"
+        "/api/intel/workspaces/:id/digest",
+        "/api/intel/champion/status",
+        "/api/intel/champion/history",
+        "/api/intel/champion/retrain"
       ]
     });
   });
@@ -510,6 +515,33 @@ export function createPolicyIntelRouter() {
         }
       }
 
+      // ── Champion/Challenger feedback recording ──
+      // Map reviewer action to feedback outcome for walk-forward training
+      if (status && ["ready", "sent", "suppressed"].includes(status)) {
+        try {
+          const outcome: FeedbackOutcome =
+            status === "suppressed" ? "suppressed" : "promoted";
+
+          // Extract pipeline data from reasonsJson
+          const reasons = (updated.reasonsJson ?? []) as Record<string, unknown>[];
+          const pipelineEntry = reasons.find((r) => r.evaluator === "_pipeline" || r.agent === "_pipeline");
+          const agentScores = reasons.filter(
+            (r) => r.evaluator !== "_pipeline" && r.agent !== "_pipeline",
+          );
+
+          await recordFeedback(updated.id, outcome, {
+            originalScore: updated.relevanceScore,
+            originalConfidence: updated.confidenceScore / 100,
+            agentScores,
+            weights: (pipelineEntry?.weights as Record<string, number>) ?? {},
+            regime: (pipelineEntry?.regime as string) ?? "interim",
+          });
+        } catch (feedbackErr) {
+          // Non-fatal — don't block the review response
+          console.error("[champion] feedback recording failed:", feedbackErr);
+        }
+      }
+
       res.json(updated);
     } catch (err: any) {
       next(err);
@@ -852,6 +884,24 @@ export function createPolicyIntelRouter() {
         summary: `Issue room created from alert: ${resolvedTitle}`,
         detailText: alert.whyItMatters ?? alert.summary ?? null,
       });
+
+      // Strong positive signal for champion/challenger
+      try {
+        const reasons = (alert.reasonsJson ?? []) as Record<string, unknown>[];
+        const pipelineEntry = reasons.find((r) => r.evaluator === "_pipeline" || r.agent === "_pipeline");
+        const agentScores = reasons.filter(
+          (r) => r.evaluator !== "_pipeline" && r.agent !== "_pipeline",
+        );
+        await recordFeedback(alert.id, "strong_positive", {
+          originalScore: alert.relevanceScore,
+          originalConfidence: alert.confidenceScore / 100,
+          agentScores,
+          weights: (pipelineEntry?.weights as Record<string, number>) ?? {},
+          regime: (pipelineEntry?.regime as string) ?? "interim",
+        });
+      } catch (feedbackErr) {
+        console.error("[champion] strong_positive feedback failed:", feedbackErr);
+      }
 
       res.status(201).json({ issueRoom: created, alert: updatedAlert });
     } catch (err: any) {
@@ -1478,7 +1528,7 @@ export function createPolicyIntelRouter() {
     try {
       const config = getPipelineConfig();
       // Run a synthetic probe to show current regime
-      const probe = runAgentPipeline("probe", null, []);
+      const probe = await runAgentPipeline("probe", null, []);
       res.json({
         ...config,
         currentRegime: probe.regime,
@@ -1502,12 +1552,65 @@ export function createPolicyIntelRouter() {
       if (!title || typeof title !== "string") {
         return res.status(400).json({ error: "title is required" });
       }
-      const signal = runAgentPipeline(
+      const signal = await runAgentPipeline(
         title,
         summary ?? null,
         Array.isArray(reasons) ? reasons : [],
       );
       res.json(signal);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  // ── Champion / Challenger endpoints ────────────────────────────────────────
+
+  /**
+   * GET /champion/status — current champion weights, accuracy, generation
+   */
+  router.get("/champion/status", async (_req, res, next) => {
+    try {
+      const status = await getChampionStatus();
+      res.json(status);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * GET /champion/history — past champion snapshots (most recent first)
+   */
+  router.get("/champion/history", async (req, res, next) => {
+    try {
+      const limit = Math.min(Number(req.query.limit) || 20, 100);
+      const history = await getChampionHistory(limit);
+      res.json(history);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * POST /champion/retrain — manually trigger a retraining cycle
+   */
+  router.post("/champion/retrain", async (_req, res, next) => {
+    try {
+      const result = await runRetraining();
+      res.json(result);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * POST /champion/bootstrap — seed feedback data from existing alerts
+   * Body: { sampleSize?: number } (default: 100)
+   */
+  router.post("/champion/bootstrap", async (req, res, next) => {
+    try {
+      const sampleSize = Math.min(Number(req.body?.sampleSize) || 100, 500);
+      const result = await bootstrapFeedback(sampleSize);
+      res.json(result);
     } catch (err: any) {
       next(err);
     }

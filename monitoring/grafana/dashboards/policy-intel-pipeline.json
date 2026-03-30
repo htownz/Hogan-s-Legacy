@@ -306,6 +306,98 @@
           "unit": "ms"
         }
       }
+    },
+    {
+      "title": "Champion Generation",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 36 },
+      "targets": [
+        {
+          "expr": "policy_intel_champion_generation",
+          "legendFormat": "Generation"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Champion Accuracy",
+      "type": "gauge",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 36 },
+      "targets": [
+        {
+          "expr": "policy_intel_champion_accuracy",
+          "legendFormat": "Accuracy"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.6 },
+              { "color": "green", "value": 0.8 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Feedback Events (Rate)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 36 },
+      "targets": [
+        {
+          "expr": "rate(policy_intel_feedback_events_total{outcome=\"promoted\"}[5m])",
+          "legendFormat": "Promoted"
+        },
+        {
+          "expr": "rate(policy_intel_feedback_events_total{outcome=\"suppressed\"}[5m])",
+          "legendFormat": "Suppressed"
+        },
+        {
+          "expr": "rate(policy_intel_feedback_events_total{outcome=\"strong_positive\"}[5m])",
+          "legendFormat": "Strong +"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "fillOpacity": 20 }
+        }
+      }
+    },
+    {
+      "title": "Retrain & Promotion Events",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "targets": [
+        {
+          "expr": "rate(policy_intel_champion_retrains_total[5m])",
+          "legendFormat": "Retrain attempts"
+        },
+        {
+          "expr": "rate(policy_intel_champion_promotions_total[5m])",
+          "legendFormat": "Promotions"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "fillOpacity": 15, "pointSize": 8, "drawStyle": "points" }
+        }
+      }
     }
   ],
   "schemaVersion": 39,
