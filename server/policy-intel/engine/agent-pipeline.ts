@@ -20,6 +20,7 @@
  */
 import type { MatchReason } from "./match-watchlists";
 import type { EvaluatorScore, Scorecard } from "./evaluators";
+import { metrics } from "../metrics";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -802,6 +803,8 @@ export function runAgentPipeline(
     rawPayload?: Record<string, unknown>;
   },
 ): PipelineSignal {
+  const t0 = Date.now();
+
   const ctx: AgentContext = {
     docTitle,
     docSummary,
@@ -817,7 +820,28 @@ export function runAgentPipeline(
   const agentScores = ALL_AGENTS.map((agent) => agent.analyze(ctx));
 
   // Combine via MetaWeigher
-  return metaWeigh(agentScores, regime);
+  const signal = metaWeigh(agentScores, regime);
+
+  // ── Record Prometheus metrics ──
+  const durationMs = Date.now() - t0;
+  metrics.inc("policy_intel_pipeline_runs_total");
+  metrics.inc("policy_intel_pipeline_actions_total", { action: signal.action });
+  metrics.observe("policy_intel_pipeline_score", {}, signal.totalScore);
+  metrics.observe("policy_intel_pipeline_confidence", {}, signal.confidence);
+  metrics.observe("policy_intel_pipeline_duration_ms", {}, durationMs);
+  metrics.inc("policy_intel_regime_detections_total", { regime });
+
+  // Set current regime gauge (clear others, set active to 1)
+  for (const r of Object.keys(REGIME_CONFIG)) {
+    metrics.set("policy_intel_regime_current", { regime: r }, r === regime ? 1 : 0);
+  }
+
+  // Per-agent scores
+  for (const a of agentScores) {
+    metrics.observe("policy_intel_agent_score", { agent: a.agent }, a.score);
+  }
+
+  return signal;
 }
 
 /**

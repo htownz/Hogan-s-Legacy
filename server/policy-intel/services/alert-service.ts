@@ -12,6 +12,7 @@ import { matchDocumentToAllWatchlists, type WatchlistMatch } from "../engine/mat
 import { scoreAlert, buildWhyItMatters } from "../engine/score-alert";
 import { buildScorecard } from "../engine/evaluators";
 import { buildAgentScorecard } from "../engine/agent-pipeline";
+import { metrics } from "../metrics";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -59,8 +60,10 @@ export async function processDocumentAlerts(
   if (workspaceWatchlists.length === 0) return result;
 
   // Run matching engine
+  metrics.inc("policy_intel_docs_processed_total");
   const matches = matchDocumentToAllWatchlists(doc, workspaceWatchlists);
   if (matches.length === 0) return result;
+  metrics.inc("policy_intel_docs_matched_total");
 
   for (const match of matches) {
     // 1. Dedup: skip if an alert already exists for this (doc, watchlist)
@@ -76,6 +79,7 @@ export async function processDocumentAlerts(
 
     if (existing.length > 0) {
       result.skippedDuplicate++;
+      metrics.inc("policy_intel_alerts_skipped_total", { reason: "duplicate" });
       continue;
     }
 
@@ -95,6 +99,7 @@ export async function processDocumentAlerts(
 
     if (recentAlerts.length > 0) {
       result.skippedCooldown++;
+      metrics.inc("policy_intel_alerts_skipped_total", { reason: "cooldown" });
       continue;
     }
 
@@ -141,6 +146,8 @@ export async function processDocumentAlerts(
       .returning({ id: alerts.id });
 
     result.created++;
+    metrics.inc("policy_intel_alerts_created_total");
+    metrics.observe("policy_intel_alert_score", {}, scorecard.totalScore);
     result.details.push({
       alertId: created.id,
       watchlist: match.watchlist.name,
