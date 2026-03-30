@@ -13,6 +13,7 @@ import { runLocalFeedsJob } from "./jobs/run-local-feeds";
 import { runTecImportJob } from "./jobs/run-tec";
 import { getSchedulerStatus, triggerJob, getJobHistory } from "./scheduler";
 import { getPipelineConfig, runAgentPipeline } from "./engine/agent-pipeline";
+import { metrics, timeSeries } from "./metrics";
 
 function slugifyIssueRoom(value: string) {
   return value
@@ -138,6 +139,83 @@ export function createPolicyIntelRouter() {
           status: r.status,
           count: r.count,
         })),
+      });
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * GET /dashboard/kpis — real-time KPI data with sparkline time-series
+   */
+  router.get("/dashboard/kpis", async (_req, res, next) => {
+    try {
+      // Live counters from Prometheus metrics registry
+      const pipelineRuns = metrics.getCounter("policy_intel_pipeline_runs_total");
+      const alertsCreated = metrics.getCounter("policy_intel_alerts_created_total");
+      const docsProcessed = metrics.getCounter("policy_intel_docs_processed_total");
+      const docsMatched = metrics.getCounter("policy_intel_docs_matched_total");
+      const escalations = metrics.getCounter("policy_intel_pipeline_actions_total", { action: "escalate" });
+      const watches = metrics.getCounter("policy_intel_pipeline_actions_total", { action: "watch" });
+      const archives = metrics.getCounter("policy_intel_pipeline_actions_total", { action: "archive" });
+      const alertsSkippedDup = metrics.getCounter("policy_intel_alerts_skipped_total", { reason: "duplicate" });
+      const alertsSkippedCooldown = metrics.getCounter("policy_intel_alerts_skipped_total", { reason: "cooldown" });
+
+      // Pipeline performance
+      const scoreSummary = metrics.getHistogramSummary("policy_intel_pipeline_score");
+      const confidenceSummary = metrics.getHistogramSummary("policy_intel_pipeline_confidence");
+      const durationSummary = metrics.getHistogramSummary("policy_intel_pipeline_duration_ms");
+
+      // Current regime
+      const regimeGauges = metrics.getGaugeAll("policy_intel_regime_current");
+      const activeRegime = regimeGauges.find((g) => g.value === 1);
+
+      // Agent averages
+      const agentNames = ["procedural", "relevance", "stakeholder", "actionability", "timeliness", "regime"];
+      const agentScores = agentNames.map((name) => ({
+        agent: name,
+        ...metrics.getHistogramSummary("policy_intel_agent_score", { agent: name }),
+      }));
+
+      // DB counts (lightweight — use cached if under 2s old)
+      const [
+        [alertCount],
+        [pendingCount],
+        [highPriorityCount],
+      ] = await Promise.all([
+        policyIntelDb.select({ count: count() }).from(alerts),
+        policyIntelDb.select({ count: count() }).from(alerts).where(eq(alerts.status, "pending_review")),
+        policyIntelDb.select({ count: count() }).from(alerts).where(gte(alerts.relevanceScore, 70)),
+      ]);
+
+      // Sparkline time-series (30-min rolling window, 30s intervals)
+      const spark = timeSeries.getAll();
+
+      res.json({
+        uptime: metrics.getUptimeSeconds(),
+        kpis: {
+          totalAlerts: alertCount?.count ?? 0,
+          pendingReview: pendingCount?.count ?? 0,
+          highPriority: highPriorityCount?.count ?? 0,
+          pipelineRuns,
+          alertsCreated,
+          docsProcessed,
+          docsMatched,
+          matchRate: docsProcessed > 0 ? Math.round((docsMatched / docsProcessed) * 100) : 0,
+          escalations,
+          watches,
+          archives,
+          alertsSkipped: alertsSkippedDup + alertsSkippedCooldown,
+        },
+        pipeline: {
+          avgScore: Math.round(scoreSummary.mean * 10) / 10,
+          avgConfidence: Math.round(confidenceSummary.mean * 100) / 100,
+          avgDurationMs: Math.round(durationSummary.mean * 10) / 10,
+          totalRuns: scoreSummary.count,
+        },
+        regime: activeRegime ? activeRegime.labels.regime ?? "unknown" : "unknown",
+        agents: agentScores,
+        sparklines: spark,
       });
     } catch (err: any) {
       next(err);

@@ -99,6 +99,7 @@ export const api = {
 
   // Dashboard
   getDashboardStats: () => apiFetch<DashboardStats>("/dashboard/stats"),
+  getDashboardKpis: () => apiFetch<DashboardKpis>("/dashboard/kpis"),
 
   // Digest
   getDigest: (workspaceId: number, week?: string) =>
@@ -422,4 +423,43 @@ export interface TecImportResult {
   sourceDocsSkipped: number;
   observationsCreated: number;
   errors: string[];
+}
+
+// ── Dashboard KPIs ───────────────────────────────────────────────────────────
+
+export interface SparklinePoint {
+  t: number;
+  alertsCreated: number;
+  docsProcessed: number;
+  pipelineRuns: number;
+  escalations: number;
+  avgScore: number;
+  httpRequests: number;
+}
+
+export interface DashboardKpis {
+  uptime: number;
+  kpis: {
+    totalAlerts: number;
+    pendingReview: number;
+    highPriority: number;
+    pipelineRuns: number;
+    alertsCreated: number;
+    docsProcessed: number;
+    docsMatched: number;
+    matchRate: number;
+    escalations: number;
+    watches: number;
+    archives: number;
+    alertsSkipped: number;
+  };
+  pipeline: {
+    avgScore: number;
+    avgConfidence: number;
+    avgDurationMs: number;
+    totalRuns: number;
+  };
+  regime: string;
+  agents: Array<{ agent: string; count: number; sum: number; mean: number }>;
+  sparklines: SparklinePoint[];
 }

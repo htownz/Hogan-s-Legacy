@@ -134,6 +134,58 @@ class MetricsRegistry {
 
     return lines.join("\n");
   }
+
+  // ── Read-back helpers for dashboard API ──
+
+  /** Get a single counter value */
+  getCounter(name: string, labels: Record<string, string> = {}): number {
+    const m = this.metrics.get(name);
+    if (!m || m.type !== "counter") return 0;
+    return m.values.get(labelKey(labels)) ?? 0;
+  }
+
+  /** Get all label→value pairs for a counter */
+  getCounterAll(name: string): Array<{ labels: Record<string, string>; value: number }> {
+    const m = this.metrics.get(name);
+    if (!m || m.type !== "counter") return [];
+    const results: Array<{ labels: Record<string, string>; value: number }> = [];
+    m.values.forEach((val, lk) => {
+      results.push({ labels: parseLabels(lk), value: val });
+    });
+    return results;
+  }
+
+  /** Get a gauge value */
+  getGauge(name: string, labels: Record<string, string> = {}): number {
+    const m = this.metrics.get(name);
+    if (!m || m.type !== "gauge") return 0;
+    return m.values.get(labelKey(labels)) ?? 0;
+  }
+
+  /** Get all gauge values */
+  getGaugeAll(name: string): Array<{ labels: Record<string, string>; value: number }> {
+    const m = this.metrics.get(name);
+    if (!m || m.type !== "gauge") return [];
+    const results: Array<{ labels: Record<string, string>; value: number }> = [];
+    m.values.forEach((val, lk) => {
+      results.push({ labels: parseLabels(lk), value: val });
+    });
+    return results;
+  }
+
+  /** Get histogram summary (count, sum, mean) */
+  getHistogramSummary(name: string, labels: Record<string, string> = {}): { count: number; sum: number; mean: number } {
+    const m = this.metrics.get(name);
+    if (!m || m.type !== "histogram") return { count: 0, sum: 0, mean: 0 };
+    const obs = m.observations.get(labelKey(labels));
+    if (!obs) return { count: 0, sum: 0, mean: 0 };
+    return { count: obs.count, sum: obs.sum, mean: obs.count > 0 ? obs.sum / obs.count : 0 };
+  }
+
+  /** Get process uptime in seconds */
+  getUptimeSeconds(): number {
+    return Math.floor((Date.now() - this.startTime) / 1000);
+  }
 }
 
 function labelKey(labels: Record<string, string>): string {
@@ -142,9 +194,95 @@ function labelKey(labels: Record<string, string>): string {
   return entries.map(([k, v]) => `${k}="${v}"`).join(",");
 }
 
+function parseLabels(lk: string): Record<string, string> {
+  if (!lk) return {};
+  const result: Record<string, string> = {};
+  const re = /(\w+)="([^"]*)"/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(lk)) !== null) {
+    result[match[1]] = match[2];
+  }
+  return result;
+}
+
 // ── Singleton ────────────────────────────────────────────────────────────────
 
 export const metrics = new MetricsRegistry();
+
+// ── Rolling time-series for sparklines ───────────────────────────────────────
+
+interface TimePoint {
+  t: number; // epoch ms
+  alertsCreated: number;
+  docsProcessed: number;
+  pipelineRuns: number;
+  escalations: number;
+  avgScore: number;
+  httpRequests: number;
+}
+
+class RollingTimeSeries {
+  private points: TimePoint[] = [];
+  private readonly maxPoints = 60; // 60 ticks × 30s = 30 minutes
+
+  record(point: TimePoint): void {
+    this.points.push(point);
+    if (this.points.length > this.maxPoints) {
+      this.points.shift();
+    }
+  }
+
+  getAll(): TimePoint[] {
+    return [...this.points];
+  }
+}
+
+export const timeSeries = new RollingTimeSeries();
+
+// Snapshot metrics every 30 seconds for sparklines
+let lastSnapshot: Record<string, number> = {};
+
+function snapshotDelta(): void {
+  const now: Record<string, number> = {
+    alertsCreated: metrics.getCounter("policy_intel_alerts_created_total"),
+    docsProcessed: metrics.getCounter("policy_intel_docs_processed_total"),
+    pipelineRuns: metrics.getCounter("policy_intel_pipeline_runs_total"),
+    escalations: metrics.getCounter("policy_intel_pipeline_actions_total", { action: "escalate" }),
+    httpRequests: sumCounterValues("policy_intel_http_requests_total"),
+  };
+
+  const delta: Record<string, number> = {};
+  Object.keys(now).forEach((k) => {
+    delta[k] = now[k] - (lastSnapshot[k] ?? 0);
+  });
+
+  const scoreSummary = metrics.getHistogramSummary("policy_intel_pipeline_score");
+
+  timeSeries.record({
+    t: Date.now(),
+    alertsCreated: delta.alertsCreated,
+    docsProcessed: delta.docsProcessed,
+    pipelineRuns: delta.pipelineRuns,
+    escalations: delta.escalations,
+    avgScore: scoreSummary.mean,
+    httpRequests: delta.httpRequests,
+  });
+
+  lastSnapshot = now;
+}
+
+function sumCounterValues(name: string): number {
+  const all = metrics.getCounterAll(name);
+  let total = 0;
+  all.forEach((entry) => { total += entry.value; });
+  return total;
+}
+
+// Start snapshotting after a short delay
+setTimeout(() => {
+  snapshotDelta(); // initial point
+  setInterval(snapshotDelta, 30_000);
+}, 5_000);
 
 // ── Register all Policy Intel metrics ────────────────────────────────────────
 
