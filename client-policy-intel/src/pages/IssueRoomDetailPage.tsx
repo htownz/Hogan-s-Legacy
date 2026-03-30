@@ -192,7 +192,7 @@ export function IssueRoomDetailPage({ id }: { id: number }) {
         matterId: issueRoom.matterId ?? undefined,
         title: `Brief: ${issueRoom.title}`,
       });
-      setBriefResult(result.brief?.content ?? "Brief generated (see Deliverables page).");
+      setBriefResult(result.bodyMarkdown ?? "Brief generated (see Deliverables page).");
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e);
       window.alert("Brief generation failed: " + message);

@@ -103,7 +103,7 @@ async function importFiler(
     summary: `Campaign finance filer record for ${filer.filerName}. Filer ID: ${filer.filerId}, Type: ${filer.filerType}.`,
     publishedAt: new Date(),
     checksum: null,
-    rawPayload: filer,
+    rawPayload: filer as unknown as Record<string, unknown>,
     normalizedText: `${filer.filerName} ${filer.filerType} campaign finance filer ${filer.filerId}`,
     tagsJson: ["tec", "campaign-finance"],
   });
@@ -154,7 +154,7 @@ async function importLobbyist(
     summary: `Lobbyist registration for ${lobbyist.name}. Registration ID: ${lobbyist.registrationId}.${lobbyist.clients.length > 0 ? ` Clients: ${lobbyist.clients.join(", ")}.` : ""}`,
     publishedAt: new Date(),
     checksum: null,
-    rawPayload: lobbyist,
+    rawPayload: lobbyist as unknown as Record<string, unknown>,
     normalizedText: `${lobbyist.name} lobbyist registration ${lobbyist.registrationId} ${lobbyist.clients.join(" ")}`,
     tagsJson: ["tec", "lobbyist"],
   });
