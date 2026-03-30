@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Link } from "wouter";
-import { api, type Stakeholder } from "../api";
+import { api, type Stakeholder, type TecSearchResult, type TecImportResult } from "../api";
 import { useAsync } from "../hooks";
 
 const TYPE_COLORS: Record<string, string> = {
@@ -9,7 +9,9 @@ const TYPE_COLORS: Record<string, string> = {
   pac: "#b71c1c",
   organization: "#2e7d32",
   agency: "#e65100",
+  agency_official: "#e65100",
   media: "#00838f",
+  individual: "#546e7a",
 };
 
 function typeColor(type: string) {
@@ -17,9 +19,10 @@ function typeColor(type: string) {
 }
 
 export function StakeholdersPage() {
-  const { data: stakeholders, loading, error } = useAsync(() => api.getStakeholders());
+  const { data: stakeholders, loading, error, refetch } = useAsync(() => api.getStakeholders());
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [showTecPanel, setShowTecPanel] = useState(false);
 
   if (loading) return <p>Loading stakeholders...</p>;
   if (error) return <p style={{ color: "red" }}>{error}</p>;
@@ -39,9 +42,33 @@ export function StakeholdersPage() {
 
   return (
     <div>
+      {showTecPanel && (
+        <TecSearchPanel
+          onClose={() => setShowTecPanel(false)}
+          onImported={() => { setShowTecPanel(false); refetch(); }}
+        />
+      )}
+
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, margin: 0 }}>Stakeholders</h1>
-        <span style={{ fontSize: 13, color: "#888" }}>{(stakeholders ?? []).length} total</span>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <span style={{ fontSize: 13, color: "#888" }}>{(stakeholders ?? []).length} total</span>
+          <button
+            onClick={() => setShowTecPanel(true)}
+            style={{
+              padding: "8px 16px",
+              borderRadius: 6,
+              border: "none",
+              background: "#b71c1c",
+              color: "#fff",
+              fontWeight: 600,
+              fontSize: 13,
+              cursor: "pointer",
+            }}
+          >
+            Search TEC
+          </button>
+        </div>
       </div>
 
       {/* Search + filters */}

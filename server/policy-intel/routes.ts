@@ -10,6 +10,7 @@ import { generateBrief } from "./services/brief-service";
 import { upsertStakeholder, addObservation, getStakeholderWithObservations, getStakeholdersForMatter } from "./services/stakeholder-service";
 import { fetchTecData } from "./connectors/texas/tec-filings";
 import { runLocalFeedsJob } from "./jobs/run-local-feeds";
+import { runTecImportJob } from "./jobs/run-tec";
 import { getSchedulerStatus, triggerJob, getJobHistory } from "./scheduler";
 
 function slugifyIssueRoom(value: string) {
@@ -1221,6 +1222,27 @@ export function createPolicyIntelRouter() {
         return res.status(400).json({ message: "searchTerm is required" });
       }
       const result = await fetchTecData(searchTerm);
+      res.json(result);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.post("/jobs/run-tec-import", async (req, res, next) => {
+    try {
+      const { searchTerm, workspaceId, matterId, mode } = req.body ?? {};
+      if (!workspaceId) {
+        return res.status(400).json({ message: "workspaceId is required" });
+      }
+      if (mode !== "sweep" && !searchTerm) {
+        return res.status(400).json({ message: "searchTerm is required for search mode" });
+      }
+      const result = await runTecImportJob({
+        mode: mode === "sweep" ? "sweep" : "search",
+        searchTerm,
+        workspaceId: Number(workspaceId),
+        matterId: matterId ? Number(matterId) : undefined,
+      });
       res.json(result);
     } catch (err: any) {
       next(err);

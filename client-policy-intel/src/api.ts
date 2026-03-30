@@ -110,6 +110,11 @@ export const api = {
   getStakeholders: () => apiFetch<Stakeholder[]>("/stakeholders"),
   getStakeholder: (id: number) => apiFetch<StakeholderDetail>(`/stakeholders/${id}`),
 
+  // TEC
+  searchTec: (searchTerm: string) => apiFetch<TecSearchResult>("/jobs/fetch-tec", { method: "POST", body: JSON.stringify({ searchTerm }) }),
+  importTec: (body: { searchTerm: string; workspaceId: number; matterId?: number }) =>
+    apiFetch<TecImportResult>("/jobs/run-tec-import", { method: "POST", body: JSON.stringify(body) }),
+
   // Deliverables
   getDeliverables: () => apiFetch<Deliverable[]>("/deliverables"),
 
@@ -124,6 +129,16 @@ export const api = {
   getSchedulerStatus: () => apiFetch<SchedulerStatus>("/scheduler/status"),
   getSchedulerHistory: () => apiFetch<JobRunRecord[]>("/scheduler/history"),
   triggerScheduledJob: (jobName: string) => apiFetch<JobRunRecord>(`/scheduler/trigger/${jobName}`, { method: "POST" }),
+
+  // Brief generation
+  generateBrief: (body: {
+    workspaceId: number;
+    sourceDocumentIds: number[];
+    watchlistId?: number;
+    matterId?: number;
+    title?: string;
+  }) => apiFetch<BriefGenerationResult>("/briefs/generate", { method: "POST", body: JSON.stringify(body) }),
+  getBriefs: () => apiFetch<Brief[]>("/briefs"),
 };
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -360,4 +375,47 @@ export interface SchedulerStatus {
     nextRun: string | null;
   }>;
   recentHistory: JobRunRecord[];
+}
+
+export interface BriefGenerationResult {
+  briefId: number;
+  deliverableId: number;
+  title: string;
+  bodyMarkdown: string;
+  citations: Array<{
+    sourceDocumentId: number;
+    title: string;
+    publisher: string;
+    sourceUrl: string;
+    accessedAt: string;
+  }>;
+  generatedBy: string;
+}
+
+export interface Brief {
+  id: number;
+  workspaceId: number;
+  watchlistId: number | null;
+  title: string;
+  status: string;
+  briefText: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TecSearchResult {
+  filers: Array<{ filerId: string; filerName: string; filerType: string; sourceUrl: string }>;
+  lobbyists: Array<{ name: string; registrationId: string; clients: string[]; sourceUrl: string }>;
+  errors: string[];
+}
+
+export interface TecImportResult {
+  mode: string;
+  searchTerms: string[];
+  stakeholdersCreated: number;
+  stakeholdersExisting: number;
+  sourceDocsInserted: number;
+  sourceDocsSkipped: number;
+  observationsCreated: number;
+  errors: string[];
 }
