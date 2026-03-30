@@ -212,6 +212,19 @@ export function AlertQueuePage() {
                 )}
               </div>
             )}
+
+            {/* Promote to issue room for approved alerts */}
+            {a.status === "ready" && !a.issueRoomId && (
+              <div style={{ marginTop: 10 }}>
+                <button
+                  onClick={() => handleCreateIssueRoom(a)}
+                  disabled={creatingIssueRoom === a.id}
+                  style={{ padding: "6px 14px", fontSize: 12, background: "#16213e", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", opacity: creatingIssueRoom === a.id ? 0.7 : 1 }}
+                >
+                  {creatingIssueRoom === a.id ? "Creating..." : "Promote to Issue Room"}
+                </button>
+              </div>
+            )}
           </div>
         ))}
 

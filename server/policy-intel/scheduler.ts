@@ -5,6 +5,7 @@
  *  - LegiScan "recent" mode: every 4 hours   (CRON_LEGISCAN)
  *  - TLO RSS feeds:          every 6 hours    (CRON_TLO_RSS)
  *  - Local feeds:            every 6 hours    (CRON_LOCAL_FEEDS)
+ *  - TEC sweep:              daily at 3 AM    (CRON_TEC_SWEEP)
  *
  * Set SCHEDULER_ENABLED=false in .env to disable all scheduled jobs.
  */
@@ -12,6 +13,7 @@ import cron from "node-cron";
 import { runLegiscanJob, type RunLegiscanResult } from "./jobs/run-legiscan";
 import { runTloRssJob, type RunTloRssResult } from "./jobs/run-tlo-rss";
 import { runLocalFeedsJob, type RunLocalFeedsResult } from "./jobs/run-local-feeds";
+import { runTecImportJob, type RunTecResult } from "./jobs/run-tec";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -159,6 +161,20 @@ async function localFeeds(): Promise<Record<string, unknown>> {
   };
 }
 
+async function tecSweep(): Promise<Record<string, unknown>> {
+  const r: RunTecResult = await runTecImportJob({ mode: "sweep", workspaceId: 2 });
+  return {
+    mode: r.mode,
+    searchTerms: r.searchTerms.length,
+    stakeholdersCreated: r.stakeholdersCreated,
+    stakeholdersExisting: r.stakeholdersExisting,
+    sourceDocsInserted: r.sourceDocsInserted,
+    sourceDocsSkipped: r.sourceDocsSkipped,
+    observationsCreated: r.observationsCreated,
+    errors: r.errors.length,
+  };
+}
+
 // ── Public API ───────────────────────────────────────────────────────────────
 
 export function startScheduler() {
@@ -175,12 +191,14 @@ export function startScheduler() {
   const legiscanCron = process.env.CRON_LEGISCAN ?? "0 */4 * * *";  // every 4 hours
   const tloCron = process.env.CRON_TLO_RSS ?? "0 1,7,13,19 * * *"; // 4x daily
   const localCron = process.env.CRON_LOCAL_FEEDS ?? "0 2,8,14,20 * * *"; // 4x daily
+  const tecCron = process.env.CRON_TEC_SWEEP ?? "0 3 * * *"; // daily at 3 AM
 
   // Register jobs
   const jobDefs: Array<{ name: string; cron: string; fn: () => Promise<Record<string, unknown>> }> = [
     { name: "legiscan-recent", cron: legiscanCron, fn: legiscanRecent },
     { name: "tlo-rss", cron: tloCron, fn: tloRss },
     { name: "local-feeds", cron: localCron, fn: localFeeds },
+    { name: "tec-sweep", cron: tecCron, fn: tecSweep },
   ];
 
   for (const def of jobDefs) {
@@ -240,6 +258,7 @@ export async function triggerJob(jobName: string): Promise<JobRunRecord | null> 
     "legiscan-recent": legiscanRecent,
     "tlo-rss": tloRss,
     "local-feeds": localFeeds,
+    "tec-sweep": tecSweep,
   };
 
   const runner = runners[jobName];

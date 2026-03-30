@@ -45,6 +45,10 @@ export const api = {
   getIssueRooms: (workspaceId?: number) => apiFetch<IssueRoom[]>(`/issue-rooms${workspaceId ? `?workspaceId=${workspaceId}` : ""}`),
   getIssueRoom: (id: number) => apiFetch<IssueRoomDetail>(`/issue-rooms/${id}`),
   getIssueRoomAlerts: (id: number) => apiFetch<Alert[]>(`/issue-rooms/${id}/alerts`),
+  updateIssueRoom: (
+    id: number,
+    body: { title?: string; summary?: string; status?: string; recommendedPath?: string; issueType?: string; jurisdiction?: string },
+  ) => apiFetch<IssueRoom>(`/issue-rooms/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   createIssueRoomUpdate: (id: number, body: { title: string; body: string; updateType?: string }) =>
     apiFetch<unknown>(`/issue-rooms/${id}/updates`, { method: "POST", body: JSON.stringify(body) }),
   createIssueRoomStrategyOption: (

@@ -186,3 +186,193 @@ function StakeholderCard({ stakeholder: s }: { stakeholder: Stakeholder }) {
     </div>
   );
 }
+
+// ── TEC Search & Import Panel ────────────────────────────────────────────────
+
+function TecSearchPanel({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [results, setResults] = useState<TecSearchResult | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<TecImportResult | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
+
+  const handleSearch = useCallback(async () => {
+    if (!searchTerm.trim()) return;
+    setSearching(true);
+    setSearchError(null);
+    setResults(null);
+    setImportResult(null);
+    try {
+      const r = await api.searchTec(searchTerm.trim());
+      setResults(r);
+    } catch (err: any) {
+      setSearchError(err?.message ?? "TEC search failed");
+    } finally {
+      setSearching(false);
+    }
+  }, [searchTerm]);
+
+  const handleImport = useCallback(async () => {
+    if (!searchTerm.trim()) return;
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const r = await api.importTec({ searchTerm: searchTerm.trim(), workspaceId: 2 });
+      setImportResult(r);
+      if (r.stakeholdersCreated > 0) {
+        setTimeout(() => onImported(), 1500);
+      }
+    } catch (err: any) {
+      setSearchError(err?.message ?? "TEC import failed");
+    } finally {
+      setImporting(false);
+    }
+  }, [searchTerm, onImported]);
+
+  const totalResults = (results?.filers.length ?? 0) + (results?.lobbyists.length ?? 0);
+
+  return (
+    <div style={{
+      background: "#fff",
+      borderRadius: 10,
+      padding: 24,
+      marginBottom: 24,
+      boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+      border: "1px solid #e0e0e0",
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <h2 style={{ margin: 0, fontSize: 18 }}>Search Texas Ethics Commission</h2>
+        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: "#888" }}>×</button>
+      </div>
+
+      <p style={{ fontSize: 12, color: "#777", marginBottom: 16 }}>
+        Search for lobbyists and campaign finance filers on the TEC. Results can be imported as stakeholders with linked source documents.
+      </p>
+
+      {/* Search bar */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+        <input
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+          placeholder="Search by name (e.g., AT&T, John Smith)..."
+          style={{ flex: 1, padding: "8px 12px", borderRadius: 6, border: "1px solid #ddd", fontSize: 13 }}
+        />
+        <button
+          onClick={handleSearch}
+          disabled={searching || !searchTerm.trim()}
+          style={{
+            padding: "8px 20px", borderRadius: 6, border: "none",
+            background: searching || !searchTerm.trim() ? "#bbb" : "#b71c1c",
+            color: "#fff", fontWeight: 600, fontSize: 13,
+            cursor: searching || !searchTerm.trim() ? "not-allowed" : "pointer",
+          }}
+        >
+          {searching ? "Searching..." : "Search TEC"}
+        </button>
+      </div>
+
+      {searchError && (
+        <div style={{ color: "#e74c3c", fontSize: 13, marginBottom: 12, padding: "8px 12px", background: "#fdeaea", borderRadius: 6 }}>
+          {searchError}
+        </div>
+      )}
+
+      {/* Search results */}
+      {results && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: "#333" }}>
+            Found {totalResults} result{totalResults !== 1 ? "s" : ""} for "{searchTerm}"
+          </div>
+
+          {results.filers.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#b71c1c", marginBottom: 6 }}>
+                Campaign Finance Filers ({results.filers.length})
+              </div>
+              <div style={{ maxHeight: 200, overflowY: "auto", border: "1px solid #eee", borderRadius: 6, background: "#fafafa" }}>
+                {results.filers.map((f, i) => (
+                  <div key={i} style={{
+                    display: "flex", justifyContent: "space-between", padding: "8px 12px",
+                    borderBottom: i < results.filers.length - 1 ? "1px solid #f0f0f0" : "none", fontSize: 12,
+                  }}>
+                    <div>
+                      <span style={{ fontWeight: 500 }}>{f.filerName}</span>
+                      <span style={{ color: "#888", marginLeft: 8 }}>{f.filerType}</span>
+                    </div>
+                    <span style={{ color: "#aaa" }}>ID: {f.filerId}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {results.lobbyists.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#6a1b9a", marginBottom: 6 }}>
+                Registered Lobbyists ({results.lobbyists.length})
+              </div>
+              <div style={{ maxHeight: 200, overflowY: "auto", border: "1px solid #eee", borderRadius: 6, background: "#fafafa" }}>
+                {results.lobbyists.map((l, i) => (
+                  <div key={i} style={{
+                    display: "flex", justifyContent: "space-between", padding: "8px 12px",
+                    borderBottom: i < results.lobbyists.length - 1 ? "1px solid #f0f0f0" : "none", fontSize: 12,
+                  }}>
+                    <div>
+                      <span style={{ fontWeight: 500 }}>{l.name}</span>
+                      {l.clients.length > 0 && (
+                        <span style={{ color: "#888", marginLeft: 8 }}>Clients: {l.clients.slice(0, 3).join(", ")}</span>
+                      )}
+                    </div>
+                    <span style={{ color: "#aaa" }}>Reg: {l.registrationId}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {results.errors.length > 0 && (
+            <div style={{ fontSize: 11, color: "#e74c3c", marginBottom: 8 }}>
+              {results.errors.map((e, i) => <div key={i}>{e}</div>)}
+            </div>
+          )}
+
+          {totalResults > 0 && (
+            <button
+              onClick={handleImport}
+              disabled={importing}
+              style={{
+                padding: "8px 20px", borderRadius: 6, border: "none",
+                background: importing ? "#bbb" : "#2e7d32",
+                color: "#fff", fontWeight: 600, fontSize: 13, width: "100%",
+                cursor: importing ? "not-allowed" : "pointer",
+              }}
+            >
+              {importing ? "Importing..." : `Import ${totalResults} as Stakeholders`}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Import results */}
+      {importResult && (
+        <div style={{
+          padding: 12, borderRadius: 6, fontSize: 12,
+          background: importResult.errors.length > 0 ? "#fff3e0" : "#e8f5e9",
+          border: `1px solid ${importResult.errors.length > 0 ? "#ffcc80" : "#a5d6a7"}`,
+        }}>
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>Import Complete</div>
+          <div>Stakeholders created: <strong>{importResult.stakeholdersCreated}</strong> (existing: {importResult.stakeholdersExisting})</div>
+          <div>Source docs inserted: <strong>{importResult.sourceDocsInserted}</strong> (skipped: {importResult.sourceDocsSkipped})</div>
+          <div>Observations: <strong>{importResult.observationsCreated}</strong></div>
+          {importResult.errors.length > 0 && (
+            <div style={{ color: "#e74c3c", marginTop: 4 }}>
+              {importResult.errors.map((e, i) => <div key={i}>{e}</div>)}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

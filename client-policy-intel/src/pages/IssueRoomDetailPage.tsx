@@ -17,6 +17,9 @@ export function IssueRoomDetailPage({ id }: { id: number }) {
   const [savingTask, setSavingTask] = useState(false);
   const [savingStakeholder, setSavingStakeholder] = useState(false);
   const [savingTaskUpdateId, setSavingTaskUpdateId] = useState<number | null>(null);
+  const [savingStatus, setSavingStatus] = useState(false);
+  const [generatingBrief, setGeneratingBrief] = useState(false);
+  const [briefResult, setBriefResult] = useState<string | null>(null);
 
   if (loading) return <p>Loading issue room...</p>;
   if (error) return <p style={{ color: "red" }}>{error}</p>;
@@ -162,12 +165,76 @@ export function IssueRoomDetailPage({ id }: { id: number }) {
 
   const { issueRoom, updates, strategyOptions, tasks, stakeholders, sourceDocuments } = data;
 
+  async function handleStatusChange(newStatus: string) {
+    try {
+      setSavingStatus(true);
+      await api.updateIssueRoom(id, { status: newStatus });
+      refetch();
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      window.alert("Could not update status: " + message);
+    } finally {
+      setSavingStatus(false);
+    }
+  }
+
+  async function handleGenerateBrief() {
+    if (sourceDocuments.length === 0) {
+      window.alert("No evidence documents linked to generate a brief from.");
+      return;
+    }
+    try {
+      setGeneratingBrief(true);
+      setBriefResult(null);
+      const result = await api.generateBrief({
+        workspaceId: issueRoom.workspaceId,
+        sourceDocumentIds: sourceDocuments.map((d) => d.id),
+        matterId: issueRoom.matterId ?? undefined,
+        title: `Brief: ${issueRoom.title}`,
+      });
+      setBriefResult(result.brief?.content ?? "Brief generated (see Deliverables page).");
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      window.alert("Brief generation failed: " + message);
+    } finally {
+      setGeneratingBrief(false);
+    }
+  }
+
   return (
     <div>
-      <h1 style={{ fontSize: 22, marginBottom: 6 }}>{issueRoom.title}</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+        <h1 style={{ fontSize: 22, margin: 0 }}>{issueRoom.title}</h1>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
+          <select
+            value={issueRoom.status}
+            onChange={(e) => handleStatusChange(e.target.value)}
+            disabled={savingStatus}
+            style={{ padding: "6px 10px", fontSize: 12, border: "1px solid #d7d7d7", borderRadius: 4, cursor: "pointer" }}
+          >
+            <option value="active">Active</option>
+            <option value="watching">Watching</option>
+            <option value="resolved">Resolved</option>
+            <option value="archived">Archived</option>
+          </select>
+          <button
+            onClick={handleGenerateBrief}
+            disabled={generatingBrief || sourceDocuments.length === 0}
+            style={{ padding: "7px 14px", fontSize: 12, background: "#8e44ad", color: "#fff", border: "none", borderRadius: 4, cursor: generatingBrief || sourceDocuments.length === 0 ? "not-allowed" : "pointer", opacity: generatingBrief ? 0.7 : 1, whiteSpace: "nowrap" }}
+          >
+            {generatingBrief ? "Generating..." : "Generate Brief"}
+          </button>
+        </div>
+      </div>
       <p style={{ fontSize: 13, color: "#888", marginBottom: 18 }}>
         {issueRoom.issueType ?? "general"} · {issueRoom.jurisdiction} · {issueRoom.status}
       </p>
+      {briefResult && (
+        <div style={{ background: "#f5eef8", borderRadius: 8, padding: "12px 14px", marginBottom: 18, border: "1px solid #d2b4de" }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#6c3483", marginBottom: 4 }}>Generated Brief</div>
+          <div style={{ fontSize: 13, color: "#4a235a", whiteSpace: "pre-wrap" }}>{briefResult}</div>
+        </div>
+      )}
       {issueRoom.summary && <p style={{ fontSize: 14, marginBottom: 18 }}>{issueRoom.summary}</p>}
       {issueRoom.recommendedPath && (
         <div style={{ background: "#eef6ff", borderRadius: 8, padding: "12px 14px", marginBottom: 24 }}>

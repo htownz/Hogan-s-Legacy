@@ -780,6 +780,41 @@ export function createPolicyIntelRouter() {
     }
   });
 
+  // ── PATCH issue room fields ──────────────────────────────────────────────
+  router.patch("/issue-rooms/:id", async (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      const { title, summary, status, recommendedPath, issueType, jurisdiction } = req.body ?? {};
+      const patch: Record<string, unknown> = {};
+      if (title !== undefined) patch.title = title;
+      if (summary !== undefined) patch.summary = summary;
+      if (status !== undefined) patch.status = status;
+      if (recommendedPath !== undefined) patch.recommendedPath = recommendedPath;
+      if (issueType !== undefined) patch.issueType = issueType;
+      if (jurisdiction !== undefined) patch.jurisdiction = jurisdiction;
+
+      if (Object.keys(patch).length === 0) {
+        return res.status(400).json({ message: "No fields to update" });
+      }
+
+      patch.updatedAt = new Date();
+
+      const [updated] = await policyIntelDb
+        .update(issueRooms)
+        .set(patch)
+        .where(eq(issueRooms.id, id))
+        .returning();
+
+      if (!updated) {
+        return res.status(404).json({ message: "Issue room not found" });
+      }
+
+      res.json(updated);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
   router.get("/issue-rooms/:id/alerts", async (req, res, next) => {
     try {
       const issueRoomId = Number(req.params.id);
@@ -1341,7 +1376,7 @@ export function createPolicyIntelRouter() {
   router.post("/scheduler/trigger/:jobName", async (req, res, next) => {
     try {
       const { jobName } = req.params;
-      const validJobs = ["legiscan-recent", "tlo-rss", "local-feeds"];
+      const validJobs = ["legiscan-recent", "tlo-rss", "local-feeds", "tec-sweep"];
       if (!validJobs.includes(jobName)) {
         return res.status(400).json({ message: `Invalid job name. Valid: ${validJobs.join(", ")}` });
       }
