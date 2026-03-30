@@ -11,6 +11,7 @@ import { alerts, watchlists, type PolicyIntelSourceDocument, type PolicyIntelWat
 import { matchDocumentToAllWatchlists, type WatchlistMatch } from "../engine/match-watchlists";
 import { scoreAlert, buildWhyItMatters } from "../engine/score-alert";
 import { buildScorecard } from "../engine/evaluators";
+import { buildAgentScorecard } from "../engine/agent-pipeline";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -97,8 +98,16 @@ export async function processDocumentAlerts(
       continue;
     }
 
-    // Build alert payload with structured scorecard
-    const scorecard = buildScorecard(doc.title, doc.summary, match.reasons);
+    // Build alert payload with multi-agent pipeline scorecard
+    const scorecard = buildAgentScorecard(
+      doc.title,
+      doc.summary,
+      match.reasons,
+      {
+        docDate: doc.createdAt ? new Date(doc.createdAt) : null,
+        rawPayload: doc.rawPayload as Record<string, unknown> | undefined,
+      },
+    );
     const whyItMatters = buildWhyItMatters(doc.title, match.reasons);
     const reasonsJson: Record<string, unknown>[] = scorecard.evaluators.map((e) => ({
       evaluator: e.evaluator,
@@ -106,6 +115,15 @@ export async function processDocumentAlerts(
       maxScore: e.maxScore,
       rationale: e.rationale,
     }));
+    // Append pipeline diagnostics to reasonsJson
+    reasonsJson.push({
+      evaluator: "_pipeline",
+      action: scorecard.pipelineSignal.action,
+      confidence: scorecard.pipelineSignal.confidence,
+      regime: scorecard.pipelineSignal.regime,
+      weights: scorecard.pipelineSignal.weights,
+      explanation: scorecard.pipelineSignal.explanation,
+    });
 
     const [created] = await policyIntelDb
       .insert(alerts)

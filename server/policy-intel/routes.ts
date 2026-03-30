@@ -12,6 +12,7 @@ import { fetchTecData } from "./connectors/texas/tec-filings";
 import { runLocalFeedsJob } from "./jobs/run-local-feeds";
 import { runTecImportJob } from "./jobs/run-tec";
 import { getSchedulerStatus, triggerJob, getJobHistory } from "./scheduler";
+import { getPipelineConfig, runAgentPipeline } from "./engine/agent-pipeline";
 
 function slugifyIssueRoom(value: string) {
   return value
@@ -1385,6 +1386,50 @@ export function createPolicyIntelRouter() {
         return res.status(404).json({ message: "Job not found" });
       }
       res.json(record);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  // ── Pipeline Diagnostics ──────────────────────────────────────────────────
+
+  /**
+   * GET /metrics/pipeline — agent pipeline configuration and current regime
+   */
+  router.get("/metrics/pipeline", async (_req, res, next) => {
+    try {
+      const config = getPipelineConfig();
+      // Run a synthetic probe to show current regime
+      const probe = runAgentPipeline("probe", null, []);
+      res.json({
+        ...config,
+        currentRegime: probe.regime,
+        currentWeights: probe.weights,
+        probeScore: probe.totalScore,
+        probeAction: probe.action,
+        probeConfidence: probe.confidence,
+      });
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * POST /metrics/pipeline/test — test the agent pipeline with custom input
+   * Body: { title: string, summary?: string, reasons?: MatchReason[] }
+   */
+  router.post("/metrics/pipeline/test", async (req, res, next) => {
+    try {
+      const { title, summary, reasons } = req.body;
+      if (!title || typeof title !== "string") {
+        return res.status(400).json({ error: "title is required" });
+      }
+      const signal = runAgentPipeline(
+        title,
+        summary ?? null,
+        Array.isArray(reasons) ? reasons : [],
+      );
+      res.json(signal);
     } catch (err: any) {
       next(err);
     }
