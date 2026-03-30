@@ -16,6 +16,7 @@ import { getPipelineConfig, runAgentPipeline } from "./engine/agent-pipeline";
 import { metrics, timeSeries } from "./metrics";
 import { recordFeedback, getChampionStatus, getChampionHistory, runRetraining, bootstrapFeedback } from "./engine/champion";
 import type { FeedbackOutcome } from "./engine/champion";
+import { notifySlack } from "./notify";
 
 function slugifyIssueRoom(value: string) {
   return value
@@ -291,6 +292,39 @@ export function createPolicyIntelRouter() {
     }
   });
 
+  /**
+   * PATCH /watchlists/:id — update watchlist name, description, rules, or active status.
+   */
+  router.patch("/watchlists/:id", async (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      const { name, topic, description, rulesJson, isActive } = req.body ?? {};
+
+      const updates: Record<string, unknown> = {};
+      if (name !== undefined) updates.name = name;
+      if (topic !== undefined) updates.topic = topic;
+      if (description !== undefined) updates.description = description;
+      if (rulesJson !== undefined) updates.rulesJson = rulesJson;
+      if (isActive !== undefined) updates.isActive = Boolean(isActive);
+      updates.updatedAt = new Date();
+
+      if (Object.keys(updates).length <= 1) {
+        return res.status(400).json({ message: "Provide at least one field to update" });
+      }
+
+      const [updated] = await policyIntelDb
+        .update(watchlists)
+        .set(updates)
+        .where(eq(watchlists.id, id))
+        .returning();
+
+      if (!updated) return res.status(404).json({ message: "watchlist not found" });
+      res.json(updated);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
   router.post("/source-documents", async (req, res, next) => {
     try {
       const {
@@ -543,6 +577,73 @@ export function createPolicyIntelRouter() {
       }
 
       res.json(updated);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  // ── Bulk auto-triage ──────────────────────────────────────────────────────
+
+  /**
+   * POST /alerts/bulk-triage — auto-suppress low-scoring alerts and auto-promote bill-ID matches.
+   * Body: { suppressBelow?: number, promoteAbove?: number, dryRun?: boolean }
+   */
+  router.post("/alerts/bulk-triage", async (req, res, next) => {
+    try {
+      const suppressBelow = Math.max(0, Math.min(100, Number(req.body?.suppressBelow) || 20));
+      const promoteAbove = Math.max(0, Math.min(100, Number(req.body?.promoteAbove) || 70));
+      const dryRun = Boolean(req.body?.dryRun);
+
+      // Count how many would be affected
+      const [suppressCountRow] = await policyIntelDb
+        .select({ count: count() })
+        .from(alerts)
+        .where(and(
+          eq(alerts.status, "pending_review"),
+          lt(alerts.relevanceScore, suppressBelow),
+        ));
+      const [promoteCountRow] = await policyIntelDb
+        .select({ count: count() })
+        .from(alerts)
+        .where(and(
+          eq(alerts.status, "pending_review"),
+          gte(alerts.relevanceScore, promoteAbove),
+        ));
+
+      const toSuppress = suppressCountRow?.count ?? 0;
+      const toPromote = promoteCountRow?.count ?? 0;
+
+      if (dryRun) {
+        return res.json({ dryRun: true, wouldSuppress: toSuppress, wouldPromote: toPromote, suppressBelow, promoteAbove });
+      }
+
+      // Execute triage
+      let suppressed = 0;
+      let promoted = 0;
+
+      if (toSuppress > 0) {
+        const result = await policyIntelDb
+          .update(alerts)
+          .set({ status: "suppressed", reviewedAt: new Date(), reviewerNote: `auto-triage: score < ${suppressBelow}` })
+          .where(and(
+            eq(alerts.status, "pending_review"),
+            lt(alerts.relevanceScore, suppressBelow),
+          ));
+        suppressed = toSuppress;
+      }
+
+      if (toPromote > 0) {
+        const result = await policyIntelDb
+          .update(alerts)
+          .set({ status: "ready", reviewedAt: new Date(), reviewerNote: `auto-triage: score >= ${promoteAbove}` })
+          .where(and(
+            eq(alerts.status, "pending_review"),
+            gte(alerts.relevanceScore, promoteAbove),
+          ));
+        promoted = toPromote;
+      }
+
+      res.json({ suppressed, promoted, suppressBelow, promoteAbove });
     } catch (err: any) {
       next(err);
     }
@@ -1611,6 +1712,109 @@ export function createPolicyIntelRouter() {
       const sampleSize = Math.min(Number(req.body?.sampleSize) || 100, 500);
       const result = await bootstrapFeedback(sampleSize);
       res.json(result);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  // ── Texas legislator import ───────────────────────────────────────────────
+
+  /**
+   * POST /stakeholders/import-legislators — import legislator directory from LegiScan API.
+   * Body: { workspaceId: number }
+   */
+  router.post("/stakeholders/import-legislators", async (req, res, next) => {
+    try {
+      const workspaceId = Number(req.body?.workspaceId);
+      if (!workspaceId) return res.status(400).json({ message: "workspaceId required" });
+
+      const apiKey = process.env.LEGISCAN_API_KEY;
+      if (!apiKey) return res.status(500).json({ message: "LEGISCAN_API_KEY not configured" });
+
+      // Fetch current session legislators from LegiScan
+      // First get the session list to find the current Texas session
+      const sessionListResp = await fetch(
+        `https://api.legiscan.com/?key=${encodeURIComponent(apiKey)}&op=getSessionList&state=TX`,
+      );
+      const sessionListData = await sessionListResp.json() as Record<string, unknown>;
+      const sessions = (sessionListData as any)?.sessions;
+      if (!sessions || !Array.isArray(sessions)) {
+        return res.status(502).json({ message: "Failed to fetch LegiScan sessions" });
+      }
+
+      // Get the most recent session
+      const currentSession = sessions.sort((a: any, b: any) => b.session_id - a.session_id)[0];
+      const sessionId = currentSession?.session_id;
+      if (!sessionId) return res.status(502).json({ message: "No Texas session found" });
+
+      // Fetch session people
+      const peopleResp = await fetch(
+        `https://api.legiscan.com/?key=${encodeURIComponent(apiKey)}&op=getSessionPeople&id=${sessionId}`,
+      );
+      const peopleData = await peopleResp.json() as Record<string, unknown>;
+      const people = (peopleData as any)?.sessionpeople?.people;
+      if (!Array.isArray(people)) {
+        return res.status(502).json({ message: "Failed to fetch session people" });
+      }
+
+      let created = 0;
+      let existing = 0;
+
+      for (const person of people) {
+        const name = `${person.first_name ?? ""} ${person.last_name ?? ""}`.trim();
+        if (!name) continue;
+
+        const chamber = person.role_id === 1 ? "House" : person.role_id === 2 ? "Senate" : "Unknown";
+        const party = person.party ?? "";
+        const district = person.district ?? "";
+        const title = `${chamber} District ${district} (${party})`;
+
+        // Upsert by (workspaceId, name, type)
+        const [existingRow] = await policyIntelDb
+          .select({ id: stakeholders.id })
+          .from(stakeholders)
+          .where(and(
+            eq(stakeholders.workspaceId, workspaceId),
+            eq(stakeholders.name, name),
+            eq(stakeholders.type, "legislator"),
+          ));
+
+        if (existingRow) {
+          existing++;
+          continue;
+        }
+
+        await policyIntelDb.insert(stakeholders).values({
+          workspaceId,
+          type: "legislator",
+          name,
+          title,
+          organization: `Texas ${chamber}`,
+          jurisdiction: "texas",
+          tagsJson: [party, chamber, `District ${district}`].filter(Boolean),
+          sourceSummary: `LegiScan people_id: ${person.people_id}`,
+        });
+        created++;
+      }
+
+      res.json({ sessionId, sessionName: currentSession.session_name, totalPeople: people.length, created, existing });
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  // ── Slack notification test ───────────────────────────────────────────────
+
+  /**
+   * POST /notifications/test-slack — send a test notification to verify Slack webhook.
+   */
+  router.post("/notifications/test-slack", async (_req, res, next) => {
+    try {
+      const sent = await notifySlack(
+        "Policy Intel test notification",
+        "This is a test message from Policy Intel. If you see this, Slack notifications are configured correctly.",
+      );
+      res.json({ sent, message: sent ? "Test notification sent" : "SLACK_WEBHOOK_URL not configured" });
     } catch (err: any) {
       next(err);
     }

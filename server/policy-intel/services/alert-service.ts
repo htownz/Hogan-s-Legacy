@@ -13,6 +13,7 @@ import { scoreAlert, buildWhyItMatters } from "../engine/score-alert";
 import { buildScorecard } from "../engine/evaluators";
 import { buildAgentScorecard } from "../engine/agent-pipeline";
 import { metrics } from "../metrics";
+import { notifyHighPriorityAlert } from "../notify";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -153,6 +154,17 @@ export async function processDocumentAlerts(
       watchlist: match.watchlist.name,
       score: scorecard.totalScore,
     });
+
+    // Slack notification for high-scoring alerts
+    if (scorecard.totalScore >= 60) {
+      notifyHighPriorityAlert({
+        id: created.id,
+        title: doc.title,
+        relevanceScore: scorecard.totalScore,
+        whyItMatters: `${whyItMatters}\n\nScorecard: ${scorecard.summary}`,
+        watchlistName: match.watchlist.name,
+      }).catch(() => {}); // fire-and-forget
+    }
   }
 
   return result;

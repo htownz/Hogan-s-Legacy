@@ -151,6 +151,22 @@ export const api = {
     title?: string;
   }) => apiFetch<BriefGenerationResult>("/briefs/generate", { method: "POST", body: JSON.stringify(body) }),
   getBriefs: () => apiFetch<Brief[]>("/briefs"),
+
+  // Bulk triage
+  bulkTriage: (body: { suppressBelow?: number; promoteAbove?: number; dryRun?: boolean }) =>
+    apiFetch<BulkTriageResult>("/alerts/bulk-triage", { method: "POST", body: JSON.stringify(body) }),
+
+  // Watchlist PATCH
+  patchWatchlist: (id: number, body: { name?: string; topic?: string; description?: string; rulesJson?: unknown; isActive?: boolean }) =>
+    apiFetch<Watchlist>(`/watchlists/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+
+  // Legislator import
+  importLegislators: (body: { workspaceId: number }) =>
+    apiFetch<LegislatorImportResult>("/stakeholders/import-legislators", { method: "POST", body: JSON.stringify(body) }),
+
+  // Slack test
+  testSlack: () =>
+    apiFetch<{ sent: boolean; message: string }>("/notifications/test-slack", { method: "POST", body: JSON.stringify({}) }),
 };
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -504,4 +520,22 @@ export interface RetrainResult {
   holdoutSize: number;
   challengerWeights: Record<string, number>;
   challengerThresholds: { escalate: number; archive: number };
+}
+
+export interface BulkTriageResult {
+  suppressed: number;
+  promoted: number;
+  suppressBelow: number;
+  promoteAbove: number;
+  dryRun?: boolean;
+  wouldSuppress?: number;
+  wouldPromote?: number;
+}
+
+export interface LegislatorImportResult {
+  sessionId: number;
+  sessionName: string;
+  totalPeople: number;
+  created: number;
+  existing: number;
 }

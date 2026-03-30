@@ -34,6 +34,7 @@ interface ParsedRules {
   committees: string[];
   agencies: string[];
   billPrefixes: string[];
+  billIds: string[];
 }
 
 const BILL_ID_RE = /\b([HS][BJR]R?\s*\d+)\b/i;
@@ -46,6 +47,7 @@ function parseRules(rulesJson: Record<string, unknown>): ParsedRules {
     committees: toArr(rulesJson.committees),
     agencies: toArr(rulesJson.agencies),
     billPrefixes: toArr(rulesJson.billPrefixes),
+    billIds: toArr(rulesJson.billIds),
   };
 }
 
@@ -76,7 +78,23 @@ function matchBillIds(
 
   const extractedBillId = billId ?? extractBillIdFromText(corpus);
 
-  if (extractedBillId && rules.billPrefixes.length > 0) {
+  // 1a. Exact bill ID match (e.g. "HB 5", "SB 14") — highest priority
+  if (extractedBillId && rules.billIds.length > 0) {
+    const normalised = extractedBillId.toUpperCase().replace(/\s+/g, " ").trim();
+    for (const targetId of rules.billIds) {
+      const normalTarget = targetId.toUpperCase().replace(/\s+/g, " ").trim();
+      if (normalised === normalTarget) {
+        reasons.push({
+          dimension: "bill_id",
+          rule: targetId,
+          excerpt: excerpt(corpus, extractedBillId),
+        });
+      }
+    }
+  }
+
+  // 1b. Bill prefix match (e.g. any "HB" / "SB") — broader fallback
+  if (extractedBillId && rules.billPrefixes.length > 0 && reasons.length === 0) {
     const upper = extractedBillId.toUpperCase().replace(/\s+/g, "");
     const prefixMatch = rules.billPrefixes.some((p) => upper.startsWith(p));
     if (prefixMatch) {

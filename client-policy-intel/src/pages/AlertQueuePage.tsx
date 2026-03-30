@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { Link } from "wouter";
-import { api, type Alert } from "../api";
+import { api, type Alert, type BulkTriageResult } from "../api";
 import { useAsync } from "../hooks";
 
 export function AlertQueuePage() {
@@ -11,6 +11,11 @@ export function AlertQueuePage() {
   const [reviewing, setReviewing] = useState<number | null>(null);
   const [creatingIssueRoom, setCreatingIssueRoom] = useState<number | null>(null);
   const [note, setNote] = useState("");
+  const [triageOpen, setTriageOpen] = useState(false);
+  const [suppressBelow, setSuppressBelow] = useState(20);
+  const [promoteAbove, setPromoteAbove] = useState(70);
+  const [triagePreview, setTriagePreview] = useState<BulkTriageResult | null>(null);
+  const [triageBusy, setTriageBusy] = useState(false);
   const LIMIT = 50;
 
   const fetchAlerts = useCallback(
@@ -63,6 +68,36 @@ export function AlertQueuePage() {
     }
   }
 
+  async function handleTriagePreview() {
+    try {
+      setTriageBusy(true);
+      const result = await api.bulkTriage({ suppressBelow, promoteAbove, dryRun: true });
+      setTriagePreview(result);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      window.alert("Preview failed: " + message);
+    } finally {
+      setTriageBusy(false);
+    }
+  }
+
+  async function handleTriageExecute() {
+    if (!window.confirm(`This will suppress ${triagePreview?.wouldSuppress ?? 0} and promote ${triagePreview?.wouldPromote ?? 0} alerts. Continue?`)) return;
+    try {
+      setTriageBusy(true);
+      const result = await api.bulkTriage({ suppressBelow, promoteAbove, dryRun: false });
+      window.alert(`Done! Suppressed: ${result.suppressed}, Promoted: ${result.promoted}`);
+      setTriagePreview(null);
+      setTriageOpen(false);
+      refetch();
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      window.alert("Triage failed: " + message);
+    } finally {
+      setTriageBusy(false);
+    }
+  }
+
   return (
     <div>
       <h1 style={{ fontSize: 22, marginBottom: 16 }}>Alert Review Queue</h1>
@@ -109,7 +144,46 @@ export function AlertQueuePage() {
         <span style={{ marginLeft: "auto", fontSize: 12, color: "#888" }}>
           {total.toLocaleString()} alert{total !== 1 ? "s" : ""}
         </span>
+        <button
+          onClick={() => setTriageOpen(!triageOpen)}
+          style={{ marginLeft: 8, padding: "6px 14px", borderRadius: 16, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 500, background: "#16213e", color: "#fff" }}
+        >
+          {triageOpen ? "Close Triage" : "Bulk Triage"}
+        </button>
       </div>
+
+      {/* Bulk Triage Panel */}
+      {triageOpen && (
+        <div style={{ background: "#f8f9fa", border: "1px solid #dee2e6", borderRadius: 8, padding: 16, marginBottom: 20 }}>
+          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 12 }}>Bulk Auto-Triage</div>
+          <div style={{ display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap" }}>
+            <label style={{ fontSize: 13 }}>
+              Suppress below:{" "}
+              <input type="number" value={suppressBelow} onChange={(e) => setSuppressBelow(Number(e.target.value))} min={0} max={100}
+                style={{ width: 60, padding: "4px 8px", fontSize: 13, border: "1px solid #ccc", borderRadius: 4 }} />
+            </label>
+            <label style={{ fontSize: 13 }}>
+              Promote above:{" "}
+              <input type="number" value={promoteAbove} onChange={(e) => setPromoteAbove(Number(e.target.value))} min={0} max={100}
+                style={{ width: 60, padding: "4px 8px", fontSize: 13, border: "1px solid #ccc", borderRadius: 4 }} />
+            </label>
+            <button onClick={handleTriagePreview} disabled={triageBusy}
+              style={{ padding: "6px 16px", fontSize: 13, background: "#3498db", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", opacity: triageBusy ? 0.6 : 1 }}>
+              {triageBusy ? "Working..." : "Preview"}
+            </button>
+          </div>
+          {triagePreview && (
+            <div style={{ marginTop: 12, fontSize: 13 }}>
+              <div>Would suppress: <strong>{triagePreview.wouldSuppress?.toLocaleString()}</strong> alerts (score &lt; {triagePreview.suppressBelow})</div>
+              <div>Would promote: <strong>{triagePreview.wouldPromote?.toLocaleString()}</strong> alerts (score &gt; {triagePreview.promoteAbove})</div>
+              <button onClick={handleTriageExecute} disabled={triageBusy}
+                style={{ marginTop: 10, padding: "8px 20px", fontSize: 13, background: "#e74c3c", color: "#fff", border: "none", borderRadius: 4, fontWeight: 600, cursor: "pointer" }}>
+                Execute Triage
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {loading && <p>Loading...</p>}
       {error && <p style={{ color: "red" }}>{error}</p>}

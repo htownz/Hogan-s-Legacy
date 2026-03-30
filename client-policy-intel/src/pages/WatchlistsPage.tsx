@@ -125,7 +125,7 @@ export function WatchlistsPage() {
       <div style={{ display: "grid", gap: 10, marginBottom: 24 }}>
         {active.length === 0 && <p style={{ color: "#888", fontSize: 13 }}>No active watchlists yet.</p>}
         {active.map((w) => (
-          <WatchlistCard key={w.id} watchlist={w} />
+          <WatchlistCard key={w.id} watchlist={w} onUpdate={refetch} />
         ))}
       </div>
 
@@ -134,7 +134,7 @@ export function WatchlistsPage() {
           <SectionHeader label="Inactive" count={inactive.length} />
           <div style={{ display: "grid", gap: 10 }}>
             {inactive.map((w) => (
-              <WatchlistCard key={w.id} watchlist={w} />
+              <WatchlistCard key={w.id} watchlist={w} onUpdate={refetch} />
             ))}
           </div>
         </>
@@ -163,8 +163,52 @@ function SectionHeader({ label, count }: { label: string; count: number }) {
   );
 }
 
-function WatchlistCard({ watchlist: w }: { watchlist: Watchlist }) {
-  const ruleCount = Object.keys(w.rulesJson ?? {}).length;
+function WatchlistCard({ watchlist: w, onUpdate }: { watchlist: Watchlist; onUpdate: () => void }) {
+  const rules = (w.rulesJson ?? {}) as Record<string, unknown>;
+  const ruleCount = Object.keys(rules).length;
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editName, setEditName] = useState(w.name);
+  const [editTopic, setEditTopic] = useState(w.topic ?? "");
+  const [editDesc, setEditDesc] = useState(w.description ?? "");
+  const [editActive, setEditActive] = useState(w.isActive);
+  const [editBillIds, setEditBillIds] = useState(((rules.billIds as string[]) ?? []).join(", "));
+  const [editKeywords, setEditKeywords] = useState(((rules.keywords as string[]) ?? []).join(", "));
+
+  function startEdit() {
+    setEditName(w.name);
+    setEditTopic(w.topic ?? "");
+    setEditDesc(w.description ?? "");
+    setEditActive(w.isActive);
+    setEditBillIds(((rules.billIds as string[]) ?? []).join(", "));
+    setEditKeywords(((rules.keywords as string[]) ?? []).join(", "));
+    setEditing(true);
+  }
+
+  async function handleSave() {
+    try {
+      setSaving(true);
+      const newRules = { ...rules };
+      const billIds = editBillIds.split(",").map((s) => s.trim()).filter(Boolean);
+      const keywords = editKeywords.split(",").map((s) => s.trim()).filter(Boolean);
+      if (billIds.length > 0) newRules.billIds = billIds; else delete newRules.billIds;
+      if (keywords.length > 0) newRules.keywords = keywords; else delete newRules.keywords;
+      await api.patchWatchlist(w.id, {
+        name: editName.trim(),
+        topic: editTopic.trim() || undefined,
+        description: editDesc.trim() || undefined,
+        rulesJson: newRules,
+        isActive: editActive,
+      });
+      setEditing(false);
+      onUpdate();
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      window.alert("Save failed: " + message);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <div style={{
@@ -175,43 +219,77 @@ function WatchlistCard({ watchlist: w }: { watchlist: Watchlist }) {
       borderLeft: `4px solid ${w.isActive ? "#27ae60" : "#bdbdbd"}`,
       opacity: w.isActive ? 1 : 0.65,
     }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <div>
-          <div style={{ fontSize: 14, fontWeight: 600 }}>{w.name}</div>
-          {w.topic && (
-            <span style={{
-              display: "inline-block",
-              marginTop: 4,
-              padding: "1px 8px",
-              background: "#e3f2fd",
-              color: "#1565c0",
-              borderRadius: 10,
-              fontSize: 11,
-              fontWeight: 500,
-            }}>
-              {w.topic}
-            </span>
-          )}
-          {w.description && (
-            <p style={{ fontSize: 12, color: "#666", marginTop: 6, marginBottom: 0 }}>{w.description}</p>
-          )}
-        </div>
-        <div style={{ textAlign: "right", fontSize: 11, color: "#aaa" }}>
-          <div style={{
-            display: "inline-block",
-            padding: "2px 10px",
-            borderRadius: 10,
-            background: w.isActive ? "#e8f5e9" : "#fafafa",
-            color: w.isActive ? "#27ae60" : "#bdbdbd",
-            fontWeight: 600,
-            marginBottom: 4,
-          }}>
-            {w.isActive ? "Active" : "Inactive"}
+      {editing ? (
+        <div style={{ display: "grid", gap: 10 }}>
+          <label style={{ display: "grid", gap: 4, fontSize: 13 }}>
+            Name
+            <input value={editName} onChange={(e) => setEditName(e.target.value)} style={inputStyle} />
+          </label>
+          <label style={{ display: "grid", gap: 4, fontSize: 13 }}>
+            Topic
+            <input value={editTopic} onChange={(e) => setEditTopic(e.target.value)} style={inputStyle} />
+          </label>
+          <label style={{ display: "grid", gap: 4, fontSize: 13 }}>
+            Description
+            <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} rows={2} style={{ ...inputStyle, resize: "vertical" }} />
+          </label>
+          <label style={{ display: "grid", gap: 4, fontSize: 13 }}>
+            Bill IDs <span style={{ fontWeight: 400, color: "#888" }}>(comma-separated, e.g. HB 5, SB 1234)</span>
+            <input value={editBillIds} onChange={(e) => setEditBillIds(e.target.value)} placeholder="HB 5, SB 1234" style={inputStyle} />
+          </label>
+          <label style={{ display: "grid", gap: 4, fontSize: 13 }}>
+            Keywords <span style={{ fontWeight: 400, color: "#888" }}>(comma-separated)</span>
+            <input value={editKeywords} onChange={(e) => setEditKeywords(e.target.value)} style={inputStyle} />
+          </label>
+          <label style={{ fontSize: 13, display: "flex", gap: 6, alignItems: "center" }}>
+            <input type="checkbox" checked={editActive} onChange={(e) => setEditActive(e.target.checked)} /> Active
+          </label>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={handleSave} disabled={saving} style={{ padding: "6px 16px", fontSize: 12, background: "#27ae60", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer" }}>
+              {saving ? "Saving..." : "Save"}
+            </button>
+            <button onClick={() => setEditing(false)} style={{ padding: "6px 16px", fontSize: 12, background: "#e0e0e0", border: "none", borderRadius: 4, cursor: "pointer" }}>
+              Cancel
+            </button>
           </div>
-          {ruleCount > 0 && <div>{ruleCount} rule{ruleCount !== 1 ? "s" : ""}</div>}
-          <div style={{ marginTop: 4 }}>#{w.id}</div>
         </div>
-      </div>
+      ) : (
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600 }}>{w.name}</div>
+            {w.topic && (
+              <span style={{ display: "inline-block", marginTop: 4, padding: "1px 8px", background: "#e3f2fd", color: "#1565c0", borderRadius: 10, fontSize: 11, fontWeight: 500 }}>
+                {w.topic}
+              </span>
+            )}
+            {w.description && <p style={{ fontSize: 12, color: "#666", marginTop: 6, marginBottom: 0 }}>{w.description}</p>}
+            {((rules.billIds as string[]) ?? []).length > 0 && (
+              <div style={{ marginTop: 6, fontSize: 11, color: "#888" }}>
+                Tracking: {((rules.billIds as string[]) ?? []).join(", ")}
+              </div>
+            )}
+          </div>
+          <div style={{ textAlign: "right", fontSize: 11, color: "#aaa" }}>
+            <div style={{
+              display: "inline-block",
+              padding: "2px 10px",
+              borderRadius: 10,
+              background: w.isActive ? "#e8f5e9" : "#fafafa",
+              color: w.isActive ? "#27ae60" : "#bdbdbd",
+              fontWeight: 600,
+              marginBottom: 4,
+            }}>
+              {w.isActive ? "Active" : "Inactive"}
+            </div>
+            {ruleCount > 0 && <div>{ruleCount} rule{ruleCount !== 1 ? "s" : ""}</div>}
+            <div style={{ marginTop: 4 }}>#{w.id}</div>
+            <button onClick={startEdit}
+              style={{ marginTop: 6, padding: "4px 12px", fontSize: 11, background: "#f0f0f0", border: "1px solid #ddd", borderRadius: 4, cursor: "pointer", color: "#555" }}>
+              Edit
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
