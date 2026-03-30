@@ -1,9 +1,53 @@
+import { useState } from "react";
 import { api } from "../api";
 import { useAsync } from "../hooks";
 
 export function DigestPage() {
   // Default to workspace 2 (Grace & McEwan)
   const { data: digest, loading, error } = useAsync(() => api.getDigest(2));
+  const [copied, setCopied] = useState(false);
+
+  if (loading) return <p>Loading digest...</p>;
+  if (error) return <p style={{ color: "red" }}>{error}</p>;
+  if (!digest) return <p>No digest available</p>;
+
+  function formatDigestText(): string {
+    const lines: string[] = [];
+    lines.push(`POLICY INTEL WEEKLY DIGEST`);
+    lines.push(`${new Date(digest!.period.start).toLocaleDateString()} — ${new Date(digest!.period.end).toLocaleDateString()} (${digest!.period.week})`);
+    lines.push("");
+    lines.push(`SUMMARY: ${digest!.summary.totalAlerts} alerts | ${digest!.summary.highPriority} high priority | ${digest!.summary.pendingReview} pending | ${digest!.summary.reviewed} reviewed | ${digest!.summary.activitiesLogged} activities`);
+    lines.push("");
+    for (const section of digest!.sections) {
+      lines.push(`── ${section.watchlist} (${section.alertCount} alerts, ${section.highPriority} high-priority) ──`);
+      for (const a of section.alerts) {
+        lines.push(`  [${a.score}] ${a.title} (${a.status})`);
+        if (a.whyItMatters) lines.push(`        ${a.whyItMatters.slice(0, 200)}`);
+      }
+      lines.push("");
+    }
+    if (digest!.recentActivities.length > 0) {
+      lines.push("── Recent Activities ──");
+      for (const a of digest!.recentActivities) {
+        lines.push(`  ${a.summary} (${a.type.replace(/_/g, " ")}, ${new Date(a.createdAt).toLocaleString()})`);
+      }
+    }
+    return lines.join("\n");
+  }
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(formatDigestText());
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      window.alert("Copy failed — please select and copy manually");
+    }
+  }
+
+  function handlePrint() {
+    window.print();
+  }
 
   if (loading) return <p>Loading digest...</p>;
   if (error) return <p style={{ color: "red" }}>{error}</p>;
@@ -11,7 +55,22 @@ export function DigestPage() {
 
   return (
     <div>
-      <h1 style={{ fontSize: 22, marginBottom: 4 }}>Weekly Digest</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+        <h1 style={{ fontSize: 22, margin: 0 }}>Weekly Digest</h1>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={handleCopy} style={{
+            padding: "6px 14px", fontSize: 12, border: "1px solid #ddd", borderRadius: 6, background: copied ? "#27ae60" : "#fff",
+            color: copied ? "#fff" : "#555", cursor: "pointer", fontWeight: 500, transition: "all 0.2s",
+          }}>
+            {copied ? "Copied!" : "Copy as Text"}
+          </button>
+          <button onClick={handlePrint} style={{
+            padding: "6px 14px", fontSize: 12, border: "1px solid #ddd", borderRadius: 6, background: "#fff", color: "#555", cursor: "pointer", fontWeight: 500,
+          }}>
+            Print / PDF
+          </button>
+        </div>
+      </div>
       <p style={{ fontSize: 13, color: "#888", marginBottom: 20 }}>
         {new Date(digest.period.start).toLocaleDateString()} — {new Date(digest.period.end).toLocaleDateString()}
         {" "}({digest.period.week})

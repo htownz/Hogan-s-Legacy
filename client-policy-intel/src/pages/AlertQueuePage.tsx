@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { Link } from "wouter";
-import { api, type Alert, type BulkTriageResult } from "../api";
+import { api, type Alert, type BulkTriageResult, type Watchlist } from "../api";
 import { useAsync } from "../hooks";
 
 export function AlertQueuePage() {
@@ -16,17 +16,32 @@ export function AlertQueuePage() {
   const [promoteAbove, setPromoteAbove] = useState(70);
   const [triagePreview, setTriagePreview] = useState<BulkTriageResult | null>(null);
   const [triageBusy, setTriageBusy] = useState(false);
+  const [watchlistId, setWatchlistId] = useState<number | undefined>(undefined);
+  const [minScore, setMinScore] = useState<number | undefined>(undefined);
+  const [sort, setSort] = useState<"newest" | "oldest" | "score_high" | "score_low">("newest");
   const LIMIT = 50;
 
-  const fetchAlerts = useCallback(
-    () => api.getAlerts({ page, limit: LIMIT, status: filter, search: search || undefined }),
-    [page, filter, search],
-  );
-  const { data: result, loading, error, refetch } = useAsync(fetchAlerts, [page, filter, search]);
+  const { data: watchlists } = useAsync(() => api.getWatchlists(), []);
 
-  const alerts = result?.data ?? [];
+  const fetchAlerts = useCallback(
+    () => api.getAlerts({ page, limit: LIMIT, status: filter, search: search || undefined, watchlistId, minScore }),
+    [page, filter, search, watchlistId, minScore],
+  );
+  const { data: result, loading, error, refetch } = useAsync(fetchAlerts, [page, filter, search, watchlistId, minScore]);
+
+  const rawAlerts = result?.data ?? [];
   const total = result?.total ?? 0;
   const totalPages = result?.totalPages ?? 1;
+
+  // Client-side sort
+  const alerts = [...rawAlerts].sort((a, b) => {
+    switch (sort) {
+      case "oldest": return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      case "score_high": return b.relevanceScore - a.relevanceScore;
+      case "score_low": return a.relevanceScore - b.relevanceScore;
+      default: return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    }
+  });
 
   function changeFilter(f: typeof filter) {
     setFilter(f);
@@ -121,8 +136,8 @@ export function AlertQueuePage() {
         )}
       </form>
 
-      {/* Filters */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 20, alignItems: "center" }}>
+      {/* Filters Row 1: Status + Count + Triage */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
         {(["all", "pending_review", "ready", "suppressed"] as const).map((f) => (
           <button
             key={f}
@@ -150,6 +165,46 @@ export function AlertQueuePage() {
         >
           {triageOpen ? "Close Triage" : "Bulk Triage"}
         </button>
+      </div>
+
+      {/* Filters Row 2: Watchlist, Min Score, Sort */}
+      <div style={{ display: "flex", gap: 12, marginBottom: 20, alignItems: "center", flexWrap: "wrap" }}>
+        <label style={{ fontSize: 12, color: "#555", display: "flex", alignItems: "center", gap: 4 }}>
+          Watchlist:
+          <select
+            value={watchlistId ?? ""}
+            onChange={(e) => { setWatchlistId(e.target.value ? Number(e.target.value) : undefined); setPage(1); }}
+            style={{ padding: "4px 8px", fontSize: 12, border: "1px solid #ddd", borderRadius: 4, background: "#fff" }}
+          >
+            <option value="">All</option>
+            {(watchlists ?? []).map((w) => (
+              <option key={w.id} value={w.id}>{w.name}</option>
+            ))}
+          </select>
+        </label>
+        <label style={{ fontSize: 12, color: "#555", display: "flex", alignItems: "center", gap: 4 }}>
+          Min score:
+          <input
+            type="number" min={0} max={100}
+            value={minScore ?? ""}
+            onChange={(e) => { setMinScore(e.target.value ? Number(e.target.value) : undefined); setPage(1); }}
+            placeholder="0"
+            style={{ width: 50, padding: "4px 8px", fontSize: 12, border: "1px solid #ddd", borderRadius: 4 }}
+          />
+        </label>
+        <label style={{ fontSize: 12, color: "#555", display: "flex", alignItems: "center", gap: 4 }}>
+          Sort:
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as typeof sort)}
+            style={{ padding: "4px 8px", fontSize: 12, border: "1px solid #ddd", borderRadius: 4, background: "#fff" }}
+          >
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="score_high">Score: High → Low</option>
+            <option value="score_low">Score: Low → High</option>
+          </select>
+        </label>
       </div>
 
       {/* Bulk Triage Panel */}
@@ -199,7 +254,9 @@ export function AlertQueuePage() {
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 600 }}>{a.title}</div>
+                <Link href={`/alerts/${a.id}`}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: "#2c3e50", cursor: "pointer" }}>{a.title}</div>
+                </Link>
                 {a.whyItMatters && <p style={{ fontSize: 12, color: "#555", marginTop: 4 }}>{a.whyItMatters.slice(0, 300)}</p>}
               </div>
               <div style={{ textAlign: "right", minWidth: 80 }}>

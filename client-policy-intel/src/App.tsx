@@ -1,4 +1,6 @@
 import { Route, Switch, Link, useLocation } from "wouter";
+import { useState, useEffect, useRef } from "react";
+import { api } from "./api";
 import { MattersPage } from "./pages/MattersPage";
 import { MatterDetailPage } from "./pages/MatterDetailPage";
 import { AlertQueuePage } from "./pages/AlertQueuePage";
@@ -13,6 +15,8 @@ import { StakeholderDetailPage } from "./pages/StakeholderDetailPage";
 import { DeliverablesPage } from "./pages/DeliverablesPage";
 import { AnalyticsPage } from "./pages/AnalyticsPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { AlertDetailPage } from "./pages/AlertDetailPage";
+import { WatchlistDetailPage } from "./pages/WatchlistDetailPage";
 
 const NAV_ITEMS = [
   { path: "/", label: "Dashboard" },
@@ -29,7 +33,28 @@ const NAV_ITEMS = [
 ];
 
 export function App() {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
+  const [toast, setToast] = useState<{ message: string; count: number } | null>(null);
+  const lastPending = useRef<number | null>(null);
+
+  // Poll for new high-priority alerts every 30 seconds
+  useEffect(() => {
+    let timer: ReturnType<typeof setInterval>;
+    async function poll() {
+      try {
+        const stats = await api.getDashboardStats();
+        if (lastPending.current !== null && stats.pendingReview > lastPending.current) {
+          const newCount = stats.pendingReview - lastPending.current;
+          setToast({ message: `${newCount} new alert${newCount !== 1 ? "s" : ""} pending review`, count: newCount });
+          setTimeout(() => setToast(null), 8000);
+        }
+        lastPending.current = stats.pendingReview;
+      } catch { /* silent */ }
+    }
+    poll();
+    timer = setInterval(poll, 30_000);
+    return () => clearInterval(timer);
+  }, []);
 
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
@@ -65,15 +90,34 @@ export function App() {
       </nav>
 
       {/* Main content */}
-      <main style={{ flex: 1, padding: "24px 32px", overflow: "auto" }}>
+      <main style={{ flex: 1, padding: "24px 32px", overflow: "auto", position: "relative" }}>
+        {/* Notification toast */}
+        {toast && (
+          <div
+            onClick={() => { setToast(null); setLocation("/alerts"); }}
+            style={{
+              position: "fixed", top: 16, right: 24, zIndex: 1000,
+              background: "#16213e", color: "#fff", padding: "12px 20px", borderRadius: 8,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.2)", cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 10, fontSize: 13, fontWeight: 500,
+              animation: "slideIn 0.3s ease-out",
+            }}
+          >
+            <span style={{ background: "#e74c3c", borderRadius: "50%", width: 8, height: 8, display: "inline-block" }} />
+            {toast.message}
+            <span style={{ fontSize: 11, color: "#7f8c9b", marginLeft: 4 }}>Click to view</span>
+          </div>
+        )}
         <Switch>
           <Route path="/" component={DashboardPage} />
           <Route path="/matters" component={MattersPage} />
           <Route path="/matters/:id">{(params) => <MatterDetailPage id={Number(params.id)} />}</Route>
           <Route path="/alerts" component={AlertQueuePage} />
+          <Route path="/alerts/:id" component={AlertDetailPage} />
           <Route path="/issue-rooms" component={IssueRoomsPage} />
           <Route path="/issue-rooms/:id">{(params) => <IssueRoomDetailPage id={Number(params.id)} />}</Route>
           <Route path="/watchlists" component={WatchlistsPage} />
+          <Route path="/watchlists/:id" component={WatchlistDetailPage} />
           <Route path="/stakeholders" component={StakeholdersPage} />
           <Route path="/stakeholders/:id" component={StakeholderDetailPage} />
           <Route path="/deliverables" component={DeliverablesPage} />

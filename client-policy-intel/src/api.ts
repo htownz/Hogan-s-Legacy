@@ -38,6 +38,7 @@ export const api = {
   },
   patchAlert: (id: number, body: { status?: string; reviewerNote?: string }) =>
     apiFetch<Alert>(`/alerts/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  getAlert: (id: number) => apiFetch<AlertDetail>(`/alerts/${id}`),
   createIssueRoomFromAlert: (id: number, body?: { matterId?: number; title?: string; issueType?: string; summary?: string }) =>
     apiFetch<{ issueRoom: IssueRoom; alert: Alert }>(`/alerts/${id}/create-issue-room`, { method: "POST", body: JSON.stringify(body ?? {}) }),
 
@@ -116,6 +117,14 @@ export const api = {
   // Watchlists
   getWatchlists: () => apiFetch<Watchlist[]>("/watchlists"),
   getWatchlist: (id: number) => apiFetch<Watchlist>(`/watchlists/${id}`),
+  getWatchlistAlerts: (id: number, params?: { page?: number; limit?: number; status?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.page) q.set("page", String(params.page));
+    if (params?.limit) q.set("limit", String(params.limit));
+    if (params?.status && params.status !== "all") q.set("status", params.status);
+    const qs = q.toString();
+    return apiFetch<PaginatedResponse<Alert>>(`/watchlists/${id}/alerts${qs ? `?${qs}` : ""}`);
+  },
   createWatchlist: (body: { workspaceId: number; name: string; topic?: string; description?: string }) =>
     apiFetch<Watchlist>("/watchlists", { method: "POST", body: JSON.stringify(body) }),
 
@@ -204,6 +213,13 @@ export interface Alert {
   reviewerNote: string | null;
   createdAt: string;
   reviewedAt: string | null;
+}
+
+export interface AlertDetail {
+  alert: Alert;
+  sourceDocument: SourceDocument | null;
+  watchlist: Watchlist | null;
+  issueRoom: IssueRoom | null;
 }
 
 export interface IssueRoom {

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { api, type Watchlist } from "../api";
 import { useAsync } from "../hooks";
 
@@ -256,7 +257,7 @@ function WatchlistCard({ watchlist: w, onUpdate }: { watchlist: Watchlist; onUpd
       ) : (
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 600 }}>{w.name}</div>
+            <Link href={`/watchlists/${w.id}`}><div style={{ fontSize: 14, fontWeight: 600, color: "#2c3e50", cursor: "pointer" }}>{w.name}</div></Link>
             {w.topic && (
               <span style={{ display: "inline-block", marginTop: 4, padding: "1px 8px", background: "#e3f2fd", color: "#1565c0", borderRadius: 10, fontSize: 11, fontWeight: 500 }}>
                 {w.topic}

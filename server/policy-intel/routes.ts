@@ -375,6 +375,32 @@ export function createPolicyIntelRouter() {
     }
   });
 
+  // ── Watchlist alerts ────────────────────────────────────────────────────
+
+  router.get("/watchlists/:id/alerts", async (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      const page = Math.max(1, Number(req.query.page) || 1);
+      const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+      const offset = (page - 1) * limit;
+      const status = req.query.status as string | undefined;
+
+      const conditions = [eq(alerts.watchlistId, id)];
+      if (status && status !== "all") conditions.push(eq(alerts.status, status as any));
+
+      const where = and(...conditions);
+
+      const [rows, [totalRow]] = await Promise.all([
+        policyIntelDb.select().from(alerts).where(where).orderBy(desc(alerts.relevanceScore)).limit(limit).offset(offset),
+        policyIntelDb.select({ count: count() }).from(alerts).where(where),
+      ]);
+
+      res.json({ data: rows, total: totalRow?.count ?? 0, page, limit, totalPages: Math.ceil((totalRow?.count ?? 0) / limit) });
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
   router.post("/source-documents", async (req, res, next) => {
     try {
       const {
@@ -639,6 +665,33 @@ export function createPolicyIntelRouter() {
       }
 
       res.json(updated);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  // ── Single alert detail ─────────────────────────────────────────────────
+
+  router.get("/alerts/:id", async (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      const [alert] = await policyIntelDb.select().from(alerts).where(eq(alerts.id, id));
+      if (!alert) return res.status(404).json({ message: "alert not found" });
+
+      // Fetch related data in parallel
+      const [sourceDoc, watchlist, linkedIssueRoom] = await Promise.all([
+        alert.sourceDocumentId
+          ? policyIntelDb.select().from(sourceDocuments).where(eq(sourceDocuments.id, alert.sourceDocumentId)).then(r => r[0] ?? null)
+          : Promise.resolve(null),
+        alert.watchlistId
+          ? policyIntelDb.select().from(watchlists).where(eq(watchlists.id, alert.watchlistId)).then(r => r[0] ?? null)
+          : Promise.resolve(null),
+        alert.issueRoomId
+          ? policyIntelDb.select().from(issueRooms).where(eq(issueRooms.id, alert.issueRoomId)).then(r => r[0] ?? null)
+          : Promise.resolve(null),
+      ]);
+
+      res.json({ alert, sourceDocument: sourceDoc, watchlist, issueRoom: linkedIssueRoom });
     } catch (err: any) {
       next(err);
     }
