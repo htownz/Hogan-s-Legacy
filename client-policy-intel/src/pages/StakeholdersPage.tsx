@@ -139,7 +139,9 @@ function StakeholderCard({ stakeholder: s }: { stakeholder: Stakeholder }) {
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <div style={{ fontSize: 14, fontWeight: 600 }}>{s.name}</div>
+          <Link href={`/stakeholders/${s.id}`}>
+            <div style={{ fontSize: 14, fontWeight: 600, cursor: "pointer", color: "#1a1a1a" }}>{s.name}</div>
+          </Link>
           {s.title && <div style={{ fontSize: 12, color: "#555", marginTop: 2 }}>{s.title}</div>}
           {s.organization && (
             <div style={{ fontSize: 12, color: "#777", marginTop: 1 }}>{s.organization}</div>

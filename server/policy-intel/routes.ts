@@ -228,6 +228,56 @@ export function createPolicyIntelRouter() {
     }
   });
 
+  /**
+   * GET /dashboard/analytics — alert score distribution + source type breakdown
+   */
+  router.get("/dashboard/analytics", async (_req, res, next) => {
+    try {
+      const [scoreDistRaw, sourceBreakdownRaw, dailyVolumeRaw] = await Promise.all([
+        policyIntelDb.execute(sql`
+          SELECT
+            CASE
+              WHEN relevance_score < 10 THEN '0-9'
+              WHEN relevance_score < 20 THEN '10-19'
+              WHEN relevance_score < 30 THEN '20-29'
+              WHEN relevance_score < 40 THEN '30-39'
+              WHEN relevance_score < 50 THEN '40-49'
+              WHEN relevance_score < 60 THEN '50-59'
+              WHEN relevance_score < 70 THEN '60-69'
+              WHEN relevance_score < 80 THEN '70-79'
+              WHEN relevance_score < 90 THEN '80-89'
+              ELSE '90-100'
+            END AS bucket,
+            count(*)::int AS count
+          FROM policy_intel_alerts
+          GROUP BY bucket
+          ORDER BY bucket
+        `),
+        policyIntelDb.execute(sql`
+          SELECT source_type, count(*)::int AS count
+          FROM policy_intel_source_documents
+          GROUP BY source_type
+          ORDER BY count DESC
+        `),
+        policyIntelDb.execute(sql`
+          SELECT date_trunc('day', created_at)::date AS day, count(*)::int AS count
+          FROM policy_intel_alerts
+          WHERE created_at >= now() - interval '30 days'
+          GROUP BY day
+          ORDER BY day
+        `),
+      ]);
+
+      res.json({
+        scoreDistribution: scoreDistRaw.rows ?? scoreDistRaw,
+        sourceTypeBreakdown: sourceBreakdownRaw.rows ?? sourceBreakdownRaw,
+        dailyAlertVolume: dailyVolumeRaw.rows ?? dailyVolumeRaw,
+      });
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
   router.post("/workspaces", async (req, res, next) => {
     try {
       const { slug, name } = req.body ?? {};
@@ -380,7 +430,13 @@ export function createPolicyIntelRouter() {
 
       const conditions = [];
       if (sourceType) conditions.push(eq(sourceDocuments.sourceType, sourceType as any));
-      if (search) conditions.push(ilike(sourceDocuments.title, `%${search}%`));
+      if (search) {
+        const terms = search.trim().split(/\s+/).filter(Boolean).map(t => t.replace(/[^a-zA-Z0-9]/g, "")).filter(Boolean);
+        if (terms.length > 0) {
+          const tsq = terms.join(" & ");
+          conditions.push(sql`to_tsvector('english', coalesce(${sourceDocuments.title},'') || ' ' || coalesce(${sourceDocuments.summary},'') || ' ' || coalesce(${sourceDocuments.normalizedText},'')) @@ to_tsquery('english', ${tsq})`);
+        }
+      }
 
       const where = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -474,7 +530,13 @@ export function createPolicyIntelRouter() {
       if (status && status !== "all") conditions.push(eq(alerts.status, status as any));
       if (watchlistId) conditions.push(eq(alerts.watchlistId, watchlistId));
       if (minScore !== undefined) conditions.push(gte(alerts.relevanceScore, minScore));
-      if (search) conditions.push(ilike(alerts.title, `%${search}%`));
+      if (search) {
+        const terms = search.trim().split(/\s+/).filter(Boolean).map(t => t.replace(/[^a-zA-Z0-9]/g, "")).filter(Boolean);
+        if (terms.length > 0) {
+          const tsq = terms.join(" & ");
+          conditions.push(sql`to_tsvector('english', coalesce(${alerts.title},'') || ' ' || coalesce(${alerts.summary},'') || ' ' || coalesce(${alerts.whyItMatters},'')) @@ to_tsquery('english', ${tsq})`);
+        }
+      }
 
       const where = conditions.length > 0 ? and(...conditions) : undefined;
 

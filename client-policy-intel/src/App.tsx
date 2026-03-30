@@ -9,7 +9,10 @@ import { IssueRoomsPage } from "./pages/IssueRoomsPage";
 import { IssueRoomDetailPage } from "./pages/IssueRoomDetailPage";
 import { WatchlistsPage } from "./pages/WatchlistsPage";
 import { StakeholdersPage } from "./pages/StakeholdersPage";
+import { StakeholderDetailPage } from "./pages/StakeholderDetailPage";
 import { DeliverablesPage } from "./pages/DeliverablesPage";
+import { AnalyticsPage } from "./pages/AnalyticsPage";
+import { SettingsPage } from "./pages/SettingsPage";
 
 const NAV_ITEMS = [
   { path: "/", label: "Dashboard" },
@@ -20,7 +23,9 @@ const NAV_ITEMS = [
   { path: "/stakeholders", label: "Stakeholders" },
   { path: "/deliverables", label: "Briefs" },
   { path: "/sources", label: "Sources" },
+  { path: "/analytics", label: "Analytics" },
   { path: "/digest", label: "Digest" },
+  { path: "/settings", label: "Settings" },
 ];
 
 export function App() {
@@ -70,9 +75,12 @@ export function App() {
           <Route path="/issue-rooms/:id">{(params) => <IssueRoomDetailPage id={Number(params.id)} />}</Route>
           <Route path="/watchlists" component={WatchlistsPage} />
           <Route path="/stakeholders" component={StakeholdersPage} />
+          <Route path="/stakeholders/:id" component={StakeholderDetailPage} />
           <Route path="/deliverables" component={DeliverablesPage} />
           <Route path="/sources" component={SourceDocsPage} />
+          <Route path="/analytics" component={AnalyticsPage} />
           <Route path="/digest" component={DigestPage} />
+          <Route path="/settings" component={SettingsPage} />
           <Route>
             <div style={{ padding: 40, textAlign: "center", color: "#888" }}>Page not found</div>
           </Route>

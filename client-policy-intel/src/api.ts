@@ -100,6 +100,7 @@ export const api = {
   // Dashboard
   getDashboardStats: () => apiFetch<DashboardStats>("/dashboard/stats"),
   getDashboardKpis: () => apiFetch<DashboardKpis>("/dashboard/kpis"),
+  getDashboardAnalytics: () => apiFetch<DashboardAnalytics>("/dashboard/analytics"),
 
   // Champion / Challenger
   getChampionStatus: () => apiFetch<ChampionStatus>("/champion/status"),
@@ -121,6 +122,8 @@ export const api = {
   // Stakeholders
   getStakeholders: () => apiFetch<Stakeholder[]>("/stakeholders"),
   getStakeholder: (id: number) => apiFetch<StakeholderDetail>(`/stakeholders/${id}`),
+  addObservation: (stakeholderId: number, body: { observationText: string; confidence?: string; sourceDocumentId?: number; matterId?: number }) =>
+    apiFetch<unknown>(`/stakeholders/${stakeholderId}/observations`, { method: "POST", body: JSON.stringify(body) }),
 
   // TEC
   searchTec: (searchTerm: string) => apiFetch<TecSearchResult>("/jobs/fetch-tec", { method: "POST", body: JSON.stringify({ searchTerm }) }),
@@ -538,4 +541,10 @@ export interface LegislatorImportResult {
   totalPeople: number;
   created: number;
   existing: number;
+}
+
+export interface DashboardAnalytics {
+  scoreDistribution: Array<{ bucket: string; count: number }>;
+  sourceTypeBreakdown: Array<{ source_type: string; count: number }>;
+  dailyAlertVolume: Array<{ day: string; count: number }>;
 }
