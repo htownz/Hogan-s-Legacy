@@ -1,0 +1,59 @@
+services:
+  policy-intel-migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.policy-intel
+      target: build
+    command: npm run db:push:policy-intel
+    env_file:
+      - ./.env.policy-intel.prod
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  policy-intel:
+    image: hoganlegacy-policy-intel-prod:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.policy-intel
+    env_file:
+      - ./.env.policy-intel.prod
+    restart: unless-stopped
+    ports:
+      - "${POLICY_INTEL_HOST_PORT:-5050}:5050"
+    depends_on:
+      policy-intel-migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:5050/health').then((res) => process.exit(res.ok ? 0 : 1)).catch(() => process.exit(1))"
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: actup_policy_intel
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - policy-intel-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d actup_policy_intel"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  policy-intel-postgres-data:

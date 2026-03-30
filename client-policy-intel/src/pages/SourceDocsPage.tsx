@@ -1,11 +1,29 @@
+import { useState, useCallback } from "react";
 import { api } from "../api";
 import { useAsync } from "../hooks";
 
 export function SourceDocsPage() {
-  const { data: docs, loading, error } = useAsync(() => api.getSourceDocuments());
+  const [page, setPage] = useState(1);
+  const [sourceType, setSourceType] = useState("");
+  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const LIMIT = 50;
 
-  if (loading) return <p>Loading source documents...</p>;
-  if (error) return <p style={{ color: "red" }}>{error}</p>;
+  const fetchDocs = useCallback(
+    () => api.getSourceDocuments({ page, limit: LIMIT, sourceType: sourceType || undefined, search: search || undefined }),
+    [page, sourceType, search],
+  );
+  const { data: result, loading, error } = useAsync(fetchDocs, [page, sourceType, search]);
+
+  const docs = result?.data ?? [];
+  const total = result?.total ?? 0;
+  const totalPages = result?.totalPages ?? 1;
+
+  function handleSearch(e: React.FormEvent) {
+    e.preventDefault();
+    setSearch(searchInput);
+    setPage(1);
+  }
 
   const typeColors: Record<string, string> = {
     texas_legislation: "#2980b9",
@@ -15,13 +33,50 @@ export function SourceDocsPage() {
     manual: "#95a5a6",
   };
 
+  const sourceTypes = ["", "texas_legislation", "texas_regulation", "texas_local", "federal_legislation", "manual"];
+
   return (
     <div>
       <h1 style={{ fontSize: 22, marginBottom: 16 }}>Source Documents</h1>
-      <p style={{ fontSize: 13, color: "#888", marginBottom: 20 }}>{(docs ?? []).length} documents ingested</p>
+
+      {/* Search + filter */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+        <form onSubmit={handleSearch} style={{ display: "flex", gap: 8, flex: 1 }}>
+          <input
+            type="text"
+            placeholder="Search documents by title..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            style={{ flex: 1, padding: "8px 12px", fontSize: 13, border: "1px solid #ddd", borderRadius: 6 }}
+          />
+          <button type="submit" style={{ padding: "8px 16px", fontSize: 13, background: "#3498db", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}>
+            Search
+          </button>
+          {search && (
+            <button type="button" onClick={() => { setSearch(""); setSearchInput(""); setPage(1); }} style={{ padding: "8px 12px", fontSize: 13, background: "#e0e0e0", border: "none", borderRadius: 6, cursor: "pointer" }}>
+              Clear
+            </button>
+          )}
+        </form>
+        <select
+          value={sourceType}
+          onChange={(e) => { setSourceType(e.target.value); setPage(1); }}
+          style={{ padding: "8px 12px", fontSize: 13, border: "1px solid #ddd", borderRadius: 6 }}
+        >
+          <option value="">All types</option>
+          {sourceTypes.filter(Boolean).map((t) => (
+            <option key={t} value={t}>{t.replace(/_/g, " ")}</option>
+          ))}
+        </select>
+      </div>
+
+      <p style={{ fontSize: 13, color: "#888", marginBottom: 16 }}>{total.toLocaleString()} documents</p>
+
+      {loading && <p>Loading...</p>}
+      {error && <p style={{ color: "red" }}>{error}</p>}
 
       <div style={{ display: "grid", gap: 10 }}>
-        {(docs ?? []).map((d) => (
+        {docs.map((d) => (
           <div key={d.id} style={{
             background: "#fff",
             borderRadius: 8,
@@ -64,10 +119,33 @@ export function SourceDocsPage() {
           </div>
         ))}
 
-        {(docs ?? []).length === 0 && (
-          <p style={{ color: "#888" }}>No documents yet. Run a job to ingest data.</p>
+        {docs.length === 0 && !loading && (
+          <p style={{ color: "#888" }}>No documents match the current filter.</p>
         )}
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 12, marginTop: 24 }}>
+          <button
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page <= 1}
+            style={{ padding: "6px 14px", fontSize: 12, border: "1px solid #ddd", borderRadius: 4, cursor: page <= 1 ? "not-allowed" : "pointer", background: "#fff", opacity: page <= 1 ? 0.5 : 1 }}
+          >
+            ← Previous
+          </button>
+          <span style={{ fontSize: 13, color: "#555" }}>
+            Page {page} of {totalPages.toLocaleString()}
+          </span>
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page >= totalPages}
+            style={{ padding: "6px 14px", fontSize: 12, border: "1px solid #ddd", borderRadius: 4, cursor: page >= totalPages ? "not-allowed" : "pointer", background: "#fff", opacity: page >= totalPages ? 0.5 : 1 }}
+          >
+            Next →
+          </button>
+        </div>
+      )}
     </div>
   );
 }

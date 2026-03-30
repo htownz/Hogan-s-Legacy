@@ -12,9 +12,8 @@
  */
 import { fetchAllTloFeeds } from "../connectors/texas/tlo-rss";
 import { upsertSourceDocument } from "../services/source-document-service";
-import { processDocumentAlerts, type AlertCreationResult } from "../services/alert-service";
-import { policyIntelDb } from "../db";
-import { workspaces } from "@shared/schema-policy-intel";
+import { processDocumentAlerts } from "../services/alert-service";
+import { loadActiveWatchlistsByWorkspace } from "./load-active-watchlists";
 
 export interface RunTloRssResult {
   feedsAttempted: number;
@@ -43,7 +42,7 @@ export async function runTloRssJob(): Promise<RunTloRssResult> {
   };
 
   // Load all workspace ids so we match across all workspaces
-  const allWorkspaces = await policyIntelDb.select({ id: workspaces.id }).from(workspaces);
+  const { allWorkspaces, watchlistsByWorkspace } = await loadActiveWatchlistsByWorkspace();
 
   const feedResults = await fetchAllTloFeeds();
   result.feedsAttempted = feedResults.length;
@@ -67,7 +66,12 @@ export async function runTloRssJob(): Promise<RunTloRssResult> {
 
         // Run matching against every workspace's watchlists
         for (const ws of allWorkspaces) {
-          const alertResult = await processDocumentAlerts(savedDoc, ws.id);
+          const workspaceWatchlists = watchlistsByWorkspace.get(ws.id) ?? [];
+          if (workspaceWatchlists.length === 0) {
+            continue;
+          }
+
+          const alertResult = await processDocumentAlerts(savedDoc, ws.id, workspaceWatchlists);
           result.alerts.created += alertResult.created;
           result.alerts.skippedDuplicate += alertResult.skippedDuplicate;
           result.alerts.skippedCooldown += alertResult.skippedCooldown;

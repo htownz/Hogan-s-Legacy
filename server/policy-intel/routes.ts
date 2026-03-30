@@ -1,14 +1,26 @@
 import { Router } from "express";
-import { and, desc, eq, gt, inArray } from "drizzle-orm";
+import { and, count, desc, eq, gt, gte, ilike, inArray, lt, or, sql } from "drizzle-orm";
 import { policyIntelDb } from "./db";
-import { activities, alerts, briefs, deliverables, matters, matterWatchlists, monitoringJobs, sourceDocuments, stakeholders, stakeholderObservations, watchlists, workspaces } from "@shared/schema-policy-intel";
+import { activities, alerts, briefs, deliverables, issueRoomSourceDocuments, issueRoomStrategyOptions, issueRoomTasks, issueRoomUpdates, issueRooms, matters, matterWatchlists, monitoringJobs, sourceDocuments, stakeholders, stakeholderObservations, watchlists, workspaces } from "@shared/schema-policy-intel";
 import { seedGraceMcEwan } from "./seed/grace-mcewan";
 import { runTloRssJob } from "./jobs/run-tlo-rss";
+import { runLegiscanJob } from "./jobs/run-legiscan";
 import { processDocumentAlerts } from "./services/alert-service";
 import { generateBrief } from "./services/brief-service";
 import { upsertStakeholder, addObservation, getStakeholderWithObservations, getStakeholdersForMatter } from "./services/stakeholder-service";
 import { fetchTecData } from "./connectors/texas/tec-filings";
 import { runLocalFeedsJob } from "./jobs/run-local-feeds";
+import { runTecImportJob } from "./jobs/run-tec";
+import { getSchedulerStatus, triggerJob, getJobHistory } from "./scheduler";
+import { getPipelineConfig, runAgentPipeline } from "./engine/agent-pipeline";
+
+function slugifyIssueRoom(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 150);
+}
 
 export function createPolicyIntelRouter() {
   const router = Router();
@@ -23,6 +35,7 @@ export function createPolicyIntelRouter() {
       scope: ["us_federal", "texas"],
       routes: [
         "/api/intel/workspaces",
+        "/api/intel/dashboard/stats",
         "/api/intel/watchlists",
         "/api/intel/source-documents",
         "/api/intel/alerts",
@@ -30,10 +43,12 @@ export function createPolicyIntelRouter() {
         "/api/intel/briefs/generate",
         "/api/intel/deliverables",
         "/api/intel/matters",
+        "/api/intel/issue-rooms",
         "/api/intel/activities",
         "/api/intel/stakeholders",
         "/api/intel/jobs",
         "/api/intel/jobs/run-local-feeds",
+        "/api/intel/jobs/run-legiscan",
         "/api/intel/workspaces/:id/digest"
       ]
     });
@@ -43,6 +58,87 @@ export function createPolicyIntelRouter() {
     try {
       const rows = await policyIntelDb.select().from(workspaces).orderBy(workspaces.id);
       res.json(rows);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  // ── Dashboard aggregate stats (no full scans) ────────────────────────────
+
+  router.get("/dashboard/stats", async (_req, res, next) => {
+    try {
+      const [
+        [totalAlertsRow],
+        [pendingRow],
+        [highPriorityRow],
+        [totalDocsRow],
+        [activeMattersRow],
+        [activeWatchlistsRow],
+        recentAlerts,
+        recentDocs,
+        alertsByWatchlist,
+        alertsByStatus,
+      ] = await Promise.all([
+        policyIntelDb.select({ count: count() }).from(alerts),
+        policyIntelDb.select({ count: count() }).from(alerts).where(eq(alerts.status, "pending_review")),
+        policyIntelDb.select({ count: count() }).from(alerts).where(gte(alerts.relevanceScore, 70)),
+        policyIntelDb.select({ count: count() }).from(sourceDocuments),
+        policyIntelDb.select({ count: count() }).from(matters).where(eq(matters.status, "active")),
+        policyIntelDb.select({ count: count() }).from(watchlists).where(eq(watchlists.isActive, true)),
+        policyIntelDb
+          .select()
+          .from(alerts)
+          .orderBy(desc(alerts.id))
+          .limit(10),
+        policyIntelDb
+          .select()
+          .from(sourceDocuments)
+          .orderBy(desc(sourceDocuments.id))
+          .limit(5),
+        policyIntelDb
+          .select({
+            watchlistId: alerts.watchlistId,
+            count: count(),
+          })
+          .from(alerts)
+          .groupBy(alerts.watchlistId)
+          .orderBy(desc(count()))
+          .limit(10),
+        policyIntelDb
+          .select({
+            status: alerts.status,
+            count: count(),
+          })
+          .from(alerts)
+          .groupBy(alerts.status),
+      ]);
+
+      // Resolve watchlist names for the breakdown
+      const wlIds = alertsByWatchlist.map((r) => r.watchlistId).filter((id): id is number => id !== null);
+      const wlRows = wlIds.length > 0
+        ? await policyIntelDb.select({ id: watchlists.id, name: watchlists.name }).from(watchlists).where(inArray(watchlists.id, wlIds))
+        : [];
+      const wlNameMap = new Map(wlRows.map((w) => [w.id, w.name]));
+
+      res.json({
+        totalAlerts: totalAlertsRow?.count ?? 0,
+        pendingReview: pendingRow?.count ?? 0,
+        highPriority: highPriorityRow?.count ?? 0,
+        totalDocuments: totalDocsRow?.count ?? 0,
+        activeMatters: activeMattersRow?.count ?? 0,
+        activeWatchlists: activeWatchlistsRow?.count ?? 0,
+        recentAlerts,
+        recentDocuments: recentDocs,
+        alertsByWatchlist: alertsByWatchlist.map((r) => ({
+          watchlistId: r.watchlistId,
+          watchlistName: r.watchlistId ? wlNameMap.get(r.watchlistId) ?? "Unknown" : "Unlinked",
+          count: r.count,
+        })),
+        alertsByStatus: alertsByStatus.map((r) => ({
+          status: r.status,
+          count: r.count,
+        })),
+      });
     } catch (err: any) {
       next(err);
     }
@@ -157,10 +253,36 @@ export function createPolicyIntelRouter() {
     }
   });
 
-  router.get("/source-documents", async (_req, res, next) => {
+  router.get("/source-documents", async (req, res, next) => {
     try {
-      const rows = await policyIntelDb.select().from(sourceDocuments).orderBy(desc(sourceDocuments.id));
-      res.json(rows);
+      const page = Math.max(1, Number(req.query.page) || 1);
+      const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+      const offset = (page - 1) * limit;
+      const sourceType = req.query.sourceType as string | undefined;
+      const search = req.query.search as string | undefined;
+
+      const conditions = [];
+      if (sourceType) conditions.push(eq(sourceDocuments.sourceType, sourceType as any));
+      if (search) conditions.push(ilike(sourceDocuments.title, `%${search}%`));
+
+      const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+      const [rows, [totalRow]] = await Promise.all([
+        policyIntelDb
+          .select()
+          .from(sourceDocuments)
+          .where(where)
+          .orderBy(desc(sourceDocuments.id))
+          .limit(limit)
+          .offset(offset),
+        policyIntelDb
+          .select({ count: count() })
+          .from(sourceDocuments)
+          .where(where),
+      ]);
+
+      const total = totalRow?.count ?? 0;
+      res.json({ data: rows, total, page, limit, totalPages: Math.ceil(total / limit) });
     } catch (err: any) {
       next(err);
     }
@@ -221,10 +343,40 @@ export function createPolicyIntelRouter() {
     }
   });
 
-  router.get("/alerts", async (_req, res, next) => {
+  router.get("/alerts", async (req, res, next) => {
     try {
-      const rows = await policyIntelDb.select().from(alerts).orderBy(desc(alerts.id));
-      res.json(rows);
+      const page = Math.max(1, Number(req.query.page) || 1);
+      const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+      const offset = (page - 1) * limit;
+      const status = req.query.status as string | undefined;
+      const watchlistId = req.query.watchlistId ? Number(req.query.watchlistId) : undefined;
+      const minScore = req.query.minScore ? Number(req.query.minScore) : undefined;
+      const search = req.query.search as string | undefined;
+
+      const conditions = [];
+      if (status && status !== "all") conditions.push(eq(alerts.status, status as any));
+      if (watchlistId) conditions.push(eq(alerts.watchlistId, watchlistId));
+      if (minScore !== undefined) conditions.push(gte(alerts.relevanceScore, minScore));
+      if (search) conditions.push(ilike(alerts.title, `%${search}%`));
+
+      const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+      const [rows, [totalRow]] = await Promise.all([
+        policyIntelDb
+          .select()
+          .from(alerts)
+          .where(where)
+          .orderBy(desc(alerts.id))
+          .limit(limit)
+          .offset(offset),
+        policyIntelDb
+          .select({ count: count() })
+          .from(alerts)
+          .where(where),
+      ]);
+
+      const total = totalRow?.count ?? 0;
+      res.json({ data: rows, total, page, limit, totalPages: Math.ceil(total / limit) });
     } catch (err: any) {
       next(err);
     }
@@ -477,6 +629,402 @@ export function createPolicyIntelRouter() {
     }
   });
 
+  // ── Issue Rooms ───────────────────────────────────────────────────────────
+
+  router.get("/issue-rooms", async (req, res, next) => {
+    try {
+      const workspaceId = req.query.workspaceId ? Number(req.query.workspaceId) : undefined;
+      const rows = workspaceId
+        ? await policyIntelDb.select().from(issueRooms).where(eq(issueRooms.workspaceId, workspaceId)).orderBy(desc(issueRooms.id))
+        : await policyIntelDb.select().from(issueRooms).orderBy(desc(issueRooms.id));
+      res.json(rows);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.post("/issue-rooms", async (req, res, next) => {
+    try {
+      const { workspaceId, matterId, slug, title, issueType, jurisdiction, status, summary, recommendedPath, ownerUserId, relatedBillIds, sourceDocumentIds } = req.body ?? {};
+      if (!workspaceId || !title) {
+        return res.status(400).json({ message: "workspaceId and title are required" });
+      }
+
+      const resolvedSlug = slugifyIssueRoom(slug ?? title);
+      const [created] = await policyIntelDb
+        .insert(issueRooms)
+        .values({
+          workspaceId: Number(workspaceId),
+          matterId: matterId ? Number(matterId) : null,
+          slug: resolvedSlug,
+          title,
+          issueType,
+          jurisdiction: jurisdiction ?? "texas",
+          status: status ?? "active",
+          summary,
+          recommendedPath,
+          ownerUserId: ownerUserId ? Number(ownerUserId) : null,
+          relatedBillIds: relatedBillIds ?? [],
+        })
+        .returning();
+
+      if (Array.isArray(sourceDocumentIds) && sourceDocumentIds.length > 0) {
+        await policyIntelDb.insert(issueRoomSourceDocuments).values(
+          sourceDocumentIds.map((sourceDocumentId: number) => ({
+            issueRoomId: created.id,
+            sourceDocumentId: Number(sourceDocumentId),
+            relationshipType: "background" as const,
+          })),
+        );
+      }
+
+      await policyIntelDb.insert(activities).values({
+        workspaceId: Number(workspaceId),
+        matterId: matterId ? Number(matterId) : null,
+        issueRoomId: created.id,
+        type: "note_added",
+        summary: `Issue room created: ${title}`,
+        detailText: summary ?? null,
+      });
+
+      res.status(201).json(created);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.get("/issue-rooms/:id", async (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      const [issueRoom] = await policyIntelDb.select().from(issueRooms).where(eq(issueRooms.id, id));
+      if (!issueRoom) return res.status(404).json({ message: "issue room not found" });
+
+      const [linkedSources, updates, strategyOptions, tasks, linkedStakeholders] = await Promise.all([
+        policyIntelDb.select().from(issueRoomSourceDocuments).where(eq(issueRoomSourceDocuments.issueRoomId, id)).orderBy(desc(issueRoomSourceDocuments.id)),
+        policyIntelDb.select().from(issueRoomUpdates).where(eq(issueRoomUpdates.issueRoomId, id)).orderBy(desc(issueRoomUpdates.id)),
+        policyIntelDb.select().from(issueRoomStrategyOptions).where(eq(issueRoomStrategyOptions.issueRoomId, id)).orderBy(issueRoomStrategyOptions.recommendationRank, desc(issueRoomStrategyOptions.id)),
+        policyIntelDb.select().from(issueRoomTasks).where(eq(issueRoomTasks.issueRoomId, id)).orderBy(desc(issueRoomTasks.id)),
+        policyIntelDb.select().from(stakeholders).where(eq(stakeholders.issueRoomId, id)).orderBy(desc(stakeholders.id)),
+      ]);
+
+      const sourceIds = linkedSources.map((row) => row.sourceDocumentId);
+      const sourceRows = sourceIds.length > 0
+        ? await policyIntelDb.select().from(sourceDocuments).where(inArray(sourceDocuments.id, sourceIds))
+        : [];
+
+      res.json({
+        issueRoom,
+        sourceDocuments: sourceRows,
+        sourceLinks: linkedSources,
+        updates,
+        strategyOptions,
+        tasks,
+        stakeholders: linkedStakeholders,
+      });
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.post("/alerts/:id/create-issue-room", async (req, res, next) => {
+    try {
+      const alertId = Number(req.params.id);
+      const [alert] = await policyIntelDb.select().from(alerts).where(eq(alerts.id, alertId));
+      if (!alert) return res.status(404).json({ message: "alert not found" });
+
+      const { matterId, slug, title, issueType, jurisdiction, summary, recommendedPath, ownerUserId, relatedBillIds } = req.body ?? {};
+      const resolvedTitle = title ?? alert.title;
+      const [created] = await policyIntelDb
+        .insert(issueRooms)
+        .values({
+          workspaceId: alert.workspaceId,
+          matterId: matterId ? Number(matterId) : null,
+          slug: slugifyIssueRoom(slug ?? resolvedTitle),
+          title: resolvedTitle,
+          issueType,
+          jurisdiction: jurisdiction ?? "texas",
+          status: "active",
+          summary: summary ?? alert.summary ?? alert.whyItMatters,
+          recommendedPath,
+          ownerUserId: ownerUserId ? Number(ownerUserId) : null,
+          relatedBillIds: relatedBillIds ?? [],
+        })
+        .returning();
+
+      if (alert.sourceDocumentId) {
+        await policyIntelDb.insert(issueRoomSourceDocuments).values({
+          issueRoomId: created.id,
+          sourceDocumentId: alert.sourceDocumentId,
+          relationshipType: "primary_authority",
+        });
+      }
+
+      const [updatedAlert] = await policyIntelDb
+        .update(alerts)
+        .set({ issueRoomId: created.id })
+        .where(eq(alerts.id, alertId))
+        .returning();
+
+      await policyIntelDb.insert(activities).values({
+        workspaceId: alert.workspaceId,
+        matterId: matterId ? Number(matterId) : null,
+        issueRoomId: created.id,
+        alertId: alert.id,
+        type: "note_added",
+        summary: `Issue room created from alert: ${resolvedTitle}`,
+        detailText: alert.whyItMatters ?? alert.summary ?? null,
+      });
+
+      res.status(201).json({ issueRoom: created, alert: updatedAlert });
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  // ── PATCH issue room fields ──────────────────────────────────────────────
+  router.patch("/issue-rooms/:id", async (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      const { title, summary, status, recommendedPath, issueType, jurisdiction } = req.body ?? {};
+      const patch: Record<string, unknown> = {};
+      if (title !== undefined) patch.title = title;
+      if (summary !== undefined) patch.summary = summary;
+      if (status !== undefined) patch.status = status;
+      if (recommendedPath !== undefined) patch.recommendedPath = recommendedPath;
+      if (issueType !== undefined) patch.issueType = issueType;
+      if (jurisdiction !== undefined) patch.jurisdiction = jurisdiction;
+
+      if (Object.keys(patch).length === 0) {
+        return res.status(400).json({ message: "No fields to update" });
+      }
+
+      patch.updatedAt = new Date();
+
+      const [updated] = await policyIntelDb
+        .update(issueRooms)
+        .set(patch)
+        .where(eq(issueRooms.id, id))
+        .returning();
+
+      if (!updated) {
+        return res.status(404).json({ message: "Issue room not found" });
+      }
+
+      res.json(updated);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.get("/issue-rooms/:id/alerts", async (req, res, next) => {
+    try {
+      const issueRoomId = Number(req.params.id);
+      const linkedDocs = await policyIntelDb
+        .select({ sourceDocumentId: issueRoomSourceDocuments.sourceDocumentId })
+        .from(issueRoomSourceDocuments)
+        .where(eq(issueRoomSourceDocuments.issueRoomId, issueRoomId));
+
+      const linkedSourceDocumentIds = linkedDocs.map((row) => row.sourceDocumentId);
+      const rows = linkedSourceDocumentIds.length > 0
+        ? await policyIntelDb
+            .select()
+            .from(alerts)
+            .where(
+              or(
+                eq(alerts.issueRoomId, issueRoomId),
+                inArray(alerts.sourceDocumentId, linkedSourceDocumentIds),
+              ),
+            )
+            .orderBy(desc(alerts.id))
+        : await policyIntelDb.select().from(alerts).where(eq(alerts.issueRoomId, issueRoomId)).orderBy(desc(alerts.id));
+
+      res.json(rows);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.post("/issue-rooms/:id/updates", async (req, res, next) => {
+    try {
+      const issueRoomId = Number(req.params.id);
+      const { title, body, updateType, sourcePackJson } = req.body ?? {};
+      if (!title || !body) {
+        return res.status(400).json({ message: "title and body are required" });
+      }
+
+      const [created] = await policyIntelDb
+        .insert(issueRoomUpdates)
+        .values({
+          issueRoomId,
+          title,
+          body,
+          updateType: updateType ?? "analysis",
+          sourcePackJson: sourcePackJson ?? [],
+        })
+        .returning();
+
+      const [issueRoom] = await policyIntelDb.select().from(issueRooms).where(eq(issueRooms.id, issueRoomId));
+      if (issueRoom) {
+        await policyIntelDb.insert(activities).values({
+          workspaceId: issueRoom.workspaceId,
+          matterId: issueRoom.matterId,
+          issueRoomId,
+          type: "note_added",
+          summary: `Issue room update added: ${title}`,
+          detailText: body,
+        });
+      }
+
+      res.status(201).json(created);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.post("/issue-rooms/:id/strategy-options", async (req, res, next) => {
+    try {
+      const issueRoomId = Number(req.params.id);
+      const { label, description, prosJson, consJson, politicalFeasibility, legalDurability, implementationComplexity, recommendationRank } = req.body ?? {};
+      if (!label) {
+        return res.status(400).json({ message: "label is required" });
+      }
+
+      const [created] = await policyIntelDb
+        .insert(issueRoomStrategyOptions)
+        .values({
+          issueRoomId,
+          label,
+          description,
+          prosJson: prosJson ?? [],
+          consJson: consJson ?? [],
+          politicalFeasibility,
+          legalDurability,
+          implementationComplexity,
+          recommendationRank: recommendationRank ? Number(recommendationRank) : 0,
+        })
+        .returning();
+
+      res.status(201).json(created);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.post("/issue-rooms/:id/tasks", async (req, res, next) => {
+    try {
+      const issueRoomId = Number(req.params.id);
+      const { title, description, status, priority, assignee, dueDate } = req.body ?? {};
+      if (!title) {
+        return res.status(400).json({ message: "title is required" });
+      }
+
+      const [created] = await policyIntelDb
+        .insert(issueRoomTasks)
+        .values({
+          issueRoomId,
+          title,
+          description,
+          status: status ?? "todo",
+          priority: priority ?? "medium",
+          assignee,
+          dueDate: dueDate ? new Date(dueDate) : null,
+        })
+        .returning();
+
+      res.status(201).json(created);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.patch("/issue-rooms/:issueRoomId/tasks/:taskId", async (req, res, next) => {
+    try {
+      const issueRoomId = Number(req.params.issueRoomId);
+      const taskId = Number(req.params.taskId);
+      const { status, priority, assignee, dueDate, completedAt } = req.body ?? {};
+
+      const [existing] = await policyIntelDb
+        .select()
+        .from(issueRoomTasks)
+        .where(and(eq(issueRoomTasks.id, taskId), eq(issueRoomTasks.issueRoomId, issueRoomId)));
+
+      if (!existing) {
+        return res.status(404).json({ message: "task not found" });
+      }
+
+      const updateValues: Record<string, unknown> = {};
+
+      if (status !== undefined) updateValues.status = status;
+      if (priority !== undefined) updateValues.priority = priority;
+      if (assignee !== undefined) updateValues.assignee = assignee;
+      if (dueDate !== undefined) updateValues.dueDate = dueDate ? new Date(dueDate) : null;
+
+      if (completedAt !== undefined) {
+        updateValues.completedAt = completedAt ? new Date(completedAt) : null;
+      } else if (status !== undefined) {
+        updateValues.completedAt = status === "done" ? new Date() : null;
+      }
+
+      if (Object.keys(updateValues).length === 0) {
+        return res.status(400).json({ message: "at least one field is required" });
+      }
+
+      const [updated] = await policyIntelDb
+        .update(issueRoomTasks)
+        .set(updateValues)
+        .where(and(eq(issueRoomTasks.id, taskId), eq(issueRoomTasks.issueRoomId, issueRoomId)))
+        .returning();
+
+      const [issueRoom] = await policyIntelDb.select().from(issueRooms).where(eq(issueRooms.id, issueRoomId));
+      if (issueRoom) {
+        await policyIntelDb.insert(activities).values({
+          workspaceId: issueRoom.workspaceId,
+          matterId: issueRoom.matterId,
+          issueRoomId,
+          type: "status_changed",
+          summary: `Issue room task updated: ${updated.title}`,
+          detailText: `status=${updated.status}; priority=${updated.priority}; assignee=${updated.assignee ?? ""}`,
+        });
+      }
+
+      res.json(updated);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.post("/issue-rooms/:id/stakeholders", async (req, res, next) => {
+    try {
+      const issueRoomId = Number(req.params.id);
+      const [issueRoom] = await policyIntelDb.select().from(issueRooms).where(eq(issueRooms.id, issueRoomId));
+      if (!issueRoom) return res.status(404).json({ message: "issue room not found" });
+
+      const { type, name, title, organization, jurisdiction, tagsJson, sourceSummary } = req.body ?? {};
+      if (!type || !name) {
+        return res.status(400).json({ message: "type and name are required" });
+      }
+
+      const [created] = await policyIntelDb
+        .insert(stakeholders)
+        .values({
+          workspaceId: issueRoom.workspaceId,
+          issueRoomId,
+          type,
+          name,
+          title,
+          organization,
+          jurisdiction,
+          tagsJson: tagsJson ?? [],
+          sourceSummary,
+        })
+        .returning();
+
+      res.status(201).json(created);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
   // ── Matters ────────────────────────────────────────────────────────────────
 
   router.get("/matters", async (_req, res, next) => {
@@ -716,6 +1264,27 @@ export function createPolicyIntelRouter() {
     }
   });
 
+  router.post("/jobs/run-tec-import", async (req, res, next) => {
+    try {
+      const { searchTerm, workspaceId, matterId, mode } = req.body ?? {};
+      if (!workspaceId) {
+        return res.status(400).json({ message: "workspaceId is required" });
+      }
+      if (mode !== "sweep" && !searchTerm) {
+        return res.status(400).json({ message: "searchTerm is required for search mode" });
+      }
+      const result = await runTecImportJob({
+        mode: mode === "sweep" ? "sweep" : "search",
+        searchTerm,
+        workspaceId: Number(workspaceId),
+        matterId: matterId ? Number(matterId) : undefined,
+      });
+      res.json(result);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
   // ── Local Feeds ───────────────────────────────────────────────────────────
 
   router.post("/jobs/run-local-feeds", async (_req, res, next) => {
@@ -737,6 +1306,7 @@ export function createPolicyIntelRouter() {
         workspaceId: result.workspace.id,
         watchlistIds: result.watchlistIds,
         matterIds: result.matterIds,
+        issueRoomIds: result.issueRoomIds,
       });
     } catch (err: any) {
       next(err);
@@ -750,6 +1320,22 @@ export function createPolicyIntelRouter() {
       const result = await runTloRssJob();
       const status = result.feedErrors.length === result.feedsAttempted ? 500 : 200;
       res.status(status).json(result);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.post("/jobs/run-legiscan", async (req, res, next) => {
+    try {
+      const { mode, sinceDays, limit, sessionId, detailConcurrency } = req.body ?? {};
+      const result = await runLegiscanJob({
+        mode: mode === "full" || mode === "backfill" ? mode : "recent",
+        sinceDays: sinceDays ? Number(sinceDays) : undefined,
+        limit: limit ? Number(limit) : undefined,
+        sessionId: sessionId ? Number(sessionId) : undefined,
+        detailConcurrency: detailConcurrency ? Number(detailConcurrency) : undefined,
+      });
+      res.json(result);
     } catch (err: any) {
       next(err);
     }
@@ -773,6 +1359,77 @@ export function createPolicyIntelRouter() {
       }
 
       res.json({ docsProcessed: allDocs.length, workspaces: allWorkspaces.length, alerts: totals });
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  // ── Scheduler ─────────────────────────────────────────────────────────────
+
+  router.get("/scheduler/status", (_req, res) => {
+    res.json(getSchedulerStatus());
+  });
+
+  router.get("/scheduler/history", (_req, res) => {
+    res.json(getJobHistory());
+  });
+
+  router.post("/scheduler/trigger/:jobName", async (req, res, next) => {
+    try {
+      const { jobName } = req.params;
+      const validJobs = ["legiscan-recent", "tlo-rss", "local-feeds", "tec-sweep"];
+      if (!validJobs.includes(jobName)) {
+        return res.status(400).json({ message: `Invalid job name. Valid: ${validJobs.join(", ")}` });
+      }
+      const record = await triggerJob(jobName);
+      if (!record) {
+        return res.status(404).json({ message: "Job not found" });
+      }
+      res.json(record);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  // ── Pipeline Diagnostics ──────────────────────────────────────────────────
+
+  /**
+   * GET /metrics/pipeline — agent pipeline configuration and current regime
+   */
+  router.get("/metrics/pipeline", async (_req, res, next) => {
+    try {
+      const config = getPipelineConfig();
+      // Run a synthetic probe to show current regime
+      const probe = runAgentPipeline("probe", null, []);
+      res.json({
+        ...config,
+        currentRegime: probe.regime,
+        currentWeights: probe.weights,
+        probeScore: probe.totalScore,
+        probeAction: probe.action,
+        probeConfidence: probe.confidence,
+      });
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * POST /metrics/pipeline/test — test the agent pipeline with custom input
+   * Body: { title: string, summary?: string, reasons?: MatchReason[] }
+   */
+  router.post("/metrics/pipeline/test", async (req, res, next) => {
+    try {
+      const { title, summary, reasons } = req.body;
+      if (!title || typeof title !== "string") {
+        return res.status(400).json({ error: "title is required" });
+      }
+      const signal = runAgentPipeline(
+        title,
+        summary ?? null,
+        Array.isArray(reasons) ? reasons : [],
+      );
+      res.json(signal);
     } catch (err: any) {
       next(err);
     }

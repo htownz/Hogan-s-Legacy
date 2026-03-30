@@ -3,26 +3,58 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
-    command: npm run dev:policy-intel
+    command: npm run dev:policy-intel:container
+    env_file:
+      - ./.env.policy-intel
     ports:
       - "5050:5050"
-    environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/actup_policy_intel
-      POLICY_INTEL_PORT: 5050
-      NODE_ENV: development
-      SESSION_SECRET: ${SESSION_SECRET:-change-me-in-local-dev}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      CONGRESS_API_KEY: ${CONGRESS_API_KEY:-}
-      OPENSTATES_API_KEY: ${OPENSTATES_API_KEY:-}
-      FEC_API_KEY: ${FEC_API_KEY:-}
-      PROPUBLICA_API_KEY: ${PROPUBLICA_API_KEY:-}
     volumes:
       - .:/workspace
       - /workspace/node_modules
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:5050/health').then((res) => process.exit(res.ok ? 0 : 1)).catch(() => process.exit(1))"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  policy-intel-ui:
+    build:
+      context: ./client-policy-intel
+      dockerfile: Dockerfile.dev
+    command: npm run dev -- --host 0.0.0.0
+    working_dir: /workspace/client-policy-intel
+    env_file:
+      - ./.env.policy-intel
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./client-policy-intel:/workspace/client-policy-intel
+      - policy-intel-ui-node-modules:/workspace/client-policy-intel/node_modules
+    depends_on:
+      policy-intel:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:5173/index.html').then((res) => process.exit(res.ok ? 0 : 1)).catch(() => process.exit(1))"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
 
   postgres:
     image: postgres:16
@@ -49,5 +81,41 @@ services:
     depends_on:
       - postgres
 
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.enable-lifecycle"
+    depends_on:
+      policy-intel:
+        condition: service_healthy
+
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=policyintel
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+
 volumes:
   postgres-data:
+  policy-intel-ui-node-modules:
+  prometheus-data:
+  grafana-data:

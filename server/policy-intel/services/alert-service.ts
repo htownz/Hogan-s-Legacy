@@ -7,10 +7,12 @@
  */
 import { and, eq, gt } from "drizzle-orm";
 import { policyIntelDb } from "../db";
-import { alerts, watchlists, type PolicyIntelSourceDocument } from "@shared/schema-policy-intel";
+import { alerts, watchlists, type PolicyIntelSourceDocument, type PolicyIntelWatchlist } from "@shared/schema-policy-intel";
 import { matchDocumentToAllWatchlists, type WatchlistMatch } from "../engine/match-watchlists";
 import { scoreAlert, buildWhyItMatters } from "../engine/score-alert";
 import { buildScorecard } from "../engine/evaluators";
+import { buildAgentScorecard } from "../engine/agent-pipeline";
+import { metrics } from "../metrics";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,6 +35,7 @@ const COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
 export async function processDocumentAlerts(
   doc: PolicyIntelSourceDocument,
   workspaceId: number,
+  activeWatchlists?: PolicyIntelWatchlist[],
 ): Promise<AlertCreationResult> {
   const result: AlertCreationResult = {
     created: 0,
@@ -42,21 +45,25 @@ export async function processDocumentAlerts(
   };
 
   // Fetch active watchlists for this workspace
-  const activeWatchlists = await policyIntelDb
-    .select()
-    .from(watchlists)
-    .where(
-      and(
-        eq(watchlists.workspaceId, workspaceId),
-        eq(watchlists.isActive, true),
-      ),
-    );
+  const workspaceWatchlists =
+    activeWatchlists ??
+    await policyIntelDb
+      .select()
+      .from(watchlists)
+      .where(
+        and(
+          eq(watchlists.workspaceId, workspaceId),
+          eq(watchlists.isActive, true),
+        ),
+      );
 
-  if (activeWatchlists.length === 0) return result;
+  if (workspaceWatchlists.length === 0) return result;
 
   // Run matching engine
-  const matches = matchDocumentToAllWatchlists(doc, activeWatchlists);
+  metrics.inc("policy_intel_docs_processed_total");
+  const matches = matchDocumentToAllWatchlists(doc, workspaceWatchlists);
   if (matches.length === 0) return result;
+  metrics.inc("policy_intel_docs_matched_total");
 
   for (const match of matches) {
     // 1. Dedup: skip if an alert already exists for this (doc, watchlist)
@@ -72,6 +79,7 @@ export async function processDocumentAlerts(
 
     if (existing.length > 0) {
       result.skippedDuplicate++;
+      metrics.inc("policy_intel_alerts_skipped_total", { reason: "duplicate" });
       continue;
     }
 
@@ -91,11 +99,20 @@ export async function processDocumentAlerts(
 
     if (recentAlerts.length > 0) {
       result.skippedCooldown++;
+      metrics.inc("policy_intel_alerts_skipped_total", { reason: "cooldown" });
       continue;
     }
 
-    // Build alert payload with structured scorecard
-    const scorecard = buildScorecard(doc.title, doc.summary, match.reasons);
+    // Build alert payload with multi-agent pipeline scorecard
+    const scorecard = buildAgentScorecard(
+      doc.title,
+      doc.summary,
+      match.reasons,
+      {
+        docDate: doc.createdAt ? new Date(doc.createdAt) : null,
+        rawPayload: doc.rawPayload as Record<string, unknown> | undefined,
+      },
+    );
     const whyItMatters = buildWhyItMatters(doc.title, match.reasons);
     const reasonsJson: Record<string, unknown>[] = scorecard.evaluators.map((e) => ({
       evaluator: e.evaluator,
@@ -103,6 +120,15 @@ export async function processDocumentAlerts(
       maxScore: e.maxScore,
       rationale: e.rationale,
     }));
+    // Append pipeline diagnostics to reasonsJson
+    reasonsJson.push({
+      evaluator: "_pipeline",
+      action: scorecard.pipelineSignal.action,
+      confidence: scorecard.pipelineSignal.confidence,
+      regime: scorecard.pipelineSignal.regime,
+      weights: scorecard.pipelineSignal.weights,
+      explanation: scorecard.pipelineSignal.explanation,
+    });
 
     const [created] = await policyIntelDb
       .insert(alerts)
@@ -120,6 +146,8 @@ export async function processDocumentAlerts(
       .returning({ id: alerts.id });
 
     result.created++;
+    metrics.inc("policy_intel_alerts_created_total");
+    metrics.observe("policy_intel_alert_score", {}, scorecard.totalScore);
     result.details.push({
       alertId: created.id,
       watchlist: match.watchlist.name,
@@ -137,6 +165,7 @@ export async function processDocumentAlerts(
 export async function processDocumentBatch(
   docs: PolicyIntelSourceDocument[],
   workspaceId: number,
+  activeWatchlists?: PolicyIntelWatchlist[],
 ): Promise<AlertCreationResult> {
   const aggregate: AlertCreationResult = {
     created: 0,
@@ -146,7 +175,7 @@ export async function processDocumentBatch(
   };
 
   for (const doc of docs) {
-    const r = await processDocumentAlerts(doc, workspaceId);
+    const r = await processDocumentAlerts(doc, workspaceId, activeWatchlists);
     aggregate.created += r.created;
     aggregate.skippedDuplicate += r.skippedDuplicate;
     aggregate.skippedCooldown += r.skippedCooldown;

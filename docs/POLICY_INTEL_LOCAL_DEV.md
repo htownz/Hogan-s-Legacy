@@ -12,23 +12,50 @@ This repo is too large and too coupled to run the whole legacy app cleanly for t
 
 ## First-time setup
 
-1. Optional: copy `.env.policy-intel.example` to `.env` if you want to override defaults or add API keys
+1. Copy `.env.policy-intel.example` to `.env.policy-intel` and update any API keys or overrides you need
 2. Start the local stack:
 
 ```bash
 docker compose -f docker-compose.policy-intel.yml up --build
 ```
 
-3. In another terminal, push the policy-intel schema:
+3. Open:
+  - Policy Intel UI: http://localhost:5173
+  - API health: http://localhost:5050/health
+  - Policy Intel API root: http://localhost:5050/api/intel
+  - Adminer: http://localhost:8080
+
+The backend container now waits for Postgres and pushes the policy-intel schema automatically during startup.
+
+## Production-style compose flow
+
+1. Copy `.env.policy-intel.prod.example` to `.env.policy-intel.prod` and set production secrets.
+2. Build and start the stack with the production compose file:
 
 ```bash
-docker compose -f docker-compose.policy-intel.yml exec policy-intel npm run db:push:policy-intel
+docker compose --env-file .env.policy-intel.prod -f docker-compose.policy-intel.prod.yml up --build -d
 ```
 
-4. Open:
-   - API health: http://localhost:5050/health
-   - Policy Intel API root: http://localhost:5050/api/intel
-   - Adminer: http://localhost:8080
+This path uses `Dockerfile.policy-intel` and avoids the dev bind mounts and Vite container.
+It also runs a one-shot `policy-intel-migrate` service before the backend starts.
+
+If you need to rerun schema migration manually:
+
+```bash
+docker compose --env-file .env.policy-intel.prod -f docker-compose.policy-intel.prod.yml run --rm policy-intel-migrate
+```
+
+### Production runbook shortcuts
+
+From the repo root, you can use npm scripts to avoid retyping compose flags:
+
+```bash
+npm run policy-intel:prod:up
+npm run policy-intel:prod:ps
+npm run policy-intel:prod:logs
+npm run policy-intel:prod:migrate
+npm run policy-intel:prod:down
+```
 
 ## VS Code devcontainer flow
 
@@ -124,3 +151,10 @@ Build one full pipeline for **Texas legislative RSS/TLO updates**:
 
 - The legacy app currently imports many routes and initializes optional AI clients at module load time. That makes a full local boot brittle.
 - This isolated service avoids that problem and gives you a clean path to the commercial product.
+
+## Container vulnerability policy
+
+- CI scans `Dockerfile.dev`, `Dockerfile.policy-intel`, and `client-policy-intel/Dockerfile.dev` for High/Critical vulnerabilities.
+- The current Node 22 Alpine upstream line has one temporary documented exception: `CVE-2026-33671`.
+- The exception is tracked in `.trivyignore` and must be reviewed weekly.
+- Remove the ignore entry as soon as an upstream base image resolves the CVE.

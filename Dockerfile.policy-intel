@@ -1,0 +1,29 @@
+FROM node:22.22.2-alpine3.22 AS build
+
+RUN apk upgrade --no-cache
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+RUN npm run build:policy-intel
+
+FROM node:22.22.2-alpine3.22 AS runtime
+
+RUN apk upgrade --no-cache \
+	&& apk add --no-cache ca-certificates
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV POLICY_INTEL_PORT=5050
+
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+COPY --from=build /app/dist-policy-intel ./dist-policy-intel
+
+EXPOSE 5050
+CMD ["npm", "run", "start:policy-intel"]

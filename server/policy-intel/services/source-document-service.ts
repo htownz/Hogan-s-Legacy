@@ -31,22 +31,27 @@ export async function upsertSourceDocument(
       payload.normalizedText ?? payload.title,
     );
 
-  // Check for existing row
-  const existing = await policyIntelDb
-    .select()
-    .from(sourceDocuments)
-    .where(eq(sourceDocuments.checksum, checksum));
-
-  if (existing.length > 0) {
-    return { doc: existing[0], inserted: false };
-  }
-
   const [inserted] = await policyIntelDb
     .insert(sourceDocuments)
     .values({ ...payload, checksum })
+    .onConflictDoNothing({ target: sourceDocuments.checksum })
     .returning();
 
-  return { doc: inserted, inserted: true };
+  if (inserted) {
+    return { doc: inserted, inserted: true };
+  }
+
+  const [existing] = await policyIntelDb
+    .select()
+    .from(sourceDocuments)
+    .where(eq(sourceDocuments.checksum, checksum))
+    .limit(1);
+
+  if (existing) {
+    return { doc: existing, inserted: false };
+  }
+
+  throw new Error(`Source document checksum conflict did not return a row: ${checksum}`);
 }
 
 /**

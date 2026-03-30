@@ -5,12 +5,13 @@
   ],
   "service": "policy-intel",
   "workspaceFolder": "/workspace",
-  "forwardPorts": [5050, 5433, 8080],
+  "shutdownAction": "none",
+  "forwardPorts": [5050, 5173, 5433, 8080],
   "postCreateCommand": "npm install && npm run db:push:policy-intel",
   "customizations": {
     "vscode": {
       "settings": {
-        "js/ts.tsdk.path": "node_modules/typescript/lib",
+
         "editor.formatOnSave": true,
         "files.exclude": {
           "**/.turbo": true,

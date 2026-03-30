@@ -10,9 +10,8 @@ import { fetchHoustonCouncilItems } from "../connectors/texas/houston-council";
 import { fetchHarrisCountyItems } from "../connectors/texas/harris-county";
 import { fetchMetroBoardItems, fetchMetroNotices } from "../connectors/texas/metro-board";
 import { upsertSourceDocument } from "../services/source-document-service";
-import { processDocumentAlerts, type AlertCreationResult } from "../services/alert-service";
-import { policyIntelDb } from "../db";
-import { workspaces } from "@shared/schema-policy-intel";
+import { processDocumentAlerts } from "../services/alert-service";
+import { loadActiveWatchlistsByWorkspace } from "./load-active-watchlists";
 
 export interface RunLocalFeedsResult {
   feedsAttempted: number;
@@ -41,7 +40,7 @@ export async function runLocalFeedsJob(): Promise<RunLocalFeedsResult> {
   };
 
   // Load all workspace ids
-  const allWorkspaces = await policyIntelDb.select({ id: workspaces.id }).from(workspaces);
+  const { allWorkspaces, watchlistsByWorkspace } = await loadActiveWatchlistsByWorkspace();
 
   // Define all local feed fetchers
   const feeds = [
@@ -86,7 +85,12 @@ export async function runLocalFeedsJob(): Promise<RunLocalFeedsResult> {
 
           // Match against watchlists for all workspaces
           for (const ws of allWorkspaces) {
-            const alertResult = await processDocumentAlerts(savedDoc, ws.id);
+            const workspaceWatchlists = watchlistsByWorkspace.get(ws.id) ?? [];
+            if (workspaceWatchlists.length === 0) {
+              continue;
+            }
+
+            const alertResult = await processDocumentAlerts(savedDoc, ws.id, workspaceWatchlists);
             result.alerts.created += alertResult.created;
             result.alerts.skippedDuplicate += alertResult.skippedDuplicate;
             result.alerts.skippedCooldown += alertResult.skippedCooldown;

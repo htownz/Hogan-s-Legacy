@@ -1,0 +1,7 @@
+# Temporary exception for upstream Node 22 Alpine base image.
+# Owner: policy-intel platform lane
+# Review cadence: weekly
+# Added: 2026-03-27
+# Next review: 2026-04-03
+# Remove this exception as soon as the base image no longer reports this CVE.
+CVE-2026-33671

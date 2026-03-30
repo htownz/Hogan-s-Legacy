@@ -36,6 +36,8 @@ interface ParsedRules {
   billPrefixes: string[];
 }
 
+const BILL_ID_RE = /\b([HS][BJR]R?\s*\d+)\b/i;
+
 function parseRules(rulesJson: Record<string, unknown>): ParsedRules {
   const toArr = (v: unknown): string[] =>
     Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
@@ -72,14 +74,16 @@ function matchBillIds(
       ? ((doc.rawPayload as Record<string, unknown>).billId as string)
       : null;
 
-  if (billId && rules.billPrefixes.length > 0) {
-    const upper = billId.toUpperCase().replace(/\s+/g, "");
+  const extractedBillId = billId ?? extractBillIdFromText(corpus);
+
+  if (extractedBillId && rules.billPrefixes.length > 0) {
+    const upper = extractedBillId.toUpperCase().replace(/\s+/g, "");
     const prefixMatch = rules.billPrefixes.some((p) => upper.startsWith(p));
     if (prefixMatch) {
       reasons.push({
         dimension: "bill_id",
-        rule: billId,
-        excerpt: excerpt(corpus, billId),
+        rule: extractedBillId,
+        excerpt: excerpt(corpus, extractedBillId),
       });
     }
   }
@@ -183,6 +187,12 @@ function matchAgencies(
 
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function extractBillIdFromText(text: string): string | null {
+  const match = text.match(BILL_ID_RE);
+  if (!match) return null;
+  return match[1].replace(/([HS][BJR]R?)\s*(\d+)/i, "$1 $2").toUpperCase();
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
