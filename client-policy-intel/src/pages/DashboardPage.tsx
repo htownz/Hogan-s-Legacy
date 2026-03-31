@@ -1,4 +1,4 @@
-import { api, type DashboardKpis, type SparklinePoint, type SchedulerStatus, type JobRunRecord, type ChampionStatus, type RetrainResult } from "../api";
+import { api, type DashboardKpis, type SparklinePoint, type SchedulerStatus, type JobRunRecord, type ChampionStatus, type RetrainResult, type HearingEvent } from "../api";
 import { useAsync } from "../hooks";
 import { useState, useCallback, useEffect, useRef } from "react";
 
@@ -212,7 +212,7 @@ function extractSeries(points: SparklinePoint[], key: keyof SparklinePoint): num
 // ── Main Dashboard ───────────────────────────────────────────────────────────
 
 export function DashboardPage() {
-  const { data: stats, loading, error } = useAsync(() => api.getDashboardStats());
+  const { data: stats, loading, error, refetch } = useAsync(() => api.getDashboardStats());
   const [kpis, setKpis] = useState<DashboardKpis | null>(null);
   const { data: scheduler, loading: schedLoading, refetch: refetchScheduler } = useAsync(() => api.getSchedulerStatus());
   const [triggering, setTriggering] = useState<string | null>(null);
@@ -221,6 +221,7 @@ export function DashboardPage() {
   const [champion, setChampion] = useState<ChampionStatus | null>(null);
   const [retraining, setRetraining] = useState(false);
   const [retrainResult, setRetrainResult] = useState<RetrainResult | null>(null);
+  const { data: thisWeekData } = useAsync(() => api.getThisWeekHearings());
 
   // Auto-refresh KPIs every 15 seconds
   const fetchKpis = useCallback(async () => {
@@ -274,7 +275,7 @@ export function DashboardPage() {
   }, []);
 
   if (loading) return <p>Loading dashboard...</p>;
-  if (error) return <p style={{ color: "red" }}>{error}</p>;
+  if (error) return <div><p style={{ color: "red" }}>{error}</p><button onClick={refetch} style={{ padding: "6px 14px", cursor: "pointer" }}>Retry</button></div>;
   if (!stats) return null;
 
   return (
@@ -473,6 +474,71 @@ export function DashboardPage() {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── What's Happening This Week ── */}
+      {thisWeekData && (
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <h3 style={{ fontSize: 15, margin: 0 }}>
+              What's Happening This Week
+              <span style={{
+                marginLeft: 8,
+                fontSize: 11,
+                padding: "2px 8px",
+                borderRadius: 10,
+                background: thisWeekData.hearings.length > 0 ? "#27ae60" : "#95a5a6",
+                color: "#fff",
+                fontWeight: 600,
+              }}>
+                {thisWeekData.hearings.length} hearing{thisWeekData.hearings.length !== 1 ? "s" : ""}
+              </span>
+            </h3>
+            <a href="/calendar" style={{ fontSize: 12, color: "#3498db", textDecoration: "none" }}>View Calendar →</a>
+          </div>
+          {thisWeekData.hearings.length === 0 ? (
+            <div style={{ background: "#fff", borderRadius: 8, padding: 16, boxShadow: "0 1px 3px rgba(0,0,0,0.06)", color: "#888", fontSize: 13 }}>
+              No committee hearings scheduled this week.
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 12 }}>
+              {thisWeekData.hearings.map((h: HearingEvent) => {
+                const chamberColor = h.chamber === "House" ? "#2980b9" : h.chamber === "Senate" ? "#8e44ad" : "#e67e22";
+                return (
+                  <div key={h.id} style={{
+                    background: "#fff",
+                    borderRadius: 8,
+                    padding: "12px 16px",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+                    borderLeft: `3px solid ${chamberColor}`,
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: "#333" }}>{h.committee}</div>
+                      <span style={{
+                        fontSize: 10,
+                        padding: "2px 8px",
+                        borderRadius: 10,
+                        background: chamberColor + "18",
+                        color: chamberColor,
+                        fontWeight: 600,
+                        whiteSpace: "nowrap",
+                      }}>
+                        {h.chamber}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 12, color: "#555", marginTop: 4 }}>
+                      {new Date(h.hearingDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                      {h.timeDescription && ` · ${h.timeDescription}`}
+                    </div>
+                    {h.location && (
+                      <div style={{ fontSize: 11, color: "#888", marginTop: 2 }}>📍 {h.location}</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 

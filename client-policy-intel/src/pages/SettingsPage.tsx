@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api } from "../api";
+import { DEFAULT_WORKSPACE_ID } from "../constants";
 
 export function SettingsPage() {
   return (
@@ -54,7 +55,7 @@ function LegislatorImportSection() {
   async function handleImport() {
     try {
       setRunning(true);
-      const r = await api.importLegislators({ workspaceId: 1 });
+      const r = await api.importLegislators({ workspaceId: DEFAULT_WORKSPACE_ID });
       setImportResult(r);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);

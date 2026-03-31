@@ -43,7 +43,7 @@ export const api = {
     apiFetch<{ issueRoom: IssueRoom; alert: Alert }>(`/alerts/${id}/create-issue-room`, { method: "POST", body: JSON.stringify(body ?? {}) }),
 
   // Issue rooms
-  getIssueRooms: (workspaceId?: number) => apiFetch<IssueRoom[]>(`/issue-rooms${workspaceId ? `?workspaceId=${workspaceId}` : ""}`),
+  getIssueRooms: (workspaceId?: number) => apiFetch<{ data: IssueRoom[] }>(`/issue-rooms${workspaceId ? `?workspaceId=${workspaceId}` : ""}`).then(r => r.data),
   getIssueRoom: (id: number) => apiFetch<IssueRoomDetail>(`/issue-rooms/${id}`),
   getIssueRoomAlerts: (id: number) => apiFetch<Alert[]>(`/issue-rooms/${id}/alerts`),
   updateIssueRoom: (
@@ -115,7 +115,7 @@ export const api = {
     apiFetch<Digest>(`/workspaces/${workspaceId}/digest${week ? `?week=${week}` : ""}`),
 
   // Watchlists
-  getWatchlists: () => apiFetch<Watchlist[]>("/watchlists"),
+  getWatchlists: () => apiFetch<{ data: Watchlist[] }>("/watchlists").then(r => r.data),
   getWatchlist: (id: number) => apiFetch<Watchlist>(`/watchlists/${id}`),
   getWatchlistAlerts: (id: number, params?: { page?: number; limit?: number; status?: string }) => {
     const q = new URLSearchParams();
@@ -140,7 +140,7 @@ export const api = {
     apiFetch<TecImportResult>("/jobs/run-tec-import", { method: "POST", body: JSON.stringify(body) }),
 
   // Deliverables
-  getDeliverables: () => apiFetch<Deliverable[]>("/deliverables"),
+  getDeliverables: () => apiFetch<{ data: Deliverable[] }>("/deliverables").then(r => r.data),
 
   // Jobs
   runTloRss: () => apiFetch<unknown>("/jobs/run-tlo-rss", { method: "POST" }),
@@ -179,6 +179,66 @@ export const api = {
   // Slack test
   testSlack: () =>
     apiFetch<{ sent: boolean; message: string }>("/notifications/test-slack", { method: "POST", body: JSON.stringify({}) }),
+
+  // Hearings & Calendar
+  getHearings: (params?: { from?: string; to?: string; chamber?: string; committee?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.from) q.set("from", params.from);
+    if (params?.to) q.set("to", params.to);
+    if (params?.chamber) q.set("chamber", params.chamber);
+    if (params?.committee) q.set("committee", params.committee);
+    const qs = q.toString();
+    return apiFetch<HearingEvent[]>(`/hearings${qs ? `?${qs}` : ""}`);
+  },
+  getThisWeekHearings: () => apiFetch<ThisWeekResponse>("/hearings/this-week"),
+  getHearing: (id: number) => apiFetch<HearingEvent>(`/hearings/${id}`),
+  syncHearings: () => apiFetch<{ totalDocs: number; created: number; skipped: number }>("/hearings/sync", { method: "POST" }),
+
+  // Committee Members
+  getCommitteeMembers: (params?: { stakeholderId?: number; committee?: string; chamber?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.stakeholderId) q.set("stakeholderId", String(params.stakeholderId));
+    if (params?.committee) q.set("committee", params.committee);
+    if (params?.chamber) q.set("chamber", params.chamber);
+    const qs = q.toString();
+    return apiFetch<CommitteeMember[]>(`/committee-members${qs ? `?${qs}` : ""}`);
+  },
+
+  // Meeting Notes
+  getMeetingNotes: (stakeholderId: number) => apiFetch<MeetingNote[]>(`/stakeholders/${stakeholderId}/meeting-notes`),
+  addMeetingNote: (stakeholderId: number, body: { noteText: string; meetingDate?: string; contactMethod?: string; matterId?: number }) =>
+    apiFetch<MeetingNote>(`/stakeholders/${stakeholderId}/meeting-notes`, { method: "POST", body: JSON.stringify(body) }),
+
+  // Enhanced stakeholder
+  getStakeholderFull: (id: number) => apiFetch<StakeholderFull>(`/stakeholders/${id}/full`),
+
+  // Bill stakeholder query
+  getStakeholdersForBill: (billId: string) => apiFetch<BillStakeholderResult>(`/stakeholders/for-bill/${encodeURIComponent(billId)}`),
+
+  // ── Client Deliverables ─────────────────────────────────────────────────
+  generateClientAlert: (body: {
+    issueRoomId: number;
+    workspaceId: number;
+    matterId?: number;
+    recipientName?: string;
+    firmName?: string;
+  }) => apiFetch<DeliverableResult>("/deliverables/generate-client-alert", { method: "POST", body: JSON.stringify(body) }),
+
+  generateWeeklyReport: (body: {
+    workspaceId: number;
+    matterId?: number;
+    week?: string;
+    recipientName?: string;
+    firmName?: string;
+  }) => apiFetch<DeliverableResult>("/deliverables/generate-weekly-report", { method: "POST", body: JSON.stringify(body) }),
+
+  generateHearingMemo: (body: {
+    hearingId: number;
+    workspaceId: number;
+    matterId?: number;
+    recipientName?: string;
+    firmName?: string;
+  }) => apiFetch<DeliverableResult>("/deliverables/generate-hearing-memo", { method: "POST", body: JSON.stringify(body) }),
 };
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -346,6 +406,14 @@ export interface Deliverable {
   bodyMarkdown: string | null;
   generatedBy: string;
   createdAt: string;
+}
+
+export interface DeliverableResult {
+  deliverableId: number;
+  type: string;
+  title: string;
+  bodyMarkdown: string;
+  generatedBy: string;
 }
 
 export interface Watchlist {
@@ -563,4 +631,99 @@ export interface DashboardAnalytics {
   scoreDistribution: Array<{ bucket: string; count: number }>;
   sourceTypeBreakdown: Array<{ source_type: string; count: number }>;
   dailyAlertVolume: Array<{ day: string; count: number }>;
+}
+
+// ── Hearing & Calendar types ─────────────────────────────────────────────────
+
+export interface HearingEvent {
+  id: number;
+  workspaceId: number;
+  sourceDocumentId: number | null;
+  committee: string;
+  chamber: string;
+  hearingDate: string;
+  timeDescription: string | null;
+  location: string | null;
+  description: string | null;
+  relatedBillIds: string[];
+  status: string;
+  externalId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ThisWeekResponse {
+  weekStart: string;
+  weekEnd: string;
+  hearings: HearingEvent[];
+}
+
+export interface CommitteeMember {
+  id: number;
+  stakeholderId: number;
+  committeeName: string;
+  chamber: string;
+  role: string;
+  sessionId: number | null;
+  stakeholderName: string | null;
+  stakeholderParty: string | null;
+  stakeholderDistrict: string | null;
+}
+
+export interface MeetingNote {
+  id: number;
+  stakeholderId: number;
+  matterId: number | null;
+  noteText: string;
+  meetingDate: string | null;
+  contactMethod: string | null;
+  createdAt: string;
+}
+
+export interface StakeholderFull extends Stakeholder {
+  party: string | null;
+  chamber: string | null;
+  district: string | null;
+  email: string | null;
+  phone: string | null;
+  officeAddress: string | null;
+  photoUrl: string | null;
+  legiscanPeopleId: number | null;
+  observations: Array<{
+    id: number;
+    observationText: string;
+    confidence: string;
+    createdAt: string;
+  }>;
+  committees: CommitteeMember[];
+  meetingNotes: MeetingNote[];
+}
+
+export interface BillStakeholderResult {
+  billId: string;
+  committees: string[];
+  committeeMembers: Array<{
+    committeeMemberId: number;
+    committeeName: string;
+    role: string;
+    stakeholderId: number;
+    name: string;
+    party: string | null;
+    chamber: string | null;
+    district: string | null;
+    title: string | null;
+    email: string | null;
+    phone: string | null;
+  }>;
+  relatedStakeholders: Array<{
+    stakeholderId: number;
+    name: string;
+    party: string | null;
+    chamber: string | null;
+    district: string | null;
+    title: string | null;
+    email: string | null;
+    phone: string | null;
+    observationText: string;
+  }>;
 }

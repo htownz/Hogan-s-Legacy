@@ -397,6 +397,15 @@ export const stakeholders = pgTable("policy_intel_stakeholders", {
   jurisdiction: varchar("jurisdiction", { length: 64 }),
   tagsJson: jsonb("tags_json").$type<string[]>().notNull().default([]),
   sourceSummary: text("source_summary"),
+  // Extended fields for legislators
+  legiscanPeopleId: integer("legiscan_people_id"),
+  party: varchar("party", { length: 16 }),
+  chamber: varchar("chamber", { length: 32 }),
+  district: varchar("district", { length: 32 }),
+  email: varchar("email", { length: 255 }),
+  phone: varchar("phone", { length: 64 }),
+  officeAddress: text("office_address"),
+  photoUrl: varchar("photo_url", { length: 500 }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
@@ -408,6 +417,63 @@ export const stakeholderObservations = pgTable("policy_intel_stakeholder_observa
   matterId: integer("matter_id").references(() => matters.id, { onDelete: "set null" }),
   observationText: text("observation_text").notNull(),
   confidence: varchar("confidence", { length: 32 }).notNull().default("medium"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// ── Phase 6: Hearings & Calendar ─────────────────────────────────────────────
+
+export const hearingStatusEnum = pgEnum("policy_intel_hearing_status", [
+  "scheduled",
+  "in_progress",
+  "completed",
+  "cancelled",
+  "postponed",
+]);
+
+export const hearingEvents = pgTable("policy_intel_hearing_events", {
+  id: serial("id").primaryKey(),
+  workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+  sourceDocumentId: integer("source_document_id").references(() => sourceDocuments.id, { onDelete: "set null" }),
+  committee: varchar("committee", { length: 255 }).notNull(),
+  chamber: varchar("chamber", { length: 32 }).notNull(), // House, Senate, Joint
+  hearingDate: timestamp("hearing_date", { withTimezone: true }).notNull(),
+  timeDescription: varchar("time_description", { length: 128 }),
+  location: varchar("location", { length: 255 }),
+  description: text("description"),
+  relatedBillIds: jsonb("related_bill_ids").$type<string[]>().notNull().default([]),
+  status: hearingStatusEnum("status").notNull().default("scheduled"),
+  externalId: varchar("external_id", { length: 255 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// ── Phase 7: Committee Membership ────────────────────────────────────────────
+
+export const committeeRoleEnum = pgEnum("policy_intel_committee_role", [
+  "chair",
+  "vice_chair",
+  "member",
+]);
+
+export const committeeMembers = pgTable("policy_intel_committee_members", {
+  id: serial("id").primaryKey(),
+  stakeholderId: integer("stakeholder_id").notNull().references(() => stakeholders.id, { onDelete: "cascade" }),
+  committeeName: varchar("committee_name", { length: 255 }).notNull(),
+  chamber: varchar("chamber", { length: 32 }).notNull(),
+  role: committeeRoleEnum("role").notNull().default("member"),
+  sessionId: integer("session_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// ── Phase 8: Meeting Notes ───────────────────────────────────────────────────
+
+export const meetingNotes = pgTable("policy_intel_meeting_notes", {
+  id: serial("id").primaryKey(),
+  stakeholderId: integer("stakeholder_id").notNull().references(() => stakeholders.id, { onDelete: "cascade" }),
+  matterId: integer("matter_id").references(() => matters.id, { onDelete: "set null" }),
+  noteText: text("note_text").notNull(),
+  meetingDate: timestamp("meeting_date", { withTimezone: true }),
+  contactMethod: varchar("contact_method", { length: 64 }), // in-person, phone, email, testimony
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -493,3 +559,10 @@ export type PolicyIntelStakeholder = typeof stakeholders.$inferSelect;
 export type InsertPolicyIntelStakeholder = typeof stakeholders.$inferInsert;
 export type PolicyIntelStakeholderObservation = typeof stakeholderObservations.$inferSelect;
 export type InsertPolicyIntelStakeholderObservation = typeof stakeholderObservations.$inferInsert;
+
+export type PolicyIntelHearingEvent = typeof hearingEvents.$inferSelect;
+export type InsertPolicyIntelHearingEvent = typeof hearingEvents.$inferInsert;
+export type PolicyIntelCommitteeMember = typeof committeeMembers.$inferSelect;
+export type InsertPolicyIntelCommitteeMember = typeof committeeMembers.$inferInsert;
+export type PolicyIntelMeetingNote = typeof meetingNotes.$inferSelect;
+export type InsertPolicyIntelMeetingNote = typeof meetingNotes.$inferInsert;

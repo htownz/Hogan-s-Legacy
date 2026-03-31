@@ -1,14 +1,16 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { api } from "../api";
 import { useAsync } from "../hooks";
+import { DEFAULT_WORKSPACE_ID } from "../constants";
 
 export function DigestPage() {
   // Default to workspace 2 (Grace & McEwan)
-  const { data: digest, loading, error } = useAsync(() => api.getDigest(2));
+  const { data: digest, loading, error, refetch } = useAsync(() => api.getDigest(DEFAULT_WORKSPACE_ID));
   const [copied, setCopied] = useState(false);
 
   if (loading) return <p>Loading digest...</p>;
-  if (error) return <p style={{ color: "red" }}>{error}</p>;
+  if (error) return <div><p style={{ color: "red" }}>{error}</p><button onClick={refetch} style={{ padding: "6px 14px", cursor: "pointer" }}>Retry</button></div>;
   if (!digest) return <p>No digest available</p>;
 
   function formatDigestText(): string {
@@ -49,10 +51,6 @@ export function DigestPage() {
     window.print();
   }
 
-  if (loading) return <p>Loading digest...</p>;
-  if (error) return <p style={{ color: "red" }}>{error}</p>;
-  if (!digest) return <p>No digest available</p>;
-
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
@@ -69,6 +67,13 @@ export function DigestPage() {
           }}>
             Print / PDF
           </button>
+          <Link href="/weekly-report">
+            <span style={{
+              padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 6, background: "#e65100", color: "#fff", cursor: "pointer", fontWeight: 600, display: "inline-block",
+            }}>
+              📊 Generate Client Report
+            </span>
+          </Link>
         </div>
       </div>
       <p style={{ fontSize: 13, color: "#888", marginBottom: 20 }}>

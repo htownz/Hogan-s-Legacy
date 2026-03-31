@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { and, count, desc, eq, gt, gte, ilike, inArray, lt, or, sql } from "drizzle-orm";
 import { policyIntelDb } from "./db";
-import { activities, alerts, briefs, deliverables, issueRoomSourceDocuments, issueRoomStrategyOptions, issueRoomTasks, issueRoomUpdates, issueRooms, matters, matterWatchlists, monitoringJobs, sourceDocuments, stakeholders, stakeholderObservations, watchlists, workspaces } from "@shared/schema-policy-intel";
+import { activities, alerts, briefs, deliverables, issueRoomSourceDocuments, issueRoomStrategyOptions, issueRoomTasks, issueRoomUpdates, issueRooms, matters, matterWatchlists, monitoringJobs, sourceDocuments, stakeholders, stakeholderObservations, watchlists, workspaces, hearingEvents, committeeMembers, meetingNotes } from "@shared/schema-policy-intel";
 import { seedGraceMcEwan } from "./seed/grace-mcewan";
 import { runTloRssJob } from "./jobs/run-tlo-rss";
 import { runLegiscanJob } from "./jobs/run-legiscan";
@@ -17,6 +17,7 @@ import { metrics, timeSeries } from "./metrics";
 import { recordFeedback, getChampionStatus, getChampionHistory, runRetraining, bootstrapFeedback } from "./engine/champion";
 import type { FeedbackOutcome } from "./engine/champion";
 import { notifySlack } from "./notify";
+import { generateClientAlert, generateWeeklyReport, generateHearingMemo } from "./services/deliverable-service";
 
 function slugifyIssueRoom(value: string) {
   return value
@@ -24,6 +25,11 @@ function slugifyIssueRoom(value: string) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 150);
+}
+
+function parseId(raw: string): number | null {
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
 }
 
 export function createPolicyIntelRouter() {
@@ -296,10 +302,16 @@ export function createPolicyIntelRouter() {
     }
   });
 
-  router.get("/watchlists", async (_req, res, next) => {
+  router.get("/watchlists", async (req, res, next) => {
     try {
-      const rows = await policyIntelDb.select().from(watchlists).orderBy(desc(watchlists.id));
-      res.json(rows);
+      const page = Math.max(1, Number(req.query.page) || 1);
+      const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+      const offset = (page - 1) * limit;
+      const [rows, [totalRow]] = await Promise.all([
+        policyIntelDb.select().from(watchlists).orderBy(desc(watchlists.id)).limit(limit).offset(offset),
+        policyIntelDb.select({ count: count() }).from(watchlists),
+      ]);
+      res.json({ data: rows, total: totalRow?.count ?? 0, page, limit, totalPages: Math.ceil((totalRow?.count ?? 0) / limit) });
     } catch (err: any) {
       next(err);
     }
@@ -331,7 +343,8 @@ export function createPolicyIntelRouter() {
 
   router.get("/watchlists/:id", async (req, res, next) => {
     try {
-      const id = Number(req.params.id);
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
       const [watchlist] = await policyIntelDb.select().from(watchlists).where(eq(watchlists.id, id));
       if (!watchlist) {
         return res.status(404).json({ message: "watchlist not found" });
@@ -347,7 +360,8 @@ export function createPolicyIntelRouter() {
    */
   router.patch("/watchlists/:id", async (req, res, next) => {
     try {
-      const id = Number(req.params.id);
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
       const { name, topic, description, rulesJson, isActive } = req.body ?? {};
 
       const updates: Record<string, unknown> = {};
@@ -379,7 +393,8 @@ export function createPolicyIntelRouter() {
 
   router.get("/watchlists/:id/alerts", async (req, res, next) => {
     try {
-      const id = Number(req.params.id);
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
       const page = Math.max(1, Number(req.query.page) || 1);
       const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
       const offset = (page - 1) * limit;
@@ -591,7 +606,8 @@ export function createPolicyIntelRouter() {
 
   router.patch("/alerts/:id", async (req, res, next) => {
     try {
-      const id = Number(req.params.id);
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
       const { status, reviewerNote } = req.body ?? {};
 
       const validStatuses = ["pending_review", "ready", "sent", "suppressed"] as const;
@@ -674,7 +690,8 @@ export function createPolicyIntelRouter() {
 
   router.get("/alerts/:id", async (req, res, next) => {
     try {
-      const id = Number(req.params.id);
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
       const [alert] = await policyIntelDb.select().from(alerts).where(eq(alerts.id, id));
       if (!alert) return res.status(404).json({ message: "alert not found" });
 
@@ -732,33 +749,37 @@ export function createPolicyIntelRouter() {
         return res.json({ dryRun: true, wouldSuppress: toSuppress, wouldPromote: toPromote, suppressBelow, promoteAbove });
       }
 
-      // Execute triage
-      let suppressed = 0;
-      let promoted = 0;
+      // Execute triage inside a transaction to prevent race conditions
+      const result = await policyIntelDb.transaction(async (tx) => {
+        let suppressed = 0;
+        let promoted = 0;
 
-      if (toSuppress > 0) {
-        const result = await policyIntelDb
-          .update(alerts)
-          .set({ status: "suppressed", reviewedAt: new Date(), reviewerNote: `auto-triage: score < ${suppressBelow}` })
-          .where(and(
-            eq(alerts.status, "pending_review"),
-            lt(alerts.relevanceScore, suppressBelow),
-          ));
-        suppressed = toSuppress;
-      }
+        if (toSuppress > 0) {
+          await tx
+            .update(alerts)
+            .set({ status: "suppressed", reviewedAt: new Date(), reviewerNote: `auto-triage: score < ${suppressBelow}` })
+            .where(and(
+              eq(alerts.status, "pending_review"),
+              lt(alerts.relevanceScore, suppressBelow),
+            ));
+          suppressed = toSuppress;
+        }
 
-      if (toPromote > 0) {
-        const result = await policyIntelDb
-          .update(alerts)
-          .set({ status: "ready", reviewedAt: new Date(), reviewerNote: `auto-triage: score >= ${promoteAbove}` })
-          .where(and(
-            eq(alerts.status, "pending_review"),
-            gte(alerts.relevanceScore, promoteAbove),
-          ));
-        promoted = toPromote;
-      }
+        if (toPromote > 0) {
+          await tx
+            .update(alerts)
+            .set({ status: "ready", reviewedAt: new Date(), reviewerNote: `auto-triage: score >= ${promoteAbove}` })
+            .where(and(
+              eq(alerts.status, "pending_review"),
+              gte(alerts.relevanceScore, promoteAbove),
+            ));
+          promoted = toPromote;
+        }
 
-      res.json({ suppressed, promoted, suppressBelow, promoteAbove });
+        return { suppressed, promoted };
+      });
+
+      res.json({ ...result, suppressBelow, promoteAbove });
     } catch (err: any) {
       next(err);
     }
@@ -922,10 +943,16 @@ export function createPolicyIntelRouter() {
     }
   });
 
-  router.get("/deliverables", async (_req, res, next) => {
+  router.get("/deliverables", async (req, res, next) => {
     try {
-      const rows = await policyIntelDb.select().from(deliverables).orderBy(desc(deliverables.id));
-      res.json(rows);
+      const page = Math.max(1, Number(req.query.page) || 1);
+      const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+      const offset = (page - 1) * limit;
+      const [rows, [totalRow]] = await Promise.all([
+        policyIntelDb.select().from(deliverables).orderBy(desc(deliverables.id)).limit(limit).offset(offset),
+        policyIntelDb.select({ count: count() }).from(deliverables),
+      ]);
+      res.json({ data: rows, total: totalRow?.count ?? 0, page, limit, totalPages: Math.ceil((totalRow?.count ?? 0) / limit) });
     } catch (err: any) {
       next(err);
     }
@@ -960,10 +987,15 @@ export function createPolicyIntelRouter() {
   router.get("/issue-rooms", async (req, res, next) => {
     try {
       const workspaceId = req.query.workspaceId ? Number(req.query.workspaceId) : undefined;
-      const rows = workspaceId
-        ? await policyIntelDb.select().from(issueRooms).where(eq(issueRooms.workspaceId, workspaceId)).orderBy(desc(issueRooms.id))
-        : await policyIntelDb.select().from(issueRooms).orderBy(desc(issueRooms.id));
-      res.json(rows);
+      const page = Math.max(1, Number(req.query.page) || 1);
+      const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+      const offset = (page - 1) * limit;
+      const where = workspaceId ? eq(issueRooms.workspaceId, workspaceId) : undefined;
+      const [rows, [totalRow]] = await Promise.all([
+        policyIntelDb.select().from(issueRooms).where(where).orderBy(desc(issueRooms.id)).limit(limit).offset(offset),
+        policyIntelDb.select({ count: count() }).from(issueRooms).where(where),
+      ]);
+      res.json({ data: rows, total: totalRow?.count ?? 0, page, limit, totalPages: Math.ceil((totalRow?.count ?? 0) / limit) });
     } catch (err: any) {
       next(err);
     }
@@ -1021,7 +1053,8 @@ export function createPolicyIntelRouter() {
 
   router.get("/issue-rooms/:id", async (req, res, next) => {
     try {
-      const id = Number(req.params.id);
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
       const [issueRoom] = await policyIntelDb.select().from(issueRooms).where(eq(issueRooms.id, id));
       if (!issueRoom) return res.status(404).json({ message: "issue room not found" });
 
@@ -1128,7 +1161,8 @@ export function createPolicyIntelRouter() {
   // ── PATCH issue room fields ──────────────────────────────────────────────
   router.patch("/issue-rooms/:id", async (req, res, next) => {
     try {
-      const id = Number(req.params.id);
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
       const { title, summary, status, recommendedPath, issueType, jurisdiction } = req.body ?? {};
       const patch: Record<string, unknown> = {};
       if (title !== undefined) patch.title = title;
@@ -1409,7 +1443,8 @@ export function createPolicyIntelRouter() {
 
   router.get("/matters/:id", async (req, res, next) => {
     try {
-      const id = Number(req.params.id);
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
       const [matter] = await policyIntelDb.select().from(matters).where(eq(matters.id, id));
       if (!matter) return res.status(404).json({ message: "matter not found" });
       res.json(matter);
@@ -1521,6 +1556,87 @@ export function createPolicyIntelRouter() {
 
   // ── Stakeholders ──────────────────────────────────────────────────────────
 
+  // NOTE: /for-bill/:billId must come before /:id to avoid ":id" matching "for-bill"
+
+  /**
+   * GET /stakeholders/for-bill/:billId — find legislators on committees relevant to a bill.
+   */
+  router.get("/stakeholders/for-bill/:billId", async (req, res, next) => {
+    try {
+      const billId = req.params.billId.toUpperCase().replace(/\s+/g, " ");
+
+      const hearingRows = await policyIntelDb
+        .select({ committee: hearingEvents.committee, chamber: hearingEvents.chamber })
+        .from(hearingEvents)
+        .where(sql`${hearingEvents.relatedBillIds}::jsonb @> ${JSON.stringify([billId])}::jsonb`);
+
+      const docRows = await policyIntelDb
+        .select({
+          committee: sql<string>`${sourceDocuments.rawPayload}->>'committee'`,
+          feedType: sql<string>`${sourceDocuments.rawPayload}->>'feedType'`,
+        })
+        .from(sourceDocuments)
+        .where(
+          or(
+            ilike(sourceDocuments.title, `%${billId}%`),
+            sql`${sourceDocuments.rawPayload}->>'billId' = ${billId}`,
+          ),
+        );
+
+      const committeeNames = new Set<string>();
+      for (const r of hearingRows) committeeNames.add(r.committee);
+      for (const r of docRows) {
+        if (r.committee) committeeNames.add(r.committee);
+      }
+
+      let members: any[] = [];
+      if (committeeNames.size > 0) {
+        members = await policyIntelDb
+          .select({
+            committeeMemberId: committeeMembers.id,
+            committeeName: committeeMembers.committeeName,
+            role: committeeMembers.role,
+            stakeholderId: stakeholders.id,
+            name: stakeholders.name,
+            party: stakeholders.party,
+            chamber: stakeholders.chamber,
+            district: stakeholders.district,
+            title: stakeholders.title,
+            email: stakeholders.email,
+            phone: stakeholders.phone,
+          })
+          .from(committeeMembers)
+          .innerJoin(stakeholders, eq(committeeMembers.stakeholderId, stakeholders.id))
+          .where(inArray(committeeMembers.committeeName, [...committeeNames]));
+      }
+
+      const observedStakeholders = await policyIntelDb
+        .select({
+          stakeholderId: stakeholders.id,
+          name: stakeholders.name,
+          party: stakeholders.party,
+          chamber: stakeholders.chamber,
+          district: stakeholders.district,
+          title: stakeholders.title,
+          email: stakeholders.email,
+          phone: stakeholders.phone,
+          observationText: stakeholderObservations.observationText,
+        })
+        .from(stakeholderObservations)
+        .innerJoin(stakeholders, eq(stakeholderObservations.stakeholderId, stakeholders.id))
+        .where(ilike(stakeholderObservations.observationText, `%${billId}%`));
+
+      res.json({
+        billId,
+        committees: [...committeeNames],
+        committeeMembers: members,
+        relatedStakeholders: observedStakeholders,
+      });
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
   router.get("/stakeholders", async (_req, res, next) => {
     try {
       const rows = await policyIntelDb.select().from(stakeholders).orderBy(desc(stakeholders.id));
@@ -1554,7 +1670,8 @@ export function createPolicyIntelRouter() {
 
   router.get("/stakeholders/:id", async (req, res, next) => {
     try {
-      const id = Number(req.params.id);
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
       const result = await getStakeholderWithObservations(id);
       if (!result) return res.status(404).json({ message: "stakeholder not found" });
       res.json(result);
@@ -1832,6 +1949,272 @@ export function createPolicyIntelRouter() {
     }
   });
 
+  // ── Hearing Calendar ────────────────────────────────────────────────────────
+
+  /**
+   * GET /hearings — list hearing events with optional date range, chamber, committee filters.
+   */
+  router.get("/hearings", async (req, res, next) => {
+    try {
+      const { from, to, chamber, committee } = req.query;
+      const conditions = [];
+      if (from) conditions.push(gte(hearingEvents.hearingDate, new Date(from as string)));
+      if (to) conditions.push(lt(hearingEvents.hearingDate, new Date(to as string)));
+      if (chamber) conditions.push(eq(hearingEvents.chamber, chamber as string));
+      if (committee) conditions.push(ilike(hearingEvents.committee, `%${committee}%`));
+
+      const rows = await policyIntelDb
+        .select()
+        .from(hearingEvents)
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .orderBy(hearingEvents.hearingDate);
+
+      res.json(rows);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * GET /hearings/this-week — hearings in the current week.
+   */
+  router.get("/hearings/this-week", async (req, res, next) => {
+    try {
+      const now = new Date();
+      const dayOfWeek = now.getDay();
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+      monday.setHours(0, 0, 0, 0);
+      const nextMonday = new Date(monday);
+      nextMonday.setDate(monday.getDate() + 7);
+
+      const rows = await policyIntelDb
+        .select()
+        .from(hearingEvents)
+        .where(and(
+          gte(hearingEvents.hearingDate, monday),
+          lt(hearingEvents.hearingDate, nextMonday),
+        ))
+        .orderBy(hearingEvents.hearingDate);
+
+      res.json({ weekStart: monday.toISOString(), weekEnd: nextMonday.toISOString(), hearings: rows });
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * GET /hearings/:id — single hearing detail.
+   */
+  router.get("/hearings/:id", async (req, res, next) => {
+    try {
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
+      const [row] = await policyIntelDb.select().from(hearingEvents).where(eq(hearingEvents.id, id));
+      if (!row) return res.status(404).json({ message: "Hearing not found" });
+      res.json(row);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * POST /hearings/sync — parse hearing events from existing TLO source documents.
+   */
+  router.post("/hearings/sync", async (req, res, next) => {
+    try {
+      const docs = await policyIntelDb
+        .select()
+        .from(sourceDocuments)
+        .where(
+          or(
+            sql`${sourceDocuments.rawPayload}->>'feedType' = 'upcomingmeetingshouse'`,
+            sql`${sourceDocuments.rawPayload}->>'feedType' = 'upcomingmeetingssenate'`,
+            sql`${sourceDocuments.rawPayload}->>'feedType' = 'upcomingmeetingsjoint'`,
+          ),
+        );
+
+      let created = 0;
+      let skipped = 0;
+
+      for (const doc of docs) {
+        const rp = (doc.rawPayload ?? {}) as Record<string, any>;
+        const feedType = rp.feedType ?? "";
+        const chamber = feedType.includes("house") ? "House" : feedType.includes("senate") ? "Senate" : "Joint";
+
+        const titleMatch = doc.title?.match(/^(.+?)\s*-\s*(\d{1,2}\/\d{1,2}\/\d{4})/);
+        if (!titleMatch) { skipped++; continue; }
+
+        const committee = titleMatch[1].trim();
+        const dateStr = titleMatch[2];
+        const [month, day, year] = dateStr.split("/").map(Number);
+        const hearingDate = new Date(year, month - 1, day);
+
+        const rawDesc = rp.rawDescription ?? "";
+        const timeMatch = rawDesc.match(/Time:\s*(.+?)(?:,|$)/i);
+        const locMatch = rawDesc.match(/Location:\s*(.+?)(?:,|$)/i);
+        const timeDesc = timeMatch ? timeMatch[1].trim() : null;
+        const location = locMatch ? locMatch[1].trim() : null;
+
+        if (timeDesc) {
+          const tMatch = timeDesc.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+          if (tMatch) {
+            let hours = parseInt(tMatch[1]);
+            const mins = parseInt(tMatch[2]);
+            const ampm = tMatch[3].toUpperCase();
+            if (ampm === "PM" && hours !== 12) hours += 12;
+            if (ampm === "AM" && hours === 12) hours = 0;
+            hearingDate.setHours(hours, mins, 0, 0);
+          }
+        }
+
+        // Upsert by external id
+        const extId = `tlo-hearing-${doc.id}`;
+        const [existing] = await policyIntelDb
+          .select({ id: hearingEvents.id })
+          .from(hearingEvents)
+          .where(eq(hearingEvents.externalId, extId));
+
+        if (existing) { skipped++; continue; }
+
+        await policyIntelDb.insert(hearingEvents).values({
+          workspaceId: 1,
+          sourceDocumentId: doc.id,
+          committee,
+          chamber,
+          hearingDate,
+          timeDescription: timeDesc,
+          location,
+          description: doc.summary,
+          relatedBillIds: [],
+          status: "scheduled",
+          externalId: extId,
+        });
+        created++;
+      }
+
+      res.json({ totalDocs: docs.length, created, skipped });
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  // ── Committee Members ──────────────────────────────────────────────────────
+
+  /**
+   * GET /committee-members — list all committee assignments, optionally filtered.
+   */
+  router.get("/committee-members", async (req, res, next) => {
+    try {
+      const { stakeholderId, committee, chamber } = req.query;
+      const conditions = [];
+      if (stakeholderId) conditions.push(eq(committeeMembers.stakeholderId, Number(stakeholderId)));
+      if (committee) conditions.push(ilike(committeeMembers.committeeName, `%${committee}%`));
+      if (chamber) conditions.push(eq(committeeMembers.chamber, chamber as string));
+
+      const rows = await policyIntelDb
+        .select({
+          id: committeeMembers.id,
+          stakeholderId: committeeMembers.stakeholderId,
+          committeeName: committeeMembers.committeeName,
+          chamber: committeeMembers.chamber,
+          role: committeeMembers.role,
+          sessionId: committeeMembers.sessionId,
+          stakeholderName: stakeholders.name,
+          stakeholderParty: stakeholders.party,
+          stakeholderDistrict: stakeholders.district,
+        })
+        .from(committeeMembers)
+        .leftJoin(stakeholders, eq(committeeMembers.stakeholderId, stakeholders.id))
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .orderBy(committeeMembers.committeeName, committeeMembers.role);
+
+      res.json(rows);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  // ── Meeting Notes ──────────────────────────────────────────────────────────
+
+  /**
+   * GET /stakeholders/:id/meeting-notes — notes for a stakeholder.
+   */
+  router.get("/stakeholders/:id/meeting-notes", async (req, res, next) => {
+    try {
+      const stakeholderId = Number(req.params.id);
+      const rows = await policyIntelDb
+        .select()
+        .from(meetingNotes)
+        .where(eq(meetingNotes.stakeholderId, stakeholderId))
+        .orderBy(desc(meetingNotes.createdAt));
+      res.json(rows);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * POST /stakeholders/:id/meeting-notes — add a meeting note.
+   */
+  router.post("/stakeholders/:id/meeting-notes", async (req, res, next) => {
+    try {
+      const stakeholderId = Number(req.params.id);
+      const { noteText, meetingDate, contactMethod, matterId } = req.body ?? {};
+      if (!noteText?.trim()) return res.status(400).json({ message: "noteText required" });
+
+      const [row] = await policyIntelDb
+        .insert(meetingNotes)
+        .values({
+          stakeholderId,
+          matterId: matterId ? Number(matterId) : null,
+          noteText: noteText.trim(),
+          meetingDate: meetingDate ? new Date(meetingDate) : null,
+          contactMethod: contactMethod ?? null,
+        })
+        .returning();
+
+      res.status(201).json(row);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  // ── Enhanced stakeholder detail ────────────────────────────────────────────
+
+  /**
+   * GET /stakeholders/:id/full — stakeholder with committee memberships, meeting notes, and observations.
+   */
+  router.get("/stakeholders/:id/full", async (req, res, next) => {
+    try {
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
+      const [stakeholder] = await policyIntelDb.select().from(stakeholders).where(eq(stakeholders.id, id));
+      if (!stakeholder) return res.status(404).json({ message: "Stakeholder not found" });
+
+      const observations = await policyIntelDb
+        .select()
+        .from(stakeholderObservations)
+        .where(eq(stakeholderObservations.stakeholderId, id))
+        .orderBy(desc(stakeholderObservations.createdAt));
+
+      const committees = await policyIntelDb
+        .select()
+        .from(committeeMembers)
+        .where(eq(committeeMembers.stakeholderId, id));
+
+      const notes = await policyIntelDb
+        .select()
+        .from(meetingNotes)
+        .where(eq(meetingNotes.stakeholderId, id))
+        .orderBy(desc(meetingNotes.createdAt));
+
+      res.json({ ...stakeholder, observations, committees, meetingNotes: notes });
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
   // ── Texas legislator import ───────────────────────────────────────────────
 
   /**
@@ -1895,6 +2278,14 @@ export function createPolicyIntelRouter() {
           ));
 
         if (existingRow) {
+          // Update structured fields on existing legislators
+          await policyIntelDb.update(stakeholders).set({
+            legiscanPeopleId: person.people_id ?? null,
+            party: party || null,
+            chamber: chamber || null,
+            district: district ? String(district) : null,
+            updatedAt: new Date(),
+          }).where(eq(stakeholders.id, existingRow.id));
           existing++;
           continue;
         }
@@ -1908,6 +2299,10 @@ export function createPolicyIntelRouter() {
           jurisdiction: "texas",
           tagsJson: [party, chamber, `District ${district}`].filter(Boolean),
           sourceSummary: `LegiScan people_id: ${person.people_id}`,
+          legiscanPeopleId: person.people_id ?? null,
+          party: party || null,
+          chamber: chamber || null,
+          district: district ? String(district) : null,
         });
         created++;
       }
@@ -1930,6 +2325,74 @@ export function createPolicyIntelRouter() {
         "This is a test message from Policy Intel. If you see this, Slack notifications are configured correctly.",
       );
       res.json({ sent, message: sent ? "Test notification sent" : "SLACK_WEBHOOK_URL not configured" });
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  // ── Client Deliverables ────────────────────────────────────────────────────
+
+  /**
+   * POST /deliverables/generate-client-alert — generate a client alert from an issue room.
+   */
+  router.post("/deliverables/generate-client-alert", async (req, res, next) => {
+    try {
+      const { issueRoomId, workspaceId, matterId, recipientName, firmName } = req.body;
+      if (!issueRoomId || !workspaceId) {
+        return res.status(400).json({ error: "issueRoomId and workspaceId are required" });
+      }
+      const result = await generateClientAlert({
+        issueRoomId: Number(issueRoomId),
+        workspaceId: Number(workspaceId),
+        matterId: matterId ? Number(matterId) : undefined,
+        recipientName,
+        firmName,
+      });
+      res.json(result);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * POST /deliverables/generate-weekly-report — generate a weekly client report from digest data.
+   */
+  router.post("/deliverables/generate-weekly-report", async (req, res, next) => {
+    try {
+      const { workspaceId, matterId, week, recipientName, firmName } = req.body;
+      if (!workspaceId) {
+        return res.status(400).json({ error: "workspaceId is required" });
+      }
+      const result = await generateWeeklyReport({
+        workspaceId: Number(workspaceId),
+        matterId: matterId ? Number(matterId) : undefined,
+        week,
+        recipientName,
+        firmName,
+      });
+      res.json(result);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * POST /deliverables/generate-hearing-memo — generate a hearing memo for a committee session.
+   */
+  router.post("/deliverables/generate-hearing-memo", async (req, res, next) => {
+    try {
+      const { hearingId, workspaceId, matterId, recipientName, firmName } = req.body;
+      if (!hearingId || !workspaceId) {
+        return res.status(400).json({ error: "hearingId and workspaceId are required" });
+      }
+      const result = await generateHearingMemo({
+        hearingId: Number(hearingId),
+        workspaceId: Number(workspaceId),
+        matterId: matterId ? Number(matterId) : undefined,
+        recipientName,
+        firmName,
+      });
+      res.json(result);
     } catch (err: any) {
       next(err);
     }

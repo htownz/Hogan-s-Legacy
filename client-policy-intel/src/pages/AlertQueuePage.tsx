@@ -115,7 +115,25 @@ export function AlertQueuePage() {
 
   return (
     <div>
-      <h1 style={{ fontSize: 22, marginBottom: 16 }}>Alert Review Queue</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
+        <h1 style={{ fontSize: 22, margin: 0 }}>Alert Review Queue</h1>
+        <Link href="/review">
+          <div style={{
+            padding: "6px 14px",
+            fontSize: 12,
+            fontWeight: 600,
+            background: "#16213e",
+            color: "#fff",
+            borderRadius: 16,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}>
+            📱 Mobile Review
+          </div>
+        </Link>
+      </div>
 
       {/* Search */}
       <form onSubmit={handleSearch} style={{ display: "flex", gap: 8, marginBottom: 16 }}>

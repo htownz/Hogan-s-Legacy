@@ -8,7 +8,10 @@ export function createPolicyIntelApp() {
   const app = express();
 
   app.set("trust proxy", 1);
-  app.use(cors({ origin: true, credentials: true }));
+  const allowedOrigins = process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(",").map(o => o.trim())
+    : ["http://localhost:5173", "http://localhost:5050"];
+  app.use(cors({ origin: allowedOrigins, credentials: true }));
   app.use(express.json({ limit: "2mb" }));
   app.use(express.urlencoded({ extended: true }));
 

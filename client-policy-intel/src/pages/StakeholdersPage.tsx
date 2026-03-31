@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { Link } from "wouter";
 import { api, type Stakeholder, type TecSearchResult, type TecImportResult } from "../api";
 import { useAsync } from "../hooks";
+import { DEFAULT_WORKSPACE_ID } from "../constants";
 
 const TYPE_COLORS: Record<string, string> = {
   legislator: "#1565c0",
@@ -25,7 +26,7 @@ export function StakeholdersPage() {
   const [showTecPanel, setShowTecPanel] = useState(false);
 
   if (loading) return <p>Loading stakeholders...</p>;
-  if (error) return <p style={{ color: "red" }}>{error}</p>;
+  if (error) return <div><p style={{ color: "red" }}>{error}</p><button onClick={refetch} style={{ padding: "6px 14px", cursor: "pointer" }}>Retry</button></div>;
 
   const allTypes = Array.from(new Set((stakeholders ?? []).map((s) => s.type.toLowerCase()))).sort();
 
@@ -220,7 +221,7 @@ function TecSearchPanel({ onClose, onImported }: { onClose: () => void; onImport
     setImporting(true);
     setImportResult(null);
     try {
-      const r = await api.importTec({ searchTerm: searchTerm.trim(), workspaceId: 2 });
+      const r = await api.importTec({ searchTerm: searchTerm.trim(), workspaceId: DEFAULT_WORKSPACE_ID });
       setImportResult(r);
       if (r.stakeholdersCreated > 0) {
         setTimeout(() => onImported(), 1500);

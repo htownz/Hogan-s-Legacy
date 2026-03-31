@@ -13,7 +13,7 @@ export function AlertDetailPage() {
   const { data, loading, error, refetch } = useAsync(() => api.getAlert(id), [id]);
 
   if (loading) return <p>Loading alert...</p>;
-  if (error) return <p style={{ color: "red" }}>{error}</p>;
+  if (error) return <div><p style={{ color: "red" }}>{error}</p><button onClick={refetch} style={{ padding: "6px 14px", cursor: "pointer" }}>Retry</button></div>;
   if (!data) return <p>Alert not found</p>;
 
   const { alert: a, sourceDocument: srcDoc, watchlist: wl, issueRoom: ir } = data;

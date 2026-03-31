@@ -163,7 +163,7 @@ export async function processDocumentAlerts(
         relevanceScore: scorecard.totalScore,
         whyItMatters: `${whyItMatters}\n\nScorecard: ${scorecard.summary}`,
         watchlistName: match.watchlist.name,
-      }).catch(() => {}); // fire-and-forget
+      }).catch((err) => console.error("[alert-service] Slack notification failed:", err?.message ?? err)); // fire-and-forget
     }
   }
 

@@ -3,10 +3,10 @@ import { api } from "../api";
 import { useAsync } from "../hooks";
 
 export function IssueRoomsPage() {
-  const { data: issueRooms, loading, error } = useAsync(() => api.getIssueRooms());
+  const { data: issueRooms, loading, error, refetch } = useAsync(() => api.getIssueRooms());
 
   if (loading) return <p>Loading issue rooms...</p>;
-  if (error) return <p style={{ color: "red" }}>{error}</p>;
+  if (error) return <div><p style={{ color: "red" }}>{error}</p><button onClick={refetch} style={{ padding: "6px 14px", cursor: "pointer" }}>Retry</button></div>;
 
   return (
     <div>

@@ -2,10 +2,10 @@ import { api, type DashboardAnalytics } from "../api";
 import { useAsync } from "../hooks";
 
 export function AnalyticsPage() {
-  const { data, loading, error } = useAsync(() => api.getDashboardAnalytics());
+  const { data, loading, error, refetch } = useAsync(() => api.getDashboardAnalytics());
 
   if (loading) return <p>Loading analytics...</p>;
-  if (error) return <p style={{ color: "red" }}>{error}</p>;
+  if (error) return <div><p style={{ color: "red" }}>{error}</p><button onClick={refetch} style={{ padding: "6px 14px", cursor: "pointer" }}>Retry</button></div>;
   if (!data) return null;
 
   return (

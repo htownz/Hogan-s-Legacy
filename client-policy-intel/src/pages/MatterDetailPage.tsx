@@ -5,14 +5,14 @@ import { useAsync } from "../hooks";
 export function MatterDetailPage({ id }: { id: number }) {
   const [tab, setTab] = useState<"alerts" | "activities" | "briefs" | "stakeholders">("alerts");
 
-  const { data: matter, loading, error } = useAsync(() => api.getMatter(id), [id]);
+  const { data: matter, loading, error, refetch } = useAsync(() => api.getMatter(id), [id]);
   const { data: matterAlerts } = useAsync(() => api.getMatterAlerts(id), [id]);
   const { data: matterActivities } = useAsync(() => api.getMatterActivities(id), [id]);
   const { data: matterBriefs } = useAsync(() => api.getMatterBriefs(id), [id]);
   const { data: matterStakeholders } = useAsync(() => api.getMatterStakeholders(id), [id]);
 
   if (loading) return <p>Loading matter...</p>;
-  if (error) return <p style={{ color: "red" }}>{error}</p>;
+  if (error) return <div><p style={{ color: "red" }}>{error}</p><button onClick={refetch} style={{ padding: "6px 14px", cursor: "pointer" }}>Retry</button></div>;
   if (!matter) return <p>Matter not found</p>;
 
   const tabs = [

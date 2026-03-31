@@ -25,7 +25,7 @@ export function DeliverablesPage() {
   const [showGenerator, setShowGenerator] = useState(false);
 
   if (loading) return <p>Loading deliverables...</p>;
-  if (error) return <p style={{ color: "red" }}>{error}</p>;
+  if (error) return <div><p style={{ color: "red" }}>{error}</p><button onClick={refetch} style={{ padding: "6px 14px", cursor: "pointer" }}>Retry</button></div>;
 
   const allTypes = Array.from(new Set((deliverables ?? []).map((d) => d.type.toLowerCase()))).sort();
 

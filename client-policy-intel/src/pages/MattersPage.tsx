@@ -3,10 +3,10 @@ import { api } from "../api";
 import { useAsync } from "../hooks";
 
 export function MattersPage() {
-  const { data: matters, loading, error } = useAsync(() => api.getMatters());
+  const { data: matters, loading, error, refetch } = useAsync(() => api.getMatters());
 
   if (loading) return <p>Loading matters...</p>;
-  if (error) return <p style={{ color: "red" }}>{error}</p>;
+  if (error) return <div><p style={{ color: "red" }}>{error}</p><button onClick={refetch} style={{ padding: "6px 14px", cursor: "pointer" }}>Retry</button></div>;
 
   const statusColors: Record<string, string> = {
     active: "#27ae60",

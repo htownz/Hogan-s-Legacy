@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { api, type Watchlist } from "../api";
 import { useAsync } from "../hooks";
+import { DEFAULT_WORKSPACE_ID } from "../constants";
 
 export function WatchlistsPage() {
   const { data: watchlists, loading, error, refetch } = useAsync(() => api.getWatchlists());
@@ -10,7 +11,7 @@ export function WatchlistsPage() {
   const [form, setForm] = useState({ name: "", topic: "", description: "" });
 
   if (loading) return <p>Loading watchlists...</p>;
-  if (error) return <p style={{ color: "red" }}>{error}</p>;
+  if (error) return <div><p style={{ color: "red" }}>{error}</p><button onClick={refetch} style={{ padding: "6px 14px", cursor: "pointer" }}>Retry</button></div>;
 
   const active = (watchlists ?? []).filter((w) => w.isActive);
   const inactive = (watchlists ?? []).filter((w) => !w.isActive);
@@ -21,7 +22,7 @@ export function WatchlistsPage() {
     try {
       setSubmitting(true);
       await api.createWatchlist({
-        workspaceId: 1,
+        workspaceId: DEFAULT_WORKSPACE_ID,
         name: form.name.trim(),
         topic: form.topic.trim() || undefined,
         description: form.description.trim() || undefined,

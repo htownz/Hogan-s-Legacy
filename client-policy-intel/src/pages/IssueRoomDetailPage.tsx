@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { Link } from "wouter";
 import { api, type Alert } from "../api";
 import { useAsync } from "../hooks";
 
@@ -22,7 +23,7 @@ export function IssueRoomDetailPage({ id }: { id: number }) {
   const [briefResult, setBriefResult] = useState<string | null>(null);
 
   if (loading) return <p>Loading issue room...</p>;
-  if (error) return <p style={{ color: "red" }}>{error}</p>;
+  if (error) return <div><p style={{ color: "red" }}>{error}</p><button onClick={refetch} style={{ padding: "6px 14px", cursor: "pointer" }}>Retry</button></div>;
   if (!data) return <p>Issue room not found.</p>;
 
   async function submitUpdate() {
@@ -224,6 +225,11 @@ export function IssueRoomDetailPage({ id }: { id: number }) {
           >
             {generatingBrief ? "Generating..." : "Generate Brief"}
           </button>
+          <Link href="/client-alerts">
+            <span style={{ padding: "7px 14px", fontSize: 12, background: "#2e7d32", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", whiteSpace: "nowrap", display: "inline-block" }}>
+              📧 Client Alert
+            </span>
+          </Link>
         </div>
       </div>
       <p style={{ fontSize: 13, color: "#888", marginBottom: 18 }}>

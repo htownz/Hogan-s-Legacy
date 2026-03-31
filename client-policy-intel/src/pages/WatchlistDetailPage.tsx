@@ -10,14 +10,14 @@ export function WatchlistDetailPage() {
   const [filter, setFilter] = useState<"all" | "pending_review" | "ready" | "suppressed">("all");
   const LIMIT = 50;
 
-  const { data: watchlist, loading, error } = useAsync(() => api.getWatchlist(id), [id]);
+  const { data: watchlist, loading, error, refetch } = useAsync(() => api.getWatchlist(id), [id]);
   const { data: alertResult } = useAsync(
     () => api.getWatchlistAlerts(id, { page, limit: LIMIT, status: filter }),
     [id, page, filter],
   );
 
   if (loading) return <p>Loading watchlist...</p>;
-  if (error) return <p style={{ color: "red" }}>{error}</p>;
+  if (error) return <div><p style={{ color: "red" }}>{error}</p><button onClick={refetch} style={{ padding: "6px 14px", cursor: "pointer" }}>Retry</button></div>;
   if (!watchlist) return <p>Watchlist not found</p>;
 
   const alerts = alertResult?.data ?? [];
