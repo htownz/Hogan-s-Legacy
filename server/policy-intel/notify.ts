@@ -5,6 +5,8 @@
  * Messages are fire-and-forget; failures are logged but never block callers.
  */
 
+import { safeErrorMessage } from "./security";
+
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL ?? "";
 
 /**
@@ -34,12 +36,13 @@ export async function notifySlack(
     });
 
     if (!resp.ok) {
-      console.error(`[notify] Slack webhook returned ${resp.status}: ${await resp.text()}`);
+      const body = await resp.text();
+      console.error(`[notify] Slack webhook returned ${resp.status}: ${safeErrorMessage(body, "Webhook call failed")}`);
       return false;
     }
     return true;
   } catch (err) {
-    console.error("[notify] Slack webhook failed:", err);
+    console.error(`[notify] Slack webhook failed: ${safeErrorMessage(err, "Webhook call failed")}`);
     return false;
   }
 }

@@ -52,17 +52,39 @@ export interface SchedulerStatus {
     cronExpression: string;
     enabled: boolean;
     running: boolean;
+    runningSince: string | null;
     lastRun: JobRunRecord | null;
+    runCounts: {
+      total: number;
+      success: number;
+      error: number;
+      skippedWhileRunning: number;
+    };
+    consecutiveFailures: number;
+    lastSuccessAt: string | null;
+    lastErrorAt: string | null;
     nextRun: string | null;
   }>;
   recentHistory: JobRunRecord[];
+}
+
+interface JobTelemetry {
+  totalRuns: number;
+  successRuns: number;
+  errorRuns: number;
+  skippedWhileRunning: number;
+  consecutiveFailures: number;
+  lastSuccessAt: string | null;
+  lastErrorAt: string | null;
 }
 
 // ── State ────────────────────────────────────────────────────────────────────
 
 const jobs = new Map<string, ScheduledJobConfig>();
 const runningFlags = new Map<string, boolean>();
+const runningSince = new Map<string, string | null>();
 const lastRuns = new Map<string, JobRunRecord>();
+const jobTelemetry = new Map<string, JobTelemetry>();
 const history: JobRunRecord[] = [];
 const MAX_HISTORY = 50;
 const DEFAULT_JOB_TIMEOUT_MS = Number(process.env.SCHEDULER_JOB_TIMEOUT_MS || 20 * 60 * 1000);
@@ -82,6 +104,46 @@ function pushHistory(record: JobRunRecord) {
   history.unshift(record);
   if (history.length > MAX_HISTORY) history.length = MAX_HISTORY;
   lastRuns.set(record.jobName, record);
+
+  const telemetry = jobTelemetry.get(record.jobName) ?? {
+    totalRuns: 0,
+    successRuns: 0,
+    errorRuns: 0,
+    skippedWhileRunning: 0,
+    consecutiveFailures: 0,
+    lastSuccessAt: null,
+    lastErrorAt: null,
+  };
+
+  telemetry.totalRuns += 1;
+  if (record.status === "success") {
+    telemetry.successRuns += 1;
+    telemetry.consecutiveFailures = 0;
+    telemetry.lastSuccessAt = record.finishedAt;
+  } else {
+    telemetry.errorRuns += 1;
+    telemetry.consecutiveFailures += 1;
+    telemetry.lastErrorAt = record.finishedAt;
+  }
+
+  jobTelemetry.set(record.jobName, telemetry);
+}
+
+function getOrCreateTelemetry(jobName: string): JobTelemetry {
+  const existing = jobTelemetry.get(jobName);
+  if (existing) return existing;
+
+  const created: JobTelemetry = {
+    totalRuns: 0,
+    successRuns: 0,
+    errorRuns: 0,
+    skippedWhileRunning: 0,
+    consecutiveFailures: 0,
+    lastSuccessAt: null,
+    lastErrorAt: null,
+  };
+  jobTelemetry.set(jobName, created);
+  return created;
 }
 
 function getNextRun(cronExpr: string): string | null {
@@ -127,6 +189,8 @@ async function executeJob(
   timeoutMs = DEFAULT_JOB_TIMEOUT_MS,
 ) {
   if (runningFlags.get(jobName)) {
+    const telemetry = getOrCreateTelemetry(jobName);
+    telemetry.skippedWhileRunning += 1;
     console.log(`[scheduler] ${jobName} already running – skipping`);
     return;
   }
@@ -134,6 +198,7 @@ async function executeJob(
   runningFlags.set(jobName, true);
   const start = Date.now();
   const startedAt = new Date().toISOString();
+  runningSince.set(jobName, startedAt);
 
   try {
     console.log(`[scheduler] ▶ starting ${jobName}`);
@@ -162,6 +227,7 @@ async function executeJob(
     console.error(`[scheduler] ✗ ${jobName} failed: ${record.error}`);
   } finally {
     runningFlags.set(jobName, false);
+    runningSince.set(jobName, null);
   }
 }
 
@@ -328,6 +394,8 @@ export function startScheduler() {
     });
 
     runningFlags.set(def.name, false);
+    runningSince.set(def.name, null);
+    getOrCreateTelemetry(def.name);
     console.log(`[scheduler] registered ${def.name} → ${def.cron}`);
   }
 
@@ -339,16 +407,34 @@ export function stopScheduler() {
     job.task?.stop();
     job.enabled = false;
   });
+  runningSince.forEach((_value, key) => {
+    runningSince.set(key, null);
+  });
   schedulerEnabled = false;
   console.log("[scheduler] stopped all jobs");
 }
 
 export function getSchedulerStatus(): SchedulerStatus {
   const jobStatuses = Array.from(jobs.values()).map((j) => ({
+    ...(() => {
+      const telemetry = getOrCreateTelemetry(j.name);
+      return {
+        runCounts: {
+          total: telemetry.totalRuns,
+          success: telemetry.successRuns,
+          error: telemetry.errorRuns,
+          skippedWhileRunning: telemetry.skippedWhileRunning,
+        },
+        consecutiveFailures: telemetry.consecutiveFailures,
+        lastSuccessAt: telemetry.lastSuccessAt,
+        lastErrorAt: telemetry.lastErrorAt,
+      };
+    })(),
     name: j.name,
     cronExpression: j.cronExpression,
     enabled: j.enabled,
     running: runningFlags.get(j.name) ?? false,
+    runningSince: runningSince.get(j.name) ?? null,
     lastRun: lastRuns.get(j.name) ?? null,
     nextRun: getNextRun(j.cronExpression),
   }));

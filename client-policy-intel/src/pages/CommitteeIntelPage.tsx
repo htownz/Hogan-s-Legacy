@@ -583,10 +583,16 @@ export function CommitteeIntelPage({ hearingId, sessionId }: CommitteeIntelPageP
 
       {syncResult && (
         <div style={{ background: "#ecfeff", border: "1px solid #a5f3fc", color: "#155e75", borderRadius: 12, padding: 14, fontSize: 13 }}>
-          Source sync ingested {syncResult.ingestedSegments} segment{syncResult.ingestedSegments === 1 ? "" : "s"}, updated {syncResult.updatedSegments} existing cue{syncResult.updatedSegments === 1 ? "" : "s"}, and skipped {syncResult.duplicateSegments} duplicate{syncResult.duplicateSegments === 1 ? "" : "s"} using {syncResult.sourceMode === "audio_transcription" ? "audio transcription" : "a transcript feed"} from {syncResult.sourceLabel ?? syncResult.sourceType} at {new Date(syncResult.fetchedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}.
+          Source sync {syncResult.outcome === "waiting_source" ? "is waiting on source availability" : "completed"} and ingested {syncResult.ingestedSegments} segment{syncResult.ingestedSegments === 1 ? "" : "s"}, updated {syncResult.updatedSegments} existing cue{syncResult.updatedSegments === 1 ? "" : "s"}, and skipped {syncResult.duplicateSegments} duplicate{syncResult.duplicateSegments === 1 ? "" : "s"} using {syncResult.sourceMode === "audio_transcription" ? "audio transcription" : "a transcript feed"} from {syncResult.sourceLabel ?? syncResult.sourceType} at {new Date(syncResult.fetchedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}. Duration: {syncResult.durationMs}ms.
           {syncResult.error && (
             <div style={{ marginTop: 8, color: "#0e7490" }}>
-              Waiting for source availability: {syncResult.error}
+              Waiting for source availability: {syncResult.error}{syncResult.waitReason ? ` (${statusLabel(syncResult.waitReason)})` : ""}
+            </div>
+          )}
+          {syncResult.nextEligibleAutoIngestAt && (
+            <div style={{ marginTop: 8, color: "#0e7490" }}>
+              Next auto-sync window: {new Date(syncResult.nextEligibleAutoIngestAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+              {typeof syncResult.nextEligibleAutoIngestInSeconds === "number" ? ` (${syncResult.nextEligibleAutoIngestInSeconds}s)` : ""}
             </div>
           )}
         </div>

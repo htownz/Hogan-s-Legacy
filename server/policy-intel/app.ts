@@ -3,6 +3,7 @@ import cors from "cors";
 import { createPolicyIntelRouter } from "./routes";
 import { metrics } from "./metrics";
 import { authMiddleware } from "./auth";
+import { safeErrorMessage } from "./security";
 
 export function createPolicyIntelApp() {
   const app = express();
@@ -39,9 +40,9 @@ export function createPolicyIntelApp() {
 
   app.use("/api/intel", authMiddleware, createPolicyIntelRouter());
 
-  app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
-    console.error(err);
-    const message = err instanceof Error ? err.message : "Unexpected server error";
+  app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
+    const message = safeErrorMessage(err);
+    console.error(`[policy-intel] ${req.method} ${req.path} failed: ${message}`);
     res.status(500).json({ message });
   });
 

@@ -757,6 +757,19 @@ export function DashboardPage() {
                 <div style={{ fontSize: 11, color: "#888", marginBottom: 4 }}>
                   Schedule: <code style={{ background: "#f5f5f5", padding: "1px 4px", borderRadius: 3 }}>{job.cronExpression}</code>
                 </div>
+                <div style={{ fontSize: 11, color: "#666", marginBottom: 4 }}>
+                  Runs: {job.runCounts.total} total ({job.runCounts.success} ok / {job.runCounts.error} error) · skipped overlaps: {job.runCounts.skippedWhileRunning}
+                </div>
+                {job.running && job.runningSince && (
+                  <div style={{ fontSize: 11, color: "#666", marginBottom: 4 }}>
+                    Running since: {new Date(job.runningSince).toLocaleString()}
+                  </div>
+                )}
+                {job.consecutiveFailures > 0 && (
+                  <div style={{ fontSize: 11, color: "#b91c1c", marginBottom: 4 }}>
+                    Consecutive failures: {job.consecutiveFailures}
+                  </div>
+                )}
                 {job.lastRun && (
                   <div style={{ fontSize: 11, color: job.lastRun.status === "error" ? "#e74c3c" : "#555", marginTop: 4 }}>
                     Last: {new Date(job.lastRun.finishedAt).toLocaleString()} ({job.lastRun.durationMs}ms)

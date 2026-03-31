@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import { and, asc, desc, eq, gte, ilike, inArray } from "drizzle-orm";
 import * as cheerio from "cheerio";
 import { policyIntelDb } from "../db";
+import { safeErrorMessage } from "../security";
 import {
   committeeIntelSegments,
   committeeIntelSignals,
@@ -200,6 +201,14 @@ export interface CommitteeIntelTranscriptSyncResult {
   duplicateSegments: number;
   cursor: string | null;
   status: CommitteeIntelAutoIngestStatus;
+  outcome: "synced" | "waiting_source" | "failed";
+  retryable: boolean;
+  waitReason: string | null;
+  attemptedAt: string;
+  completedAt: string;
+  durationMs: number;
+  nextEligibleAutoIngestAt: string | null;
+  nextEligibleAutoIngestInSeconds: number | null;
   error?: string;
 }
 
@@ -303,9 +312,25 @@ const AGENCY_HINTS = ["commission", "council", "office", "department", "agency",
 const ORGANIZATION_HINTS = ["association", "alliance", "coalition", "chamber", "company", "corp", "foundation", "group", "llc", "inc", "union"];
 const TEXAS_CAPITOL_TIME_ZONE = "America/Chicago";
 const OFFICIAL_TRANSCRIPTION_CLIP_SECONDS = 150;
+const OFFICIAL_TRANSCRIPTION_OVERLAP_SECONDS = 8;
 const OFFICIAL_TRANSCRIPTION_TIMEOUT_MS = 120_000;
 const FFMPEG_BINARY = process.env.FFMPEG_PATH?.trim() || "ffmpeg";
 const execFileAsync = promisify(execFile);
+const NON_SPEECH_TRANSCRIPT_PATTERNS = [
+  /^\[(?:music|applause|laughter|inaudible|silence|noise|crosstalk|cross talk|background noise|gavel|off mic|off-mic|unintelligible)[^\]]*\]$/i,
+  /^\((?:music|applause|laughter|inaudible|silence|noise|crosstalk|cross talk|background noise|gavel|off mic|off-mic|unintelligible)[^\)]*\)$/i,
+  /^(?:music|applause|laughter|inaudible|silence|noise|crosstalk|cross talk|background noise|gavel|off mic|off-mic|unintelligible)\.?$/i,
+];
+const SPEAKER_ROLE_VALUES: CommitteeIntelSpeakerRole[] = [
+  "chair",
+  "member",
+  "staff",
+  "agency",
+  "invited_witness",
+  "public_witness",
+  "moderator",
+  "unknown",
+];
 
 interface CommitteeIntelOfficialSource {
   sourceId: string;
@@ -459,7 +484,14 @@ function normaliseSpeakerFromText(transcriptText: string): {
   transcriptText: string;
 } {
   const cleaned = transcriptText.replace(/^>>\s*/, "").trim();
-  const match = cleaned.match(/^([^:(]{2,120}?)(?:\s+\(([^)]+)\))?:\s+(.+)$/s);
+  const patterns = [
+    /^([^:(\-—]{2,120}?)(?:\s+\(([^)]+)\))?\s*[:\-—]\s+(.+)$/s,
+    /^([^:(]{2,120}?)(?:\s+\(([^)]+)\))?:\s+(.+)$/s,
+  ];
+  const match = patterns
+    .map((pattern) => cleaned.match(pattern))
+    .find((candidate): candidate is RegExpMatchArray => Boolean(candidate));
+
   if (!match) {
     return {
       speakerName: null,
@@ -468,14 +500,88 @@ function normaliseSpeakerFromText(transcriptText: string): {
     };
   }
 
-  const speakerName = match[1]?.trim() || null;
+  const rawSpeakerName = match[1]?.trim() || null;
+  const speakerName = isLikelySpeakerLabel(rawSpeakerName) ? rawSpeakerName : null;
   const affiliation = match[2]?.trim() || null;
   const nextText = match[3]?.trim() || cleaned;
+
+  if (!speakerName) {
+    return {
+      speakerName: null,
+      affiliation: null,
+      transcriptText: cleaned,
+    };
+  }
+
   return {
     speakerName,
     affiliation,
     transcriptText: nextText,
   };
+}
+
+function isLikelySpeakerLabel(value: string | null | undefined): boolean {
+  const label = value?.trim() ?? "";
+  if (!label || label.length < 2 || label.length > 80) return false;
+  if (!/[A-Za-z]/.test(label)) return false;
+  if (/[.!?]/.test(label)) return false;
+  if (/\d{1,2}:\d{2}/.test(label)) return false;
+  if (/^(agenda|item|today|thank you|thanks|question|answer)$/i.test(label)) return false;
+
+  const tokenCount = label.split(/\s+/).length;
+  return tokenCount <= 8;
+}
+
+function decodeBasicHtmlEntities(value: string): string {
+  return value
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&nbsp;/gi, " ");
+}
+
+function cleanTranscriptText(value: string): string | null {
+  const cleaned = decodeBasicHtmlEntities(
+    value
+      .replace(/<\d{2}:\d{2}:\d{2}\.\d{3}>/g, " ")
+      .replace(/<\/?c(?:\.[^>]+)?>/gi, " ")
+      .replace(/<\/?(?:i|b|u|v|ruby|rt|lang)[^>]*>/gi, " ")
+      .replace(/<[^>]+>/g, " "),
+  )
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!cleaned) return null;
+
+  const normalized = cleaned.replace(/[.!?]+$/g, "").trim();
+  if (!normalized) return null;
+  if (NON_SPEECH_TRANSCRIPT_PATTERNS.some((pattern) => pattern.test(cleaned) || pattern.test(normalized))) {
+    return null;
+  }
+
+  return cleaned;
+}
+
+function normalizeSpeakerRole(value: unknown): CommitteeIntelSpeakerRole | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return undefined;
+  if (SPEAKER_ROLE_VALUES.includes(normalized as CommitteeIntelSpeakerRole)) {
+    return normalized as CommitteeIntelSpeakerRole;
+  }
+
+  if (/chair/.test(normalized)) return "chair";
+  if (/(member|senator|representative|legislator|committee member)/.test(normalized)) return "member";
+  if (/staff/.test(normalized)) return "staff";
+  if (/(agency|commission|department|director|commissioner)/.test(normalized)) return "agency";
+  if (/invited/.test(normalized)) return "invited_witness";
+  if (/(public witness|public testimony|public)/.test(normalized)) return "public_witness";
+  if (/(moderator|host|facilitator)/.test(normalized)) return "moderator";
+  if (/witness/.test(normalized)) return "public_witness";
+
+  return undefined;
 }
 
 function buildTranscriptExternalKey(parts: Array<string | number | null | undefined>): string {
@@ -498,18 +604,20 @@ function buildFeedEntry(
     metadata?: Record<string, unknown>;
   },
 ): NormalizedTranscriptFeedEntry | null {
-  const trimmedText = value.transcriptText.replace(/\s+/g, " ").trim();
-  if (!trimmedText) return null;
+  const cleanedInputText = cleanTranscriptText(value.transcriptText);
+  if (!cleanedInputText) return null;
 
   const metadata = getMetadataRecord(value.metadata);
   const sourceType = typeof metadata.sourceType === "string" ? metadata.sourceType : null;
   const sourceId = typeof metadata.sourceId === "string" || typeof metadata.sourceId === "number"
     ? metadata.sourceId
     : null;
-  const normalizedSpeaker = normaliseSpeakerFromText(trimmedText);
+  const normalizedSpeaker = normaliseSpeakerFromText(cleanedInputText);
   const speakerName = value.speakerName?.trim() || normalizedSpeaker.speakerName;
   const affiliation = value.affiliation?.trim() || normalizedSpeaker.affiliation;
-  const transcriptText = speakerName || affiliation ? normalizedSpeaker.transcriptText : trimmedText;
+  const candidateText = speakerName || affiliation ? normalizedSpeaker.transcriptText : cleanedInputText;
+  const transcriptText = cleanTranscriptText(candidateText);
+  if (!transcriptText) return null;
   const startedAtSecond = value.startedAtSecond ?? null;
   const endedAtSecond = value.endedAtSecond ?? null;
   const capturedAt = value.capturedAt ?? buildCapturedAtFromOffset(session, startedAtSecond, index);
@@ -626,7 +734,7 @@ function parseJsonFeed(content: string, session: CommitteeIntelSessionRow): Norm
         startedAtSecond: typeof startedAtSecond === "number" ? startedAtSecond : parseTimestampToSeconds(String(startedAtSecond ?? "")),
         endedAtSecond: typeof endedAtSecond === "number" ? endedAtSecond : parseTimestampToSeconds(String(endedAtSecond ?? "")),
         speakerName: typeof item.speaker === "string" ? item.speaker : typeof item.name === "string" ? item.name : null,
-        speakerRole: typeof item.role === "string" ? item.role as CommitteeIntelSpeakerRole : undefined,
+        speakerRole: normalizeSpeakerRole(item.role),
         affiliation: typeof item.affiliation === "string" ? item.affiliation : typeof item.organization === "string" ? item.organization : null,
         transcriptText,
         invited: Boolean(item.invited),
@@ -696,7 +804,7 @@ function formatTexasDateKey(value: Date | string | null | undefined): string | n
 
 function parseUsDateToKey(value: string | null | undefined): string | null {
   if (!value) return null;
-  const match = value.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  const match = value.trim().match(/\b(\d{1,2})\/(\d{1,2})\/(\d{2,4})\b/);
   if (!match) return null;
 
   const month = Number(match[1]);
@@ -905,22 +1013,35 @@ async function resolveHouseOfficialSource(session: CommitteeIntelSessionRow): Pr
 function parseSenateArchiveEvents(html: string): SenateArchiveEventRecord[] {
   const $ = cheerio.load(html);
   const results: SenateArchiveEventRecord[] = [];
+  const seen = new Set<string>();
 
-  $("tr").each((_index, element) => {
-    const link = $(element).find('a[href*="videoplayer.php?vid="]').attr("href");
+  $('a[href*="videoplayer.php?vid="]').each((_index, element) => {
+    const link = $(element).attr("href");
     if (!link) return;
 
     const url = new URL(link, "https://senate.texas.gov/");
-    const cells = $(element).find("td");
-    const firstCellText = cells.first().text().trim();
-    const titleCell = $(element).find("td.av-prog").first();
-    const title = titleCell.text().replace(/\s+/g, " ").trim() || $(element).text().replace(/\s+/g, " ").trim();
+    const officialPageUrl = url.toString();
+    if (seen.has(officialPageUrl)) return;
+    seen.add(officialPageUrl);
+
+    const row = $(element).closest("tr");
+    const rowCells = row.find("td");
+    const rowText = row.text().replace(/\s+/g, " ").trim();
+    const rowDateText = rowCells.first().text().trim();
+    const rowTitle = row.find("td.av-prog").first().text().replace(/\s+/g, " ").trim();
+
+    const container = row.length > 0 ? row : $(element).closest("li,article,section,div,p");
+    const containerText = container.text().replace(/\s+/g, " ").trim();
+    const linkText = $(element).text().replace(/\s+/g, " ").trim();
+
+    const dateKey = parseUsDateToKey(rowDateText) ?? parseUsDateToKey(rowText) ?? parseUsDateToKey(containerText);
+    const title = rowTitle || linkText || containerText || rowText || "Senate committee hearing";
 
     results.push({
-      dateKey: parseUsDateToKey(firstCellText),
+      dateKey,
       title,
-      officialPageUrl: url.toString(),
-      sourceId: url.searchParams.get("vid") ?? hashValue(url.toString()),
+      officialPageUrl,
+      sourceId: url.searchParams.get("vid") ?? hashValue(officialPageUrl),
     });
   });
 
@@ -933,17 +1054,42 @@ function escapeRegExp(value: string): string {
 
 async function decodeSenatePlayerStreamUrl(officialPageUrl: string): Promise<string | null> {
   const html = await fetchTextResponse(officialPageUrl);
-  const atobMatch = html.match(/src:\s*atob\(([^)]+)\)/i);
-  if (atobMatch) {
-    const variableName = atobMatch[1].trim();
-    const variableMatch = html.match(new RegExp(`(?:const|let|var)\\s+${escapeRegExp(variableName)}\\s*=\\s*"([^"]+)"`, "i"));
-    if (variableMatch) {
-      return Buffer.from(variableMatch[1], "base64").toString("utf8");
+
+  const directQuotedMatch = html.match(/src\s*:\s*['"]([^'"]+\.m3u8[^'"]*)['"]/i);
+  if (directQuotedMatch) {
+    return directQuotedMatch[1];
+  }
+
+  const atobLiteralMatch = html.match(/src\s*:\s*atob\(\s*['"]([^'"]+)['"]\s*\)/i);
+  if (atobLiteralMatch) {
+    try {
+      const decoded = Buffer.from(atobLiteralMatch[1], "base64").toString("utf8").trim();
+      if (isHlsUrl(decoded) || /^https?:\/\//i.test(decoded)) {
+        return decoded;
+      }
+    } catch {
+      // Keep probing additional patterns below when a base64 payload is malformed.
     }
   }
 
-  const directMatch = html.match(/sources:\s*\[\{src:"([^"]+\.m3u8[^"]*)"/i);
-  return directMatch ? directMatch[1] : null;
+  const atobVariableMatch = html.match(/src\s*:\s*atob\(\s*([A-Za-z_$][\w$]*)\s*\)/i);
+  if (atobVariableMatch) {
+    const variableName = atobVariableMatch[1].trim();
+    const variableMatch = html.match(new RegExp(`(?:const|let|var)\\s+${escapeRegExp(variableName)}\\s*=\\s*['\"]([^'\"]+)['\"]`, "i"));
+    if (variableMatch) {
+      try {
+        const decoded = Buffer.from(variableMatch[1], "base64").toString("utf8").trim();
+        if (isHlsUrl(decoded) || /^https?:\/\//i.test(decoded)) {
+          return decoded;
+        }
+      } catch {
+        // Keep probing additional patterns below when a base64 payload is malformed.
+      }
+    }
+  }
+
+  const fallbackUrlMatch = html.match(/https?:\/\/[^\s"']+\.m3u8[^\s"']*/i);
+  return fallbackUrlMatch ? fallbackUrlMatch[0] : null;
 }
 
 function buildSenateOfficialSource(
@@ -963,6 +1109,43 @@ function buildSenateOfficialSource(
   };
 }
 
+function shouldProbeSenateLiveSource(session: CommitteeIntelSessionRow): boolean {
+  const hearingDate = toDate(session.hearingDate);
+  if (!hearingDate) return false;
+
+  const now = Date.now();
+  const probeWindowStartMs = hearingDate.getTime() - 10 * 60 * 60 * 1000;
+  const probeWindowEndMs = hearingDate.getTime() + 24 * 60 * 60 * 1000;
+  return now >= probeWindowStartMs && now <= probeWindowEndMs;
+}
+
+async function resolveBestPlayableSenateCandidate(
+  session: CommitteeIntelSessionRow,
+  candidates: SenateArchiveEventRecord[],
+  options: { minScore: number; maxAttempts: number },
+): Promise<CommitteeIntelOfficialSource | null> {
+  const ranked = candidates
+    .map((candidate) => ({
+      candidate,
+      score: scoreOfficialSourceCandidate(session, candidate.title, candidate.dateKey),
+    }))
+    .filter((candidate) => candidate.score >= options.minScore)
+    .sort((left, right) => right.score - left.score || left.candidate.officialPageUrl.localeCompare(right.candidate.officialPageUrl));
+
+  for (const { candidate } of ranked.slice(0, Math.max(options.maxAttempts, 1))) {
+    try {
+      const videoStreamUrl = await decodeSenatePlayerStreamUrl(candidate.officialPageUrl);
+      if (videoStreamUrl) {
+        return buildSenateOfficialSource(candidate, videoStreamUrl);
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
 async function resolveSenateOfficialSource(session: CommitteeIntelSessionRow): Promise<CommitteeIntelOfficialSource | null> {
   const explicitPlayerUrl = extractSenateVideoPlayerUrl(session.videoUrl) ?? extractSenateVideoPlayerUrl(session.transcriptSourceUrl);
   if (explicitPlayerUrl) {
@@ -978,38 +1161,31 @@ async function resolveSenateOfficialSource(session: CommitteeIntelSessionRow): P
 
   const { sessionNumber } = resolveTexasLegislativeSessionInfo(session);
   const archiveHtml = await fetchTextResponse(`https://senate.texas.gov/av-archive.php?sess=${sessionNumber}&lang=en`);
-  const archiveCandidates = parseSenateArchiveEvents(archiveHtml)
-    .map((candidate) => ({
-      candidate,
-      score: scoreOfficialSourceCandidate(session, candidate.title, candidate.dateKey),
-    }))
-    .filter((candidate) => candidate.score > 0)
-    .sort((left, right) => right.score - left.score || left.candidate.officialPageUrl.localeCompare(right.candidate.officialPageUrl));
-
-  const bestArchive = archiveCandidates[0];
-  if (bestArchive && bestArchive.score >= 110) {
-    const videoStreamUrl = await decodeSenatePlayerStreamUrl(bestArchive.candidate.officialPageUrl);
-    if (videoStreamUrl) {
-      return buildSenateOfficialSource(bestArchive.candidate, videoStreamUrl);
-    }
+  const archiveCandidates = parseSenateArchiveEvents(archiveHtml);
+  const archiveSource = await resolveBestPlayableSenateCandidate(session, archiveCandidates, {
+    minScore: 70,
+    maxAttempts: 6,
+  });
+  if (archiveSource) {
+    return archiveSource;
   }
 
-  const hearingDateKey = formatTexasDateKey(session.hearingDate);
-  const todayKey = formatTexasDateKey(new Date());
-  if (!hearingDateKey || hearingDateKey !== todayKey) {
+  if (!shouldProbeSenateLiveSource(session)) {
     return null;
   }
 
-  const liveHtml = await fetchTextResponse("https://senate.texas.gov/av-live.php");
-  const liveCandidates = parseSenateArchiveEvents(liveHtml)
-    .map((candidate) => ({ candidate, score: scoreCommitteeMatch(session.committee, candidate.title) }))
-    .filter((candidate) => candidate.score >= 60)
-    .sort((left, right) => right.score - left.score || left.candidate.officialPageUrl.localeCompare(right.candidate.officialPageUrl));
+  const liveResponses = await Promise.allSettled([
+    fetchTextResponse("https://senate.texas.gov/av-live.php"),
+    fetchTextResponse("https://senate.texas.gov/av-live.php?lang=en"),
+  ]);
+  const liveCandidates = liveResponses
+    .filter((response): response is PromiseFulfilledResult<string> => response.status === "fulfilled")
+    .flatMap((response) => parseSenateArchiveEvents(response.value));
 
-  const bestLive = liveCandidates[0];
-  if (!bestLive) return null;
-  const liveStreamUrl = await decodeSenatePlayerStreamUrl(bestLive.candidate.officialPageUrl);
-  return liveStreamUrl ? buildSenateOfficialSource(bestLive.candidate, liveStreamUrl) : null;
+  return resolveBestPlayableSenateCandidate(session, liveCandidates, {
+    minScore: 55,
+    maxAttempts: 8,
+  });
 }
 
 async function resolveOfficialCommitteeSource(session: CommitteeIntelSessionRow): Promise<CommitteeIntelOfficialSource | null> {
@@ -1130,6 +1306,23 @@ function isRetryableOfficialSourceError(
   }
 
   return false;
+}
+
+function classifyOfficialSourceWaitReason(message: string): string {
+  if (/No official .* committee source is available .* yet/i.test(message)) {
+    return "source_not_published";
+  }
+
+  if (/Official source resolution succeeded .* but no transcript or video stream is available yet/i.test(message)) {
+    return "media_not_live";
+  }
+
+  const statusMatch = message.match(/Transcript feed request failed with status (\d{3})/i);
+  if (statusMatch) {
+    return `feed_http_${statusMatch[1]}`;
+  }
+
+  return "official_source_pending";
 }
 
 function parseCursorSecond(value: string | null | undefined): number {
@@ -1265,7 +1458,8 @@ async function buildOfficialTranscriptEntries(
     throw new Error(`Official source for ${session.committee} does not expose a playable video stream`);
   }
 
-  const clipStartSecond = parseCursorSecond(session.lastAutoIngestCursor);
+  const priorCursorSecond = parseCursorSecond(session.lastAutoIngestCursor);
+  const clipStartSecond = Math.max(0, priorCursorSecond - OFFICIAL_TRANSCRIPTION_OVERLAP_SECONDS);
   const extractedAudio = await extractAudioClipFromStream(
     officialSource.videoStreamUrl,
     clipStartSecond,
@@ -1313,9 +1507,11 @@ async function buildOfficialTranscriptEntries(
         })();
 
     const lastEntry = entries.at(-1) ?? null;
-    const cursor = lastEntry
-      ? String(lastEntry.endedAtSecond ?? lastEntry.startedAtSecond ?? clipStartSecond)
-      : null;
+    const lastEntryCursorSecond = lastEntry
+      ? (lastEntry.endedAtSecond ?? lastEntry.startedAtSecond ?? clipStartSecond)
+      : clipStartSecond;
+    const minimumProgressSecond = clipStartSecond + Math.max(30, OFFICIAL_TRANSCRIPTION_CLIP_SECONDS - OFFICIAL_TRANSCRIPTION_OVERLAP_SECONDS);
+    const cursor = String(Math.max(lastEntryCursorSecond, minimumProgressSecond, priorCursorSecond));
 
     return { entries, cursor };
   } finally {
@@ -1424,6 +1620,36 @@ function toDate(value: string | Date | null | undefined): Date | null {
   if (!value) return null;
   const date = value instanceof Date ? value : new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getNextAutoIngestWindow(session: CommitteeIntelSessionRow): {
+  nextEligibleAutoIngestAt: string | null;
+  nextEligibleAutoIngestInSeconds: number | null;
+} {
+  if (!session.autoIngestEnabled) {
+    return {
+      nextEligibleAutoIngestAt: null,
+      nextEligibleAutoIngestInSeconds: null,
+    };
+  }
+
+  const now = Date.now();
+  const intervalMs = Math.max(session.autoIngestIntervalSeconds, 30) * 1000;
+  const lastIngestedAt = toDate(session.lastAutoIngestedAt);
+
+  if (!lastIngestedAt) {
+    return {
+      nextEligibleAutoIngestAt: new Date(now).toISOString(),
+      nextEligibleAutoIngestInSeconds: 0,
+    };
+  }
+
+  const nextEligibleMs = lastIngestedAt.getTime() + intervalMs;
+  const remainingMs = Math.max(0, nextEligibleMs - now);
+  return {
+    nextEligibleAutoIngestAt: new Date(nextEligibleMs).toISOString(),
+    nextEligibleAutoIngestInSeconds: Math.ceil(remainingMs / 1000),
+  };
 }
 
 function formatTimestampLabel(seconds: number | null, capturedAt: Date | string | null): string {
@@ -2652,6 +2878,8 @@ export async function addCommitteeIntelSegment(
 export async function syncCommitteeIntelTranscriptFeed(
   sessionId: number,
 ): Promise<{ detail: CommitteeIntelSessionDetail; sync: CommitteeIntelTranscriptSyncResult }> {
+  const attemptStartedAt = new Date();
+  const attemptedAt = attemptStartedAt.toISOString();
   const core = await loadSessionCore(sessionId);
   if (!core) {
     throw new Error(`Committee intelligence session ${sessionId} not found`);
@@ -2738,6 +2966,10 @@ export async function syncCommitteeIntelTranscriptFeed(
       .where(eq(committeeIntelSessions.id, sessionId));
 
     const detail = await refreshCommitteeIntelSession(sessionId);
+    const completedAtDate = new Date();
+    const completedAt = completedAtDate.toISOString();
+    const durationMs = completedAtDate.getTime() - attemptStartedAt.getTime();
+    const nextWindow = getNextAutoIngestWindow(detail.session);
     return {
       detail,
       sync: {
@@ -2754,10 +2986,18 @@ export async function syncCommitteeIntelTranscriptFeed(
         duplicateSegments: upsertResult.duplicateSegments,
         cursor,
         status: detail.session.autoIngestStatus,
+        outcome: "synced",
+        retryable: false,
+        waitReason: null,
+        attemptedAt,
+        completedAt,
+        durationMs,
+        nextEligibleAutoIngestAt: nextWindow.nextEligibleAutoIngestAt,
+        nextEligibleAutoIngestInSeconds: nextWindow.nextEligibleAutoIngestInSeconds,
       },
     };
   } catch (error: any) {
-    const message = error?.message ?? String(error);
+    const message = safeErrorMessage(error, "Transcript synchronization failed");
 
     if (isRetryableOfficialSourceError(core.session, message)) {
       const fallbackSourceUrl = resolveTranscriptSourceUrl(core.session);
@@ -2779,6 +3019,10 @@ export async function syncCommitteeIntelTranscriptFeed(
         .where(eq(committeeIntelSessions.id, sessionId));
 
       const detail = await refreshCommitteeIntelSession(sessionId);
+      const completedAtDate = new Date();
+      const completedAt = completedAtDate.toISOString();
+      const durationMs = completedAtDate.getTime() - attemptStartedAt.getTime();
+      const nextWindow = getNextAutoIngestWindow(detail.session);
       return {
         detail,
         sync: {
@@ -2795,6 +3039,14 @@ export async function syncCommitteeIntelTranscriptFeed(
           duplicateSegments: 0,
           cursor: core.session.lastAutoIngestCursor ?? null,
           status: detail.session.autoIngestStatus,
+          outcome: "waiting_source",
+          retryable: true,
+          waitReason: classifyOfficialSourceWaitReason(message),
+          attemptedAt,
+          completedAt,
+          durationMs,
+          nextEligibleAutoIngestAt: nextWindow.nextEligibleAutoIngestAt,
+          nextEligibleAutoIngestInSeconds: nextWindow.nextEligibleAutoIngestInSeconds,
           error: message,
         },
       };
@@ -2813,6 +3065,7 @@ export async function syncCommitteeIntelTranscriptFeed(
 }
 
 export async function syncCommitteeIntelAutoIngestSessions(): Promise<Record<string, unknown>> {
+  const startedAtDate = new Date();
   const rows = await policyIntelDb
     .select()
     .from(committeeIntelSessions)
@@ -2821,8 +3074,12 @@ export async function syncCommitteeIntelAutoIngestSessions(): Promise<Record<str
 
   let sessionsSynced = 0;
   let sessionsWaiting = 0;
+  let sessionsErrored = 0;
+  let sessionsWithChanges = 0;
   let ingestedSegments = 0;
+  let updatedSegments = 0;
   let sessionsSkipped = 0;
+  const waitReasonCounts: Record<string, number> = {};
   const errors: string[] = [];
 
   for (const session of rows) {
@@ -2840,24 +3097,40 @@ export async function syncCommitteeIntelAutoIngestSessions(): Promise<Record<str
 
     try {
       const result = await syncCommitteeIntelTranscriptFeed(session.id);
-      if (result.sync.error) {
+      if (result.sync.outcome === "waiting_source") {
         sessionsWaiting += 1;
+        const waitReason = result.sync.waitReason ?? "unknown";
+        waitReasonCounts[waitReason] = (waitReasonCounts[waitReason] ?? 0) + 1;
         continue;
       }
 
       sessionsSynced += 1;
       ingestedSegments += result.sync.ingestedSegments;
+      updatedSegments += result.sync.updatedSegments;
+      if (result.sync.ingestedSegments > 0 || result.sync.updatedSegments > 0) {
+        sessionsWithChanges += 1;
+      }
     } catch (error: any) {
-      errors.push(`session ${session.id}: ${error?.message ?? String(error)}`);
+      sessionsErrored += 1;
+      errors.push(`session ${session.id}: ${safeErrorMessage(error, "sync failed")}`);
     }
   }
 
+  const completedAtDate = new Date();
+
   return {
+    startedAt: startedAtDate.toISOString(),
+    completedAt: completedAtDate.toISOString(),
+    durationMs: completedAtDate.getTime() - startedAtDate.getTime(),
     sessionsChecked: rows.length,
     sessionsSynced,
     sessionsWaiting,
+    sessionsErrored,
+    sessionsWithChanges,
     sessionsSkipped,
     ingestedSegments,
+    updatedSegments,
+    waitReasonCounts,
     errors: errors.length,
     errorMessages: errors.slice(0, 10),
   };

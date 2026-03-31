@@ -1,7 +1,9 @@
-FROM node:22-alpine3.23
+FROM alpine:3.23
 
 RUN apk upgrade --no-cache \
     && apk add --no-cache \
+    nodejs \
+    npm \
     ca-certificates \
     ffmpeg \
     postgresql-client

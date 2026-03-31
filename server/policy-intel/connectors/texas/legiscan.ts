@@ -259,6 +259,19 @@ function normalizeStatus(status: string | number): string {
   return `status_${status}`;
 }
 
+function parseLegiscanDate(value: string | null | undefined): Date | null {
+  const cleaned = value?.trim();
+  if (!cleaned) return null;
+
+  // Accept the common LegiScan date shapes and ignore malformed placeholders.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(cleaned) && Number.isNaN(Date.parse(cleaned))) {
+    return null;
+  }
+
+  const parsed = new Date(cleaned);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 export function normaliseMasterListEntryToSourceDocument(
   entry: MasterListEntry,
   sessionId: number,
@@ -286,6 +299,8 @@ export function normaliseMasterListEntryToSourceDocument(
     "legiscan_masterlist",
   ];
 
+  const publishedAt = parseLegiscanDate(entry.last_action_date) ?? parseLegiscanDate(entry.status_date);
+
   return {
     sourceType: "texas_legislation",
     publisher: "LegiScan / Texas Legislature",
@@ -293,7 +308,7 @@ export function normaliseMasterListEntryToSourceDocument(
     externalId: `legiscan:${entry.bill_id}`,
     title: `${entry.number} — ${entry.title}`.slice(0, 500),
     summary: (entry.description || lastAction || entry.title).slice(0, 1000) || null,
-    publishedAt: entry.last_action_date ? new Date(entry.last_action_date) : entry.status_date ? new Date(entry.status_date) : null,
+    publishedAt,
     normalizedText,
     rawPayload: {
       legiscanBillId: entry.bill_id,

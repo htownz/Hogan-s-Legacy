@@ -89,12 +89,13 @@ function SystemInfoSection() {
   async function handleCheck() {
     try {
       setLoading(true);
-      const [health, stats, scheduler] = await Promise.all([
+      const [health, stats, scheduler, environment] = await Promise.all([
         api.health(),
         api.getDashboardStats(),
         api.getSchedulerStatus(),
+        api.getEnvironmentStatus(),
       ]);
-      setInfo({ ...health, ...stats, scheduler });
+      setInfo({ ...health, ...stats, scheduler, environment });
     } catch (e: unknown) {
       window.alert("Error: " + (e instanceof Error ? e.message : String(e)));
     } finally {
@@ -117,13 +118,25 @@ function SystemInfoSection() {
             "Total Documents": Number((info as any).totalDocuments ?? 0).toLocaleString(),
             "Active Watchlists": String((info as any).activeWatchlists ?? 0),
             "Active Matters": String((info as any).activeMatters ?? 0),
+            "Env Configured": `${Number((info as any).environment?.counts?.configured ?? 0)} / ${Number((info as any).environment?.counts?.total ?? 0)}`,
+            "Missing Required Env": String(Number((info as any).environment?.counts?.missingRequired ?? 0)),
           }} />
           {(info as any).scheduler && (
             <div style={{ marginTop: 12 }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: "#555", marginBottom: 6 }}>Scheduler Jobs</div>
               {((info as any).scheduler.jobs ?? []).map((j: any) => (
                 <div key={j.name} style={{ fontSize: 12, color: "#666", padding: "2px 0" }}>
-                  <strong>{j.name}</strong>: {j.cron} · last: {j.lastRunAt ? new Date(j.lastRunAt).toLocaleString() : "never"}
+                  <strong>{j.name}</strong>: {j.cronExpression} · last: {j.lastRun?.finishedAt ? new Date(j.lastRun.finishedAt).toLocaleString() : "never"} · failures: {j.consecutiveFailures ?? 0}
+                </div>
+              ))}
+            </div>
+          )}
+          {(info as any).environment?.variables?.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#555", marginBottom: 6 }}>Environment Configuration</div>
+              {((info as any).environment.variables ?? []).map((entry: any) => (
+                <div key={entry.key} style={{ fontSize: 12, color: entry.configured ? "#2e7d32" : entry.required ? "#c62828" : "#666", padding: "2px 0" }}>
+                  <strong>{entry.key}</strong>: {entry.configured ? "configured" : entry.required ? "missing (required)" : "not configured"}
                 </div>
               ))}
             </div>

@@ -4153,7 +4153,7 @@ async function processDocumentAlerts(doc, workspaceId, activeWatchlists) {
       doc.summary,
       match.reasons,
       {
-        docDate: doc.createdAt ? new Date(doc.createdAt) : null,
+        docDate: doc.publishedAt ? new Date(doc.publishedAt) : doc.fetchedAt ? new Date(doc.fetchedAt) : null,
         rawPayload: doc.rawPayload
       }
     );
@@ -8639,7 +8639,7 @@ function formatTexasDateKey(value) {
 }
 function parseUsDateToKey(value) {
   if (!value) return null;
-  const match = value.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  const match = value.trim().match(/\b(\d{1,2})\/(\d{1,2})\/(\d{2,4})\b/);
   if (!match) return null;
   const month = Number(match[1]);
   const day = Number(match[2]);
@@ -8798,19 +8798,29 @@ async function resolveHouseOfficialSource(session) {
 function parseSenateArchiveEvents(html) {
   const $ = cheerio6.load(html);
   const results = [];
-  $("tr").each((_index, element) => {
-    const link = $(element).find('a[href*="videoplayer.php?vid="]').attr("href");
+  const seen = /* @__PURE__ */ new Set();
+  $('a[href*="videoplayer.php?vid="]').each((_index, element) => {
+    const link = $(element).attr("href");
     if (!link) return;
     const url = new URL(link, "https://senate.texas.gov/");
-    const cells = $(element).find("td");
-    const firstCellText = cells.first().text().trim();
-    const titleCell = $(element).find("td.av-prog").first();
-    const title = titleCell.text().replace(/\s+/g, " ").trim() || $(element).text().replace(/\s+/g, " ").trim();
+    const officialPageUrl = url.toString();
+    if (seen.has(officialPageUrl)) return;
+    seen.add(officialPageUrl);
+    const row = $(element).closest("tr");
+    const rowCells = row.find("td");
+    const rowText = row.text().replace(/\s+/g, " ").trim();
+    const rowDateText = rowCells.first().text().trim();
+    const rowTitle = row.find("td.av-prog").first().text().replace(/\s+/g, " ").trim();
+    const container = row.length > 0 ? row : $(element).closest("li,article,section,div,p");
+    const containerText = container.text().replace(/\s+/g, " ").trim();
+    const linkText = $(element).text().replace(/\s+/g, " ").trim();
+    const dateKey = parseUsDateToKey(rowDateText) ?? parseUsDateToKey(rowText) ?? parseUsDateToKey(containerText);
+    const title = rowTitle || linkText || containerText || rowText || "Senate committee hearing";
     results.push({
-      dateKey: parseUsDateToKey(firstCellText),
+      dateKey,
       title,
-      officialPageUrl: url.toString(),
-      sourceId: url.searchParams.get("vid") ?? hashValue(url.toString())
+      officialPageUrl,
+      sourceId: url.searchParams.get("vid") ?? hashValue(officialPageUrl)
     });
   });
   return results;
@@ -8820,16 +8830,32 @@ function escapeRegExp(value) {
 }
 async function decodeSenatePlayerStreamUrl(officialPageUrl) {
   const html = await fetchTextResponse(officialPageUrl);
-  const atobMatch = html.match(/src:\s*atob\(([^)]+)\)/i);
-  if (atobMatch) {
-    const variableName = atobMatch[1].trim();
-    const variableMatch = html.match(new RegExp(`(?:const|let|var)\\s+${escapeRegExp(variableName)}\\s*=\\s*"([^"]+)"`, "i"));
-    if (variableMatch) {
-      return Buffer.from(variableMatch[1], "base64").toString("utf8");
+  const directQuotedMatch = html.match(/src\s*:\s*['"]([^'"]+\.m3u8[^'"]*)['"]/i);
+  if (directQuotedMatch) {
+    return directQuotedMatch[1];
+  }
+  const atobLiteralMatch = html.match(/src\s*:\s*atob\(\s*['"]([^'"]+)['"]\s*\)/i);
+  if (atobLiteralMatch) {
+    try {
+      return Buffer.from(atobLiteralMatch[1], "base64").toString("utf8");
+    } catch {
+      return null;
     }
   }
-  const directMatch = html.match(/sources:\s*\[\{src:"([^"]+\.m3u8[^"]*)"/i);
-  return directMatch ? directMatch[1] : null;
+  const atobVariableMatch = html.match(/src\s*:\s*atob\(\s*([A-Za-z_$][\w$]*)\s*\)/i);
+  if (atobVariableMatch) {
+    const variableName = atobVariableMatch[1].trim();
+    const variableMatch = html.match(new RegExp(`(?:const|let|var)\\s+${escapeRegExp(variableName)}\\s*=\\s*['"]([^'"]+)['"]`, "i"));
+    if (variableMatch) {
+      try {
+        return Buffer.from(variableMatch[1], "base64").toString("utf8");
+      } catch {
+        return null;
+      }
+    }
+  }
+  const fallbackUrlMatch = html.match(/https?:\/\/[^\s"']+\.m3u8[^\s"']*/i);
+  return fallbackUrlMatch ? fallbackUrlMatch[0] : null;
 }
 function buildSenateOfficialSource(event, videoStreamUrl) {
   return {
@@ -8843,6 +8869,31 @@ function buildSenateOfficialSource(event, videoStreamUrl) {
     eventDateKey: event.dateKey,
     metadata: {}
   };
+}
+function shouldProbeSenateLiveSource(session) {
+  const hearingDate = toDate(session.hearingDate);
+  if (!hearingDate) return false;
+  const now = Date.now();
+  const probeWindowStartMs = hearingDate.getTime() - 10 * 60 * 60 * 1e3;
+  const probeWindowEndMs = hearingDate.getTime() + 24 * 60 * 60 * 1e3;
+  return now >= probeWindowStartMs && now <= probeWindowEndMs;
+}
+async function resolveBestPlayableSenateCandidate(session, candidates, options) {
+  const ranked = candidates.map((candidate) => ({
+    candidate,
+    score: scoreOfficialSourceCandidate(session, candidate.title, candidate.dateKey)
+  })).filter((candidate) => candidate.score >= options.minScore).sort((left, right) => right.score - left.score || left.candidate.officialPageUrl.localeCompare(right.candidate.officialPageUrl));
+  for (const { candidate } of ranked.slice(0, Math.max(options.maxAttempts, 1))) {
+    try {
+      const videoStreamUrl = await decodeSenatePlayerStreamUrl(candidate.officialPageUrl);
+      if (videoStreamUrl) {
+        return buildSenateOfficialSource(candidate, videoStreamUrl);
+      }
+    } catch {
+      continue;
+    }
+  }
+  return null;
 }
 async function resolveSenateOfficialSource(session) {
   const explicitPlayerUrl = extractSenateVideoPlayerUrl(session.videoUrl) ?? extractSenateVideoPlayerUrl(session.transcriptSourceUrl);
@@ -8858,28 +8909,26 @@ async function resolveSenateOfficialSource(session) {
   }
   const { sessionNumber } = resolveTexasLegislativeSessionInfo(session);
   const archiveHtml = await fetchTextResponse(`https://senate.texas.gov/av-archive.php?sess=${sessionNumber}&lang=en`);
-  const archiveCandidates = parseSenateArchiveEvents(archiveHtml).map((candidate) => ({
-    candidate,
-    score: scoreOfficialSourceCandidate(session, candidate.title, candidate.dateKey)
-  })).filter((candidate) => candidate.score > 0).sort((left, right) => right.score - left.score || left.candidate.officialPageUrl.localeCompare(right.candidate.officialPageUrl));
-  const bestArchive = archiveCandidates[0];
-  if (bestArchive && bestArchive.score >= 110) {
-    const videoStreamUrl = await decodeSenatePlayerStreamUrl(bestArchive.candidate.officialPageUrl);
-    if (videoStreamUrl) {
-      return buildSenateOfficialSource(bestArchive.candidate, videoStreamUrl);
-    }
+  const archiveCandidates = parseSenateArchiveEvents(archiveHtml);
+  const archiveSource = await resolveBestPlayableSenateCandidate(session, archiveCandidates, {
+    minScore: 70,
+    maxAttempts: 6
+  });
+  if (archiveSource) {
+    return archiveSource;
   }
-  const hearingDateKey = formatTexasDateKey(session.hearingDate);
-  const todayKey = formatTexasDateKey(/* @__PURE__ */ new Date());
-  if (!hearingDateKey || hearingDateKey !== todayKey) {
+  if (!shouldProbeSenateLiveSource(session)) {
     return null;
   }
-  const liveHtml = await fetchTextResponse("https://senate.texas.gov/av-live.php");
-  const liveCandidates = parseSenateArchiveEvents(liveHtml).map((candidate) => ({ candidate, score: scoreCommitteeMatch(session.committee, candidate.title) })).filter((candidate) => candidate.score >= 60).sort((left, right) => right.score - left.score || left.candidate.officialPageUrl.localeCompare(right.candidate.officialPageUrl));
-  const bestLive = liveCandidates[0];
-  if (!bestLive) return null;
-  const liveStreamUrl = await decodeSenatePlayerStreamUrl(bestLive.candidate.officialPageUrl);
-  return liveStreamUrl ? buildSenateOfficialSource(bestLive.candidate, liveStreamUrl) : null;
+  const liveResponses = await Promise.allSettled([
+    fetchTextResponse("https://senate.texas.gov/av-live.php"),
+    fetchTextResponse("https://senate.texas.gov/av-live.php?lang=en")
+  ]);
+  const liveCandidates = liveResponses.filter((response) => response.status === "fulfilled").flatMap((response) => parseSenateArchiveEvents(response.value));
+  return resolveBestPlayableSenateCandidate(session, liveCandidates, {
+    minScore: 55,
+    maxAttempts: 8
+  });
 }
 async function resolveOfficialCommitteeSource(session) {
   const explicitVideoUrl = cleanUrl(session.videoUrl) ?? cleanUrl(session.transcriptSourceUrl);
@@ -11413,9 +11462,9 @@ function createPolicyIntelRouter() {
         `)
       ]);
       res.json({
-        scoreDistribution: scoreDistRaw.rows ?? scoreDistRaw,
-        sourceTypeBreakdown: sourceBreakdownRaw.rows ?? sourceBreakdownRaw,
-        dailyAlertVolume: dailyVolumeRaw.rows ?? dailyVolumeRaw
+        scoreDistribution: scoreDistRaw,
+        sourceTypeBreakdown: sourceBreakdownRaw,
+        dailyAlertVolume: dailyVolumeRaw
       });
     } catch (err) {
       next(err);

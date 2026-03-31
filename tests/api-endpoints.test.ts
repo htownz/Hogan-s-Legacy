@@ -81,9 +81,10 @@ describe("Watchlists", () => {
   it("GET /api/intel/watchlists returns array", async () => {
     const res = await api.get("/api/intel/watchlists");
     expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
-    if (res.body.length > 0) {
-      watchlistId = res.body[0].id;
+    const list = Array.isArray(res.body) ? res.body : (res.body?.data ?? []);
+    expect(Array.isArray(list)).toBe(true);
+    if (list.length > 0) {
+      watchlistId = list[0].id;
     }
   });
 
@@ -281,8 +282,9 @@ describe("Issue Rooms", () => {
   it("GET /api/intel/issue-rooms returns array", async () => {
     const res = await api.get("/api/intel/issue-rooms");
     expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
-    if (res.body.length > 0) issueRoomId = res.body[0].id;
+    const list = Array.isArray(res.body) ? res.body : (res.body?.data ?? []);
+    expect(Array.isArray(list)).toBe(true);
+    if (list.length > 0) issueRoomId = list[0].id;
   });
 
   it("POST /api/intel/issue-rooms creates room", async () => {

@@ -17,6 +17,7 @@ import { metrics, timeSeries } from "./metrics";
 import { recordFeedback, getChampionStatus, getChampionHistory, runRetraining, bootstrapFeedback } from "./engine/champion";
 import type { FeedbackOutcome } from "./engine/champion";
 import { notifySlack } from "./notify";
+import { getEnvironmentStatusReport } from "./env-status";
 import { generateClientAlert, generateWeeklyReport, generateHearingMemo } from "./services/deliverable-service";
 import { runSwarm } from "./engine/intelligence/swarm-coordinator";
 import { analyzeVelocity } from "./engine/intelligence/velocity-analyzer";
@@ -1897,6 +1898,10 @@ export function createPolicyIntelRouter() {
 
   router.get("/scheduler/history", (_req, res) => {
     res.json(getJobHistory());
+  });
+
+  router.get("/ops/environment", (_req, res) => {
+    res.json(getEnvironmentStatusReport());
   });
 
   router.post("/scheduler/trigger/:jobName", async (req, res, next) => {

@@ -153,6 +153,7 @@ export const api = {
   getSchedulerStatus: () => apiFetch<SchedulerStatus>("/scheduler/status"),
   getSchedulerHistory: () => apiFetch<JobRunRecord[]>("/scheduler/history"),
   triggerScheduledJob: (jobName: string) => apiFetch<JobRunRecord>(`/scheduler/trigger/${jobName}`, { method: "POST" }),
+  getEnvironmentStatus: () => apiFetch<EnvironmentStatusReport>("/ops/environment"),
 
   // Brief generation
   generateBrief: (body: {
@@ -574,10 +575,35 @@ export interface SchedulerStatus {
     cronExpression: string;
     enabled: boolean;
     running: boolean;
+    runningSince: string | null;
     lastRun: JobRunRecord | null;
+    runCounts: {
+      total: number;
+      success: number;
+      error: number;
+      skippedWhileRunning: number;
+    };
+    consecutiveFailures: number;
+    lastSuccessAt: string | null;
+    lastErrorAt: string | null;
     nextRun: string | null;
   }>;
   recentHistory: JobRunRecord[];
+}
+
+export interface EnvironmentStatusReport {
+  checkedAt: string;
+  counts: {
+    total: number;
+    configured: number;
+    missingRequired: number;
+  };
+  variables: Array<{
+    key: string;
+    configured: boolean;
+    required: boolean;
+    description: string;
+  }>;
 }
 
 export interface BriefGenerationResult {
@@ -994,6 +1020,14 @@ export interface CommitteeIntelTranscriptSyncResult {
   duplicateSegments: number;
   cursor: string | null;
   status: string;
+  outcome: "synced" | "waiting_source" | "failed";
+  retryable: boolean;
+  waitReason: string | null;
+  attemptedAt: string;
+  completedAt: string;
+  durationMs: number;
+  nextEligibleAutoIngestAt: string | null;
+  nextEligibleAutoIngestInSeconds: number | null;
   error?: string;
 }
 

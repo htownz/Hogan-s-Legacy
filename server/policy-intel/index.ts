@@ -2,15 +2,16 @@ import type { Server } from "node:http";
 import { createPolicyIntelApp } from "./app";
 import { ensureDatabaseConnection, queryClient } from "./db";
 import { startScheduler, stopScheduler } from "./scheduler";
+import { safeErrorMessage } from "./security";
 
 // ── Global crash guards ────────────────────────────────────────────────────
 // Prevent intermittent Drizzle TypeError (orderSelectedFields) from killing
 // the process.  Log and continue so Docker doesn't enter a restart loop.
 process.on("uncaughtException", (err) => {
-  console.error("[policy-intel] uncaughtException:", err);
+  console.error(`[policy-intel] uncaughtException: ${safeErrorMessage(err)}`);
 });
 process.on("unhandledRejection", (reason) => {
-  console.error("[policy-intel] unhandledRejection:", reason);
+  console.error(`[policy-intel] unhandledRejection: ${safeErrorMessage(reason)}`);
 });
 
 const port = Number(process.env.POLICY_INTEL_PORT || 5050);
@@ -70,6 +71,6 @@ async function start() {
 }
 
 void start().catch((error) => {
-  console.error("[policy-intel] startup failed:", error);
+  console.error(`[policy-intel] startup failed: ${safeErrorMessage(error)}`);
   process.exit(1);
 });
