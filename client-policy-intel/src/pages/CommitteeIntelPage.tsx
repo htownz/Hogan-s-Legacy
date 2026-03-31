@@ -152,6 +152,7 @@ export function CommitteeIntelPage({ hearingId, sessionId }: CommitteeIntelPageP
   const [detailError, setDetailError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [savingSession, setSavingSession] = useState(false);
+  const [deletingSession, setDeletingSession] = useState(false);
   const [addingSegment, setAddingSegment] = useState(false);
   const [syncingFeed, setSyncingFeed] = useState(false);
   const [generatingBrief, setGeneratingBrief] = useState(false);
@@ -369,6 +370,30 @@ export function CommitteeIntelPage({ hearingId, sessionId }: CommitteeIntelPageP
       setActionError(err instanceof Error ? err.message : String(err));
     } finally {
       setSavingSession(false);
+    }
+  }
+
+  async function handleDeleteSession() {
+    if (!sessionDetail) return;
+    const confirmDelete = window.confirm(`Delete monitoring session "${sessionDetail.session.title}"? This removes all synced segments, signals, and recap data for the session.`);
+    if (!confirmDelete) return;
+
+    setDeletingSession(true);
+    setActionError(null);
+    try {
+      await api.deleteCommitteeIntelSession(sessionDetail.session.id);
+      setSelectedSessionId(null);
+      setSessionDetail(null);
+      setBrief(null);
+      setRecap(null);
+      setSyncResult(null);
+      setActionError(null);
+      setSessionRefreshNonce((value) => value + 1);
+      refetchSessions();
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDeletingSession(false);
     }
   }
 
@@ -787,6 +812,11 @@ export function CommitteeIntelPage({ hearingId, sessionId }: CommitteeIntelPageP
                 {primarySession && (
                   <button type="button" onClick={handleSyncFeed} disabled={syncingFeed} style={secondaryButtonStyle}>
                     {syncingFeed ? "Syncing Feed..." : "Sync Feed Now"}
+                  </button>
+                )}
+                {primarySession && (
+                  <button type="button" onClick={handleDeleteSession} disabled={deletingSession} style={destructiveButtonStyle}>
+                    {deletingSession ? "Deleting..." : "Delete Session"}
                   </button>
                 )}
                 {selectedHearing && (
@@ -1355,6 +1385,17 @@ const secondaryLinkStyle: React.CSSProperties = {
   fontSize: 13,
   fontWeight: 700,
   textDecoration: "none",
+};
+
+const destructiveButtonStyle: React.CSSProperties = {
+  border: "1px solid #fecaca",
+  borderRadius: 10,
+  background: "#fef2f2",
+  color: "#991b1b",
+  padding: "10px 14px",
+  fontSize: 13,
+  fontWeight: 700,
+  cursor: "pointer",
 };
 
 const statCardStyle: React.CSSProperties = {

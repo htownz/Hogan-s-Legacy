@@ -267,6 +267,7 @@ export const api = {
     status?: string;
   }) => apiFetch<CommitteeIntelSessionDetail>("/committee-intel/sessions/from-hearing", { method: "POST", body: JSON.stringify(body) }),
   getCommitteeIntelSession: (id: number) => apiFetch<CommitteeIntelSessionDetail>(`/committee-intel/sessions/${id}`),
+  deleteCommitteeIntelSession: (id: number) => apiFetch<{ ok: true; sessionId: number }>(`/committee-intel/sessions/${id}`, { method: "DELETE" }),
   updateCommitteeIntelSession: (id: number, body: {
     title?: string;
     focusTopics?: string[];

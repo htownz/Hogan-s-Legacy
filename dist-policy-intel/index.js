@@ -9381,6 +9381,14 @@ async function createCommitteeIntelSessionFromHearing(request) {
 async function getCommitteeIntelSession(sessionId) {
   return loadSessionDetail(sessionId);
 }
+async function deleteCommitteeIntelSession(sessionId) {
+  const core = await loadSessionCore(sessionId);
+  if (!core) {
+    throw new Error(`Committee intelligence session ${sessionId} not found`);
+  }
+  await policyIntelDb.delete(committeeIntelSessions).where(eq19(committeeIntelSessions.id, sessionId));
+  return { ok: true, sessionId };
+}
 async function updateCommitteeIntelSession(sessionId, patch) {
   const core = await loadSessionCore(sessionId);
   if (!core) {
@@ -12224,6 +12232,16 @@ function createPolicyIntelRouter() {
         status: typeof req.body?.status === "string" ? req.body.status : void 0
       });
       res.json(detail);
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.delete("/committee-intel/sessions/:id", async (req, res, next) => {
+    try {
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
+      const result = await deleteCommitteeIntelSession(id);
+      res.json(result);
     } catch (err) {
       next(err);
     }

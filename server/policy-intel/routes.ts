@@ -32,6 +32,7 @@ import { analyzeInfluenceMaps } from "./engine/intelligence/influence-map";
 import {
   addCommitteeIntelSegment,
   createCommitteeIntelSessionFromHearing,
+  deleteCommitteeIntelSession,
   generateCommitteeIntelPostHearingRecap,
   generateCommitteeIntelFocusedBrief,
   getCommitteeIntelSession,
@@ -2248,6 +2249,18 @@ export function createPolicyIntelRouter() {
       });
 
       res.json(detail);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.delete("/committee-intel/sessions/:id", async (req, res, next) => {
+    try {
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
+
+      const result = await deleteCommitteeIntelSession(id);
+      res.json(result);
     } catch (err: any) {
       next(err);
     }

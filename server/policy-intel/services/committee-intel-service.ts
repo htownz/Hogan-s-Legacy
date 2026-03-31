@@ -1680,6 +1680,21 @@ export async function getCommitteeIntelSession(sessionId: number): Promise<Commi
   return loadSessionDetail(sessionId);
 }
 
+export async function deleteCommitteeIntelSession(
+  sessionId: number,
+): Promise<{ ok: true; sessionId: number }> {
+  const core = await loadSessionCore(sessionId);
+  if (!core) {
+    throw new Error(`Committee intelligence session ${sessionId} not found`);
+  }
+
+  await policyIntelDb
+    .delete(committeeIntelSessions)
+    .where(eq(committeeIntelSessions.id, sessionId));
+
+  return { ok: true, sessionId };
+}
+
 export async function updateCommitteeIntelSession(
   sessionId: number,
   patch: UpdateCommitteeIntelSessionRequest,
