@@ -228,6 +228,76 @@ export const monitoringJobs = pgTable("policy_intel_monitoring_jobs", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const replayRunStatusEnum = pgEnum("policy_intel_replay_run_status", [
+  "planned",
+  "running",
+  "paused",
+  "completed",
+  "failed",
+]);
+
+export const replayChunkStatusEnum = pgEnum("policy_intel_replay_chunk_status", [
+  "pending",
+  "running",
+  "success",
+  "error",
+  "skipped",
+]);
+
+export const replayRuns = pgTable(
+  "policy_intel_replay_runs",
+  {
+    id: serial("id").primaryKey(),
+    source: varchar("source", { length: 64 }).notNull().default("legiscan"),
+    sessionId: integer("session_id").notNull(),
+    mode: varchar("mode", { length: 16 }).notNull().default("full"),
+    orderBy: varchar("order_by", { length: 32 }).notNull().default("bill_id_asc"),
+    chunkSize: integer("chunk_size").notNull().default(250),
+    nextOffset: integer("next_offset").notNull().default(0),
+    totalCandidates: integer("total_candidates"),
+    processedCandidates: integer("processed_candidates").notNull().default(0),
+    status: replayRunStatusEnum("status").notNull().default("planned"),
+    requestedBy: varchar("requested_by", { length: 255 }),
+    optionsJson: jsonb("options_json").$type<Record<string, unknown>>().notNull().default({}),
+    lastError: text("last_error"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    statusCreatedIdx: index("policy_intel_replay_runs_status_created_idx").on(table.status, table.createdAt),
+    sourceSessionIdx: index("policy_intel_replay_runs_source_session_idx").on(table.source, table.sessionId),
+  }),
+);
+
+export const replayChunks = pgTable(
+  "policy_intel_replay_chunks",
+  {
+    id: serial("id").primaryKey(),
+    replayRunId: integer("replay_run_id").notNull().references(() => replayRuns.id, { onDelete: "cascade" }),
+    chunkIndex: integer("chunk_index").notNull(),
+    offset: integer("offset").notNull(),
+    limit: integer("limit").notNull(),
+    status: replayChunkStatusEnum("status").notNull().default("pending"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    fetched: integer("fetched").notNull().default(0),
+    inserted: integer("inserted").notNull().default(0),
+    skipped: integer("skipped").notNull().default(0),
+    alertsCreated: integer("alerts_created").notNull().default(0),
+    fetchErrors: integer("fetch_errors").notNull().default(0),
+    upsertErrors: integer("upsert_errors").notNull().default(0),
+    error: text("error"),
+    resultJson: jsonb("result_json").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    runChunkUnique: uniqueIndex("policy_intel_replay_chunks_run_chunk_idx").on(table.replayRunId, table.chunkIndex),
+    runCreatedIdx: index("policy_intel_replay_chunks_run_created_idx").on(table.replayRunId, table.createdAt),
+  }),
+);
+
 // ── Phase 3: Matters + Activities ───────────────────────────────────────────
 
 export const matters = pgTable("policy_intel_matters", {
@@ -704,6 +774,38 @@ export const forecastSnapshots = pgTable(
   }),
 );
 
+export const billOutcomeEnum = pgEnum("policy_intel_bill_outcome", [
+  "active",
+  "passed",
+  "failed",
+  "stalled",
+  "amended",
+  "unknown",
+]);
+
+/** Outcome-truth snapshots keyed by day and bill to grade probability predictions against real progression. */
+export const billOutcomeSnapshots = pgTable(
+  "policy_intel_bill_outcome_snapshots",
+  {
+    id: serial("id").primaryKey(),
+    snapshotKey: varchar("snapshot_key", { length: 16 }).notNull(),
+    capturedAt: timestamp("captured_at", { withTimezone: true }).defaultNow().notNull(),
+    billId: varchar("bill_id", { length: 64 }).notNull(),
+    stage: varchar("stage", { length: 64 }).notNull().default("unknown"),
+    outcome: billOutcomeEnum("outcome").notNull().default("unknown"),
+    statusText: text("status_text"),
+    sourceDocumentId: integer("source_document_id").references(() => sourceDocuments.id, { onDelete: "set null" }),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    metadataJson: jsonb("metadata_json").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    snapshotBillUnique: uniqueIndex("policy_intel_bill_outcome_snapshot_bill_idx").on(table.snapshotKey, table.billId),
+    snapshotIdx: index("policy_intel_bill_outcome_snapshot_idx").on(table.snapshotKey, table.capturedAt),
+    outcomeIdx: index("policy_intel_bill_outcome_outcome_idx").on(table.outcome),
+  }),
+);
+
 /** Tracks detected anomalies over time so the system can learn false-positive rates */
 export const anomalyHistory = pgTable(
   "policy_intel_anomaly_history",
@@ -763,12 +865,18 @@ export const learningMetrics = pgTable(
 
 export type PolicyIntelForecastSnapshot = typeof forecastSnapshots.$inferSelect;
 export type InsertPolicyIntelForecastSnapshot = typeof forecastSnapshots.$inferInsert;
+export type PolicyIntelBillOutcomeSnapshot = typeof billOutcomeSnapshots.$inferSelect;
+export type InsertPolicyIntelBillOutcomeSnapshot = typeof billOutcomeSnapshots.$inferInsert;
 export type PolicyIntelAnomalyHistory = typeof anomalyHistory.$inferSelect;
 export type InsertPolicyIntelAnomalyHistory = typeof anomalyHistory.$inferInsert;
 export type PolicyIntelVelocitySnapshot = typeof velocitySnapshots.$inferSelect;
 export type InsertPolicyIntelVelocitySnapshot = typeof velocitySnapshots.$inferInsert;
 export type PolicyIntelLearningMetric = typeof learningMetrics.$inferSelect;
 export type InsertPolicyIntelLearningMetric = typeof learningMetrics.$inferInsert;
+export type PolicyIntelReplayRun = typeof replayRuns.$inferSelect;
+export type InsertPolicyIntelReplayRun = typeof replayRuns.$inferInsert;
+export type PolicyIntelReplayChunk = typeof replayChunks.$inferSelect;
+export type InsertPolicyIntelReplayChunk = typeof replayChunks.$inferInsert;
 
 export type PolicyIntelWorkspace = typeof workspaces.$inferSelect;
 export type InsertPolicyIntelWorkspace = typeof workspaces.$inferInsert;

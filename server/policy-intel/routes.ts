@@ -790,6 +790,16 @@ export function createPolicyIntelRouter() {
       const suppressBelow = Math.max(0, Math.min(100, Number(req.body?.suppressBelow) || 20));
       const promoteAbove = Math.max(0, Math.min(100, Number(req.body?.promoteAbove) || 70));
       const dryRun = Boolean(req.body?.dryRun);
+      const approvalToken = typeof req.body?.approvalToken === "string" ? req.body.approvalToken.trim() : "";
+      const requireApproval = process.env.BULK_TRIAGE_REQUIRE_APPROVAL !== "false";
+      const approvalThreshold = Math.max(1, Number(process.env.BULK_TRIAGE_APPROVAL_THRESHOLD || 100));
+      const approvalPhrase = process.env.BULK_TRIAGE_APPROVAL_TOKEN || "APPROVE_BULK_TRIAGE";
+
+      const [pendingCountRow] = await policyIntelDb
+        .select({ count: count() })
+        .from(alerts)
+        .where(eq(alerts.status, "pending_review"));
+      const pendingCount = pendingCountRow?.count ?? 0;
 
       // Count how many would be affected
       const [suppressCountRow] = await policyIntelDb
@@ -809,9 +819,34 @@ export function createPolicyIntelRouter() {
 
       const toSuppress = suppressCountRow?.count ?? 0;
       const toPromote = promoteCountRow?.count ?? 0;
+      const suppressShare = pendingCount > 0 ? toSuppress / pendingCount : 0;
+
+      if (!dryRun && requireApproval && toSuppress >= approvalThreshold) {
+        if (approvalToken !== approvalPhrase) {
+          return res.status(409).json({
+            message: `Bulk triage approval required: rerun with dryRun=true first, then set approvalToken to execute suppression of ${toSuppress} alerts`,
+            requireApproval,
+            approvalThreshold,
+            toSuppress,
+            toPromote,
+            pendingCount,
+            suppressShare,
+          });
+        }
+      }
 
       if (dryRun) {
-        return res.json({ dryRun: true, wouldSuppress: toSuppress, wouldPromote: toPromote, suppressBelow, promoteAbove });
+        return res.json({
+          dryRun: true,
+          wouldSuppress: toSuppress,
+          wouldPromote: toPromote,
+          suppressBelow,
+          promoteAbove,
+          pendingCount,
+          suppressShare,
+          requireApproval,
+          approvalThreshold,
+        });
       }
 
       // Execute triage inside a transaction to prevent race conditions
@@ -844,7 +879,15 @@ export function createPolicyIntelRouter() {
         return { suppressed, promoted };
       });
 
-      res.json({ ...result, suppressBelow, promoteAbove });
+      res.json({
+        ...result,
+        suppressBelow,
+        promoteAbove,
+        pendingCount,
+        suppressShare,
+        requireApproval,
+        approvalThreshold,
+      });
     } catch (err: any) {
       next(err);
     }
@@ -1853,13 +1896,22 @@ export function createPolicyIntelRouter() {
 
   router.post("/jobs/run-legiscan", async (req, res, next) => {
     try {
-      const { mode, sinceDays, limit, sessionId, detailConcurrency } = req.body ?? {};
+      const { mode, sinceDays, limit, offset, orderBy, sessionId, detailConcurrency } = req.body ?? {};
+      const parsedOrderBy = typeof orderBy === "string" ? orderBy.trim() : undefined;
       const result = await runLegiscanJob({
         mode: mode === "full" || mode === "backfill" ? mode : "recent",
-        sinceDays: sinceDays ? Number(sinceDays) : undefined,
-        limit: limit ? Number(limit) : undefined,
-        sessionId: sessionId ? Number(sessionId) : undefined,
-        detailConcurrency: detailConcurrency ? Number(detailConcurrency) : undefined,
+        sinceDays: sinceDays !== undefined ? Number(sinceDays) : undefined,
+        limit: limit !== undefined ? Number(limit) : undefined,
+        offset: offset !== undefined ? Number(offset) : undefined,
+        orderBy:
+          parsedOrderBy === "bill_id_asc"
+          || parsedOrderBy === "bill_id_desc"
+          || parsedOrderBy === "last_action_date_asc"
+          || parsedOrderBy === "last_action_date_desc"
+            ? parsedOrderBy
+            : undefined,
+        sessionId: sessionId !== undefined ? Number(sessionId) : undefined,
+        detailConcurrency: detailConcurrency !== undefined ? Number(detailConcurrency) : undefined,
       });
       res.json(result);
     } catch (err: any) {

@@ -14,7 +14,11 @@
  * Idempotent: checksums prevent duplicate source documents,
  * dedup guards prevent duplicate alerts.
  */
-import { fetchLegiscanBills, fetchLegiscanMasterListBackfill } from "../connectors/texas/legiscan";
+import {
+  fetchLegiscanBills,
+  fetchLegiscanMasterListBackfill,
+  type LegiscanOrderBy,
+} from "../connectors/texas/legiscan";
 import { upsertSourceDocument } from "../services/source-document-service";
 import { processDocumentAlerts } from "../services/alert-service";
 import { loadActiveWatchlistsByWorkspace } from "./load-active-watchlists";
@@ -24,6 +28,12 @@ export interface RunLegiscanResult {
   sessionId: number;
   sessionName: string;
   totalInMaster: number;
+  totalCandidates: number;
+  chunk: {
+    offset: number;
+    limit: number | null;
+    orderBy: LegiscanOrderBy;
+  };
   fetched: number;
   inserted: number;
   skipped: number;
@@ -44,6 +54,10 @@ export interface LegiscanJobOptions {
   sinceDays?: number;
   /** Cap number of bills to fetch detail for (useful for testing) */
   limit?: number;
+  /** Number of master-list candidates to skip before processing */
+  offset?: number;
+  /** Deterministic candidate ordering for chunked replay */
+  orderBy?: LegiscanOrderBy;
   /** Specific LegiScan session ID (default: current session) */
   sessionId?: number;
   /** Number of parallel LegiScan detail fetches (default: env or 6) */
@@ -69,6 +83,12 @@ export async function runLegiscanJob(
     sessionId: 0,
     sessionName: "",
     totalInMaster: 0,
+    totalCandidates: 0,
+    chunk: {
+      offset: Math.max(0, Math.floor(Number(opts.offset) || 0)),
+      limit: opts.limit && opts.limit > 0 ? Math.floor(opts.limit) : null,
+      orderBy: opts.orderBy ?? "bill_id_asc",
+    },
     fetched: 0,
     inserted: 0,
     skipped: 0,
@@ -84,12 +104,17 @@ export async function runLegiscanJob(
     const fetchResult = await fetchLegiscanMasterListBackfill({
       since,
       limit: opts.limit,
+      offset: opts.offset,
+      orderBy: opts.orderBy,
       sessionId: opts.sessionId,
     });
 
     result.sessionId = fetchResult.sessionId;
     result.sessionName = fetchResult.sessionName;
     result.totalInMaster = fetchResult.totalInMaster;
+    result.totalCandidates = fetchResult.totalCandidates;
+    result.chunk.offset = fetchResult.offset;
+    result.chunk.orderBy = fetchResult.orderBy;
     result.fetched = fetchResult.documents.length;
     result.fetchErrors = [];
     documents = fetchResult.documents;
@@ -97,6 +122,8 @@ export async function runLegiscanJob(
     const fetchResult = await fetchLegiscanBills({
       since,
       limit: opts.limit,
+      offset: opts.offset,
+      orderBy: opts.orderBy,
       sessionId: opts.sessionId,
       detailConcurrency: opts.detailConcurrency,
     });
@@ -104,6 +131,9 @@ export async function runLegiscanJob(
     result.sessionId = fetchResult.sessionId;
     result.sessionName = fetchResult.sessionName;
     result.totalInMaster = fetchResult.totalInMaster;
+    result.totalCandidates = fetchResult.totalCandidates;
+    result.chunk.offset = fetchResult.offset;
+    result.chunk.orderBy = fetchResult.orderBy;
     result.fetched = fetchResult.documents.length;
     result.fetchErrors = fetchResult.errors;
     documents = fetchResult.documents;

@@ -39,6 +39,9 @@ export interface LegiscanFetchResult {
   sessionId: number;
   sessionName: string;
   totalInMaster: number;
+  totalCandidates: number;
+  offset: number;
+  orderBy: LegiscanOrderBy;
   fetched: number;
   bills: LegiscanBill[];
   documents: InsertPolicyIntelSourceDocument[];
@@ -49,8 +52,17 @@ export interface LegiscanBackfillResult {
   sessionId: number;
   sessionName: string;
   totalInMaster: number;
+  totalCandidates: number;
+  offset: number;
+  orderBy: LegiscanOrderBy;
   documents: InsertPolicyIntelSourceDocument[];
 }
+
+export type LegiscanOrderBy =
+  | "bill_id_asc"
+  | "bill_id_desc"
+  | "last_action_date_asc"
+  | "last_action_date_desc";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -76,6 +88,45 @@ function resolveDetailConcurrency(requested?: number): number {
   }
 
   return Math.max(1, Math.min(MAX_DETAIL_CONCURRENCY, Math.floor(raw)));
+}
+
+function resolveOffset(offset?: number): number {
+  if (!Number.isFinite(offset) || !offset) return 0;
+  return Math.max(0, Math.floor(offset));
+}
+
+function resolveOrderBy(orderBy?: LegiscanOrderBy): LegiscanOrderBy {
+  if (!orderBy) return "bill_id_asc";
+  return orderBy;
+}
+
+function compareByLastActionDate(left: MasterListEntry, right: MasterListEntry): number {
+  const leftTime = Date.parse(left.last_action_date || "") || 0;
+  const rightTime = Date.parse(right.last_action_date || "") || 0;
+  return leftTime - rightTime;
+}
+
+function orderMasterListEntries(entries: MasterListEntry[], orderBy?: LegiscanOrderBy): MasterListEntry[] {
+  const resolvedOrder = resolveOrderBy(orderBy);
+  const next = [...entries];
+
+  switch (resolvedOrder) {
+    case "bill_id_desc":
+      next.sort((left, right) => right.bill_id - left.bill_id);
+      break;
+    case "last_action_date_asc":
+      next.sort((left, right) => compareByLastActionDate(left, right) || left.bill_id - right.bill_id);
+      break;
+    case "last_action_date_desc":
+      next.sort((left, right) => compareByLastActionDate(right, left) || left.bill_id - right.bill_id);
+      break;
+    case "bill_id_asc":
+    default:
+      next.sort((left, right) => left.bill_id - right.bill_id);
+      break;
+  }
+
+  return next;
 }
 
 // ── Fetch session ────────────────────────────────────────────────────────────
@@ -334,6 +385,10 @@ export function normaliseMasterListEntryToSourceDocument(
 export interface FetchOptions {
   /** Max bills to fetch details for (default: all) */
   limit?: number;
+  /** Number of candidates to skip before applying limit (default: 0) */
+  offset?: number;
+  /** Deterministic ordering for replay chunking */
+  orderBy?: LegiscanOrderBy;
   /** Only fetch bills with last_action_date >= this (YYYY-MM-DD) */
   since?: string;
   /** Specific LegiScan session ID (default: current session) */
@@ -362,7 +417,7 @@ async function resolveSession(
 }
 
 export async function fetchLegiscanMasterListBackfill(
-  opts: Pick<FetchOptions, "limit" | "since" | "sessionId"> = {},
+  opts: Pick<FetchOptions, "limit" | "offset" | "orderBy" | "since" | "sessionId"> = {},
 ): Promise<LegiscanBackfillResult> {
   const apiKey = getApiKey();
   const { sessionId, sessionName } = await resolveSession(apiKey, opts.sessionId);
@@ -373,6 +428,14 @@ export async function fetchLegiscanMasterListBackfill(
     candidates = candidates.filter((entry) => entry.last_action_date >= opts.since!);
   }
 
+  candidates = orderMasterListEntries(candidates, opts.orderBy);
+  const totalCandidates = candidates.length;
+
+  const offset = resolveOffset(opts.offset);
+  if (offset > 0) {
+    candidates = candidates.slice(offset);
+  }
+
   if (opts.limit && opts.limit > 0) {
     candidates = candidates.slice(0, opts.limit);
   }
@@ -381,6 +444,9 @@ export async function fetchLegiscanMasterListBackfill(
     sessionId,
     sessionName,
     totalInMaster: masterList.length,
+    totalCandidates,
+    offset,
+    orderBy: resolveOrderBy(opts.orderBy),
     documents: candidates.map((entry) => normaliseMasterListEntryToSourceDocument(entry, sessionId, sessionName)),
   };
 }
@@ -407,6 +473,14 @@ export async function fetchLegiscanBills(
     candidates = masterList.filter((e) => e.last_action_date >= opts.since!);
   }
 
+  candidates = orderMasterListEntries(candidates, opts.orderBy);
+  const totalCandidates = candidates.length;
+
+  const offset = resolveOffset(opts.offset);
+  if (offset > 0) {
+    candidates = candidates.slice(offset);
+  }
+
   // Apply limit
   if (opts.limit && opts.limit > 0) {
     candidates = candidates.slice(0, opts.limit);
@@ -416,6 +490,9 @@ export async function fetchLegiscanBills(
     sessionId,
     sessionName,
     totalInMaster: masterList.length,
+    totalCandidates,
+    offset,
+    orderBy: resolveOrderBy(opts.orderBy),
     fetched: 0,
     bills: [],
     documents: [],

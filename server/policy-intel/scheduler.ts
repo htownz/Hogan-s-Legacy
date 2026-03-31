@@ -10,6 +10,7 @@
  * Set SCHEDULER_ENABLED=false in .env to disable all scheduled jobs.
  */
 import cron from "node-cron";
+import { queryClient } from "./db";
 import { runSwarm } from "./engine/intelligence/swarm-coordinator";
 import { runLegiscanJob, type RunLegiscanResult } from "./jobs/run-legiscan";
 import { runTloRssJob, type RunTloRssResult } from "./jobs/run-tlo-rss";
@@ -86,7 +87,9 @@ const runningSince = new Map<string, string | null>();
 const lastRuns = new Map<string, JobRunRecord>();
 const jobTelemetry = new Map<string, JobTelemetry>();
 const history: JobRunRecord[] = [];
+const persistedHistory: JobRunRecord[] = [];
 const MAX_HISTORY = 50;
+const MAX_PERSISTED_HISTORY = 500;
 const DEFAULT_JOB_TIMEOUT_MS = Number(process.env.SCHEDULER_JOB_TIMEOUT_MS || 20 * 60 * 1000);
 const DEFAULT_INTEL_BRIEFING_TIMEOUT_MS = Number(
   process.env.SCHEDULER_INTEL_BRIEFING_TIMEOUT_MS || 15 * 60 * 1000,
@@ -97,6 +100,8 @@ const DEFAULT_COMMITTEE_INTEL_SYNC_TIMEOUT_MS = Number(
 
 let schedulerEnabled = false;
 let schedulerStartedAt: string | null = null;
+let persistenceInitialized = false;
+let persistenceEnabled = false;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -127,6 +132,138 @@ function pushHistory(record: JobRunRecord) {
   }
 
   jobTelemetry.set(record.jobName, telemetry);
+}
+
+function mapPersistedRow(row: Record<string, unknown>): JobRunRecord {
+  const toIso = (value: unknown): string => {
+    if (value instanceof Date) return value.toISOString();
+    const text = String(value ?? "");
+    const parsed = new Date(text);
+    return Number.isNaN(parsed.getTime()) ? text : parsed.toISOString();
+  };
+
+  const summaryRaw = row.summary_json;
+  const summary =
+    summaryRaw && typeof summaryRaw === "object" && !Array.isArray(summaryRaw)
+      ? (summaryRaw as Record<string, unknown>)
+      : {};
+  return {
+    jobName: String(row.job_name ?? "unknown"),
+    startedAt: toIso(row.started_at),
+    finishedAt: toIso(row.finished_at),
+    durationMs: Number(row.duration_ms ?? 0),
+    status: row.status === "error" ? "error" : "success",
+    summary,
+    error: row.error ? String(row.error) : undefined,
+  };
+}
+
+function mergeHistoryRecords(): JobRunRecord[] {
+  const deduped = new Map<string, JobRunRecord>();
+  for (const record of [...history, ...persistedHistory]) {
+    const key = `${record.jobName}|${record.startedAt}|${record.finishedAt}`;
+    if (!deduped.has(key)) {
+      deduped.set(key, record);
+    }
+  }
+
+  return Array.from(deduped.values())
+    .sort((left, right) => {
+      const rightTs = Date.parse(right.finishedAt) || 0;
+      const leftTs = Date.parse(left.finishedAt) || 0;
+      return rightTs - leftTs;
+    })
+    .slice(0, MAX_PERSISTED_HISTORY);
+}
+
+async function initializeHistoryPersistence(): Promise<void> {
+  if (persistenceInitialized) return;
+  persistenceInitialized = true;
+
+  try {
+    await queryClient.unsafe(`
+      create table if not exists policy_intel_scheduler_runs (
+        id serial primary key,
+        job_name varchar(128) not null,
+        started_at timestamptz not null,
+        finished_at timestamptz not null,
+        duration_ms integer not null,
+        status varchar(16) not null,
+        summary_json jsonb not null default '{}'::jsonb,
+        error text,
+        created_at timestamptz not null default now()
+      )
+    `);
+    await queryClient.unsafe(`
+      create index if not exists policy_intel_scheduler_runs_finished_idx
+      on policy_intel_scheduler_runs (finished_at desc)
+    `);
+    await queryClient.unsafe(`
+      create index if not exists policy_intel_scheduler_runs_job_finished_idx
+      on policy_intel_scheduler_runs (job_name, finished_at desc)
+    `);
+
+    const rows = await queryClient.unsafe(
+      `
+      select
+        job_name,
+        started_at,
+        finished_at,
+        duration_ms,
+        status,
+        summary_json,
+        error
+      from policy_intel_scheduler_runs
+      order by finished_at desc
+      limit $1
+      `,
+      [MAX_PERSISTED_HISTORY],
+    );
+
+    persistedHistory.length = 0;
+    persistedHistory.push(...rows.map((row: Record<string, unknown>) => mapPersistedRow(row)));
+    persistenceEnabled = true;
+  } catch (error: any) {
+    persistenceEnabled = false;
+    console.warn(`[scheduler] persistent history disabled: ${error?.message ?? String(error)}`);
+  }
+}
+
+async function persistHistoryRecord(record: JobRunRecord): Promise<void> {
+  if (!persistenceEnabled) return;
+
+  try {
+    await queryClient.unsafe(
+      `
+      insert into policy_intel_scheduler_runs (
+        job_name,
+        started_at,
+        finished_at,
+        duration_ms,
+        status,
+        summary_json,
+        error
+      )
+      values ($1, $2, $3, $4, $5, $6::jsonb, $7)
+      `,
+      [
+        record.jobName,
+        record.startedAt,
+        record.finishedAt,
+        record.durationMs,
+        record.status,
+        JSON.stringify(record.summary ?? {}),
+        record.error ?? null,
+      ],
+    );
+
+    persistedHistory.unshift(record);
+    if (persistedHistory.length > MAX_PERSISTED_HISTORY) {
+      persistedHistory.length = MAX_PERSISTED_HISTORY;
+    }
+  } catch (error: any) {
+    console.warn(`[scheduler] failed to persist run history: ${error?.message ?? String(error)}`);
+  }
 }
 
 function getOrCreateTelemetry(jobName: string): JobTelemetry {
@@ -188,6 +325,10 @@ async function executeJob(
   runner: () => Promise<Record<string, unknown>>,
   timeoutMs = DEFAULT_JOB_TIMEOUT_MS,
 ) {
+  if (!persistenceInitialized) {
+    await initializeHistoryPersistence();
+  }
+
   if (runningFlags.get(jobName)) {
     const telemetry = getOrCreateTelemetry(jobName);
     telemetry.skippedWhileRunning += 1;
@@ -212,6 +353,7 @@ async function executeJob(
       summary: result,
     };
     pushHistory(record);
+    await persistHistoryRecord(record);
     console.log(`[scheduler] ✓ ${jobName} completed in ${record.durationMs}ms`);
   } catch (err: any) {
     const record: JobRunRecord = {
@@ -224,6 +366,7 @@ async function executeJob(
       error: err?.message ?? String(err),
     };
     pushHistory(record);
+    await persistHistoryRecord(record);
     console.error(`[scheduler] ✗ ${jobName} failed: ${record.error}`);
   } finally {
     runningFlags.set(jobName, false);
@@ -313,6 +456,7 @@ export function startScheduler() {
 
   schedulerEnabled = true;
   schedulerStartedAt = new Date().toISOString();
+  void initializeHistoryPersistence();
 
   const legiscanCron = process.env.CRON_LEGISCAN ?? "0 */4 * * *";  // every 4 hours
   const tloCron = process.env.CRON_TLO_RSS ?? "0 1,7,13,19 * * *"; // 4x daily
@@ -443,7 +587,7 @@ export function getSchedulerStatus(): SchedulerStatus {
     enabled: schedulerEnabled,
     startedAt: schedulerStartedAt,
     jobs: jobStatuses,
-    recentHistory: history.slice(0, 20),
+    recentHistory: mergeHistoryRecords().slice(0, 20),
   };
 }
 
@@ -466,5 +610,5 @@ export async function triggerJob(jobName: string): Promise<JobRunRecord | null> 
 }
 
 export function getJobHistory(): JobRunRecord[] {
-  return [...history];
+  return mergeHistoryRecords();
 }
