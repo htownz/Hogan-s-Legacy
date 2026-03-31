@@ -3,6 +3,7 @@ FROM node:22.22.2-alpine3.22
 RUN apk upgrade --no-cache \
     && apk add --no-cache \
     ca-certificates \
+    ffmpeg \
     postgresql-client
 
 WORKDIR /workspace
