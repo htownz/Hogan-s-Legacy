@@ -12,6 +12,7 @@ import { matchDocumentToAllWatchlists, type WatchlistMatch } from "../engine/mat
 import { scoreAlert, buildWhyItMatters } from "../engine/score-alert";
 import { buildScorecard } from "../engine/evaluators";
 import { buildAgentScorecard } from "../engine/agent-pipeline";
+import { detectRegime } from "../engine/agent-pipeline";
 import { metrics } from "../metrics";
 import { notifyHighPriorityAlert } from "../notify";
 
@@ -24,9 +25,29 @@ export interface AlertCreationResult {
   details: { alertId: number; watchlist: string; score: number }[];
 }
 
-// ── Cooldown constant ────────────────────────────────────────────────────────
+// ── Adaptive Cooldown ────────────────────────────────────────────────────────
+// Cooldown scales by legislative regime — during high-activity phases we
+// reduce cooldown to ensure timely alerts; during quiet phases we increase
+// it to reduce noise.
 
-const COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
+const BASE_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+const REGIME_COOLDOWN_MULTIPLIER: Record<string, number> = {
+  pre_filing: 2.0,       // 48h — minimal activity, reduce noise
+  early_session: 1.5,    // 36h
+  committee_season: 1.0, // 24h — standard
+  floor_action: 0.5,     // 12h — fast-moving, need timely alerts
+  conference: 0.33,      // 8h — critical phase
+  sine_die: 0.25,        // 6h — final push, every alert matters
+  special_session: 0.33, // 8h — governor's priority
+  interim: 2.0,          // 48h — quiet period
+};
+
+function getAdaptiveCooldownMs(): number {
+  const regime = detectRegime("", new Date());
+  const multiplier = REGIME_COOLDOWN_MULTIPLIER[regime] ?? 1.0;
+  return Math.round(BASE_COOLDOWN_MS * multiplier);
+}
 
 // ── Core ─────────────────────────────────────────────────────────────────────
 
@@ -84,8 +105,8 @@ export async function processDocumentAlerts(
       continue;
     }
 
-    // 2. Cooldown: skip if a matching alert fired within 24h with similar reasons
-    const cooldownCutoff = new Date(Date.now() - COOLDOWN_MS);
+    // 2. Cooldown: skip if a matching alert fired within adaptive cooldown window
+    const cooldownCutoff = new Date(Date.now() - getAdaptiveCooldownMs());
     const recentAlerts = await policyIntelDb
       .select({ id: alerts.id })
       .from(alerts)

@@ -55,6 +55,23 @@ export function IntelligenceHubPage() {
         </div>
       </div>
 
+      {/* Power Network Cross-Link */}
+      <a href="/power-network" style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        background: "linear-gradient(90deg, #1a1a2e 0%, #2d1b4e 50%, #1a1a2e 100%)",
+        borderRadius: 8, padding: "12px 20px", marginBottom: 20,
+        border: "1px solid #3d2468", textDecoration: "none", color: "#e8e8e8",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ fontSize: 20 }}>⚡</span>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>Power Network Analysis</div>
+            <div style={{ fontSize: 11, color: "#888" }}>Big Three profiles, voting blocs, legislation predictions, and power flows</div>
+          </div>
+        </div>
+        <span style={{ fontSize: 12, color: "#8e44ad", fontWeight: 600 }}>Explore →</span>
+      </a>
+
       {/* Tab Bar */}
       <div style={{ display: "flex", gap: 4, marginBottom: 20, overflowX: "auto" }}>
         {tabs.map(t => (

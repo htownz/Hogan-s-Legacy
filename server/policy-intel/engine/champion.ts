@@ -15,7 +15,7 @@
 
 import { desc, eq, sql } from "drizzle-orm";
 import { policyIntelDb } from "../db";
-import { alerts, championSnapshots, feedbackLog } from "@shared/schema-policy-intel";
+import { alerts, championSnapshots, feedbackLog, learningMetrics } from "@shared/schema-policy-intel";
 import { metrics } from "../metrics";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -212,6 +212,16 @@ interface FeedbackRow {
   agentScoresJson: Record<string, unknown>[];
   weightsJson: Record<string, number>;
   regime: string;
+  createdAt: Date;
+}
+
+/** Half-life for time-decay weighting (30 days) — newer feedback matters more */
+const DECAY_HALF_LIFE_MS = 30 * 24 * 60 * 60 * 1000;
+
+/** Compute time-decay weight: recent feedback has weight ~1.0, older feedback decays */
+function timeDecayWeight(createdAt: Date): number {
+  const ageMs = Date.now() - createdAt.getTime();
+  return Math.pow(0.5, ageMs / DECAY_HALF_LIFE_MS);
 }
 
 /**
@@ -283,18 +293,22 @@ function isCorrectPrediction(action: string, outcome: string): boolean {
 }
 
 /**
- * Calculate accuracy of a config on a set of feedback rows.
+ * Calculate time-decay weighted accuracy of a config on a set of feedback rows.
+ * Recent feedback contributes more to accuracy, preventing stale training signals.
  */
 function evaluate(rows: FeedbackRow[], config: ChampionConfig): number {
   if (rows.length === 0) return 0;
-  let correct = 0;
+  let weightedCorrect = 0;
+  let totalWeight = 0;
   for (const row of rows) {
     const { action } = simulateScore(row, config);
+    const w = timeDecayWeight(row.createdAt);
+    totalWeight += w;
     if (isCorrectPrediction(action, row.outcome)) {
-      correct++;
+      weightedCorrect += w;
     }
   }
-  return correct / rows.length;
+  return totalWeight > 0 ? weightedCorrect / totalWeight : 0;
 }
 
 /**
@@ -396,13 +410,86 @@ export async function runRetraining(): Promise<RetrainResult> {
   const trainRows: FeedbackRow[] = shuffled.slice(0, splitIdx).map(toFeedbackRow);
   const holdoutRows: FeedbackRow[] = shuffled.slice(splitIdx).map(toFeedbackRow);
 
+  // ── Regime-Stratified Training ─────────────────────────────────────
+  // Partition training data by regime, train separate optimisers per regime,
+  // then blend results weighted by regime sample count.
+  const regimeGroups = new Map<string, FeedbackRow[]>();
+  for (const row of trainRows) {
+    const group = regimeGroups.get(row.regime) ?? [];
+    group.push(row);
+    regimeGroups.set(row.regime, group);
+  }
+
   // Get current champion config
   const championConfig = await getChampionConfig();
   const championAccuracy = evaluate(holdoutRows, championConfig);
 
-  // Optimise challenger via coordinate descent
-  const challengerConfig = coordinateDescentOptimise(trainRows, championConfig);
+  // Optimise per-regime challengers, then blend
+  let blendedWeights: Record<string, number> = { ...championConfig.weights };
+  let blendedEscalate = championConfig.escalateThreshold;
+  let blendedArchive = championConfig.archiveThreshold;
+  let totalSamples = 0;
+
+  const regimeResults: Record<string, { accuracy: number; sampleCount: number; weights: Record<string, number> }> = {};
+
+  if (regimeGroups.size >= 2) {
+    // Multiple regimes: train per-regime and blend
+    const weightAccum: Record<string, number> = {};
+    let escAccum = 0;
+    let archAccum = 0;
+
+    for (const [regime, regimeRows] of regimeGroups) {
+      if (regimeRows.length < 5) continue; // skip tiny regime groups
+      const regimeChallenger = coordinateDescentOptimise(regimeRows, championConfig);
+      const regimeHoldout = holdoutRows.filter(r => r.regime === regime);
+      const regimeAcc = regimeHoldout.length >= 3 ? evaluate(regimeHoldout, regimeChallenger) : evaluate(regimeRows, regimeChallenger);
+
+      regimeResults[regime] = { accuracy: regimeAcc, sampleCount: regimeRows.length, weights: regimeChallenger.weights };
+
+      for (const [k, v] of Object.entries(regimeChallenger.weights)) {
+        weightAccum[k] = (weightAccum[k] ?? 0) + v * regimeRows.length;
+      }
+      escAccum += regimeChallenger.escalateThreshold * regimeRows.length;
+      archAccum += regimeChallenger.archiveThreshold * regimeRows.length;
+      totalSamples += regimeRows.length;
+    }
+
+    if (totalSamples > 0) {
+      blendedWeights = {};
+      for (const [k, v] of Object.entries(weightAccum)) {
+        blendedWeights[k] = v / totalSamples;
+      }
+      blendedEscalate = Math.round(escAccum / totalSamples);
+      blendedArchive = Math.round(archAccum / totalSamples);
+    }
+  } else {
+    // Single regime or not enough data: standard training
+    const challenger = coordinateDescentOptimise(trainRows, championConfig);
+    blendedWeights = challenger.weights;
+    blendedEscalate = challenger.escalateThreshold;
+    blendedArchive = challenger.archiveThreshold;
+    totalSamples = trainRows.length;
+  }
+
+  const challengerConfig: ChampionConfig = {
+    weights: blendedWeights,
+    escalateThreshold: blendedEscalate,
+    archiveThreshold: blendedArchive,
+  };
+
   const challengerAccuracy = evaluate(holdoutRows, challengerConfig);
+
+  // ── Per-Agent Accuracy Tracking ────────────────────────────────────
+  // Compute how much each agent contributes to correct predictions (Shapley-lite)
+  const agentContributions: Record<string, number> = {};
+  for (const agent of AGENT_NAMES) {
+    // Ablation: how much does accuracy drop without this agent?
+    const ablatedWeights = { ...challengerConfig.weights };
+    ablatedWeights[agent] = 0;
+    const ablatedConfig: ChampionConfig = { ...challengerConfig, weights: ablatedWeights };
+    const ablatedAccuracy = evaluate(holdoutRows, ablatedConfig);
+    agentContributions[agent] = Math.max(0, challengerAccuracy - ablatedAccuracy);
+  }
 
   metrics.inc("policy_intel_champion_retrains_total");
 
@@ -422,7 +509,7 @@ export async function runRetraining(): Promise<RetrainResult> {
       normWeights[k] = wTotal > 0 ? v / wTotal : 1 / AGENT_NAMES.length;
     }
 
-    // Persist new champion
+    // Persist new champion with regime & agent analytics
     await policyIntelDb.insert(championSnapshots).values({
       generation: newGeneration,
       weightsJson: normWeights,
@@ -436,7 +523,24 @@ export async function runRetraining(): Promise<RetrainResult> {
         improvementMargin: challengerAccuracy - championAccuracy,
         trainSize: trainRows.length,
         holdoutSize: holdoutRows.length,
+        regimeResults,
+        agentContributions,
+        timeDecayEnabled: true,
       },
+    });
+
+    // Persist learning metrics for the dashboard
+    await policyIntelDb.insert(learningMetrics).values({
+      metricType: "champion_retrain",
+      regime: Object.keys(regimeResults)[0] ?? "mixed",
+      valuesJson: {
+        generation: newGeneration,
+        championAccuracy,
+        challengerAccuracy,
+        agentContributions,
+        regimeResults,
+        feedbackCount: rows.length,
+      } as unknown as Record<string, unknown>,
     });
 
     // Invalidate cache so next pipeline run picks up new weights
@@ -471,6 +575,7 @@ function toFeedbackRow(row: typeof feedbackLog.$inferSelect): FeedbackRow {
     agentScoresJson: (row.agentScoresJson ?? []) as Record<string, unknown>[],
     weightsJson: (row.weightsJson ?? {}) as Record<string, number>,
     regime: row.regime,
+    createdAt: row.createdAt,
   };
 }
 

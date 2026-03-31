@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { api } from "../api";
+import { api, type IntelligenceBriefing } from "../api";
 import { useAsync } from "../hooks";
 import { DEFAULT_WORKSPACE_ID } from "../constants";
 
 export function DigestPage() {
   // Default to workspace 2 (Grace & McEwan)
   const { data: digest, loading, error, refetch } = useAsync(() => api.getDigest(DEFAULT_WORKSPACE_ID));
+  const { data: briefing } = useAsync(() => api.getIntelligenceBriefing());
   const [copied, setCopied] = useState(false);
 
   if (loading) return <p>Loading digest...</p>;
@@ -32,6 +33,23 @@ export function DigestPage() {
       lines.push("── Recent Activities ──");
       for (const a of digest!.recentActivities) {
         lines.push(`  ${a.summary} (${a.type.replace(/_/g, " ")}, ${new Date(a.createdAt).toLocaleString()})`);
+      }
+    }
+    if (briefing) {
+      lines.push("");
+      lines.push("── Intelligence Briefing ──");
+      lines.push(briefing.executiveSummary);
+      const topInsights = briefing.insights.filter((i) => i.priority <= 2).slice(0, 5);
+      if (topInsights.length > 0) {
+        lines.push("");
+        lines.push("Key Insights:");
+        for (const ins of topInsights) {
+          lines.push(`  [P${ins.priority}] ${ins.title}: ${ins.narrative.slice(0, 200)}`);
+        }
+      }
+      if (briefing.delta?.narrative) {
+        lines.push("");
+        lines.push(`Delta: ${briefing.delta.narrative}`);
       }
     }
     return lines.join("\n");
@@ -89,6 +107,37 @@ export function DigestPage() {
         <MiniStat label="Reviewed" value={digest.summary.reviewed} color="#27ae60" />
         <MiniStat label="Activities" value={digest.summary.activitiesLogged} color="#3498db" />
       </div>
+
+      {/* Intelligence Briefing */}
+      {briefing && (
+        <div style={{ background: "#fff", borderRadius: 8, padding: "16px 20px", marginBottom: 20, boxShadow: "0 1px 3px rgba(0,0,0,0.06)", borderLeft: "3px solid #8e44ad" }}>
+          <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 8px", color: "#8e44ad" }}>Intelligence Briefing</h2>
+          <p style={{ fontSize: 13, color: "#444", lineHeight: 1.5, margin: "0 0 12px" }}>{briefing.executiveSummary}</p>
+          {(() => {
+            const topInsights = briefing.insights.filter((i) => i.priority <= 2).slice(0, 5);
+            if (topInsights.length === 0) return null;
+            return (
+              <div style={{ display: "grid", gap: 6 }}>
+                {topInsights.map((ins, i) => (
+                  <div key={i} style={{ display: "flex", gap: 8, fontSize: 12, padding: "4px 8px", background: "#f9f0ff", borderRadius: 4 }}>
+                    <span style={{ background: ins.priority === 1 ? "#c0392b" : "#e67e22", color: "#fff", borderRadius: 3, padding: "1px 5px", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
+                      P{ins.priority}
+                    </span>
+                    <span style={{ color: "#333" }}><strong>{ins.title}</strong>: {ins.narrative.slice(0, 150)}</span>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+          {briefing.delta?.threatTrend && (
+            <div style={{ marginTop: 10, fontSize: 12, color: "#888" }}>
+              Threat trend: <span style={{ fontWeight: 600, color: briefing.delta.threatTrend === "escalating" ? "#e74c3c" : briefing.delta.threatTrend === "deescalating" ? "#27ae60" : "#888" }}>
+                {briefing.delta.threatTrend}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Sections by watchlist */}
       <h2 style={{ fontSize: 16, marginBottom: 12 }}>By Watchlist</h2>

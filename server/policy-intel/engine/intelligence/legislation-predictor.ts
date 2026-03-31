@@ -15,7 +15,16 @@ import { policyIntelDb } from "../../db";
 import {
   stakeholders, committeeMembers, alerts, sourceDocuments, watchlists,
 } from "@shared/schema-policy-intel";
+import { legislationPredictions } from "@shared/schema-power-network";
 import { eq, sql, desc, count, and, gte, ilike } from "drizzle-orm";
+
+const CURRENT_SESSION = "89R";
+
+// ── Cache ──────────────────────────────────────────────────────────────────
+
+const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+let cachedReport: LegislationPredictorReport | null = null;
+let cachedAt = 0;
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -84,7 +93,11 @@ export interface LegislationPredictorReport {
 
 // ── Analyzer ───────────────────────────────────────────────────────────────
 
-export async function predictLegislation(): Promise<LegislationPredictorReport> {
+export async function predictLegislation(force = false): Promise<LegislationPredictorReport> {
+  if (!force && cachedReport && Date.now() - cachedAt < CACHE_TTL_MS) {
+    return cachedReport;
+  }
+
   // ── Load data ──────────────────────────────────────────────────────
   const allStakeholders = await policyIntelDb.select().from(stakeholders);
   const allCommittees = await policyIntelDb.select().from(committeeMembers);
@@ -105,16 +118,16 @@ export async function predictLegislation(): Promise<LegislationPredictorReport> 
 
   const watchlistMap = new Map(allWatchlists.map(w => [w.id, w]));
   const hotTopics = alertVelocity
-    .filter(av => watchlistMap.has(av.watchlistId))
+    .filter(av => av.watchlistId != null && watchlistMap.has(av.watchlistId))
     .map(av => ({
-      watchlistName: watchlistMap.get(av.watchlistId)!.name,
+      watchlistName: watchlistMap.get(av.watchlistId!)!.name,
       alertCount: Number(av.cnt),
-      rules: watchlistMap.get(av.watchlistId)!.rulesJson,
+      rules: watchlistMap.get(av.watchlistId!)!.rulesJson,
     }))
     .slice(0, 15);
 
-  // ── Source document analysis — what's coming through the pipeline ──
-  const recentDocs = await policyIntelDb
+  // ── Source document analysis — count by type for signal strength ────
+  const docCounts = await policyIntelDb
     .select({
       sourceType: sourceDocuments.sourceType,
       cnt: count(),
@@ -122,6 +135,25 @@ export async function predictLegislation(): Promise<LegislationPredictorReport> 
     .from(sourceDocuments)
     .groupBy(sourceDocuments.sourceType)
     .orderBy(desc(count()));
+
+  const totalDocs = docCounts.reduce((s, d) => s + Number(d.cnt), 0);
+  const legiscanDocs = Number(docCounts.find(d => d.sourceType === "texas_legislation")?.cnt ?? 0);
+
+  // ── Source doc title keyword frequency — enriches prediction confidence ──
+  const titleKeywordCounts = await policyIntelDb
+    .select({
+      title: sourceDocuments.title,
+    })
+    .from(sourceDocuments)
+    .limit(2000);
+
+  const topicSignalFromDocs = (keywordMatch: string): number => {
+    const kw = keywordMatch.toLowerCase();
+    const matches = titleKeywordCounts.filter(d =>
+      d.title?.toLowerCase().includes(kw)
+    ).length;
+    return Math.min(matches / Math.max(totalDocs * 0.01, 1), 1); // normalize
+  };
 
   // ── Build predictions ──────────────────────────────────────────────
   const predictions: LegislationPredictionResult[] = [];
@@ -140,7 +172,17 @@ export async function predictLegislation(): Promise<LegislationPredictorReport> 
       evidence.push({
         type: "alert_velocity",
         detail: `${matchingTopic.alertCount} alerts matching "${matchingTopic.watchlistName}" watchlist`,
-        weight: Math.min(matchingTopic.alertCount / 1000, 1),
+        weight: Math.min(matchingTopic.alertCount / Math.max(hotTopics[0]?.alertCount ?? 1000, 100), 1),
+      });
+    }
+
+    // Check source document signals for this topic
+    const docSignal = topicSignalFromDocs(agenda.keywordMatch);
+    if (docSignal > 0.05) {
+      evidence.push({
+        type: "cross_session",
+        detail: `${(docSignal * 100).toFixed(0)}% of source documents reference "${agenda.keywordMatch}"`,
+        weight: docSignal,
       });
     }
 
@@ -156,7 +198,8 @@ export async function predictLegislation(): Promise<LegislationPredictorReport> 
     const baseConfidence = agenda.baseConfidence;
     const velocityBoost = matchingTopic ? 0.1 : 0;
     const sponsorBoost = likelySponsor ? 0.05 : 0;
-    const confidence = Math.min(baseConfidence + velocityBoost + sponsorBoost, 0.95);
+    const docBoost = docSignal > 0.1 ? 0.05 : 0;
+    const confidence = Math.min(baseConfidence + velocityBoost + sponsorBoost + docBoost, 0.95);
 
     // Calculate passage probability
     let passageProb = 0.3; // baseline
@@ -164,7 +207,7 @@ export async function predictLegislation(): Promise<LegislationPredictorReport> 
     if (powerDynamic.ltGov === "support") passageProb += 0.15;
     if (powerDynamic.speaker === "support") passageProb += 0.15;
     if (powerDynamic.governor === "oppose") passageProb -= 0.25; // veto threat
-    if (likelySponsor?.confidence ?? 0 > 0.5) passageProb += 0.05;
+    if ((likelySponsor?.confidence ?? 0) > 0.5) passageProb += 0.05;
     passageProb = Math.max(0.05, Math.min(passageProb, 0.95));
 
     evidence.push({
@@ -208,10 +251,11 @@ export async function predictLegislation(): Promise<LegislationPredictorReport> 
   const chamberConflicts = detectChamberConflicts(predictions);
 
   // ── Signals ────────────────────────────────────────────────────────
+  const maxAlertCount = Math.max(hotTopics[0]?.alertCount ?? 1, 1);
   const signals = hotTopics.slice(0, 10).map(ht => ({
     type: "alert_velocity",
     detail: `"${ht.watchlistName}" — ${ht.alertCount} alerts`,
-    strength: Math.min(ht.alertCount / 5000, 1),
+    strength: Math.min(ht.alertCount / maxAlertCount, 1),
   }));
 
   // ── Stats ──────────────────────────────────────────────────────────
@@ -222,9 +266,9 @@ export async function predictLegislation(): Promise<LegislationPredictorReport> 
     ? predictions.reduce((s, p) => s + p.passageProbability, 0) / predictions.length
     : 0;
 
-  return {
+  const report: LegislationPredictorReport = {
     analyzedAt: new Date().toISOString(),
-    session: "89R",
+    session: CURRENT_SESSION,
     predictions,
     mostLikelyToPass: predictions
       .filter(p => p.passageProbability >= 0.6)
@@ -243,6 +287,16 @@ export async function predictLegislation(): Promise<LegislationPredictorReport> 
       avgPassageProbability: avgPassage,
     },
   };
+
+  // Persist predictions to database (fire-and-forget)
+  seedPredictions(predictions).catch(err =>
+    console.error("[legislation-predictor] Failed to seed predictions:", err.message)
+  );
+
+  cachedReport = report;
+  cachedAt = Date.now();
+
+  return report;
 }
 
 // ── Helper Functions ───────────────────────────────────────────────────────
@@ -412,7 +466,7 @@ function findLikelySponsor(
   allCommittees: any[],
 ): LegislationPredictionResult["likelySponsor"] {
   const topicLower = topic.toLowerCase();
-  const chamberChairs = chairs.filter(c => c.chamber === chamber);
+  const chamberChairs = chairs.filter(c => c.chamber?.toLowerCase() === chamber);
 
   // Map topics to likely committee keywords
   const committeeKeywords: Record<string, string[]> = {
@@ -537,7 +591,98 @@ function detectChamberConflicts(predictions: LegislationPredictionResult[]) {
       senatePosition: "Prefers appraisal caps and business tax relief",
       narrative: "Both chambers support property tax relief but differ on mechanism. The House favors direct homeowner relief while the Senate pushes broader structural reforms.",
     },
+    {
+      topic: "Cannabis / Hemp Regulation",
+      housePosition: "Some bipartisan support for limited medical expansion and delta-8 regulation",
+      senatePosition: "Lt Gov Patrick strongly opposes — likely dead on arrival in Senate",
+      narrative: "Hemp/cannabis bills may pass the House but face near-certain death in the Senate under Patrick's leadership. This has been the pattern for three sessions.",
+    },
   ];
 
-  return knownConflicts;
+  // Also detect dynamic conflicts from predictions — topics predicted in different chambers with different dynamics
+  const housePreds = predictions.filter(p => p.predictedChamber === "house");
+  const senatePreds = predictions.filter(p => p.predictedChamber === "senate");
+  for (const hp of housePreds) {
+    const related = senatePreds.find(sp =>
+      sp.topic.toLowerCase().split(" ").some(word =>
+        word.length > 4 && hp.topic.toLowerCase().includes(word)
+      )
+    );
+    if (related && Math.abs(hp.passageProbability - related.passageProbability) > 0.15) {
+      const existing = knownConflicts.find(kc =>
+        kc.topic.toLowerCase().includes(hp.topic.toLowerCase().split(" ")[0])
+      );
+      if (!existing) {
+        conflicts.push({
+          topic: `${hp.topic} vs ${related.topic}`,
+          housePosition: `Passage probability: ${(hp.passageProbability * 100).toFixed(0)}% — ${hp.assessment.split(".")[0]}`,
+          senatePosition: `Passage probability: ${(related.passageProbability * 100).toFixed(0)}% — ${related.assessment.split(".")[0]}`,
+          narrative: `Significant divergence between chambers on this topic area. House and Senate may take different approaches requiring conference committee negotiation.`,
+        });
+      }
+    }
+  }
+
+  return [...knownConflicts, ...conflicts];
+}
+
+// ── Data Persistence ───────────────────────────────────────────────────────
+
+/** Persist predictions to the legislation_predictions table (batch upsert) */
+async function seedPredictions(predictions: LegislationPredictionResult[]) {
+  const session = CURRENT_SESSION;
+
+  // Batch: load all existing predictions for this session in one query
+  const existing = await policyIntelDb
+    .select()
+    .from(legislationPredictions)
+    .where(eq(legislationPredictions.session, session));
+  const existingByTopic = new Map(existing.map(e => [e.predictedTopic, e]));
+
+  const inserts: any[] = [];
+  const updates: { id: number; data: any }[] = [];
+
+  for (const pred of predictions) {
+    const data = {
+      session,
+      predictedTopic: pred.topic,
+      predictedBillType: pred.predictedBillType,
+      predictedChamber: pred.predictedChamber,
+      predictedSponsors: pred.likelySponsor ? [{
+        stakeholderId: pred.likelySponsor.stakeholderId,
+        name: pred.likelySponsor.name,
+        confidence: pred.likelySponsor.confidence,
+        reasoning: pred.likelySponsor.reasoning,
+      }] : [],
+      confidence: pred.confidence,
+      reasoning: pred.assessment,
+      evidenceSources: pred.evidenceSources,
+      passageProbability: pred.passageProbability,
+      powerCenterDynamic: pred.powerCenterDynamic,
+      updatedAt: new Date(),
+    };
+
+    const ex = existingByTopic.get(pred.topic);
+    if (ex) {
+      updates.push({ id: ex.id, data });
+    } else {
+      inserts.push(data);
+    }
+  }
+
+  // Batch insert new predictions
+  if (inserts.length > 0) {
+    await policyIntelDb.insert(legislationPredictions).values(inserts);
+  }
+  // Batch updates (parallel)
+  if (updates.length > 0) {
+    await Promise.all(
+      updates.map(u =>
+        policyIntelDb.update(legislationPredictions)
+          .set(u.data)
+          .where(eq(legislationPredictions.id, u.id))
+      )
+    );
+  }
+  console.log(`[legislation-predictor] Persisted ${predictions.length} predictions (${inserts.length} new, ${updates.length} updated)`);
 }

@@ -17,7 +17,7 @@
 import { policyIntelDb } from "../../db";
 import {
   alerts, sourceDocuments, hearingEvents, watchlists,
-  stakeholders, committeeMembers, issueRooms,
+  stakeholders, committeeMembers, issueRooms, learningMetrics,
 } from "@shared/schema-policy-intel";
 import { eq, sql, gte, desc, count, and, ilike } from "drizzle-orm";
 import { detectRegime } from "../agent-pipeline";
@@ -64,6 +64,67 @@ export interface RiskReport {
   risingRisks: RiskAssessment[];
 }
 
+// ── Calibration Cache ────────────────────────────────────────────────────────
+// Reads the most recent forecast calibration from the learning_metrics table
+// and applies correction factors to stage weights and regime multipliers.
+
+interface CalibrationData {
+  accuracy: number;
+  calibrationBuckets: { range: string; lower: number; upper: number; actualRate: number; count: number }[];
+  loadedAt: number;
+}
+
+let calibrationCache: CalibrationData | null = null;
+const CALIBRATION_TTL_MS = 30 * 60 * 1000; // refresh every 30 minutes
+
+async function loadCalibration(): Promise<CalibrationData | null> {
+  if (calibrationCache && Date.now() - calibrationCache.loadedAt < CALIBRATION_TTL_MS) {
+    return calibrationCache;
+  }
+  try {
+    const [row] = await policyIntelDb
+      .select()
+      .from(learningMetrics)
+      .where(eq(learningMetrics.metricType, "forecast_calibration"))
+      .orderBy(desc(learningMetrics.capturedAt))
+      .limit(1);
+
+    if (!row) return null;
+
+    const vals = row.valuesJson as Record<string, unknown>;
+    calibrationCache = {
+      accuracy: (vals.accuracy as number) ?? 0,
+      calibrationBuckets: (vals.calibrationBuckets as CalibrationData["calibrationBuckets"]) ?? [],
+      loadedAt: Date.now(),
+    };
+    return calibrationCache;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Calculate a calibration correction factor based on forecast grading data.
+ * If the model consistently over-predicts in a bucket, we dampen; if under-predicts, we boost.
+ */
+function calibrationCorrection(predictedProb: number, calibration: CalibrationData | null): number {
+  if (!calibration || calibration.calibrationBuckets.length === 0) return 1.0;
+
+  for (const bucket of calibration.calibrationBuckets) {
+    if (predictedProb >= bucket.lower && predictedProb < (bucket.upper ?? 1.01)) {
+      if (bucket.count < 3) continue; // not enough data in this bucket
+      const midpoint = (bucket.lower + (bucket.upper ?? 1)) / 2;
+      if (midpoint === 0) continue;
+      // Correction: if actualRate < midpoint, we over-predicted → dampen
+      // if actualRate > midpoint, we under-predicted → boost
+      const ratio = bucket.actualRate / midpoint;
+      // Clamp correction to prevent wild swings (0.5x to 1.5x)
+      return Math.max(0.5, Math.min(1.5, ratio));
+    }
+  }
+  return 1.0;
+}
+
 /** Detect bill stage from text signals */
 function detectStage(text: string): { stage: string; weight: number } {
   const lower = (text ?? "").toLowerCase();
@@ -98,6 +159,9 @@ export async function analyzeRisk(): Promise<RiskReport> {
   const now = new Date();
 
   const regime = detectRegime("", now);
+
+  // Load calibration data from forecast grading (if available)
+  const calibration = await loadCalibration();
 
   // Regime multipliers — how much does the session timing affect passage probability?
   const regimeMultiplier: Record<string, number> = {
@@ -321,13 +385,16 @@ export async function analyzeRisk(): Promise<RiskReport> {
       });
     }
 
-    // ── Calculate final scores ──────────────────────────────────────
+    // ── Calculate final scores (with calibration auto-correction) ──
     const baseProb = stageWeight;
     const riskBoost = riskFactors.reduce((s, f) => s + f.impact * 0.3, 0);
     const mitigate = mitigatingFactors.reduce((s, f) => s + Math.abs(f.impact) * 0.2, 0);
     // Sponsor coalition acts as a multiplier — strong coalitions amplify base probability
     const sponsorMult = sponsorPower !== undefined ? (0.7 + (sponsorPower / 100) * 0.6) : 1.0;
-    const passageProbability = Math.min(0.99, Math.max(0.01, (baseProb + riskBoost - mitigate) * regimeMult * sponsorMult));
+    const rawProbability = (baseProb + riskBoost - mitigate) * regimeMult * sponsorMult;
+    // Apply calibration correction: adjusts based on how well previous predictions in this probability range performed
+    const calCorrection = calibrationCorrection(rawProbability, calibration);
+    const passageProbability = Math.min(0.99, Math.max(0.01, rawProbability * calCorrection));
 
     const riskScore = Math.round(passageProbability * avgScore); // combine likelihood with severity
     const riskLevel: RiskAssessment["riskLevel"] =

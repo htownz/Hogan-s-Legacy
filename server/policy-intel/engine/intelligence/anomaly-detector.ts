@@ -14,7 +14,7 @@
  */
 import { policyIntelDb } from "../../db";
 import {
-  alerts, sourceDocuments, watchlists, hearingEvents,
+  alerts, sourceDocuments, watchlists, hearingEvents, anomalyHistory,
 } from "@shared/schema-policy-intel";
 import { count, desc, eq, gte, sql } from "drizzle-orm";
 import { detectRegime } from "../agent-pipeline";
@@ -60,6 +60,63 @@ function severityFromDeviation(dev: number): Anomaly["severity"] {
   return "low";
 }
 
+/**
+ * Learn false-positive rate from anomaly history.
+ * If a certain type of anomaly was frequently not actioned, raise its threshold.
+ */
+async function learnedThresholdAdjustment(anomalyType: string): Promise<number> {
+  try {
+    const d90 = new Date(Date.now() - 90 * 86400000);
+    const history = await policyIntelDb
+      .select({
+        total: count(),
+        actioned: sql<number>`SUM(CASE WHEN ${anomalyHistory.wasActioned} THEN 1 ELSE 0 END)`,
+      })
+      .from(anomalyHistory)
+      .where(
+        sql`${anomalyHistory.type} = ${anomalyType} AND ${anomalyHistory.detectedAt} >= ${d90.toISOString()}::timestamptz`,
+      );
+
+    const total = Number(history[0]?.total ?? 0);
+    const actioned = Number(history[0]?.actioned ?? 0);
+
+    if (total < 5) return 0; // not enough history
+
+    const actionRate = actioned / total;
+    // If <20% of this type are actioned, raise threshold by +0.5 z-scores
+    // If >80% are actioned, lower threshold by -0.3 z-scores
+    if (actionRate < 0.2) return 0.5;
+    if (actionRate > 0.8) return -0.3;
+    return 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Persist detected anomalies to history table for learning.
+ */
+async function persistAnomalies(anomalies: Anomaly[], regime: string): Promise<void> {
+  if (anomalies.length === 0) return;
+  try {
+    const values = anomalies.slice(0, 50).map(a => ({
+      type: a.type,
+      severity: a.severity,
+      subject: a.subject.slice(0, 256),
+      deviation: a.deviation,
+      baseline: a.baseline,
+      observed: a.observed,
+      detectedAt: new Date(a.detectedAt),
+      regime,
+      wasActioned: false,
+      metadataJson: (a.metadata ?? {}) as Record<string, unknown>,
+    }));
+    await policyIntelDb.insert(anomalyHistory).values(values);
+  } catch {
+    // Non-critical — don't break anomaly detection if persistence fails
+  }
+}
+
 export async function detectAnomalies(): Promise<AnomalyReport> {
   const now = new Date();
   const d7 = new Date(now.getTime() - 7 * 86400000);
@@ -76,9 +133,10 @@ export async function detectAnomalies(): Promise<AnomalyReport> {
   };
   const regimeMult = regimeMultiplier[regime] ?? 1.0;
 
-  // ── 1. Volume Spike Detection (regime-adjusted) ────────────────────
+  // ── 1. Volume Spike Detection (regime-adjusted + learned threshold) ─
   // Compare last-7-day alert volume per watchlist against 90-day average,
   // adjusted for expected session-phase activity levels
+  const volumeThresholdAdj = await learnedThresholdAdjustment("volume_spike");
   const volumeRows = await policyIntelDb
     .select({
       watchlistId: alerts.watchlistId,
@@ -99,7 +157,7 @@ export async function detectAnomalies(): Promise<AnomalyReport> {
     if (adjustedAvg < 1) continue; // not enough data
     const stdApprox = Math.max(adjustedAvg * 0.5, 1); // rough std deviation
     const zScore = (recent - adjustedAvg) / stdApprox;
-    if (zScore >= 2) {
+    if (zScore >= 2 + volumeThresholdAdj) {
       anomalies.push({
         type: "volume_spike",
         severity: severityFromDeviation(zScore),
@@ -326,6 +384,9 @@ export async function detectAnomalies(): Promise<AnomalyReport> {
   // ── Sort by severity ───────────────────────────────────────────────
   const severityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
   anomalies.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+
+  // ── Persist to anomaly history for learning ────────────────────────
+  await persistAnomalies(anomalies, regime);
 
   return {
     analyzedAt: now.toISOString(),

@@ -1,27 +1,39 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { api, type PowerNetworkReport, type LegislationPredictorReport, type PowerCenterProfile, type VotingBlocResult, type PowerFlowEdge, type LegislationPredictionItem } from "../api";
 import { useAsync } from "../hooks";
 
-type Tab = "bigThree" | "votingBlocs" | "predictions" | "powerFlows" | "findings";
+type Tab = "overview" | "bigThree" | "votingBlocs" | "predictions" | "powerFlows" | "findings";
 
 export function PowerNetworkPage() {
-  const [tab, setTab] = useState<Tab>("bigThree");
+  const [tab, setTab] = useState<Tab>("overview");
+  const [refreshing, setRefreshing] = useState(false);
   const { data: network, loading: netLoading, error: netError, refetch: refetchNet } = useAsync(() => api.getPowerNetworkReport());
   const { data: predictions, loading: predLoading, error: predError, refetch: refetchPred } = useAsync(() => api.getLegislationPredictions());
 
   const loading = netLoading || predLoading;
   const error = netError || predError;
 
-  if (loading) return <div style={{ padding: 40, textAlign: "center" }}><div style={{ fontSize: 32, marginBottom: 16 }}>🔄</div>Analyzing political power network...</div>;
-  if (error) return <div style={{ padding: 40, color: "#e74c3c" }}>Error: {String(error)}<br /><button onClick={() => { refetchNet(); refetchPred(); }} style={{ marginTop: 12, padding: "8px 16px", cursor: "pointer" }}>Retry</button></div>;
+  const handleReanalyze = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([refetchNet(), refetchPred()]);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  if (loading && !refreshing) return <div style={{ padding: 40, textAlign: "center" }}><div style={{ fontSize: 32, marginBottom: 16 }}>🔄</div>Analyzing political power network...</div>;
+  if (error) return <div style={{ padding: 40, color: "#e74c3c" }}>Error: {String(error)}<br /><button onClick={handleReanalyze} style={{ marginTop: 12, padding: "8px 16px", cursor: "pointer" }}>Retry</button></div>;
   if (!network || !predictions) return null;
 
   const tabs: { key: Tab; label: string; count?: number }[] = [
+    { key: "overview", label: "Overview" },
     { key: "bigThree", label: "Big Three", count: 3 },
-    { key: "votingBlocs", label: "Voting Blocs", count: network.votingBlocs.length },
-    { key: "predictions", label: "Legislation Predictions", count: predictions.predictions.length },
+    { key: "votingBlocs", label: "Committee Cohorts", count: network.votingBlocs.length },
+    { key: "predictions", label: "Predictions", count: predictions.predictions.length },
     { key: "powerFlows", label: "Power Flow", count: network.powerFlows.length },
-    { key: "findings", label: "Key Findings", count: network.keyFindings.length },
+    { key: "findings", label: "Findings", count: network.keyFindings.length },
   ];
 
   return (
@@ -34,8 +46,8 @@ export function PowerNetworkPage() {
             Texas Legislature &middot; {predictions.session} Session &middot; {new Date(network.analyzedAt).toLocaleString()}
           </p>
         </div>
-        <button onClick={() => { refetchNet(); refetchPred(); }} style={{ padding: "8px 16px", fontSize: 13, cursor: "pointer", background: "#8e44ad", color: "#fff", border: "none", borderRadius: 6, fontWeight: 600 }}>
-          Re-analyze
+        <button onClick={handleReanalyze} disabled={refreshing} style={{ padding: "8px 16px", fontSize: 13, cursor: refreshing ? "wait" : "pointer", background: refreshing ? "#666" : "#8e44ad", color: "#fff", border: "none", borderRadius: 6, fontWeight: 600, opacity: refreshing ? 0.7 : 1 }}>
+          {refreshing ? "Analyzing..." : "Re-analyze"}
         </button>
       </div>
 
@@ -50,7 +62,7 @@ export function PowerNetworkPage() {
           <Stat label="Senate" value={network.stats.chamberBreakdown.senate} color="#9b59b6" />
           <Stat label="GOP" value={network.stats.partyBreakdown.R} color="#c0392b" />
           <Stat label="Dem" value={network.stats.partyBreakdown.D} color="#2980b9" />
-          <Stat label="Voting Blocs" value={network.stats.blocsDetected} color="#1abc9c" />
+          <Stat label="Cohorts" value={network.stats.blocsDetected} color="#1abc9c" />
           <Stat label="Predictions" value={predictions.stats.totalPredictions} color="#f39c12" />
         </div>
       </div>
@@ -79,11 +91,143 @@ export function PowerNetworkPage() {
       </div>
 
       {/* Content */}
+      {tab === "overview" && <OverviewTab network={network} predictions={predictions} onNavigate={setTab} />}
       {tab === "bigThree" && <BigThreeTab bigThree={network.bigThree} />}
       {tab === "votingBlocs" && <VotingBlocsTab blocs={network.votingBlocs} />}
       {tab === "predictions" && <PredictionsTab report={predictions} />}
       {tab === "powerFlows" && <PowerFlowsTab flows={network.powerFlows} />}
       {tab === "findings" && <FindingsTab findings={network.keyFindings} />}
+    </div>
+  );
+}
+
+// ── Overview Tab ───────────────────────────────────────────────────────────
+
+function OverviewTab({ network, predictions, onNavigate }: {
+  network: PowerNetworkReport;
+  predictions: LegislationPredictorReport;
+  onNavigate: (tab: Tab) => void;
+}) {
+  const topPredictions = predictions.predictions.slice(0, 5);
+  const topFindings = network.keyFindings.slice(0, 4);
+
+  return (
+    <div style={{ display: "grid", gap: 20 }}>
+      {/* Big Three Summary Cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 }}>
+        {network.bigThree.map(pc => (
+          <div key={pc.role} onClick={() => onNavigate("bigThree")} style={{
+            background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)",
+            borderRadius: 10, padding: 18, cursor: "pointer",
+            borderLeft: `4px solid ${roleColor(pc.role)}`,
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1, color: roleColor(pc.role), fontWeight: 700 }}>
+                  {pc.role === "governor" ? "Governor" : pc.role === "lieutenant_governor" ? "Lt. Governor" : "Speaker"}
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 700, margin: "4px 0" }}>{pc.name}</div>
+                <div style={{ fontSize: 12, color: "#888" }}>
+                  {pc.party} · {pc.priorities.length} priorities · {pc.committeeChairs.length} chairs · {pc.allies.length} allies
+                </div>
+              </div>
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 28, fontWeight: 700, color: roleColor(pc.role) }}>{pc.metrics.chamberControl}%</div>
+                <div style={{ fontSize: 10, color: "#888" }}>Control</div>
+              </div>
+            </div>
+            {/* Top 3 priorities mini-list */}
+            <div style={{ marginTop: 10, display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {pc.priorities.slice(0, 3).map(p => (
+                <span key={p.topic} style={{
+                  fontSize: 10, background: "#252538", borderRadius: 3, padding: "2px 8px",
+                  borderLeft: `2px solid ${p.stance === "champion" ? "#2ecc71" : p.stance === "oppose" ? "#e74c3c" : "#f39c12"}`,
+                }}>
+                  {p.topic}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Two-column: Top Predictions + Top Findings */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 16 }}>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <h3 style={{ margin: 0, fontSize: 14 }}>📊 Top Predictions</h3>
+            <button onClick={() => onNavigate("predictions")} style={{
+              fontSize: 11, background: "none", border: "none", color: "#8e44ad", cursor: "pointer", textDecoration: "underline",
+            }}>View all →</button>
+          </div>
+          {topPredictions.map((pred, idx) => (
+            <div key={pred.topic + idx} style={{ background: "#1e1e2e", borderRadius: 6, padding: "10px 14px", marginBottom: 8, fontSize: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <span style={{ background: pred.predictedBillType === "SB" ? "#8e44ad" : "#2980b9", color: "#fff", padding: "1px 6px", borderRadius: 3, fontSize: 10, marginRight: 6 }}>
+                    {pred.predictedBillType}
+                  </span>
+                  <strong>{pred.topic}</strong>
+                </div>
+                <div style={{ display: "flex", gap: 8         }}>
+                  <span style={{ color: confColor(pred.confidence), fontWeight: 700 }}>{(pred.confidence * 100).toFixed(0)}%</span>
+                  <span style={{ color: confColor(pred.passageProbability) }}>{(pred.passageProbability * 100).toFixed(0)}%</span>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                <PowerBadge label="Gov" stance={pred.powerCenterDynamic.governor} />
+                <PowerBadge label="Lt Gov" stance={pred.powerCenterDynamic.ltGov} />
+                <PowerBadge label="Spkr" stance={pred.powerCenterDynamic.speaker} />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <h3 style={{ margin: 0, fontSize: 14 }}>🔍 Key Findings</h3>
+            <button onClick={() => onNavigate("findings")} style={{
+              fontSize: 11, background: "none", border: "none", color: "#8e44ad", cursor: "pointer", textDecoration: "underline",
+            }}>View all →</button>
+          </div>
+          {topFindings.map((f, idx) => (
+            <div key={idx} style={{ background: "#1e1e2e", borderRadius: 6, padding: "10px 14px", marginBottom: 8, borderLeft: "3px solid #8e44ad", fontSize: 12, lineHeight: 1.5 }}>
+              {f}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Voting Blocs Summary */}
+      {network.votingBlocs.length > 0 && (
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <h3 style={{ margin: 0, fontSize: 14 }}>🤝 Committee Cohorts</h3>
+            <button onClick={() => onNavigate("votingBlocs")} style={{
+              fontSize: 11, background: "none", border: "none", color: "#8e44ad", cursor: "pointer", textDecoration: "underline",
+            }}>View all →</button>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 10 }}>
+            {network.votingBlocs.slice(0, 4).map((bloc, idx) => (
+              <div key={bloc.name + idx} style={{
+                background: "#1e1e2e", borderRadius: 8, padding: "12px 16px",
+                border: bloc.bipartisan ? "1px solid #1abc9c" : "1px solid #333",
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{bloc.name}</div>
+                  <div style={{ color: bloc.cohesion > 0.6 ? "#2ecc71" : "#f39c12", fontWeight: 700, fontSize: 14 }}>
+                    {(bloc.cohesion * 100).toFixed(0)}%
+                  </div>
+                </div>
+                <div style={{ fontSize: 11, color: "#888", marginTop: 4 }}>
+                  {bloc.members.length} members · {bloc.chamber}
+                  {bloc.bipartisan && <span style={{ color: "#1abc9c", marginLeft: 6 }}>Bipartisan</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -131,9 +275,9 @@ function BigThreeTab({ bigThree }: { bigThree: PowerCenterProfile[] }) {
               </h3>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {pc.committeeChairs.map(ch => (
-                  <span key={ch.stakeholderId} style={{ background: "#252538", borderRadius: 4, padding: "4px 10px", fontSize: 12 }}>
-                    <strong>{ch.name}</strong> — {ch.committee}
-                  </span>
+                  <Link key={ch.stakeholderId} href={`/stakeholders/${ch.stakeholderId}`} style={{ background: "#252538", borderRadius: 4, padding: "4px 10px", fontSize: 12, color: "inherit", textDecoration: "none" }}>
+                    <strong style={{ borderBottom: "1px dotted #666" }}>{ch.name}</strong> — {ch.committee}
+                  </Link>
                 ))}
               </div>
             </>
@@ -145,10 +289,10 @@ function BigThreeTab({ bigThree }: { bigThree: PowerCenterProfile[] }) {
               <h3 style={{ fontSize: 14, margin: "16px 0 8px", color: "#ccc" }}>Key Allies ({pc.allies.length})</h3>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 6 }}>
                 {pc.allies.map(a => (
-                  <div key={a.stakeholderId} style={{ background: "#252538", borderRadius: 6, padding: "8px 12px", fontSize: 12 }}>
-                    <strong>{a.name}</strong> <span style={{ color: a.party === "R" ? "#c0392b" : "#2980b9" }}>({a.party})</span>
+                  <Link key={a.stakeholderId} href={`/stakeholders/${a.stakeholderId}`} style={{ background: "#252538", borderRadius: 6, padding: "8px 12px", fontSize: 12, color: "inherit", textDecoration: "none" }}>
+                    <strong style={{ borderBottom: "1px dotted #666" }}>{a.name}</strong> <span style={{ color: a.party === "R" ? "#c0392b" : "#2980b9" }}>({a.party})</span>
                     <div style={{ color: "#888", marginTop: 2 }}>{a.reason}</div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             </>
@@ -162,7 +306,7 @@ function BigThreeTab({ bigThree }: { bigThree: PowerCenterProfile[] }) {
 // ── Voting Blocs Tab ───────────────────────────────────────────────────────
 
 function VotingBlocsTab({ blocs }: { blocs: VotingBlocResult[] }) {
-  if (blocs.length === 0) return <EmptyState message="No voting blocs detected yet. More vote data needed." />;
+  if (blocs.length === 0) return <EmptyState message="No committee cohorts detected yet. More committee membership data needed." />;
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
@@ -195,18 +339,20 @@ function VotingBlocsTab({ blocs }: { blocs: VotingBlocResult[] }) {
 
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {bloc.members.map(m => (
-              <span key={m.stakeholderId} style={{
+              <Link key={m.stakeholderId} href={`/stakeholders/${m.stakeholderId}`} style={{
                 background: m.isLeader ? "#3d2468" : "#252538",
                 border: m.isLeader ? "1px solid #8e44ad" : "1px solid transparent",
                 borderRadius: 4,
                 padding: "4px 10px",
                 fontSize: 12,
+                color: "inherit",
+                textDecoration: "none",
               }}>
                 <span style={{ color: m.party === "R" ? "#e74c3c" : "#3498db" }}>●</span>{" "}
                 {m.name}
                 {m.isLeader && <span style={{ fontSize: 10, marginLeft: 4, color: "#8e44ad" }}>★ Leader</span>}
                 <span style={{ color: "#666", marginLeft: 4 }}>{(m.loyalty * 100).toFixed(0)}%</span>
-              </span>
+              </Link>
             ))}
           </div>
         </div>
@@ -252,7 +398,9 @@ function PredictionsTab({ report }: { report: LegislationPredictorReport }) {
 
       {/* Predictions */}
       <div style={{ display: "grid", gap: 12 }}>
-        {filtered.map((pred, idx) => (
+        {filtered.length === 0 ? (
+          <EmptyState message={`No predictions match the "${filter}" filter.`} />
+        ) : filtered.map((pred, idx) => (
           <PredictionCard key={pred.topic + idx} prediction={pred} />
         ))}
       </div>
@@ -336,7 +484,7 @@ function PredictionCard({ prediction: p }: { prediction: LegislationPredictionIt
 // ── Power Flows Tab ────────────────────────────────────────────────────────
 
 function PowerFlowsTab({ flows }: { flows: PowerFlowEdge[] }) {
-  if (flows.length === 0) return <EmptyState message="No power flow connections mapped yet." />;
+  if (flows.length === 0) return <EmptyState message="No power flow connections mapped yet. Run analysis to generate flow data." />;
 
   const grouped = new Map<string, typeof flows>();
   for (const f of flows) {
@@ -377,6 +525,8 @@ function PowerFlowsTab({ flows }: { flows: PowerFlowEdge[] }) {
 // ── Findings Tab ───────────────────────────────────────────────────────────
 
 function FindingsTab({ findings }: { findings: string[] }) {
+  if (findings.length === 0) return <EmptyState message="No key findings generated yet. Run analysis to generate insights." />;
+
   return (
     <div>
       <h3 style={{ fontSize: 16, margin: "0 0 16px" }}>🔍 Key Power Network Findings</h3>

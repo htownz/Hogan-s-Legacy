@@ -517,7 +517,34 @@ export function createPolicyIntelRouter() {
       ]);
 
       const total = totalRow?.count ?? 0;
-      res.json({ data: rows, total, page, limit, totalPages: Math.ceil(total / limit) });
+
+      // Enrich with alert counts
+      const docIds = rows.map((r) => r.id);
+      let alertCountMap: Record<number, { count: number; maxScore: number }> = {};
+      if (docIds.length > 0) {
+        const alertAgg = await policyIntelDb
+          .select({
+            sourceDocumentId: alerts.sourceDocumentId,
+            count: sql<number>`count(*)::int`,
+            maxScore: sql<number>`coalesce(max(${alerts.relevanceScore}), 0)`,
+          })
+          .from(alerts)
+          .where(inArray(alerts.sourceDocumentId, docIds))
+          .groupBy(alerts.sourceDocumentId);
+        for (const a of alertAgg) {
+          if (a.sourceDocumentId) {
+            alertCountMap[a.sourceDocumentId] = { count: a.count, maxScore: a.maxScore };
+          }
+        }
+      }
+
+      const enriched = rows.map((r) => ({
+        ...r,
+        alertCount: alertCountMap[r.id]?.count ?? 0,
+        maxAlertScore: alertCountMap[r.id]?.maxScore ?? 0,
+      }));
+
+      res.json({ data: enriched, total, page, limit, totalPages: Math.ceil(total / limit) });
     } catch (err: any) {
       next(err);
     }
@@ -2704,7 +2731,8 @@ export function createPolicyIntelRouter() {
   router.get("/intelligence/power-network", async (_req, res, next) => {
     try {
       const { analyzeNetworkPower } = await import("./engine/intelligence/power-network-analyzer");
-      const report = await analyzeNetworkPower();
+      const force = _req.query.force === "true";
+      const report = await analyzeNetworkPower(force);
       res.json(report);
     } catch (err: any) {
       next(err);
@@ -2717,7 +2745,8 @@ export function createPolicyIntelRouter() {
   router.get("/intelligence/predictions", async (_req, res, next) => {
     try {
       const { predictLegislation } = await import("./engine/intelligence/legislation-predictor");
-      const report = await predictLegislation();
+      const force = _req.query.force === "true";
+      const report = await predictLegislation(force);
       res.json(report);
     } catch (err: any) {
       next(err);

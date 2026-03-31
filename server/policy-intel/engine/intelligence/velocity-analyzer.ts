@@ -7,8 +7,9 @@
  * went from 1 alert/week to 12 in 3 days — something is moving."
  */
 import { policyIntelDb } from "../../db";
-import { alerts, sourceDocuments, watchlists } from "@shared/schema-policy-intel";
+import { alerts, sourceDocuments, watchlists, velocitySnapshots } from "@shared/schema-policy-intel";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { detectRegime } from "../agent-pipeline";
 
 export interface VelocityVector {
   /** What we're tracking (watchlist name, source type, bill prefix) */
@@ -173,11 +174,43 @@ export async function analyzeVelocity(): Promise<VelocityReport> {
   // Sort by significance
   vectors.sort((a, b) => b.significance - a.significance);
 
+  const topMovers = vectors.filter(v => v.momentum === "surging" || v.momentum === "heating").slice(0, 5);
+  const emergingTopics = vectors.filter(v => v.previous7d === 0 && v.current7d > 0).slice(0, 5);
+  const decayingTopics = vectors.filter(v => v.momentum === "stalled" || v.momentum === "cooling").slice(0, 5);
+
+  // ── Persist velocity snapshot for longitudinal tracking ────────────
+  const regime = detectRegime("", now);
+  try {
+    await policyIntelDb.insert(velocitySnapshots).values({
+      capturedAt: now,
+      regime,
+      vectorsJson: vectors.map(v => ({
+        subject: v.subject,
+        subjectType: v.subjectType,
+        momentum: v.momentum,
+        weekOverWeekChange: v.weekOverWeekChange,
+        significance: v.significance,
+        current7d: v.current7d,
+        previous7d: v.previous7d,
+      })) as unknown as Record<string, unknown>[],
+      topMoversJson: topMovers.map(v => ({
+        subject: v.subject,
+        momentum: v.momentum,
+        weekOverWeekChange: v.weekOverWeekChange,
+      })) as unknown as Record<string, unknown>[],
+      totalVectors: vectors.length,
+      surgingCount: vectors.filter(v => v.momentum === "surging").length,
+      stalledCount: vectors.filter(v => v.momentum === "stalled").length,
+    });
+  } catch {
+    // Non-critical — don't break velocity analysis if persistence fails
+  }
+
   return {
     analyzedAt: now.toISOString(),
     vectors,
-    topMovers: vectors.filter(v => v.momentum === "surging" || v.momentum === "heating").slice(0, 5),
-    emergingTopics: vectors.filter(v => v.previous7d === 0 && v.current7d > 0).slice(0, 5),
-    decayingTopics: vectors.filter(v => v.momentum === "stalled" || v.momentum === "cooling").slice(0, 5),
+    topMovers,
+    emergingTopics,
+    decayingTopics,
   };
 }

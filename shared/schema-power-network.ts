@@ -39,39 +39,6 @@ export const powerCenterRoleEnum = pgEnum("power_center_role", [
   "rules_chair",
 ]);
 
-export const actorTypeEnum = pgEnum("capitol_actor_type", [
-  "elected_official",
-  "capitol_staff",
-  "campaign_staff",
-  "lobbyist",
-  "association_leader",
-  "government_relations",
-  "consultant",
-  "donor",
-  "media",
-  "business_leader",
-  "advocacy_org",
-]);
-
-export const connectionTypeEnum = pgEnum("network_connection_type", [
-  "employs",
-  "donates_to",
-  "lobbies_for",
-  "advises",
-  "formerly_worked_for",
-  "campaigns_for",
-  "married_to",
-  "related_to",
-  "business_partner",
-  "co_sponsors_with",
-  "votes_with",
-  "opposes",
-  "mentors",
-  "appointed_by",
-  "association_member",
-  "client_of",
-]);
-
 export const predictionStatusEnum = pgEnum("prediction_status", [
   "predicted",
   "filed",
@@ -94,7 +61,7 @@ export const powerCenters = pgTable("power_centers", {
   /** Key policy priorities for this leader */
   priorities: jsonb("priorities").$type<{
     topic: string;
-    stance: "champion" | "oppose" | "neutral";
+    stance: "champion" | "oppose" | "neutral" | "cautious";
     intensity: number; // 1-10
     evidence: string;
   }[]>().default([]),
@@ -108,71 +75,6 @@ export const powerCenters = pgTable("power_centers", {
     passRate: number;
     donorOverlap: number;
   }>(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-// ── Capitol Network Actors ─────────────────────────────────────────────────
-
-/** All people in the political network beyond legislators */
-export const capitolActors = pgTable("capitol_actors", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  actorType: actorTypeEnum("actor_type").notNull(),
-  /** If this actor is also a legislator */
-  stakeholderId: integer("stakeholder_id").references(() => stakeholders.id),
-  title: text("title"),
-  organization: text("organization"),
-  /** For lobbyists: registered clients */
-  clients: jsonb("clients").$type<string[]>().default([]),
-  /** For donors: total contributions tracked */
-  totalContributions: doublePrecision("total_contributions").default(0),
-  /** For staff: which office they work in */
-  office: text("office"),
-  party: text("party"),
-  /** Influence score 0-100 based on network position */
-  influenceScore: integer("influence_score").default(0),
-  /** Contact info */
-  email: text("email"),
-  phone: text("phone"),
-  /** External IDs for data linking */
-  tecId: text("tec_id"), // Texas Ethics Commission ID
-  fecId: text("fec_id"), // Federal Election Commission ID
-  openStatesId: text("openstates_id"),
-  /** Bio / background */
-  bio: text("bio"),
-  /** Tags for filtering */
-  tags: jsonb("tags").$type<string[]>().default([]),
-  active: boolean("active").default(true),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-// ── Network Connections ────────────────────────────────────────────────────
-
-/** Edges in the political network graph */
-export const capitolConnections = pgTable("capitol_connections", {
-  id: serial("id").primaryKey(),
-  /** Source node — can be actor or legislator */
-  sourceActorId: integer("source_actor_id").references(() => capitolActors.id),
-  sourceStakeholderId: integer("source_stakeholder_id").references(() => stakeholders.id),
-  /** Target node — can be actor or legislator */
-  targetActorId: integer("target_actor_id").references(() => capitolActors.id),
-  targetStakeholderId: integer("target_stakeholder_id").references(() => stakeholders.id),
-  connectionType: connectionTypeEnum("connection_type").notNull(),
-  /** Strength 0-1 */
-  strength: doublePrecision("strength").default(0.5),
-  /** Evidence for this connection */
-  evidence: text("evidence"),
-  /** Financial amount if applicable */
-  financialAmount: doublePrecision("financial_amount"),
-  /** Time period */
-  session: text("session"),
-  startDate: timestamp("start_date"),
-  endDate: timestamp("end_date"),
-  /** Is this connection currently active? */
-  active: boolean("active").default(true),
-  verified: boolean("verified").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -324,8 +226,6 @@ export const votingBlocMembersRelations = relations(votingBlocMembers, ({ one })
 // ── Zod schemas ────────────────────────────────────────────────────────────
 
 export const insertPowerCenterSchema = createInsertSchema(powerCenters).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertCapitolActorSchema = createInsertSchema(capitolActors).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertCapitolConnectionSchema = createInsertSchema(capitolConnections).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertVotingBlocSchema = createInsertSchema(votingBlocs).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertVotingBlocMemberSchema = createInsertSchema(votingBlocMembers).omit({ id: true, createdAt: true });
 export const insertLegislationPredictionSchema = createInsertSchema(legislationPredictions).omit({ id: true, createdAt: true, updatedAt: true });
@@ -333,10 +233,6 @@ export const insertLeadershipPrioritySchema = createInsertSchema(leadershipPrior
 
 export type PowerCenter = typeof powerCenters.$inferSelect;
 export type InsertPowerCenter = z.infer<typeof insertPowerCenterSchema>;
-export type CapitolActor = typeof capitolActors.$inferSelect;
-export type InsertCapitolActor = z.infer<typeof insertCapitolActorSchema>;
-export type CapitolConnection = typeof capitolConnections.$inferSelect;
-export type InsertCapitolConnection = z.infer<typeof insertCapitolConnectionSchema>;
 export type VotingBloc = typeof votingBlocs.$inferSelect;
 export type InsertVotingBloc = z.infer<typeof insertVotingBlocSchema>;
 export type VotingBlocMember = typeof votingBlocMembers.$inferSelect;

@@ -15,8 +15,8 @@
  * This creates an institutional memory — the system learns from its own history.
  */
 import { policyIntelDb } from "../../db";
-import { alerts, sourceDocuments } from "@shared/schema-policy-intel";
-import { sql, gte, desc, count } from "drizzle-orm";
+import { alerts, sourceDocuments, forecastSnapshots, learningMetrics } from "@shared/schema-policy-intel";
+import { sql, gte, desc, count, eq } from "drizzle-orm";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -118,26 +118,69 @@ export interface ForecastReport {
   historyDepth: number;
 }
 
-// ── In-Memory Snapshot Store ─────────────────────────────────────────────────
-// In production this would be a database table; for now we use a bounded ring buffer
-// that survives server restarts within a session.
+// ── DB-Backed Snapshot Store ─────────────────────────────────────────────────
+// Persists forecast snapshots to PostgreSQL so prediction grading survives
+// server restarts — critical for the learning loop.
 
-const MAX_SNAPSHOTS = 100;
-const snapshotStore: ForecastSnapshot[] = [];
+const MAX_SNAPSHOTS = 200;
 
-function storeSnapshot(snapshot: ForecastSnapshot) {
-  snapshotStore.push(snapshot);
-  if (snapshotStore.length > MAX_SNAPSHOTS) {
-    snapshotStore.shift(); // drop oldest
+async function storeSnapshot(snapshot: ForecastSnapshot): Promise<void> {
+  await policyIntelDb.insert(forecastSnapshots).values({
+    snapshotId: snapshot.snapshotId,
+    capturedAt: new Date(snapshot.capturedAt),
+    predictionsJson: snapshot.predictions as unknown as Record<string, unknown>[],
+    regime: snapshot.regime,
+    totalInsights: snapshot.totalInsights,
+    criticalRiskCount: snapshot.criticalRiskCount,
+    anomalyCount: snapshot.anomalyCount,
+  });
+
+  // Prune old snapshots beyond MAX_SNAPSHOTS
+  const countResult = await policyIntelDb
+    .select({ cnt: count() })
+    .from(forecastSnapshots);
+  const total = Number(countResult[0]?.cnt ?? 0);
+  if (total > MAX_SNAPSHOTS) {
+    const oldest = await policyIntelDb
+      .select({ id: forecastSnapshots.id })
+      .from(forecastSnapshots)
+      .orderBy(forecastSnapshots.capturedAt)
+      .limit(total - MAX_SNAPSHOTS);
+    for (const row of oldest) {
+      await policyIntelDb.delete(forecastSnapshots).where(eq(forecastSnapshots.id, row.id));
+    }
   }
 }
 
-function getLatestSnapshot(): ForecastSnapshot | null {
-  return snapshotStore.length > 0 ? snapshotStore[snapshotStore.length - 1] : null;
+async function getLatestSnapshot(): Promise<ForecastSnapshot | null> {
+  const [row] = await policyIntelDb
+    .select()
+    .from(forecastSnapshots)
+    .orderBy(desc(forecastSnapshots.capturedAt))
+    .limit(1);
+  if (!row) return null;
+  return dbRowToSnapshot(row);
 }
 
-function getAllSnapshots(): ForecastSnapshot[] {
-  return [...snapshotStore];
+async function getAllSnapshots(): Promise<ForecastSnapshot[]> {
+  const rows = await policyIntelDb
+    .select()
+    .from(forecastSnapshots)
+    .orderBy(forecastSnapshots.capturedAt)
+    .limit(MAX_SNAPSHOTS);
+  return rows.map(dbRowToSnapshot);
+}
+
+function dbRowToSnapshot(row: typeof forecastSnapshots.$inferSelect): ForecastSnapshot {
+  return {
+    snapshotId: row.snapshotId,
+    capturedAt: row.capturedAt.toISOString(),
+    predictions: (row.predictionsJson ?? []) as unknown as BillPrediction[],
+    regime: row.regime,
+    totalInsights: row.totalInsights,
+    criticalRiskCount: row.criticalRiskCount,
+    anomalyCount: row.anomalyCount,
+  };
 }
 
 // ── Core Analysis ────────────────────────────────────────────────────────────
@@ -147,7 +190,7 @@ function getAllSnapshots(): ForecastSnapshot[] {
  * Uses alert activity patterns as a proxy for bill progression.
  */
 async function gradePredictions(): Promise<ForecastGrade> {
-  const snapshots = getAllSnapshots();
+  const snapshots = await getAllSnapshots();
 
   if (snapshots.length < 2) {
     return {
@@ -318,12 +361,12 @@ async function gradePredictions(): Promise<ForecastGrade> {
 /**
  * Compute delta between current and previous briefing.
  */
-export function computeDelta(
+export async function computeDelta(
   currentPredictions: BillPrediction[],
   currentAnomalyCount: number,
   currentClusterCount: number,
-): DeltaBriefing {
-  const previous = getLatestSnapshot();
+): Promise<DeltaBriefing> {
+  const previous = await getLatestSnapshot();
 
   if (!previous) {
     return {
@@ -411,13 +454,13 @@ export function computeDelta(
 /**
  * Capture a snapshot from the current risk assessments for future grading.
  */
-export function captureSnapshot(
+export async function captureSnapshot(
   predictions: BillPrediction[],
   regime: string,
   insightCount: number,
   criticalRiskCount: number,
   anomalyCount: number,
-): ForecastSnapshot {
+): Promise<ForecastSnapshot> {
   const snapshot: ForecastSnapshot = {
     snapshotId: `snap-${Date.now()}`,
     capturedAt: new Date().toISOString(),
@@ -427,7 +470,7 @@ export function captureSnapshot(
     criticalRiskCount,
     anomalyCount,
   };
-  storeSnapshot(snapshot);
+  await storeSnapshot(snapshot);
   return snapshot;
 }
 
@@ -443,20 +486,38 @@ export async function analyzeForecast(
   clusterCount: number,
 ): Promise<ForecastReport> {
   // 1. Compute delta against previous snapshot
-  const delta = computeDelta(predictions, anomalyCount, clusterCount);
+  const delta = await computeDelta(predictions, anomalyCount, clusterCount);
 
   // 2. Grade historical predictions
   const grade = await gradePredictions();
 
   // 3. Store the current snapshot for future grading
-  const snapshot = captureSnapshot(predictions, regime, insightCount, criticalRiskCount, anomalyCount);
+  const snapshot = await captureSnapshot(predictions, regime, insightCount, criticalRiskCount, anomalyCount);
+
+  // 4. Persist calibration data for risk model auto-adjustment
+  if (grade.verifiablePredictions > 0) {
+    await policyIntelDb.insert(learningMetrics).values({
+      metricType: "forecast_calibration",
+      regime,
+      valuesJson: {
+        accuracy: grade.accuracy.overall,
+        rankingAccuracy: grade.accuracy.rankingAccuracy,
+        calibrationBuckets: grade.accuracy.calibration,
+        blindSpotCount: grade.blindSpots.length,
+        trendDirection: grade.trendDirection,
+        verifiablePredictions: grade.verifiablePredictions,
+      } as unknown as Record<string, unknown>,
+    });
+  }
+
+  const allSnaps = await getAllSnapshots();
 
   return {
     analyzedAt: new Date().toISOString(),
     currentSnapshot: snapshot,
     delta,
     grade,
-    historyDepth: getAllSnapshots().length,
+    historyDepth: allSnaps.length,
   };
 }
 

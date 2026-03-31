@@ -6,7 +6,7 @@ if (!process.env.DATABASE_URL) {
 
 export default defineConfig({
   out: "./migrations/policy-intel",
-  schema: "./shared/schema-policy-intel.ts",
+  schema: ["./shared/schema-policy-intel.ts", "./shared/schema-power-network.ts"],
   dialect: "postgresql",
   dbCredentials: {
     url: process.env.DATABASE_URL,

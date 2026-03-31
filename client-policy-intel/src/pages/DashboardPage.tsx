@@ -1,4 +1,4 @@
-import { api, type DashboardKpis, type SparklinePoint, type SchedulerStatus, type JobRunRecord, type ChampionStatus, type RetrainResult, type HearingEvent } from "../api";
+import { api, type DashboardKpis, type SparklinePoint, type SchedulerStatus, type JobRunRecord, type ChampionStatus, type RetrainResult, type HearingEvent, type PowerNetworkReport, type LegislationPredictorReport, type IntelligenceBriefing } from "../api";
 import { useAsync } from "../hooks";
 import { useState, useCallback, useEffect, useRef } from "react";
 
@@ -222,6 +222,9 @@ export function DashboardPage() {
   const [retraining, setRetraining] = useState(false);
   const [retrainResult, setRetrainResult] = useState<RetrainResult | null>(null);
   const { data: thisWeekData } = useAsync(() => api.getThisWeekHearings());
+  const { data: powerNetwork } = useAsync(() => api.getPowerNetworkReport());
+  const { data: predictions } = useAsync(() => api.getLegislationPredictions());
+  const { data: briefing } = useAsync(() => api.getIntelligenceBriefing());
 
   // Auto-refresh KPIs every 15 seconds
   const fetchKpis = useCallback(async () => {
@@ -539,6 +542,109 @@ export function DashboardPage() {
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Intelligence Briefing Card */}
+      {briefing && (
+        <div style={{ background: "#fff", borderRadius: 10, padding: 20, marginBottom: 24, boxShadow: "0 1px 4px rgba(0,0,0,0.08)", borderLeft: "4px solid #8e44ad" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <h3 style={{ fontSize: 15, margin: 0, color: "#8e44ad" }}>🧠 Intelligence Briefing</h3>
+            <a href="/intelligence" style={{ fontSize: 12, color: "#3498db", textDecoration: "none" }}>Full Intel Hub →</a>
+          </div>
+          <p style={{ fontSize: 13, color: "#444", lineHeight: 1.5, margin: "0 0 10px" }}>{briefing.executiveSummary}</p>
+          <div style={{ display: "flex", gap: 16, fontSize: 12 }}>
+            <span style={{ color: "#c0392b", fontWeight: 600 }}>
+              {briefing.insights.filter((i) => i.priority === 1).length} critical
+            </span>
+            <span style={{ color: "#e67e22", fontWeight: 600 }}>
+              {briefing.insights.filter((i) => i.priority === 2).length} high-priority
+            </span>
+            <span style={{ color: "#888" }}>
+              {briefing.insights.length} total insights
+            </span>
+            {briefing.delta?.threatTrend && (
+              <span style={{
+                color: briefing.delta.threatTrend === "escalating" ? "#e74c3c" : briefing.delta.threatTrend === "deescalating" ? "#27ae60" : "#888",
+                fontWeight: 600,
+              }}>
+                Threat: {briefing.delta.threatTrend}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Power Network + Predictions Quick View */}
+      {(powerNetwork || predictions) && (
+        <div style={{ marginBottom: 32 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <h3 style={{ fontSize: 15, margin: 0 }}>⚡ Power Network &amp; Predictions</h3>
+            <a href="/power-network" style={{ fontSize: 12, color: "#3498db", textDecoration: "none" }}>Full Analysis →</a>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            {/* Big Three Mini Cards */}
+            {powerNetwork && (
+              <div style={{ display: "grid", gap: 10 }}>
+                {powerNetwork.bigThree.map(pc => {
+                  const roleCol = pc.role === "governor" ? "#e67e22" : pc.role === "lieutenant_governor" ? "#8e44ad" : "#2980b9";
+                  return (
+                    <div key={pc.role} style={{
+                      background: "#fff", borderRadius: 8, padding: "12px 16px",
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+                      borderLeft: `3px solid ${roleCol}`,
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div>
+                          <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1, color: roleCol, fontWeight: 700 }}>
+                            {pc.role === "governor" ? "Governor" : pc.role === "lieutenant_governor" ? "Lt. Governor" : "Speaker"}
+                          </div>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: "#333" }}>{pc.name}</div>
+                          <div style={{ fontSize: 11, color: "#888" }}>{pc.priorities.length} priorities · {pc.allies.length} allies</div>
+                        </div>
+                        <div style={{ textAlign: "center" }}>
+                          <div style={{ fontSize: 22, fontWeight: 700, color: roleCol }}>{pc.metrics.chamberControl}%</div>
+                          <div style={{ fontSize: 9, color: "#888" }}>Control</div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {/* Top Predictions */}
+            {predictions && (
+              <div>
+                <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                  <div style={{ background: "#fff", borderRadius: 6, padding: "8px 14px", flex: 1, boxShadow: "0 1px 3px rgba(0,0,0,0.06)", textAlign: "center" }}>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: "#2ecc71" }}>{predictions.stats.highConfidence}</div>
+                    <div style={{ fontSize: 10, color: "#888" }}>High Conf.</div>
+                  </div>
+                  <div style={{ background: "#fff", borderRadius: 6, padding: "8px 14px", flex: 1, boxShadow: "0 1px 3px rgba(0,0,0,0.06)", textAlign: "center" }}>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: "#3498db" }}>{predictions.mostLikelyToPass.length}</div>
+                    <div style={{ fontSize: 10, color: "#888" }}>Likely Pass</div>
+                  </div>
+                  <div style={{ background: "#fff", borderRadius: 6, padding: "8px 14px", flex: 1, boxShadow: "0 1px 3px rgba(0,0,0,0.06)", textAlign: "center" }}>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: "#e67e22" }}>{predictions.chamberConflicts.length}</div>
+                    <div style={{ fontSize: 10, color: "#888" }}>Conflicts</div>
+                  </div>
+                </div>
+                {predictions.predictions.slice(0, 4).map((p, idx) => (
+                  <div key={p.topic + idx} style={{
+                    background: "#fff", borderRadius: 6, padding: "8px 12px", marginBottom: 6,
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.06)", fontSize: 12,
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span style={{ fontWeight: 600 }}>{p.topic}</span>
+                      <span style={{ color: p.passageProbability > 0.5 ? "#27ae60" : p.passageProbability > 0.3 ? "#f39c12" : "#e74c3c", fontWeight: 700 }}>
+                        {(p.passageProbability * 100).toFixed(0)}% pass
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

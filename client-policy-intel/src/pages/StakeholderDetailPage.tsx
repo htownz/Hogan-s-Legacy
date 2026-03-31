@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useRoute } from "wouter";
-import { api, type StakeholderFull, type MeetingNote } from "../api";
+import { api, type StakeholderFull, type MeetingNote, type InfluenceReport, type PowerNetworkReport } from "../api";
 import { useAsync } from "../hooks";
 
 const TYPE_COLORS: Record<string, string> = {
@@ -21,13 +21,15 @@ export function StakeholderDetailPage() {
   const [, params] = useRoute("/stakeholders/:id");
   const id = Number(params?.id);
   const { data: s, loading, error, refetch } = useAsync(() => api.getStakeholderFull(id), [id]);
+  const { data: influenceReport } = useAsync(() => api.getInfluenceReport());
+  const { data: powerNetwork } = useAsync(() => api.getPowerNetworkReport());
   const [obsText, setObsText] = useState("");
   const [adding, setAdding] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [noteDate, setNoteDate] = useState("");
   const [noteMethod, setNoteMethod] = useState("in-person");
   const [addingNote, setAddingNote] = useState(false);
-  const [activeTab, setActiveTab] = useState<"observations" | "committees" | "notes">("observations");
+  const [activeTab, setActiveTab] = useState<"observations" | "committees" | "notes" | "intelligence">("observations");
 
   if (loading) return <p>Loading...</p>;
   if (error) return <div><p style={{ color: "red" }}>{error}</p><button onClick={refetch} style={{ padding: "6px 14px", cursor: "pointer" }}>Retry</button></div>;
@@ -139,11 +141,12 @@ export function StakeholderDetailPage() {
 
       {/* Tab Navigation */}
       <div style={{ display: "flex", gap: 0, marginBottom: 0 }}>
-        {(["observations", "committees", "notes"] as const).map((tab) => {
+        {(["observations", "committees", "notes", "intelligence"] as const).map((tab) => {
           const labels = {
             observations: `Observations (${s.observations.length})`,
             committees: `Committees (${s.committees.length})`,
             notes: `Meeting Notes (${s.meetingNotes.length})`,
+            intelligence: "Intelligence",
           };
           return (
             <button
@@ -319,6 +322,102 @@ export function StakeholderDetailPage() {
             )}
           </>
         )}
+
+        {/* Intelligence Tab */}
+        {activeTab === "intelligence" && (() => {
+          const profile = influenceReport?.profiles.find((p) => p.stakeholderId === s.id);
+          const isPowerBroker = influenceReport?.powerBrokers.some((p) => p.stakeholderId === s.id);
+          const isGatekeeper = influenceReport?.gatekeepers.some((p) => p.stakeholderId === s.id);
+          const isWellConnected = influenceReport?.wellConnected.some((p) => p.stakeholderId === s.id);
+          const isUnderEngaged = influenceReport?.underEngaged.some((p) => p.stakeholderId === s.id);
+
+          // Find in power network blocs
+          const blocMembership = powerNetwork?.votingBlocs.filter((b) =>
+            b.members.some((m) => m.stakeholderId === s.id)
+          ) ?? [];
+
+          // Check Big Three allies
+          const bigThreeAlly = powerNetwork?.bigThree.filter((pc) =>
+            pc.allies.some((a) => a.stakeholderId === s.id)
+          ).map((pc) => pc.role.replace(/_/g, " ")) ?? [];
+
+          // Check if this stakeholder is a committee chair under a power center
+          const chairUnder = powerNetwork?.bigThree.filter((pc) =>
+            pc.committeeChairs.some((ch) => ch.stakeholderId === s.id)
+          ).map((pc) => pc.role.replace(/_/g, " ")) ?? [];
+
+          if (!profile && !powerNetwork) {
+            return <p style={{ color: "#888", fontSize: 13 }}>No intelligence data available for this stakeholder. Run the Intelligence Engine to generate profiles.</p>;
+          }
+
+          return (
+            <div style={{ display: "grid", gap: 16 }}>
+              {/* Influence Score */}
+              {profile && (
+                <div>
+                  <h4 style={{ fontSize: 14, fontWeight: 600, margin: "0 0 10px", color: "#333" }}>Influence Profile</h4>
+                  <div style={{ display: "flex", gap: 20, marginBottom: 12, flexWrap: "wrap" }}>
+                    <div style={{ textAlign: "center" }}>
+                      <div style={{ fontSize: 32, fontWeight: 700, color: profile.influenceScore >= 70 ? "#27ae60" : profile.influenceScore >= 40 ? "#e67e22" : "#95a5a6" }}>
+                        {profile.influenceScore}
+                      </div>
+                      <div style={{ fontSize: 11, color: "#888" }}>Influence Score</div>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 20px", fontSize: 12 }}>
+                      <ScoreBar label="Positional Power" value={profile.breakdown.positionalPower} />
+                      <ScoreBar label="Activity Level" value={profile.breakdown.activityLevel} />
+                      <ScoreBar label="Network Reach" value={profile.breakdown.networkReach} />
+                      <ScoreBar label="Recency" value={profile.breakdown.recency} />
+                    </div>
+                  </div>
+                  <p style={{ fontSize: 12, color: "#555", margin: "0 0 8px" }}>{profile.assessment}</p>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {profile.roles.map((r, i) => (
+                      <span key={i} style={{ padding: "2px 8px", borderRadius: 10, fontSize: 11, background: "#e8f5e9", color: "#2e7d32" }}>{r}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Designations */}
+              {(isPowerBroker || isGatekeeper || isWellConnected || isUnderEngaged || bigThreeAlly.length > 0 || chairUnder.length > 0) && (
+                <div>
+                  <h4 style={{ fontSize: 14, fontWeight: 600, margin: "0 0 8px", color: "#333" }}>Designations</h4>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {chairUnder.map((r) => (
+                      <span key={r} style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: "#ffd700", color: "#333" }}>🪑 Chair under {r}</span>
+                    ))}
+                    {bigThreeAlly.map((r) => (
+                      <span key={r} style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600, background: "#3498db18", color: "#2471a3" }}>🤝 Ally of {r}</span>
+                    ))}
+                    {isPowerBroker && <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600, background: "#c0392b18", color: "#c0392b" }}>Power Broker</span>}
+                    {isGatekeeper && <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600, background: "#e67e2218", color: "#e67e22" }}>Gatekeeper</span>}
+                    {isWellConnected && <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600, background: "#27ae6018", color: "#27ae60" }}>Well Connected</span>}
+                    {isUnderEngaged && <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600, background: "#95a5a618", color: "#555" }}>Under-Engaged</span>}
+                  </div>
+                </div>
+              )}
+
+              {/* Voting Bloc Membership */}
+              {blocMembership.length > 0 && (
+                <div>
+                  <h4 style={{ fontSize: 14, fontWeight: 600, margin: "0 0 8px", color: "#333" }}>Voting Bloc Membership</h4>
+                  <div style={{ display: "grid", gap: 6 }}>
+                    {blocMembership.map((bloc) => (
+                      <div key={bloc.name} style={{ padding: "8px 12px", borderRadius: 6, background: "#f8f9fa", borderLeft: `3px solid ${bloc.cohesion >= 0.7 ? "#27ae60" : "#e67e22"}` }}>
+                        <div style={{ fontSize: 13, fontWeight: 600 }}>{bloc.name}</div>
+                        <div style={{ fontSize: 11, color: "#888" }}>
+                          {bloc.members.length} members · cohesion {(bloc.cohesion * 100).toFixed(0)}% · {bloc.chamber}
+                          {bloc.bipartisan && " · bipartisan"}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
@@ -340,4 +439,18 @@ function confidenceColor(confidence: string): string {
     case "low": return "#e74c3c";
     default: return "#95a5a6";
   }
+}
+
+function ScoreBar({ label, value }: { label: string; value: number }) {
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+        <span style={{ color: "#555" }}>{label}</span>
+        <span style={{ color: "#888" }}>{value}</span>
+      </div>
+      <div style={{ height: 4, background: "#eee", borderRadius: 2, overflow: "hidden", width: 120 }}>
+        <div style={{ height: "100%", width: `${value}%`, background: value >= 70 ? "#27ae60" : value >= 40 ? "#e67e22" : "#95a5a6", borderRadius: 2 }} />
+      </div>
+    </div>
+  );
 }

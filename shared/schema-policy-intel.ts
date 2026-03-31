@@ -525,6 +525,93 @@ export type InsertPolicyIntelFeedbackLog = typeof feedbackLog.$inferInsert;
 export type PolicyIntelChampionSnapshot = typeof championSnapshots.$inferSelect;
 export type InsertPolicyIntelChampionSnapshot = typeof championSnapshots.$inferInsert;
 
+// ── Learning Persistence Tables ─────────────────────────────────────────────
+
+/** Persists forecast snapshots so prediction grading survives restarts */
+export const forecastSnapshots = pgTable(
+  "policy_intel_forecast_snapshots",
+  {
+    id: serial("id").primaryKey(),
+    snapshotId: varchar("snapshot_id", { length: 64 }).notNull(),
+    capturedAt: timestamp("captured_at", { withTimezone: true }).defaultNow().notNull(),
+    predictionsJson: jsonb("predictions_json").$type<Record<string, unknown>[]>().notNull().default([]),
+    regime: varchar("regime", { length: 32 }).notNull().default("interim"),
+    totalInsights: integer("total_insights").notNull().default(0),
+    criticalRiskCount: integer("critical_risk_count").notNull().default(0),
+    anomalyCount: integer("anomaly_count").notNull().default(0),
+  },
+  (table) => ({
+    snapshotIdx: uniqueIndex("policy_intel_forecast_snap_sid_idx").on(table.snapshotId),
+    capturedIdx: index("policy_intel_forecast_snap_captured_idx").on(table.capturedAt),
+  }),
+);
+
+/** Tracks detected anomalies over time so the system can learn false-positive rates */
+export const anomalyHistory = pgTable(
+  "policy_intel_anomaly_history",
+  {
+    id: serial("id").primaryKey(),
+    type: varchar("type", { length: 64 }).notNull(),
+    severity: varchar("severity", { length: 16 }).notNull(),
+    subject: varchar("subject", { length: 256 }).notNull(),
+    deviation: doublePrecision("deviation").notNull().default(0),
+    baseline: doublePrecision("baseline").notNull().default(0),
+    observed: doublePrecision("observed").notNull().default(0),
+    detectedAt: timestamp("detected_at", { withTimezone: true }).defaultNow().notNull(),
+    regime: varchar("regime", { length: 32 }).notNull().default("interim"),
+    wasActioned: boolean("was_actioned").notNull().default(false),
+    metadataJson: jsonb("metadata_json").$type<Record<string, unknown>>().default({}),
+  },
+  (table) => ({
+    typeIdx: index("policy_intel_anomaly_hist_type_idx").on(table.type),
+    detectedIdx: index("policy_intel_anomaly_hist_detected_idx").on(table.detectedAt),
+    severityIdx: index("policy_intel_anomaly_hist_severity_idx").on(table.severity),
+  }),
+);
+
+/** Stores velocity snapshots for longitudinal momentum tracking */
+export const velocitySnapshots = pgTable(
+  "policy_intel_velocity_snapshots",
+  {
+    id: serial("id").primaryKey(),
+    capturedAt: timestamp("captured_at", { withTimezone: true }).defaultNow().notNull(),
+    regime: varchar("regime", { length: 32 }).notNull().default("interim"),
+    vectorsJson: jsonb("vectors_json").$type<Record<string, unknown>[]>().notNull().default([]),
+    topMoversJson: jsonb("top_movers_json").$type<Record<string, unknown>[]>().notNull().default([]),
+    totalVectors: integer("total_vectors").notNull().default(0),
+    surgingCount: integer("surging_count").notNull().default(0),
+    stalledCount: integer("stalled_count").notNull().default(0),
+  },
+  (table) => ({
+    capturedIdx: index("policy_intel_velocity_snap_captured_idx").on(table.capturedAt),
+  }),
+);
+
+/** Aggregated learning metrics — accuracy trends, calibration history, agent contributions */
+export const learningMetrics = pgTable(
+  "policy_intel_learning_metrics",
+  {
+    id: serial("id").primaryKey(),
+    metricType: varchar("metric_type", { length: 64 }).notNull(),
+    capturedAt: timestamp("captured_at", { withTimezone: true }).defaultNow().notNull(),
+    regime: varchar("regime", { length: 32 }).notNull().default("interim"),
+    valuesJson: jsonb("values_json").$type<Record<string, unknown>>().notNull().default({}),
+  },
+  (table) => ({
+    typeIdx: index("policy_intel_learning_metrics_type_idx").on(table.metricType),
+    capturedIdx: index("policy_intel_learning_metrics_captured_idx").on(table.capturedAt),
+  }),
+);
+
+export type PolicyIntelForecastSnapshot = typeof forecastSnapshots.$inferSelect;
+export type InsertPolicyIntelForecastSnapshot = typeof forecastSnapshots.$inferInsert;
+export type PolicyIntelAnomalyHistory = typeof anomalyHistory.$inferSelect;
+export type InsertPolicyIntelAnomalyHistory = typeof anomalyHistory.$inferInsert;
+export type PolicyIntelVelocitySnapshot = typeof velocitySnapshots.$inferSelect;
+export type InsertPolicyIntelVelocitySnapshot = typeof velocitySnapshots.$inferInsert;
+export type PolicyIntelLearningMetric = typeof learningMetrics.$inferSelect;
+export type InsertPolicyIntelLearningMetric = typeof learningMetrics.$inferInsert;
+
 export type PolicyIntelWorkspace = typeof workspaces.$inferSelect;
 export type InsertPolicyIntelWorkspace = typeof workspaces.$inferInsert;
 export type PolicyIntelWatchlist = typeof watchlists.$inferSelect;

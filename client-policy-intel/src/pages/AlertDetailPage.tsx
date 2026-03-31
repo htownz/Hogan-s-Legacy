@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useRoute } from "wouter";
-import { api, type Alert, type AlertDetail } from "../api";
+import { api, type Alert, type AlertDetail, type RiskReport, type InfluenceReport } from "../api";
 import { useAsync } from "../hooks";
 
 export function AlertDetailPage() {
@@ -11,6 +11,8 @@ export function AlertDetailPage() {
   const [creatingIssueRoom, setCreatingIssueRoom] = useState(false);
 
   const { data, loading, error, refetch } = useAsync(() => api.getAlert(id), [id]);
+  const { data: riskReport } = useAsync(() => api.getRiskReport());
+  const { data: influenceReport } = useAsync(() => api.getInfluenceReport());
 
   if (loading) return <p>Loading alert...</p>;
   if (error) return <div><p style={{ color: "red" }}>{error}</p><button onClick={refetch} style={{ padding: "6px 14px", cursor: "pointer" }}>Retry</button></div>;
@@ -122,6 +124,61 @@ export function AlertDetailPage() {
             </Card>
           )}
 
+          {/* Risk Assessment */}
+          {(() => {
+            if (!riskReport) return null;
+            const titleLower = a.title.toLowerCase();
+            const match = riskReport.assessments.find((r) =>
+              titleLower.includes(r.billId.toLowerCase()) || r.title.toLowerCase().includes(titleLower.slice(0, 40))
+            );
+            if (!match) return null;
+            const riskColors: Record<string, string> = { critical: "#c0392b", high: "#e74c3c", elevated: "#e67e22", moderate: "#f39c12", low: "#27ae60" };
+            return (
+              <Card title="Risk Assessment">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <div>
+                    <span style={{
+                      padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700,
+                      background: (riskColors[match.riskLevel] ?? "#888") + "18",
+                      color: riskColors[match.riskLevel] ?? "#888",
+                      textTransform: "capitalize",
+                    }}>
+                      {match.riskLevel}
+                    </span>
+                    <span style={{ fontSize: 12, color: "#888", marginLeft: 8 }}>{match.billId}</span>
+                  </div>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: riskColors[match.riskLevel] ?? "#888" }}>
+                      {(match.passageProbability * 100).toFixed(0)}%
+                    </div>
+                    <div style={{ fontSize: 10, color: "#888" }}>passage prob.</div>
+                  </div>
+                </div>
+                <p style={{ fontSize: 12, color: "#555", lineHeight: 1.5, margin: "0 0 8px" }}>{match.narrative}</p>
+                {match.riskFactors.length > 0 && (
+                  <div style={{ fontSize: 12 }}>
+                    <strong style={{ color: "#c0392b" }}>Risk factors:</strong>
+                    <ul style={{ margin: "4px 0 0 16px", padding: 0, lineHeight: 1.6 }}>
+                      {match.riskFactors.slice(0, 3).map((f, i) => (
+                        <li key={i} style={{ color: "#555" }}>{f.factor} ({f.detail})</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {match.recommendations.length > 0 && (
+                  <div style={{ fontSize: 12, marginTop: 8 }}>
+                    <strong style={{ color: "#2471a3" }}>Recommendations:</strong>
+                    <ul style={{ margin: "4px 0 0 16px", padding: 0, lineHeight: 1.6 }}>
+                      {match.recommendations.slice(0, 3).map((r, i) => (
+                        <li key={i} style={{ color: "#555" }}>{r}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </Card>
+            );
+          })()}
+
           {/* Reviewer Note */}
           {a.reviewerNote && (
             <Card title="Reviewer Note">
@@ -185,6 +242,27 @@ export function AlertDetailPage() {
               </Link>
               {wl.topic && <p style={{ fontSize: 12, color: "#888", marginTop: 4 }}>{wl.topic}</p>}
               {wl.description && <p style={{ fontSize: 12, color: "#555", marginTop: 4 }}>{wl.description}</p>}
+            </Card>
+          )}
+
+          {/* Key Stakeholders */}
+          {influenceReport && influenceReport.powerBrokers.length > 0 && (
+            <Card title="Key Stakeholders">
+              <div style={{ display: "grid", gap: 6 }}>
+                {influenceReport.powerBrokers.slice(0, 5).map((p) => (
+                  <Link key={p.stakeholderId} href={`/stakeholders/${p.stakeholderId}`}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 8px", borderRadius: 4, background: "#f8f9fa", cursor: "pointer" }}>
+                      <div>
+                        <span style={{ fontSize: 13, fontWeight: 500, color: "#333" }}>{p.name}</span>
+                        <span style={{ fontSize: 11, color: "#888", marginLeft: 6 }}>{p.type}{p.party ? ` (${p.party})` : ""}</span>
+                      </div>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: p.influenceScore >= 70 ? "#27ae60" : "#e67e22" }}>
+                        {p.influenceScore}
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
             </Card>
           )}
         </div>

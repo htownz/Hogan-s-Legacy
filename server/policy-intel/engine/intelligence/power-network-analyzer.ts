@@ -16,7 +16,18 @@ import {
   stakeholders, committeeMembers, alerts,
   issueRooms, sourceDocuments,
 } from "@shared/schema-policy-intel";
+import { powerCenters, leadershipPriorities, votingBlocs as votingBlocsTable, votingBlocMembers } from "@shared/schema-power-network";
 import { eq, sql, desc, and, count, ilike } from "drizzle-orm";
+
+// ── Config ─────────────────────────────────────────────────────────────────
+
+const CURRENT_SESSION = "89R";
+
+// ── Cache ──────────────────────────────────────────────────────────────────
+
+const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+let cachedReport: PowerNetworkReport | null = null;
+let cachedAt = 0;
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -111,14 +122,18 @@ export interface PowerNetworkReport {
 
 // ── Analyzer ───────────────────────────────────────────────────────────────
 
-export async function analyzeNetworkPower(): Promise<PowerNetworkReport> {
+export async function analyzeNetworkPower(force = false): Promise<PowerNetworkReport> {
+  if (!force && cachedReport && Date.now() - cachedAt < CACHE_TTL_MS) {
+    return cachedReport;
+  }
+
   // ── Load all data ──────────────────────────────────────────────────
   const allStakeholders = await policyIntelDb.select().from(stakeholders);
   const allCommittees = await policyIntelDb.select().from(committeeMembers);
 
   const legislators = allStakeholders.filter(s => s.type === "legislator");
-  const houseMembers = legislators.filter(l => l.chamber === "house");
-  const senateMembers = legislators.filter(l => l.chamber === "senate");
+  const houseMembers = legislators.filter(l => l.chamber?.toLowerCase() === "house");
+  const senateMembers = legislators.filter(l => l.chamber?.toLowerCase() === "senate");
 
   // Build committee maps
   const stakeholderCommittees = new Map<number, typeof allCommittees>();
@@ -130,22 +145,40 @@ export async function analyzeNetworkPower(): Promise<PowerNetworkReport> {
 
   const chairs = allCommittees.filter(cm => cm.role === "chair");
   const viceChairs = allCommittees.filter(cm => cm.role === "vice_chair");
-  const houseChairs = chairs.filter(cm => cm.chamber === "house");
-  const senateChairs = chairs.filter(cm => cm.chamber === "senate");
+  const houseChairs = chairs.filter(cm => cm.chamber?.toLowerCase() === "house");
+  const senateChairs = chairs.filter(cm => cm.chamber?.toLowerCase() === "senate");
+
+  // ── Load previous Big Three from DB (if available) for better defaults ──
+  const savedCenters = await policyIntelDb
+    .select()
+    .from(powerCenters)
+    .where(eq(powerCenters.session, CURRENT_SESSION));
+  const savedByRole = new Map(savedCenters.map(pc => [pc.role, pc]));
+
+  // Resolve stakeholder IDs for Big Three
+  const resolveStakeholderId = (name: string): number => {
+    const match = allStakeholders.find(s =>
+      s.name.toLowerCase() === name.toLowerCase()
+    );
+    return match?.id ?? 0;
+  };
 
   // ── Big Three Analysis ─────────────────────────────────────────────
   const bigThree: PowerCenterProfile[] = [];
 
   // Governor (executive — not in legislators table, synthesize from data)
+  const savedGov = savedByRole.get("governor");
+  const govName = savedGov?.name ?? "Greg Abbott";
   const govPriorities = await detectGovernorPriorities();
+  const govAllies = findGovernorAllies(legislators, chairs, allCommittees);
   bigThree.push({
-    name: "Greg Abbott",
+    name: govName,
     role: "governor",
     chamber: "executive",
-    party: "R",
+    party: savedGov?.party ?? "R",
     priorities: govPriorities,
     committeeChairs: [], // Governor doesn't appoint committee chairs
-    allies: [],
+    allies: govAllies,
     metrics: {
       committeeChairsControlled: 0,
       billsPrioritized: govPriorities.length,
@@ -154,14 +187,16 @@ export async function analyzeNetworkPower(): Promise<PowerNetworkReport> {
   });
 
   // Lt. Governor — controls the Senate, appoints Senate committee chairs
-  const ltGovName = "Dan Patrick";
+  const savedLtGov = savedByRole.get("lieutenant_governor");
+  const ltGovName = savedLtGov?.name ?? "Dan Patrick";
+  const ltGovPriorities = await detectChamberPriorities("senate");
   const ltGovAllies = findAllies(senateMembers, senateChairs, allCommittees, "senate");
   bigThree.push({
     name: ltGovName,
     role: "lieutenant_governor",
     chamber: "senate",
-    party: "R",
-    priorities: await detectChamberPriorities("senate"),
+    party: savedLtGov?.party ?? "R",
+    priorities: ltGovPriorities,
     committeeChairs: senateChairs.map(ch => {
       const leg = legislators.find(l => l.id === ch.stakeholderId);
       return {
@@ -175,20 +210,22 @@ export async function analyzeNetworkPower(): Promise<PowerNetworkReport> {
     allies: ltGovAllies,
     metrics: {
       committeeChairsControlled: senateChairs.length,
-      billsPrioritized: 0,
+      billsPrioritized: ltGovPriorities.length,
       chamberControl: 85, // Lt Gov controls Senate floor & committee assignments
     },
   });
 
   // Speaker — controls the House, appoints House committee chairs
-  const speakerName = findSpeaker(houseMembers, houseChairs) ?? "Dade Phelan";
+  const savedSpeaker = savedByRole.get("speaker");
+  const speakerName = savedSpeaker?.name ?? findSpeaker(houseMembers, houseChairs) ?? "Dustin Burrows";
+  const speakerPriorities = await detectChamberPriorities("house");
   const speakerAllies = findAllies(houseMembers, houseChairs, allCommittees, "house");
   bigThree.push({
     name: speakerName,
     role: "speaker",
     chamber: "house",
-    party: "R",
-    priorities: await detectChamberPriorities("house"),
+    party: savedSpeaker?.party ?? "R",
+    priorities: speakerPriorities,
     committeeChairs: houseChairs.map(ch => {
       const leg = legislators.find(l => l.id === ch.stakeholderId);
       return {
@@ -202,7 +239,7 @@ export async function analyzeNetworkPower(): Promise<PowerNetworkReport> {
     allies: speakerAllies,
     metrics: {
       committeeChairsControlled: houseChairs.length,
-      billsPrioritized: 0,
+      billsPrioritized: speakerPriorities.length,
       chamberControl: 80,
     },
   });
@@ -220,7 +257,7 @@ export async function analyzeNetworkPower(): Promise<PowerNetworkReport> {
   const partyR = legislators.filter(l => l.party === "R").length;
   const partyD = legislators.filter(l => l.party === "D").length;
 
-  return {
+  const report: PowerNetworkReport = {
     analyzedAt: new Date().toISOString(),
     bigThree,
     votingBlocs,
@@ -237,6 +274,19 @@ export async function analyzeNetworkPower(): Promise<PowerNetworkReport> {
       bipartisanBlocs: votingBlocs.filter(b => b.bipartisan).length,
     },
   };
+
+  // Persist power centers and voting blocs to database (fire-and-forget)
+  seedPowerCenters(bigThree).catch(err =>
+    console.error("[power-network] Failed to seed power centers:", err.message)
+  );
+  seedVotingBlocs(votingBlocs).catch(err =>
+    console.error("[power-network] Failed to seed voting blocs:", err.message)
+  );
+
+  cachedReport = report;
+  cachedAt = Date.now();
+
+  return report;
 }
 
 // ── Helper Functions ───────────────────────────────────────────────────────
@@ -330,12 +380,76 @@ async function detectChamberPriorities(chamber: string) {
   return priorities.slice(0, 8);
 }
 
-/** Find the Speaker by looking for the most committee appointments */
+/** Find the Speaker by looking for who chairs multiple or key committees in the House */
 function findSpeaker(houseMembers: any[], houseChairs: any[]): string | null {
-  // The Speaker typically doesn't chair committees themselves
-  // but we can infer from appointment patterns. Use known data.
-  // In 89th session: Dade Phelan was Speaker (but may change in 90th)
-  return null; // Use default
+  // Count how many committee chairs each member has
+  const chairCount = new Map<number, { name: string; count: number; committees: string[] }>();
+  for (const ch of houseChairs) {
+    const leg = houseMembers.find(m => m.id === ch.stakeholderId);
+    if (!leg) continue;
+    let entry = chairCount.get(ch.stakeholderId);
+    if (!entry) {
+      entry = { name: leg.name, count: 0, committees: [] as string[] };
+      chairCount.set(ch.stakeholderId, entry);
+    }
+    entry.count++;
+    entry.committees.push(ch.committeeName);
+  }
+  // The Speaker often chairs State Affairs or has distinctive committee assignments
+  // Also check known Speaker committee patterns
+  for (const [, entry] of chairCount) {
+    if (entry.committees.some(c => c.toLowerCase().includes("calendars")) ||
+        entry.committees.some(c => c.toLowerCase().includes("house administration"))) {
+      return entry.name;
+    }
+  }
+  // Fallback: member who chairs the most committees
+  let best: { name: string; count: number } | null = null;
+  for (const [, entry] of chairCount) {
+    if (!best || entry.count > best.count) best = entry;
+  }
+  return best?.name ?? null;
+}
+
+/** Find Governor's legislative allies — chairs of committees carrying governor-priority legislation */
+function findGovernorAllies(
+  legislators: any[],
+  chairs: any[],
+  allCommittees: any[],
+): PowerCenterProfile["allies"] {
+  const allies: PowerCenterProfile["allies"] = [];
+  // Governor priority committee keywords (maps to Abbott's known priorities)
+  const govCommittees = [
+    { keyword: "border", topic: "Border Security" },
+    { keyword: "homeland", topic: "Homeland Security" },
+    { keyword: "education", topic: "Education/School Choice" },
+    { keyword: "ways", topic: "Property Tax Reform" },
+    { keyword: "energy", topic: "Energy/Grid" },
+    { keyword: "criminal", topic: "Criminal Justice" },
+    { keyword: "state affairs", topic: "State Policy" },
+    { keyword: "appropriations", topic: "Budget/Appropriations" },
+    { keyword: "finance", topic: "Finance" },
+  ];
+
+  for (const { keyword, topic } of govCommittees) {
+    const matchingChairs = chairs.filter(c =>
+      c.committeeName.toLowerCase().includes(keyword)
+    );
+    for (const ch of matchingChairs) {
+      const leg = legislators.find(l => l.id === ch.stakeholderId);
+      if (leg && leg.party === "R" && !allies.find(a => a.stakeholderId === leg.id)) {
+        allies.push({
+          name: leg.name,
+          party: leg.party ?? "R",
+          chamber: leg.chamber ?? "",
+          stakeholderId: leg.id,
+          reason: `Chair of ${ch.committeeName} — key to Governor's ${topic} agenda`,
+        });
+      }
+    }
+  }
+
+  return allies.slice(0, 15);
 }
 
 /** Find key allies for a power center */
@@ -489,15 +603,15 @@ function detectVotingBlocs(
 
       blocs.push({
         name: leader
-          ? `${leader.name} Bloc`
-          : `${chamber.charAt(0).toUpperCase() + chamber.slice(1)} Bloc ${blocs.length + 1}`,
+          ? `${leader.name} Cohort`
+          : `${chamber.charAt(0).toUpperCase() + chamber.slice(1)} Cohort ${blocs.length + 1}`,
         chamber,
         members: members.sort((a, b) => b.loyalty - a.loyalty),
         cohesion: avgLoyalty,
         issueAreas: sharedCommittees.slice(0, 5),
-        alignedPowerCenter: chamber === "senate" ? "Lieutenant Governor" : "Speaker",
+        alignedPowerCenter: chamber?.toLowerCase() === "senate" ? "Lieutenant Governor" : "Speaker",
         bipartisan,
-        narrative: `${members.length}-member ${bipartisan ? "bipartisan " : ""}bloc in the ${chamber} centered around ${sharedCommittees.slice(0, 3).join(", ")} committee work. ${leader ? `Led by committee chair ${leader.name}.` : "No committee chair identified as leader."} Cohesion: ${(avgLoyalty * 100).toFixed(0)}%.`,
+        narrative: `${members.length}-member ${bipartisan ? "bipartisan " : ""}committee cohort in the ${chamber} centered around ${sharedCommittees.slice(0, 3).join(", ")} committee work. ${leader ? `Led by committee chair ${leader.name}.` : "No committee chair identified as leader."} Committee co-membership cohesion: ${(avgLoyalty * 100).toFixed(0)}%.`,
       });
     }
   }
@@ -514,14 +628,37 @@ function buildPowerFlows(
   allCommittees: any[],
 ): PowerFlowEdge[] {
   const flows: PowerFlowEdge[] = [];
-  let edgeId = 1;
+
+  // Resolve Big Three stakeholder IDs for proper graph edges
+  const resolveId = (name: string, allSh: any[]): number => {
+    const match = allSh?.find?.((s: any) => s.name?.toLowerCase() === name?.toLowerCase());
+    return match?.id ?? 0;
+  };
+
+  // Governor → key allies (governor powers: veto, emergency orders, appointments)
+  const gov = bigThree.find(b => b.role === "governor");
+  if (gov) {
+    for (const ally of gov.allies.slice(0, 10)) {
+      flows.push({
+        sourceId: resolveId(gov.name, legislators),
+        sourceName: gov.name,
+        sourceRole: "governor",
+        targetId: ally.stakeholderId,
+        targetName: ally.name,
+        targetRole: "ally",
+        flowType: "allies_with",
+        strength: 0.7,
+        evidence: ally.reason,
+      });
+    }
+  }
 
   // Lt Gov → Senate committee chairs
   const ltGov = bigThree.find(b => b.role === "lieutenant_governor");
   if (ltGov) {
     for (const ch of ltGov.committeeChairs) {
       flows.push({
-        sourceId: 0,
+        sourceId: resolveId(ltGov.name, legislators),
         sourceName: ltGov.name,
         sourceRole: "lieutenant_governor",
         targetId: ch.stakeholderId,
@@ -539,7 +676,7 @@ function buildPowerFlows(
   if (speaker) {
     for (const ch of speaker.committeeChairs) {
       flows.push({
-        sourceId: 0,
+        sourceId: resolveId(speaker.name, legislators),
         sourceName: speaker.name,
         sourceRole: "speaker",
         targetId: ch.stakeholderId,
@@ -574,6 +711,39 @@ function buildPowerFlows(
     }
   }
 
+  // Key committee chairs → members (controls) — for power committees only
+  const powerCommitteeKeywords = ["appropriations", "finance", "state affairs", "ways and means", "calendars", "rules"];
+  for (const chair of chairs) {
+    const isPowerCommittee = powerCommitteeKeywords.some(kw =>
+      chair.committeeName.toLowerCase().includes(kw)
+    );
+    if (!isPowerCommittee) continue;
+    const chairLeg = legislators.find(l => l.id === chair.stakeholderId);
+    if (!chairLeg) continue;
+    // Get members of this committee
+    const members = allCommittees.filter(cm =>
+      cm.committeeName === chair.committeeName &&
+      cm.chamber === chair.chamber &&
+      cm.role === "member" &&
+      cm.stakeholderId !== chair.stakeholderId
+    );
+    for (const mem of members.slice(0, 5)) { // top 5 to avoid clutter
+      const memLeg = legislators.find(l => l.id === mem.stakeholderId);
+      if (!memLeg) continue;
+      flows.push({
+        sourceId: chair.stakeholderId,
+        sourceName: chairLeg.name,
+        sourceRole: "chair",
+        targetId: mem.stakeholderId,
+        targetName: memLeg.name,
+        targetRole: "member",
+        flowType: "controls",
+        strength: 0.5,
+        evidence: `Member of ${chair.committeeName} — chair controls agenda and hearing schedule`,
+      });
+    }
+  }
+
   return flows;
 }
 
@@ -601,38 +771,214 @@ function generateKeyFindings(
     );
   }
 
+  // Party breakdown + 2/3 supermajority analysis
+  const houseR = legislators.filter(l => l.chamber?.toLowerCase() === "house" && l.party === "R").length;
+  const houseD = legislators.filter(l => l.chamber?.toLowerCase() === "house" && l.party === "D").length;
+  const senateR = legislators.filter(l => l.chamber?.toLowerCase() === "senate" && l.party === "R").length;
+  const senateD = legislators.filter(l => l.chamber?.toLowerCase() === "senate" && l.party === "D").length;
+  const houseTotal = houseR + houseD;
+  const senateTotal = senateR + senateD;
+
+  findings.push(
+    `House composition: ${houseR}R / ${houseD}D (${houseTotal} total). Senate: ${senateR}R / ${senateD}D (${senateTotal} total). Republican supermajority in both chambers.`
+  );
+
+  // 2/3 majority analysis (constitutional amendments + veto overrides)
+  if (houseTotal > 0) {
+    const houseTwoThirds = Math.ceil(houseTotal * 2 / 3);
+    const hasHouse23 = houseR >= houseTwoThirds;
+    findings.push(
+      `House 2/3 threshold: ${houseTwoThirds} votes needed. GOP has ${houseR} — ${hasHouse23 ? "CAN pass constitutional amendments and override vetoes without Democratic support." : `needs ${houseTwoThirds - houseR} Democratic votes for constitutional amendments and veto overrides.`}`
+    );
+  }
+  if (senateTotal > 0) {
+    const senateTwoThirds = Math.ceil(senateTotal * 2 / 3);
+    const hasSenate23 = senateR >= senateTwoThirds;
+    findings.push(
+      `Senate 2/3 threshold: ${senateTwoThirds} votes needed. GOP has ${senateR} — ${hasSenate23 ? "CAN pass constitutional amendments without Democratic support." : `needs ${senateTwoThirds - senateR} Democratic votes for constitutional amendments.`}`
+    );
+  }
+
+  // Chair party concentration
+  const rChairs = chairs.filter(c => {
+    const leg = legislators.find(l => l.id === c.stakeholderId);
+    return leg?.party === "R";
+  }).length;
+  const dChairs = chairs.filter(c => {
+    const leg = legislators.find(l => l.id === c.stakeholderId);
+    return leg?.party === "D";
+  }).length;
+  if (chairs.length > 0) {
+    const rPct = ((rChairs / chairs.length) * 100).toFixed(0);
+    findings.push(
+      `Committee chair party split: ${rChairs}R / ${dChairs}D of ${chairs.length} chairs (${rPct}% Republican). ${dChairs > 0 ? `${dChairs} Democrat chair(s) — signals bipartisan outreach on specific committees.` : "All chairs Republican — complete party control of committee agendas."}`
+    );
+  }
+
   // Voting bloc analysis
   const bipartisanBlocs = votingBlocs.filter(b => b.bipartisan);
   if (bipartisanBlocs.length > 0) {
     findings.push(
-      `${bipartisanBlocs.length} bipartisan voting bloc(s) detected — cross-party coalitions that could swing close votes.`
+      `${bipartisanBlocs.length} bipartisan voting bloc(s) detected — cross-party coalitions on ${bipartisanBlocs.map(b => b.issueAreas.slice(0, 2).join(", ")).join("; ")}. These could swing close votes.`
     );
   }
 
   const largeBlocs = votingBlocs.filter(b => b.members.length >= 5);
   if (largeBlocs.length > 0) {
     findings.push(
-      `${largeBlocs.length} significant voting bloc(s) with 5+ members detected. Largest: ${largeBlocs[0].name} with ${largeBlocs[0].members.length} members.`
+      `${largeBlocs.length} significant voting bloc(s) with 5+ members. Largest: ${largeBlocs[0].name} (${largeBlocs[0].members.length} members, ${(largeBlocs[0].cohesion * 100).toFixed(0)}% cohesion).`
     );
   }
-
-  // Party breakdown
-  const houseR = legislators.filter(l => l.chamber === "house" && l.party === "R").length;
-  const houseD = legislators.filter(l => l.chamber === "house" && l.party === "D").length;
-  const senateR = legislators.filter(l => l.chamber === "senate" && l.party === "R").length;
-  const senateD = legislators.filter(l => l.chamber === "senate" && l.party === "D").length;
-  findings.push(
-    `House composition: ${houseR}R / ${houseD}D. Senate composition: ${senateR}R / ${senateD}D. Republican supermajority in both chambers.`
-  );
 
   // Governor priorities
   const gov = bigThree.find(b => b.role === "governor");
   if (gov && gov.priorities.length > 0) {
-    const topPriority = gov.priorities.sort((a, b) => b.intensity - a.intensity)[0];
+    const top3 = [...gov.priorities].sort((a, b) => b.intensity - a.intensity).slice(0, 3);
     findings.push(
-      `Governor ${gov.name}'s top priority: ${topPriority.topic} (intensity ${topPriority.intensity}/10) — ${topPriority.evidence}`
+      `Governor ${gov.name}'s top priorities: ${top3.map(p => `${p.topic} (${p.intensity}/10)`).join(", ")}. Bills aligned with these are most likely to receive signature.`
     );
   }
 
+  // Power flow analysis
+  const appointEdges = powerFlows.filter(f => f.flowType === "appoints").length;
+  const allyEdges = powerFlows.filter(f => f.flowType === "allies_with").length;
+  const controlEdges = powerFlows.filter(f => f.flowType === "controls").length;
+  findings.push(
+    `Power network: ${powerFlows.length} connections mapped — ${appointEdges} appointments, ${allyEdges} alliances, ${controlEdges} control relationships.`
+  );
+
   return findings;
+}
+
+// ── Data Persistence ───────────────────────────────────────────────────────
+
+/** Seed/update power_centers and leadership_priorities tables from analysis results */
+async function seedPowerCenters(bigThree: PowerCenterProfile[]) {
+  const session = CURRENT_SESSION;
+
+  // Batch: load all existing centers and priorities in two queries
+  const existingCenters = await policyIntelDb
+    .select()
+    .from(powerCenters)
+    .where(eq(powerCenters.session, session));
+  const centerByRole = new Map(existingCenters.map(c => [c.role, c]));
+
+  const allExistingPriorities = await policyIntelDb
+    .select()
+    .from(leadershipPriorities)
+    .where(eq(leadershipPriorities.session, session));
+
+  for (const pc of bigThree) {
+    const pcData = {
+      role: pc.role as any,
+      name: pc.name,
+      chamber: pc.chamber,
+      party: pc.party,
+      session,
+      priorities: pc.priorities,
+      influenceScore: pc.metrics.chamberControl,
+      stats: {
+        loyalistCount: pc.allies.length,
+        committeeChairsAppointed: pc.metrics.committeeChairsControlled,
+        billsPrioritized: pc.metrics.billsPrioritized,
+        passRate: 0,
+        donorOverlap: 0,
+      },
+      updatedAt: new Date(),
+    };
+
+    const existing = centerByRole.get(pc.role);
+    let pcId: number;
+    if (existing) {
+      await policyIntelDb.update(powerCenters)
+        .set(pcData)
+        .where(eq(powerCenters.id, existing.id));
+      pcId = existing.id;
+    } else {
+      const [inserted] = await policyIntelDb.insert(powerCenters).values(pcData).returning({ id: powerCenters.id });
+      pcId = inserted.id;
+    }
+
+    // Batch priorities: find existing for this center
+    const existingPrisForCenter = allExistingPriorities.filter(p => p.powerCenterId === pcId);
+    const existingPriByTopic = new Map(existingPrisForCenter.map(p => [p.topic, p]));
+
+    const newPriorities: any[] = [];
+    const updatePriorities: Promise<any>[] = [];
+
+    for (const pri of pc.priorities) {
+      const ex = existingPriByTopic.get(pri.topic);
+      if (!ex) {
+        newPriorities.push({
+          powerCenterId: pcId,
+          session,
+          topic: pri.topic,
+          stance: pri.stance,
+          intensity: pri.intensity,
+          evidenceType: "analysis",
+          evidenceDetail: pri.evidence,
+        });
+      } else {
+        updatePriorities.push(
+          policyIntelDb.update(leadershipPriorities)
+            .set({ stance: pri.stance, intensity: pri.intensity, evidenceDetail: pri.evidence, updatedAt: new Date() })
+            .where(eq(leadershipPriorities.id, ex.id))
+        );
+      }
+    }
+
+    if (newPriorities.length > 0) {
+      await policyIntelDb.insert(leadershipPriorities).values(newPriorities);
+    }
+    if (updatePriorities.length > 0) {
+      await Promise.all(updatePriorities);
+    }
+  }
+  console.log(`[power-network] Seeded ${bigThree.length} power centers with priorities`);
+}
+
+/** Persist voting blocs and their members to the database */
+async function seedVotingBlocs(blocs: VotingBlocResult[]) {
+  const session = CURRENT_SESSION;
+
+  // Clear old blocs for this session and re-insert (simpler than upsert for nested data)
+  const existingBlocs = await policyIntelDb
+    .select({ id: votingBlocsTable.id })
+    .from(votingBlocsTable)
+    .where(eq(votingBlocsTable.session, session));
+
+  if (existingBlocs.length > 0) {
+    // Cascade deletes will remove voting_bloc_members too
+    for (const eb of existingBlocs) {
+      await policyIntelDb.delete(votingBlocsTable).where(eq(votingBlocsTable.id, eb.id));
+    }
+  }
+
+  for (const bloc of blocs) {
+    const [inserted] = await policyIntelDb.insert(votingBlocsTable).values({
+      name: bloc.name,
+      session,
+      chamber: bloc.chamber,
+      detectionMethod: "committee-co-membership",
+      cohesion: bloc.cohesion,
+      memberCount: bloc.members.length,
+      issueAreas: bloc.issueAreas,
+      alignedPowerCenter: bloc.alignedPowerCenter,
+      bipartisan: bloc.bipartisan,
+      narrative: bloc.narrative,
+    }).returning({ id: votingBlocsTable.id });
+
+    if (bloc.members.length > 0) {
+      await policyIntelDb.insert(votingBlocMembers).values(
+        bloc.members.map(m => ({
+          blocId: inserted.id,
+          stakeholderId: m.stakeholderId,
+          loyalty: m.loyalty,
+          isLeader: m.isLeader,
+          joinedSession: session,
+        }))
+      );
+    }
+  }
+  console.log(`[power-network] Seeded ${blocs.length} committee cohorts with ${blocs.reduce((s, b) => s + b.members.length, 0)} members`);
 }

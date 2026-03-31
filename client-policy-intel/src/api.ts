@@ -252,8 +252,8 @@ export const api = {
   getHistoricalReport: () => apiFetch<HistoricalPatternsReport>("/intelligence/historical"),
   getLegislatorReport: () => apiFetch<LegislatorProfileReport>("/intelligence/legislators"),
   getInfluenceMapReport: () => apiFetch<InfluenceMapReport>("/intelligence/influence-map"),
-  getPowerNetworkReport: () => apiFetch<PowerNetworkReport>("/intelligence/power-network"),
-  getLegislationPredictions: () => apiFetch<LegislationPredictorReport>("/intelligence/predictions"),
+  getPowerNetworkReport: (force = false) => apiFetch<PowerNetworkReport>(`/intelligence/power-network${force ? "?force=true" : ""}`),
+  getLegislationPredictions: (force = false) => apiFetch<LegislationPredictorReport>(`/intelligence/predictions${force ? "?force=true" : ""}`),
 };
 
 // ── Types ────────────────────────────────────────────────────────────────────

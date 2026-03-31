@@ -88,18 +88,29 @@ export function SourceDocsPage() {
                 <div style={{ fontSize: 14, fontWeight: 600 }}>{d.title}</div>
                 {d.summary && <p style={{ fontSize: 12, color: "#555", marginTop: 4 }}>{d.summary.slice(0, 250)}</p>}
               </div>
-              <span style={{
-                fontSize: 11,
-                padding: "2px 10px",
-                borderRadius: 12,
-                background: `${typeColors[d.sourceType] ?? "#ccc"}22`,
-                color: typeColors[d.sourceType] ?? "#888",
-                fontWeight: 600,
-                whiteSpace: "nowrap",
-                marginLeft: 12,
-              }}>
-                {d.sourceType.replace(/_/g, " ")}
-              </span>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", marginLeft: 12 }}>
+                {(d as any).alertCount > 0 && (
+                  <span style={{
+                    fontSize: 11, padding: "2px 8px", borderRadius: 12, fontWeight: 600,
+                    background: (d as any).maxAlertScore >= 70 ? "#e74c3c18" : (d as any).maxAlertScore >= 40 ? "#e67e2218" : "#3498db18",
+                    color: (d as any).maxAlertScore >= 70 ? "#e74c3c" : (d as any).maxAlertScore >= 40 ? "#e67e22" : "#3498db",
+                    whiteSpace: "nowrap",
+                  }}>
+                    {(d as any).alertCount} alert{(d as any).alertCount > 1 ? "s" : ""}
+                  </span>
+                )}
+                <span style={{
+                  fontSize: 11,
+                  padding: "2px 10px",
+                  borderRadius: 12,
+                  background: `${typeColors[d.sourceType] ?? "#ccc"}22`,
+                  color: typeColors[d.sourceType] ?? "#888",
+                  fontWeight: 600,
+                  whiteSpace: "nowrap",
+                }}>
+                  {d.sourceType.replace(/_/g, " ")}
+                </span>
+              </div>
             </div>
             <div style={{ fontSize: 11, color: "#aaa", marginTop: 8 }}>
               {d.publisher} · {d.fetchedAt ? new Date(d.fetchedAt).toLocaleDateString() : ""}
