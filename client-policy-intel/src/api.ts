@@ -260,6 +260,10 @@ export const api = {
     monitoringNotes?: string;
     videoUrl?: string;
     agendaUrl?: string;
+    transcriptSourceType?: string;
+    transcriptSourceUrl?: string;
+    autoIngestEnabled?: boolean;
+    autoIngestIntervalSeconds?: number;
     status?: string;
   }) => apiFetch<CommitteeIntelSessionDetail>("/committee-intel/sessions/from-hearing", { method: "POST", body: JSON.stringify(body) }),
   getCommitteeIntelSession: (id: number) => apiFetch<CommitteeIntelSessionDetail>(`/committee-intel/sessions/${id}`),
@@ -272,6 +276,10 @@ export const api = {
     liveSummary?: string | null;
     agendaUrl?: string | null;
     videoUrl?: string | null;
+    transcriptSourceType?: string;
+    transcriptSourceUrl?: string | null;
+    autoIngestEnabled?: boolean;
+    autoIngestIntervalSeconds?: number;
     status?: string;
   }) => apiFetch<CommitteeIntelSessionDetail>(`/committee-intel/sessions/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   addCommitteeIntelSegment: (id: number, body: {
@@ -286,8 +294,12 @@ export const api = {
     metadata?: Record<string, unknown>;
   }) => apiFetch<CommitteeIntelSessionDetail>(`/committee-intel/sessions/${id}/segments`, { method: "POST", body: JSON.stringify(body) }),
   analyzeCommitteeIntelSession: (id: number) => apiFetch<CommitteeIntelSessionDetail>(`/committee-intel/sessions/${id}/analyze`, { method: "POST" }),
+  syncCommitteeIntelFeed: (id: number) =>
+    apiFetch<{ detail: CommitteeIntelSessionDetail; sync: CommitteeIntelTranscriptSyncResult }>(`/committee-intel/sessions/${id}/sync-feed`, { method: "POST" }),
   getCommitteeIntelFocusedBrief: (id: number, body: { issue: string }) =>
     apiFetch<CommitteeIntelFocusedBrief>(`/committee-intel/sessions/${id}/focused-brief`, { method: "POST", body: JSON.stringify(body) }),
+  getCommitteeIntelPostHearingRecap: (id: number) =>
+    apiFetch<CommitteeIntelPostHearingRecap>(`/committee-intel/sessions/${id}/post-hearing-recap`, { method: "POST" }),
 
   // ── Intelligence Engine ─────────────────────────────────────────────────
   getIntelligenceBriefing: () => apiFetch<IntelligenceBriefing>("/intelligence/briefing"),
@@ -810,6 +822,14 @@ export interface CommitteeIntelSession {
   status: string;
   agendaUrl: string | null;
   videoUrl: string | null;
+  transcriptSourceType: string;
+  transcriptSourceUrl: string | null;
+  autoIngestEnabled: boolean;
+  autoIngestIntervalSeconds: number;
+  autoIngestStatus: string;
+  autoIngestError: string | null;
+  lastAutoIngestedAt: string | null;
+  lastAutoIngestCursor: string | null;
   focusTopicsJson: string[];
   interimChargesJson: string[];
   clientContext: string | null;
@@ -923,7 +943,50 @@ export interface CommitteeIntelAnalysis {
   keyMoments: CommitteeIntelMoment[];
   electedFocus: CommitteeIntelEntitySummary[];
   activeWitnesses: CommitteeIntelEntitySummary[];
+  witnessRankings: CommitteeIntelWitnessRanking[];
+  postHearingRecap: CommitteeIntelPostHearingRecap | null;
   positionMap: CommitteeIntelPositionRow[];
+}
+
+export interface CommitteeIntelWitnessRanking {
+  rank: number;
+  entityName: string;
+  entityType: string;
+  stakeholderId: number | null;
+  affiliation: string | null;
+  invited: boolean;
+  score: number;
+  dominantPosition: string;
+  mentionCount: number;
+  issueBreadth: number;
+  keyMomentCount: number;
+  primaryIssues: string[];
+  summary: string;
+}
+
+export interface CommitteeIntelPostHearingRecap {
+  generatedAt: string;
+  headline: string;
+  overview: string;
+  issueHighlights: string[];
+  memberPressurePoints: string[];
+  witnessLeaderboard: CommitteeIntelWitnessRanking[];
+  agencyCommitments: string[];
+  followUpActions: string[];
+}
+
+export interface CommitteeIntelTranscriptSyncResult {
+  sessionId: number;
+  sourceType: string;
+  sourceUrl: string | null;
+  fetchedAt: string;
+  totalParsed: number;
+  ingestedSegments: number;
+  updatedSegments: number;
+  duplicateSegments: number;
+  cursor: string | null;
+  status: string;
+  error?: string;
 }
 
 export interface CommitteeIntelSessionDetail {

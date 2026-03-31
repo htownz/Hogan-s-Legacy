@@ -19,6 +19,7 @@ __export(schema_policy_intel_exports, {
   briefStatusEnum: () => briefStatusEnum,
   briefs: () => briefs,
   championSnapshots: () => championSnapshots,
+  committeeIntelAutoIngestStatusEnum: () => committeeIntelAutoIngestStatusEnum,
   committeeIntelEntityTypeEnum: () => committeeIntelEntityTypeEnum,
   committeeIntelPositionEnum: () => committeeIntelPositionEnum,
   committeeIntelSegments: () => committeeIntelSegments,
@@ -26,6 +27,7 @@ __export(schema_policy_intel_exports, {
   committeeIntelSessions: () => committeeIntelSessions,
   committeeIntelSignals: () => committeeIntelSignals,
   committeeIntelSpeakerRoleEnum: () => committeeIntelSpeakerRoleEnum,
+  committeeIntelTranscriptSourceTypeEnum: () => committeeIntelTranscriptSourceTypeEnum,
   committeeMembers: () => committeeMembers,
   committeeRoleEnum: () => committeeRoleEnum,
   deliverableTypeEnum: () => deliverableTypeEnum,
@@ -74,7 +76,7 @@ import {
   uniqueIndex,
   varchar
 } from "drizzle-orm/pg-core";
-var sourceTypeEnum, alertStatusEnum, briefStatusEnum, deliverableTypeEnum, matterStatusEnum, activityTypeEnum, issueRoomStatusEnum, issueRoomRelationshipTypeEnum, issueRoomUpdateTypeEnum, issueRoomTaskStatusEnum, issueRoomTaskPriorityEnum, workspaces, watchlists, sourceDocuments, alerts, briefs, monitoringJobs, matters, matterWatchlists, issueRooms, issueRoomSourceDocuments, issueRoomUpdates, issueRoomStrategyOptions, issueRoomTasks, activities, deliverables, stakeholderTypeEnum, stakeholders, stakeholderObservations, hearingStatusEnum, committeeIntelSessionStatusEnum, committeeIntelSpeakerRoleEnum, committeeIntelPositionEnum, committeeIntelEntityTypeEnum, hearingEvents, committeeRoleEnum, committeeMembers, meetingNotes, committeeIntelSessions, committeeIntelSegments, committeeIntelSignals, feedbackOutcomeEnum, feedbackLog, championSnapshots, forecastSnapshots, anomalyHistory, velocitySnapshots, learningMetrics;
+var sourceTypeEnum, alertStatusEnum, briefStatusEnum, deliverableTypeEnum, matterStatusEnum, activityTypeEnum, issueRoomStatusEnum, issueRoomRelationshipTypeEnum, issueRoomUpdateTypeEnum, issueRoomTaskStatusEnum, issueRoomTaskPriorityEnum, workspaces, watchlists, sourceDocuments, alerts, briefs, monitoringJobs, matters, matterWatchlists, issueRooms, issueRoomSourceDocuments, issueRoomUpdates, issueRoomStrategyOptions, issueRoomTasks, activities, deliverables, stakeholderTypeEnum, stakeholders, stakeholderObservations, hearingStatusEnum, committeeIntelSessionStatusEnum, committeeIntelSpeakerRoleEnum, committeeIntelPositionEnum, committeeIntelEntityTypeEnum, committeeIntelTranscriptSourceTypeEnum, committeeIntelAutoIngestStatusEnum, hearingEvents, committeeRoleEnum, committeeMembers, meetingNotes, committeeIntelSessions, committeeIntelSegments, committeeIntelSignals, feedbackOutcomeEnum, feedbackLog, championSnapshots, forecastSnapshots, anomalyHistory, velocitySnapshots, learningMetrics;
 var init_schema_policy_intel = __esm({
   "shared/schema-policy-intel.ts"() {
     "use strict";
@@ -501,6 +503,18 @@ var init_schema_policy_intel = __esm({
       "committee",
       "unknown"
     ]);
+    committeeIntelTranscriptSourceTypeEnum = pgEnum("policy_intel_committee_intel_transcript_source_type", [
+      "manual",
+      "webvtt",
+      "json",
+      "text"
+    ]);
+    committeeIntelAutoIngestStatusEnum = pgEnum("policy_intel_committee_intel_auto_ingest_status", [
+      "idle",
+      "ready",
+      "syncing",
+      "error"
+    ]);
     hearingEvents = pgTable("policy_intel_hearing_events", {
       id: serial("id").primaryKey(),
       workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
@@ -555,6 +569,14 @@ var init_schema_policy_intel = __esm({
         status: committeeIntelSessionStatusEnum("status").notNull().default("planned"),
         agendaUrl: text("agenda_url"),
         videoUrl: text("video_url"),
+        transcriptSourceType: committeeIntelTranscriptSourceTypeEnum("transcript_source_type").notNull().default("manual"),
+        transcriptSourceUrl: text("transcript_source_url"),
+        autoIngestEnabled: boolean("auto_ingest_enabled").notNull().default(false),
+        autoIngestIntervalSeconds: integer("auto_ingest_interval_seconds").notNull().default(120),
+        autoIngestStatus: committeeIntelAutoIngestStatusEnum("auto_ingest_status").notNull().default("idle"),
+        autoIngestError: text("auto_ingest_error"),
+        lastAutoIngestedAt: timestamp("last_auto_ingested_at", { withTimezone: true }),
+        lastAutoIngestCursor: text("last_auto_ingest_cursor"),
         focusTopicsJson: jsonb("focus_topics_json").$type().notNull().default([]),
         interimChargesJson: jsonb("interim_charges_json").$type().notNull().default([]),
         clientContext: text("client_context"),
@@ -568,7 +590,8 @@ var init_schema_policy_intel = __esm({
       (table) => ({
         workspaceHearingIdx: uniqueIndex("policy_intel_committee_intel_session_workspace_hearing_idx").on(table.workspaceId, table.hearingId),
         committeeDateIdx: index("policy_intel_committee_intel_session_committee_date_idx").on(table.committee, table.hearingDate),
-        statusIdx: index("policy_intel_committee_intel_session_status_idx").on(table.status)
+        statusIdx: index("policy_intel_committee_intel_session_status_idx").on(table.status),
+        autoIngestIdx: index("policy_intel_committee_intel_session_auto_ingest_idx").on(table.autoIngestEnabled, table.autoIngestStatus)
       })
     );
     committeeIntelSegments = pgTable(
@@ -2118,7 +2141,7 @@ import cors from "cors";
 init_db();
 init_schema_policy_intel();
 import { Router } from "express";
-import { and as and13, count as count11, desc as desc15, eq as eq21, gt as gt2, gte as gte12, ilike as ilike6, inArray as inArray4, lt, or, sql as sql14 } from "drizzle-orm";
+import { and as and13, count as count11, desc as desc15, eq as eq21, gt as gt2, gte as gte12, ilike as ilike6, inArray as inArray5, lt, or, sql as sql14 } from "drizzle-orm";
 
 // server/policy-intel/seed/grace-mcewan.ts
 init_db();
@@ -8320,6 +8343,1365 @@ async function runSwarm() {
   };
 }
 
+// server/policy-intel/services/committee-intel-service.ts
+init_db();
+init_schema_policy_intel();
+import { createHash } from "node:crypto";
+import { and as and11, asc, desc as desc13, eq as eq19, gte as gte10, ilike as ilike5, inArray as inArray3 } from "drizzle-orm";
+var ISSUE_CATALOG = [
+  {
+    tag: "critical_infrastructure",
+    label: "Critical Infrastructure",
+    patterns: [/\bcritical infrastructure\b/i, /\bgrid security\b/i, /\binfrastructure security\b/i, /\bsecure the grid\b/i]
+  },
+  {
+    tag: "supply_chain_integrity",
+    label: "Supply Chain Integrity",
+    patterns: [/\bsupply chain\b/i, /\bprocurement\b/i, /\bvendor risk\b/i, /\bmanufactur/i]
+  },
+  {
+    tag: "foreign_entity_risk",
+    label: "Foreign Entity Risk",
+    patterns: [/\bchina\b/i, /\brussia\b/i, /\biran\b/i, /\bforeign entit(y|ies)\b/i, /\bhostile foreign\b/i]
+  },
+  {
+    tag: "utility_regulation",
+    label: "Utility Regulation",
+    patterns: [/\bercot\b/i, /\bpuct\b/i, /\bpublic utility commission\b/i, /\bpublic utility counsel\b/i, /\btransmission\b/i]
+  },
+  {
+    tag: "grid_reliability",
+    label: "Grid Reliability",
+    patterns: [/\breliab/i, /\boutage\b/i, /\bblackout\b/i, /\bresilien/i, /\bgeneration\b/i]
+  },
+  {
+    tag: "ratepayer_impact",
+    label: "Ratepayer Impact",
+    patterns: [/\bratepayer/i, /\baffordab/i, /\brate(s)?\b/i, /\bcost(s)?\b/i, /\bprice(s)?\b/i]
+  },
+  {
+    tag: "witness_process",
+    label: "Witness Process",
+    patterns: [/\binvited testimony\b/i, /\bpublic testimony\b/i, /\bwitness(es)?\b/i, /\bpublic comment\b/i]
+  }
+];
+var AGENCY_HINTS = ["commission", "council", "office", "department", "agency", "authority", "ercot", "utility"];
+var ORGANIZATION_HINTS = ["association", "alliance", "coalition", "chamber", "company", "corp", "foundation", "group", "llc", "inc", "union"];
+function hashValue(value) {
+  return createHash("sha1").update(value).digest("hex");
+}
+function getMetadataRecord(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+function buildTranscriptFeedIdentityKey(sessionId, sourceType, cursorValue, sourceId) {
+  const normalizedSourceType = sourceType?.trim().toLowerCase() || null;
+  if (!normalizedSourceType || normalizedSourceType === "manual") return null;
+  const normalizedCursor = cursorValue?.trim() || "";
+  const normalizedSourceId = sourceId === null || sourceId === void 0 ? "" : String(sourceId).trim();
+  if (!normalizedCursor && !normalizedSourceId) return null;
+  return [sessionId, normalizedSourceType, normalizedSourceId, normalizedCursor].join("|");
+}
+function cleanUrl(value) {
+  const next = value?.trim();
+  return next ? next : null;
+}
+function resolveCandidateTranscriptSourceUrl(sourceType, transcriptSourceUrl, videoUrl) {
+  const explicit = cleanUrl(transcriptSourceUrl);
+  if (explicit) return explicit;
+  if (sourceType !== "manual") {
+    const fallback = cleanUrl(videoUrl);
+    if (fallback && /^(data:|https?:)/i.test(fallback) && /\.(vtt|json|txt)(\?.*)?$/i.test(fallback)) {
+      return fallback;
+    }
+  }
+  return null;
+}
+function resolveTranscriptSourceUrl(session) {
+  return resolveCandidateTranscriptSourceUrl(session.transcriptSourceType, session.transcriptSourceUrl, session.videoUrl);
+}
+function resolveAutoIngestStatus(sourceType, sourceUrl, autoIngestEnabled, current) {
+  if (!autoIngestEnabled) return "idle";
+  if (sourceType === "manual" || !sourceUrl) return current === "error" ? "error" : "idle";
+  return current === "error" ? "error" : "ready";
+}
+function parseTimestampToSeconds(value) {
+  if (!value) return null;
+  const trimmed = value.trim();
+  const match = trimmed.match(/^(?:(\d+):)?(\d{1,2}):(\d{2})(?:[\.,](\d{1,3}))?$/);
+  if (!match) return null;
+  const hours = Number(match[1] ?? 0);
+  const minutes = Number(match[2] ?? 0);
+  const seconds = Number(match[3] ?? 0);
+  const milliseconds = Number((match[4] ?? "0").padEnd(3, "0"));
+  return hours * 3600 + minutes * 60 + seconds + milliseconds / 1e3;
+}
+function buildCapturedAtFromOffset(session, startedAtSecond, fallbackIndex) {
+  const base = toDate(session.hearingDate) ?? /* @__PURE__ */ new Date();
+  const offset = startedAtSecond ?? fallbackIndex * 30;
+  return new Date(base.getTime() + Math.max(offset, 0) * 1e3).toISOString();
+}
+function normaliseSpeakerFromText(transcriptText) {
+  const cleaned = transcriptText.replace(/^>>\s*/, "").trim();
+  const match = cleaned.match(/^([^:(]{2,120}?)(?:\s+\(([^)]+)\))?:\s+(.+)$/s);
+  if (!match) {
+    return {
+      speakerName: null,
+      affiliation: null,
+      transcriptText: cleaned
+    };
+  }
+  const speakerName = match[1]?.trim() || null;
+  const affiliation = match[2]?.trim() || null;
+  const nextText = match[3]?.trim() || cleaned;
+  return {
+    speakerName,
+    affiliation,
+    transcriptText: nextText
+  };
+}
+function buildTranscriptExternalKey(parts) {
+  return hashValue(parts.map((part) => String(part ?? "")).join("|"));
+}
+function buildFeedEntry(session, index2, value) {
+  const trimmedText = value.transcriptText.replace(/\s+/g, " ").trim();
+  if (!trimmedText) return null;
+  const metadata = getMetadataRecord(value.metadata);
+  const sourceType = typeof metadata.sourceType === "string" ? metadata.sourceType : null;
+  const sourceId = typeof metadata.sourceId === "string" || typeof metadata.sourceId === "number" ? metadata.sourceId : null;
+  const normalizedSpeaker = normaliseSpeakerFromText(trimmedText);
+  const speakerName = value.speakerName?.trim() || normalizedSpeaker.speakerName;
+  const affiliation = value.affiliation?.trim() || normalizedSpeaker.affiliation;
+  const transcriptText = speakerName || affiliation ? normalizedSpeaker.transcriptText : trimmedText;
+  const startedAtSecond = value.startedAtSecond ?? null;
+  const endedAtSecond = value.endedAtSecond ?? null;
+  const capturedAt = value.capturedAt ?? buildCapturedAtFromOffset(session, startedAtSecond, index2);
+  const cursorValue = value.cursorValue ?? String(startedAtSecond ?? index2);
+  const dedupKey = buildTranscriptFeedIdentityKey(session.id, sourceType, cursorValue, sourceId);
+  const externalKey = buildTranscriptExternalKey([
+    session.id,
+    cursorValue,
+    startedAtSecond,
+    endedAtSecond,
+    speakerName,
+    affiliation,
+    transcriptText
+  ]);
+  return {
+    externalKey,
+    cursorValue,
+    capturedAt,
+    startedAtSecond,
+    endedAtSecond,
+    speakerName,
+    speakerRole: value.speakerRole,
+    affiliation,
+    transcriptText,
+    invited: value.invited ?? false,
+    metadata: {
+      ...metadata,
+      externalKey,
+      dedupKey,
+      feedCursor: cursorValue
+    }
+  };
+}
+function buildFeedEntryDedupKey(sessionId, entry) {
+  const metadata = getMetadataRecord(entry.metadata);
+  const storedKey = typeof metadata.dedupKey === "string" ? metadata.dedupKey.trim() : "";
+  if (storedKey) return storedKey;
+  return buildTranscriptFeedIdentityKey(
+    sessionId,
+    typeof metadata.sourceType === "string" ? metadata.sourceType : null,
+    entry.cursorValue,
+    typeof metadata.sourceId === "string" || typeof metadata.sourceId === "number" ? metadata.sourceId : null
+  ) ?? entry.externalKey;
+}
+function parseWebVttFeed(content, session) {
+  const cues = [];
+  const blocks = content.replace(/^WEBVTT\s*/i, "").split(/\r?\n\r?\n/).map((block) => block.trim()).filter(Boolean);
+  let cueIndex = 0;
+  for (const block of blocks) {
+    const lines = block.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const timeLineIndex = lines.findIndex((line) => line.includes("-->"));
+    if (timeLineIndex === -1) continue;
+    const timeLine = lines[timeLineIndex];
+    const [rawStart, rawEnd] = timeLine.split("-->").map((part) => part.trim());
+    const startedAtSecond = parseTimestampToSeconds(rawStart);
+    const endedAtSecond = parseTimestampToSeconds(rawEnd);
+    const textLines = lines.slice(timeLineIndex + 1).filter((line) => !line.startsWith("NOTE"));
+    const entry = buildFeedEntry(session, cueIndex, {
+      cursorValue: `${cueIndex}:${rawStart}`,
+      startedAtSecond: startedAtSecond === null ? null : Math.floor(startedAtSecond),
+      endedAtSecond: endedAtSecond === null ? null : Math.floor(endedAtSecond),
+      transcriptText: textLines.join(" "),
+      metadata: {
+        sourceType: "webvtt"
+      }
+    });
+    if (entry) cues.push(entry);
+    cueIndex += 1;
+  }
+  return cues;
+}
+function findJsonTranscriptArray(value) {
+  if (Array.isArray(value)) {
+    return value.filter((item) => typeof item === "object" && item !== null);
+  }
+  if (!value || typeof value !== "object") return [];
+  const record = value;
+  for (const key of ["segments", "items", "entries", "cues", "transcript", "data"]) {
+    const next = record[key];
+    if (Array.isArray(next)) {
+      return next.filter((item) => typeof item === "object" && item !== null);
+    }
+  }
+  return [];
+}
+function parseJsonFeed(content, session) {
+  const parsed = JSON.parse(content);
+  const items = findJsonTranscriptArray(parsed);
+  return items.map((item, index2) => {
+    const transcriptText = String(item.text ?? item.content ?? item.body ?? item.transcript ?? "").trim();
+    const startedAtSecond = item.start === void 0 ? item.startTime : item.start;
+    const endedAtSecond = item.end === void 0 ? item.endTime : item.end;
+    const capturedAt = item.capturedAt ?? item.timestamp ?? item.createdAt ?? null;
+    const entry = buildFeedEntry(session, index2, {
+      cursorValue: String(item.id ?? item.sequence ?? item.index ?? startedAtSecond ?? index2),
+      capturedAt: typeof capturedAt === "string" ? capturedAt : null,
+      startedAtSecond: typeof startedAtSecond === "number" ? startedAtSecond : parseTimestampToSeconds(String(startedAtSecond ?? "")),
+      endedAtSecond: typeof endedAtSecond === "number" ? endedAtSecond : parseTimestampToSeconds(String(endedAtSecond ?? "")),
+      speakerName: typeof item.speaker === "string" ? item.speaker : typeof item.name === "string" ? item.name : null,
+      speakerRole: typeof item.role === "string" ? item.role : void 0,
+      affiliation: typeof item.affiliation === "string" ? item.affiliation : typeof item.organization === "string" ? item.organization : null,
+      transcriptText,
+      invited: Boolean(item.invited),
+      metadata: {
+        sourceType: "json",
+        sourceId: item.id ?? null
+      }
+    });
+    return entry;
+  }).filter((entry) => Boolean(entry));
+}
+function parseTextFeed(content, session) {
+  const lines = content.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  return lines.map((line, index2) => {
+    const timestampMatch = line.match(/^\[?(\d{1,2}:\d{2}(?::\d{2})?(?:[\.,]\d{1,3})?)\]?\s+(.*)$/);
+    const startedAtSecond = timestampMatch ? parseTimestampToSeconds(timestampMatch[1]) : null;
+    const transcriptText = timestampMatch ? timestampMatch[2] : line;
+    return buildFeedEntry(session, index2, {
+      cursorValue: String(index2),
+      startedAtSecond: startedAtSecond === null ? null : Math.floor(startedAtSecond),
+      transcriptText,
+      metadata: {
+        sourceType: "text"
+      }
+    });
+  }).filter((entry) => Boolean(entry));
+}
+function parseTranscriptFeed(content, sourceType, session) {
+  if (sourceType === "webvtt") return parseWebVttFeed(content, session);
+  if (sourceType === "json") return parseJsonFeed(content, session);
+  if (sourceType === "text") return parseTextFeed(content, session);
+  return [];
+}
+function normalizeText(value) {
+  return (value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\b(senator|sen|representative|rep|chairman|chairwoman|chair|dr|mr|mrs|ms)\b/g, " ").replace(/\s+/g, " ").trim();
+}
+function cleanList(values) {
+  const next = /* @__PURE__ */ new Set();
+  for (const value of values ?? []) {
+    const cleaned = value.trim();
+    if (!cleaned) continue;
+    next.add(cleaned);
+  }
+  return Array.from(next);
+}
+function slugifyIssue(value) {
+  return normalizeText(value).replace(/\s+/g, "_").slice(0, 64) || "general";
+}
+function labelFromTag(tag) {
+  return tag.split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
+}
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+function toIsoString(value) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+function toDate(value) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+function formatTimestampLabel(seconds, capturedAt) {
+  if (seconds !== null && seconds !== void 0) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor(seconds % 3600 / 60);
+    const secs = seconds % 60;
+    if (hours > 0) {
+      return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+    }
+    return `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  }
+  const date = toDate(capturedAt);
+  if (!date) return "Unknown";
+  return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+function buildIssueLabelMap(session) {
+  const labels = /* @__PURE__ */ new Map();
+  for (const item of ISSUE_CATALOG) {
+    labels.set(item.tag, item.label);
+  }
+  for (const topic of cleanList(session.focusTopicsJson)) {
+    labels.set(slugifyIssue(topic), topic);
+  }
+  return labels;
+}
+function matchesFocusTopic(normalizedTranscript, topic) {
+  const normalizedTopic = normalizeText(topic);
+  if (!normalizedTopic) return false;
+  if (normalizedTranscript.includes(normalizedTopic)) return true;
+  const tokens = normalizedTopic.split(" ").filter((token) => token.length >= 5);
+  if (tokens.length < 2) return false;
+  const matchedTokens = tokens.filter((token) => normalizedTranscript.includes(token));
+  return matchedTokens.length >= Math.min(2, tokens.length);
+}
+function detectIssueTags(transcriptText, focusTopics) {
+  const normalizedTranscript = normalizeText(transcriptText);
+  const matched = /* @__PURE__ */ new Set();
+  for (const item of ISSUE_CATALOG) {
+    if (item.patterns.some((pattern) => pattern.test(transcriptText))) {
+      matched.add(item.tag);
+    }
+  }
+  for (const topic of cleanList(focusTopics)) {
+    if (matchesFocusTopic(normalizedTranscript, topic)) {
+      matched.add(slugifyIssue(topic));
+    }
+  }
+  return Array.from(matched);
+}
+function determineSpeakerRole(currentRole, speakerName, affiliation, transcriptText) {
+  if (currentRole && currentRole !== "unknown") return currentRole;
+  const rawSpeakerName = (speakerName ?? "").toLowerCase();
+  const normalizedName = normalizeText(speakerName);
+  const normalizedAffiliation = normalizeText(affiliation);
+  const normalizedTranscript = normalizeText(transcriptText);
+  if (normalizedName.includes("chair") || normalizedTranscript.includes("chair recognizes")) return "chair";
+  if (/^(sen\.?|senator|rep\.?|representative)\b/i.test(rawSpeakerName) || normalizedTranscript.includes("senator") || normalizedTranscript.includes("representative")) return "member";
+  if (/^commissioner\b/i.test(rawSpeakerName)) return "agency";
+  if (AGENCY_HINTS.some((hint) => normalizedAffiliation.includes(hint))) return "agency";
+  if (normalizedTranscript.includes("invited testimony") || normalizedAffiliation.includes("invited")) return "invited_witness";
+  if (normalizedTranscript.includes("public testimony") || normalizedTranscript.includes("public witness")) return "public_witness";
+  if (normalizedAffiliation.includes("staff") || normalizedTranscript.includes("committee staff")) return "staff";
+  if (speakerName && affiliation) return "public_witness";
+  return "unknown";
+}
+function determinePosition(transcriptText, speakerRole) {
+  const normalized = normalizeText(transcriptText);
+  const looksLikeQuestion = /\?|^(can|could|would|how|why|what|when|where|who|is|are|do|does|did)\b/i.test(transcriptText.trim());
+  if ((speakerRole === "chair" || speakerRole === "member") && looksLikeQuestion) return "questioning";
+  if (/\boppose\b|\bobject\b|\bconcern(ed|ing)?\b|\brisks?\b|\bvulnerab/i.test(normalized)) return "oppose";
+  if (/\bsupport\b|\bback\b|\bendorse\b|\bfavor\b|\brecommend\b|\bpromote\b/i.test(normalized)) return "support";
+  if ((speakerRole === "chair" || speakerRole === "member") && /\bhow\b|\bwhy\b|\bwhat\b/i.test(normalized)) return "questioning";
+  if (/\bupdate\b|\bbrief(ed|ing)?\b|\boverview\b|\bresponded\b|\bstated\b|\breported\b/i.test(normalized) || speakerRole === "agency") return "neutral";
+  if (speakerRole === "chair" || speakerRole === "member") return "questioning";
+  return "monitoring";
+}
+function scoreImportance(transcriptText, speakerRole, issueTags, position, invited) {
+  let score = 20;
+  score += issueTags.length * 12;
+  if (speakerRole === "chair" || speakerRole === "member") score += 12;
+  if (speakerRole === "agency" || invited) score += 8;
+  if (position === "support" || position === "oppose" || position === "questioning") score += 10;
+  if (transcriptText.trim().length > 240) score += 8;
+  if (/\bcritical\b|\burgent\b|\brecommend\b|\bsecurity\b|\bvulnerab/i.test(transcriptText)) score += 8;
+  return clamp(score, 10, 100);
+}
+function summarizeSegment(speakerName, affiliation, issueTags, position, issueLabels) {
+  const speakerLabel = speakerName?.trim() || affiliation?.trim() || "Speaker";
+  const issueLabel = issueTags.length > 0 ? issueTags.slice(0, 2).map((tag) => issueLabels.get(tag) ?? labelFromTag(tag)).join(", ") : "general hearing discussion";
+  if (position === "support") return `${speakerLabel} voiced support on ${issueLabel}.`;
+  if (position === "oppose") return `${speakerLabel} raised concerns about ${issueLabel}.`;
+  if (position === "questioning") return `${speakerLabel} pressed witnesses on ${issueLabel}.`;
+  if (position === "neutral") return `${speakerLabel} provided updates on ${issueLabel}.`;
+  return `${speakerLabel} spoke on ${issueLabel}.`;
+}
+function detectInvitedWitness(transcriptText, speakerRole, invited) {
+  if (invited === true) return true;
+  if (speakerRole === "invited_witness") return true;
+  return /\binvited testimony\b|\binvited witness\b/i.test(transcriptText);
+}
+function resolveEntityType(speakerRole, speakerName, affiliation, committeeMemberMap) {
+  const rawSpeakerName = (speakerName ?? "").toLowerCase();
+  const normalizedName = normalizeText(speakerName);
+  const normalizedAffiliation = normalizeText(affiliation);
+  if (committeeMemberMap.has(normalizedName) || speakerRole === "chair" || speakerRole === "member" || /^(sen\.?|senator|rep\.?|representative)\b/i.test(rawSpeakerName)) return "legislator";
+  if (speakerRole === "agency" || AGENCY_HINTS.some((hint) => normalizedAffiliation.includes(hint))) return "agency";
+  if (speakerRole === "staff") return "staff";
+  if (speakerRole === "invited_witness" || speakerRole === "public_witness" || speakerName && affiliation) return "witness";
+  if (ORGANIZATION_HINTS.some((hint) => normalizedAffiliation.includes(hint))) return "organization";
+  return "unknown";
+}
+function selectEntityName(segment, fallbackCommittee) {
+  const name = segment.speakerName?.trim();
+  if (name) return name;
+  const affiliation = segment.affiliation?.trim();
+  if (affiliation) return affiliation;
+  return fallbackCommittee || null;
+}
+function buildStakeholderLookups(rows) {
+  const byName = /* @__PURE__ */ new Map();
+  const byOrganization = /* @__PURE__ */ new Map();
+  for (const row of rows) {
+    const normalizedName = normalizeText(row.name);
+    if (normalizedName && !byName.has(normalizedName)) byName.set(normalizedName, row);
+    const normalizedOrganization = normalizeText(row.organization);
+    if (normalizedOrganization && !byOrganization.has(normalizedOrganization)) byOrganization.set(normalizedOrganization, row);
+  }
+  return { byName, byOrganization };
+}
+function resolveStakeholderId(entityName, affiliation, committeeMemberMap, stakeholderByName, stakeholderByOrganization) {
+  const normalizedName = normalizeText(entityName);
+  const normalizedAffiliation = normalizeText(affiliation);
+  if (normalizedName && committeeMemberMap.has(normalizedName)) {
+    return committeeMemberMap.get(normalizedName)?.stakeholderId ?? null;
+  }
+  if (normalizedName && stakeholderByName.has(normalizedName)) {
+    return stakeholderByName.get(normalizedName)?.id ?? null;
+  }
+  if (normalizedAffiliation && stakeholderByOrganization.has(normalizedAffiliation)) {
+    return stakeholderByOrganization.get(normalizedAffiliation)?.id ?? null;
+  }
+  return null;
+}
+function buildEmptyAnalysis(session, totalSegments = 0, totalSignals = 0) {
+  return {
+    analyzedAt: session.lastAnalyzedAt ? toIsoString(session.lastAnalyzedAt) : null,
+    summary: totalSegments > 0 ? `Tracking ${totalSegments} transcript segments for ${session.committee}, but no issue-level signals have been extracted yet.` : `Committee intelligence is ready for ${session.committee}. Add transcript or caption segments to begin live analysis.`,
+    totalSegments,
+    totalSignals,
+    trackedEntities: 0,
+    invitedWitnessCount: 0,
+    issueCoverage: [],
+    keyMoments: [],
+    electedFocus: [],
+    activeWitnesses: [],
+    witnessRankings: [],
+    postHearingRecap: null,
+    positionMap: []
+  };
+}
+function parseStoredAnalysis(session, segments, signals) {
+  const raw = session.analyticsJson;
+  if (!raw || typeof raw.summary !== "string") {
+    return buildEmptyAnalysis(session, segments.length, signals.length);
+  }
+  return {
+    analyzedAt: typeof raw.analyzedAt === "string" ? raw.analyzedAt : null,
+    summary: raw.summary,
+    totalSegments: typeof raw.totalSegments === "number" ? raw.totalSegments : segments.length,
+    totalSignals: typeof raw.totalSignals === "number" ? raw.totalSignals : signals.length,
+    trackedEntities: typeof raw.trackedEntities === "number" ? raw.trackedEntities : 0,
+    invitedWitnessCount: typeof raw.invitedWitnessCount === "number" ? raw.invitedWitnessCount : 0,
+    issueCoverage: Array.isArray(raw.issueCoverage) ? raw.issueCoverage : [],
+    keyMoments: Array.isArray(raw.keyMoments) ? raw.keyMoments : [],
+    electedFocus: Array.isArray(raw.electedFocus) ? raw.electedFocus : [],
+    activeWitnesses: Array.isArray(raw.activeWitnesses) ? raw.activeWitnesses : [],
+    witnessRankings: Array.isArray(raw.witnessRankings) ? raw.witnessRankings : [],
+    postHearingRecap: raw.postHearingRecap && typeof raw.postHearingRecap === "object" ? raw.postHearingRecap : null,
+    positionMap: Array.isArray(raw.positionMap) ? raw.positionMap : []
+  };
+}
+function buildAnalysisSummary(session, issueCoverage, electedFocus, activeWitnesses, totalSegments) {
+  if (totalSegments === 0) {
+    return `Committee intelligence is standing by for ${session.committee}. No live transcript segments have been ingested yet.`;
+  }
+  const issueText = issueCoverage.length > 0 ? issueCoverage.slice(0, 3).map((issue) => `${issue.label} (${issue.mentionCount})`).join(", ") : "no dominant issue cluster yet";
+  const electedText = electedFocus.length > 0 ? `Committee-member pressure is coming from ${electedFocus.slice(0, 2).map((entry) => entry.entityName).join(" and ")}.` : "No committee-member questioning has been isolated yet.";
+  const witnessText = activeWitnesses.length > 0 ? `Active witnesses include ${activeWitnesses.slice(0, 3).map((entry) => entry.entityName).join(", ")}.` : "No witness or agency bloc has been isolated yet.";
+  return `Tracking ${totalSegments} transcript segments for ${session.committee}. Most active issues: ${issueText}. ${electedText} ${witnessText}`;
+}
+function buildRecommendations(issue, supporters, opponents, electedFocus, activeWitnesses, hearingDate) {
+  const recommendations = [];
+  if (supporters.length === 0 && opponents.length === 0) {
+    recommendations.push(`No direct signals are tied to ${issue} yet. Add more transcript segments or tighten the session focus topics.`);
+  }
+  if (opponents.length > supporters.length) {
+    recommendations.push(`Opposition is stronger than support on ${issue}. Prepare counter-messaging and targeted member follow-up before the next committee touchpoint.`);
+  }
+  if (supporters.length >= opponents.length && supporters.length > 0) {
+    recommendations.push(`Support is building around ${issue}. Identify the most credible supportive witnesses and reinforce their record in follow-up materials.`);
+  }
+  if (electedFocus.length > 0) {
+    recommendations.push(`Brief ${electedFocus.slice(0, 2).map((entry) => entry.entityName).join(" and ")} directly on ${issue}; they are already signaling active engagement.`);
+  }
+  if (activeWitnesses.some((entry) => entry.invited)) {
+    recommendations.push(`Invited witnesses are shaping the record on ${issue}. Prioritize outreach to those entities before written follow-up closes.`);
+  }
+  if (hearingDate) {
+    const hearing = new Date(hearingDate);
+    const diffHours = (hearing.getTime() - Date.now()) / 36e5;
+    if (diffHours >= -6 && diffHours <= 36) {
+      recommendations.push(`Keep live transcript ingestion running through the hearing window so member questioning on ${issue} is captured in real time.`);
+    }
+  }
+  return recommendations.slice(0, 4);
+}
+function getDominantPosition(entry) {
+  return entry.positions[0]?.position ?? "unknown";
+}
+function buildWitnessRankings(activeWitnesses, keyMoments) {
+  const keyMomentCounts = /* @__PURE__ */ new Map();
+  for (const moment of keyMoments) {
+    const key = normalizeText(moment.speakerName);
+    if (!key) continue;
+    keyMomentCounts.set(key, (keyMomentCounts.get(key) ?? 0) + 1);
+  }
+  return activeWitnesses.map((entry) => {
+    const issueBreadth = entry.positions.length;
+    const keyMomentCount = keyMomentCounts.get(normalizeText(entry.entityName)) ?? 0;
+    const dominantPosition = getDominantPosition(entry);
+    const score = clamp(
+      entry.mentionCount * 12 + issueBreadth * 8 + keyMomentCount * 10 + (entry.invited ? 15 : 0) + (entry.entityType === "agency" ? 6 : 0) + (dominantPosition !== "monitoring" && dominantPosition !== "unknown" ? 8 : 0),
+      0,
+      100
+    );
+    const summaryParts = [
+      `${entry.entityName} appeared ${entry.mentionCount} time${entry.mentionCount === 1 ? "" : "s"}`,
+      entry.primaryIssues.length > 0 ? `across ${entry.primaryIssues.slice(0, 2).join(" and ")}` : void 0,
+      entry.invited ? "as invited testimony" : void 0
+    ].filter(Boolean);
+    return {
+      rank: 0,
+      entityName: entry.entityName,
+      entityType: entry.entityType,
+      stakeholderId: entry.stakeholderId,
+      affiliation: entry.affiliation,
+      invited: entry.invited,
+      score,
+      dominantPosition,
+      mentionCount: entry.mentionCount,
+      issueBreadth,
+      keyMomentCount,
+      primaryIssues: entry.primaryIssues,
+      summary: `${summaryParts.join(" ")}.`
+    };
+  }).sort((left, right) => right.score - left.score || right.mentionCount - left.mentionCount).slice(0, 10).map((entry, index2) => ({ ...entry, rank: index2 + 1 }));
+}
+function buildMemberPressurePoints(electedFocus) {
+  return electedFocus.slice(0, 5).map((entry) => {
+    const topIssue = entry.positions[0]?.label ?? "the central issues";
+    const topPosition = getDominantPosition(entry).replace(/_/g, " ");
+    return `${entry.entityName} concentrated on ${topIssue} and is primarily ${topPosition}.`;
+  });
+}
+function buildAgencyCommitments(segments) {
+  return segments.filter(
+    (segment) => (segment.speakerRole === "agency" || segment.invited) && /\b(will|plan to|committed|recommend|working on|next step|we are going to|intend to)\b/i.test(segment.transcriptText)
+  ).sort((left, right) => right.importance - left.importance).slice(0, 5).map((segment) => `${segment.speakerName || segment.affiliation || "Witness"}: ${segment.summary ?? segment.transcriptText.slice(0, 180)}`);
+}
+function buildPostHearingRecap(session, issueCoverage, electedFocus, witnessRankings, segments) {
+  if (segments.length === 0) return null;
+  const topIssues = issueCoverage.slice(0, 4);
+  const issueLabels = topIssues.map((issue) => issue.label);
+  const headline = issueLabels.length > 0 ? `${session.committee} recap: ${issueLabels.join(", ")} dominated the hearing.` : `${session.committee} recap: testimony centered on the committee's interim agenda.`;
+  const overview = [
+    `The session generated ${segments.length} tracked transcript segments and ${witnessRankings.length} ranked witnesses or agencies.`,
+    topIssues.length > 0 ? `Primary areas of focus were ${topIssues.map((issue) => `${issue.label} (${issue.mentionCount} mentions)`).join(", ")}.` : `No single issue cluster dominated the hearing record.`
+  ].join(" ");
+  const issueHighlights = topIssues.map((issue) => {
+    const entityText = issue.keyEntities.length > 0 ? ` Key voices: ${issue.keyEntities.join(", ")}.` : "";
+    return `${issue.label}: ${issue.mentionCount} mentions, ${issue.supportCount} support, ${issue.opposeCount} oppose, ${issue.questioningCount} questioning.${entityText}`;
+  });
+  const followUpActions = [
+    witnessRankings.length > 0 ? `Follow up with ${witnessRankings.slice(0, 2).map((entry) => entry.entityName).join(" and ")} while the hearing record is still fresh.` : null,
+    electedFocus.length > 0 ? `Prepare a member-specific response for ${electedFocus.slice(0, 2).map((entry) => entry.entityName).join(" and ")} based on their questioning.` : null,
+    topIssues.length > 0 ? `Build a short readout on ${topIssues[0].label} for client distribution after testimony closes.` : null
+  ].filter((value) => Boolean(value));
+  return {
+    generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    headline,
+    overview,
+    issueHighlights,
+    memberPressurePoints: buildMemberPressurePoints(electedFocus),
+    witnessLeaderboard: witnessRankings.slice(0, 5),
+    agencyCommitments: buildAgencyCommitments(segments),
+    followUpActions
+  };
+}
+async function loadSessionCore(sessionId) {
+  const [row] = await policyIntelDb.select({
+    session: committeeIntelSessions,
+    hearing: hearingEvents
+  }).from(committeeIntelSessions).leftJoin(hearingEvents, eq19(hearingEvents.id, committeeIntelSessions.hearingId)).where(eq19(committeeIntelSessions.id, sessionId));
+  if (!row) return null;
+  return { session: row.session, hearing: row.hearing ?? null };
+}
+async function loadSessionSegments(sessionId) {
+  return policyIntelDb.select().from(committeeIntelSegments).where(eq19(committeeIntelSegments.sessionId, sessionId)).orderBy(asc(committeeIntelSegments.segmentIndex), asc(committeeIntelSegments.createdAt));
+}
+async function loadSessionSignals(sessionId) {
+  return policyIntelDb.select().from(committeeIntelSignals).where(eq19(committeeIntelSignals.sessionId, sessionId)).orderBy(desc13(committeeIntelSignals.createdAt), asc(committeeIntelSignals.id));
+}
+async function loadSessionDetail(sessionId) {
+  const core = await loadSessionCore(sessionId);
+  if (!core) return null;
+  const [segments, signals] = await Promise.all([
+    loadSessionSegments(sessionId),
+    loadSessionSignals(sessionId)
+  ]);
+  return {
+    session: core.session,
+    hearing: core.hearing,
+    segments,
+    signals,
+    analysis: parseStoredAnalysis(core.session, segments, signals)
+  };
+}
+async function loadStakeholderContext(session) {
+  const [stakeholderRows, committeeRows] = await Promise.all([
+    policyIntelDb.select({
+      id: stakeholders.id,
+      name: stakeholders.name,
+      type: stakeholders.type,
+      organization: stakeholders.organization,
+      party: stakeholders.party,
+      chamber: stakeholders.chamber,
+      title: stakeholders.title
+    }).from(stakeholders).where(eq19(stakeholders.workspaceId, session.workspaceId)),
+    policyIntelDb.select({
+      stakeholderId: committeeMembers.stakeholderId,
+      role: committeeMembers.role,
+      name: stakeholders.name,
+      party: stakeholders.party,
+      chamber: stakeholders.chamber
+    }).from(committeeMembers).innerJoin(stakeholders, eq19(stakeholders.id, committeeMembers.stakeholderId)).where(and11(
+      ilike5(committeeMembers.committeeName, session.committee),
+      eq19(committeeMembers.chamber, session.chamber)
+    ))
+  ]);
+  const { byName, byOrganization } = buildStakeholderLookups(stakeholderRows);
+  const committeeMemberMap = /* @__PURE__ */ new Map();
+  for (const row of committeeRows) {
+    committeeMemberMap.set(normalizeText(row.name), row);
+  }
+  return {
+    stakeholderRows,
+    stakeholderByName: byName,
+    stakeholderByOrganization: byOrganization,
+    committeeMemberMap
+  };
+}
+function deriveSegment(segment, session) {
+  const issueLabels = buildIssueLabelMap(session);
+  const speakerRole = determineSpeakerRole(segment.speakerRole, segment.speakerName, segment.affiliation, segment.transcriptText);
+  const issueTagsJson = detectIssueTags(segment.transcriptText, session.focusTopicsJson);
+  const position = determinePosition(segment.transcriptText, speakerRole);
+  const invited = detectInvitedWitness(segment.transcriptText, speakerRole, segment.invited);
+  const importance = scoreImportance(segment.transcriptText, speakerRole, issueTagsJson, position, invited);
+  const summary = summarizeSegment(segment.speakerName, segment.affiliation, issueTagsJson, position, issueLabels);
+  const metadataJson = {
+    ...segment.metadataJson ?? {},
+    wordCount: normalizeText(segment.transcriptText).split(" ").filter(Boolean).length
+  };
+  return {
+    speakerRole,
+    summary,
+    issueTagsJson,
+    position,
+    importance,
+    invited,
+    metadataJson
+  };
+}
+function buildStoredSegmentExternalKey(segment) {
+  const metadata = getMetadataRecord(segment.metadataJson);
+  const metadataKey = typeof metadata.externalKey === "string" ? metadata.externalKey : null;
+  if (metadataKey) return metadataKey;
+  return buildTranscriptExternalKey([
+    segment.sessionId,
+    segment.segmentIndex,
+    segment.startedAtSecond,
+    segment.endedAtSecond,
+    segment.speakerName,
+    segment.affiliation,
+    segment.transcriptText
+  ]);
+}
+function buildStoredSegmentDedupKey(segment) {
+  const metadata = getMetadataRecord(segment.metadataJson);
+  const storedKey = typeof metadata.dedupKey === "string" ? metadata.dedupKey.trim() : "";
+  if (storedKey) return storedKey;
+  return buildTranscriptFeedIdentityKey(
+    segment.sessionId,
+    typeof metadata.sourceType === "string" ? metadata.sourceType : null,
+    typeof metadata.feedCursor === "string" ? metadata.feedCursor : null,
+    typeof metadata.sourceId === "string" || typeof metadata.sourceId === "number" ? metadata.sourceId : null
+  ) ?? buildStoredSegmentExternalKey(segment);
+}
+function buildStoredSegmentFeedIdentity(segment) {
+  const metadata = getMetadataRecord(segment.metadataJson);
+  return buildTranscriptFeedIdentityKey(
+    segment.sessionId,
+    typeof metadata.sourceType === "string" ? metadata.sourceType : null,
+    typeof metadata.feedCursor === "string" ? metadata.feedCursor : null,
+    typeof metadata.sourceId === "string" || typeof metadata.sourceId === "number" ? metadata.sourceId : null
+  );
+}
+async function getNextSegmentIndex(sessionId) {
+  const [lastSegment] = await policyIntelDb.select({ segmentIndex: committeeIntelSegments.segmentIndex }).from(committeeIntelSegments).where(eq19(committeeIntelSegments.sessionId, sessionId)).orderBy(desc13(committeeIntelSegments.segmentIndex)).limit(1);
+  return (lastSegment?.segmentIndex ?? -1) + 1;
+}
+function buildCommitteeIntelSegmentValues(session, segmentIndex, request, current) {
+  const capturedAt = toDate(request.capturedAt) ?? /* @__PURE__ */ new Date();
+  const createdAt = current?.createdAt ? toDate(current.createdAt) ?? /* @__PURE__ */ new Date() : /* @__PURE__ */ new Date();
+  const baseSegment = {
+    id: current?.id ?? 0,
+    sessionId: session.id,
+    segmentIndex,
+    capturedAt,
+    startedAtSecond: request.startedAtSecond ?? null,
+    endedAtSecond: request.endedAtSecond ?? null,
+    speakerName: request.speakerName?.trim() || null,
+    speakerRole: request.speakerRole ?? "unknown",
+    affiliation: request.affiliation?.trim() || null,
+    transcriptText: request.transcriptText.trim(),
+    summary: null,
+    issueTagsJson: [],
+    position: "unknown",
+    importance: 0,
+    invited: request.invited ?? false,
+    metadataJson: request.metadata ?? {},
+    createdAt
+  };
+  const derived = deriveSegment(baseSegment, session);
+  return {
+    sessionId: session.id,
+    segmentIndex: baseSegment.segmentIndex,
+    capturedAt,
+    startedAtSecond: baseSegment.startedAtSecond,
+    endedAtSecond: baseSegment.endedAtSecond,
+    speakerName: baseSegment.speakerName,
+    speakerRole: derived.speakerRole,
+    affiliation: baseSegment.affiliation,
+    transcriptText: baseSegment.transcriptText,
+    summary: derived.summary,
+    issueTagsJson: derived.issueTagsJson,
+    position: derived.position,
+    importance: derived.importance,
+    invited: derived.invited,
+    metadataJson: derived.metadataJson
+  };
+}
+async function insertCommitteeIntelSegments(session, requests) {
+  if (requests.length === 0) return [];
+  const startingIndex = await getNextSegmentIndex(session.id);
+  const rows = requests.map(
+    (request, requestIndex) => buildCommitteeIntelSegmentValues(session, startingIndex + requestIndex, request)
+  );
+  return policyIntelDb.insert(committeeIntelSegments).values(rows).returning();
+}
+async function updateCommitteeIntelSegment(session, segment, request) {
+  const values = buildCommitteeIntelSegmentValues(
+    session,
+    segment.segmentIndex,
+    request,
+    { id: segment.id, createdAt: segment.createdAt }
+  );
+  const [updated] = await policyIntelDb.update(committeeIntelSegments).set({
+    capturedAt: values.capturedAt,
+    startedAtSecond: values.startedAtSecond,
+    endedAtSecond: values.endedAtSecond,
+    speakerName: values.speakerName,
+    speakerRole: values.speakerRole,
+    affiliation: values.affiliation,
+    transcriptText: values.transcriptText,
+    summary: values.summary,
+    issueTagsJson: values.issueTagsJson,
+    position: values.position,
+    importance: values.importance,
+    invited: values.invited,
+    metadataJson: values.metadataJson
+  }).where(eq19(committeeIntelSegments.id, segment.id)).returning();
+  return updated ?? { ...segment, ...values };
+}
+async function mergeDuplicateFeedSegments(session) {
+  const segments = await loadSessionSegments(session.id);
+  const grouped = /* @__PURE__ */ new Map();
+  for (const segment of segments) {
+    const identityKey = buildStoredSegmentFeedIdentity(segment);
+    if (!identityKey) continue;
+    const current = grouped.get(identityKey) ?? [];
+    current.push(segment);
+    grouped.set(identityKey, current);
+  }
+  for (const group of grouped.values()) {
+    if (group.length < 2) continue;
+    const orderedByIndex = [...group].sort((left, right) => left.segmentIndex - right.segmentIndex || left.id - right.id);
+    const orderedByFreshness = [...group].sort((left, right) => {
+      const rightTime = toDate(right.createdAt)?.getTime() ?? 0;
+      const leftTime = toDate(left.createdAt)?.getTime() ?? 0;
+      return rightTime - leftTime || right.id - left.id;
+    });
+    const keeper = orderedByIndex[0];
+    const canonical = orderedByFreshness[0];
+    if (canonical.id !== keeper.id) {
+      await updateCommitteeIntelSegment(session, keeper, {
+        capturedAt: toIsoString(canonical.capturedAt) ?? void 0,
+        startedAtSecond: canonical.startedAtSecond,
+        endedAtSecond: canonical.endedAtSecond,
+        speakerName: canonical.speakerName ?? void 0,
+        speakerRole: canonical.speakerRole,
+        affiliation: canonical.affiliation ?? void 0,
+        transcriptText: canonical.transcriptText,
+        invited: canonical.invited,
+        metadata: getMetadataRecord(canonical.metadataJson)
+      });
+    }
+    const duplicateIds = group.filter((segment) => segment.id !== keeper.id).map((segment) => segment.id);
+    if (duplicateIds.length === 0) continue;
+    await policyIntelDb.delete(committeeIntelSignals).where(and11(
+      eq19(committeeIntelSignals.sessionId, session.id),
+      inArray3(committeeIntelSignals.segmentId, duplicateIds)
+    ));
+    await policyIntelDb.delete(committeeIntelSegments).where(inArray3(committeeIntelSegments.id, duplicateIds));
+  }
+}
+function buildAnalysis(session, segments, signals, committeeMemberMap) {
+  if (segments.length === 0) {
+    return buildEmptyAnalysis(session, 0, 0);
+  }
+  const issueLabels = buildIssueLabelMap(session);
+  const segmentById = new Map(segments.map((segment) => [segment.id, segment]));
+  const issueMap = /* @__PURE__ */ new Map();
+  for (const signal of signals) {
+    const current = issueMap.get(signal.issueTag) ?? {
+      issueTag: signal.issueTag,
+      label: issueLabels.get(signal.issueTag) ?? labelFromTag(signal.issueTag),
+      mentionCount: 0,
+      supportCount: 0,
+      opposeCount: 0,
+      questioningCount: 0,
+      neutralCount: 0,
+      keyEntities: []
+    };
+    current.mentionCount += 1;
+    if (signal.position === "support") current.supportCount += 1;
+    else if (signal.position === "oppose") current.opposeCount += 1;
+    else if (signal.position === "questioning") current.questioningCount += 1;
+    else current.neutralCount += 1;
+    if (!current.keyEntities.includes(signal.entityName)) {
+      current.keyEntities.push(signal.entityName);
+    }
+    issueMap.set(signal.issueTag, current);
+  }
+  const issueCoverage = Array.from(issueMap.values()).map((issue) => ({ ...issue, keyEntities: issue.keyEntities.slice(0, 4) })).sort((left, right) => right.mentionCount - left.mentionCount);
+  const keyMoments = segments.filter((segment) => segment.importance >= 35).sort((left, right) => right.importance - left.importance || left.segmentIndex - right.segmentIndex).slice(0, 12).map((segment) => ({
+    segmentId: segment.id,
+    timestampLabel: formatTimestampLabel(segment.startedAtSecond, segment.capturedAt),
+    timestampSecond: segment.startedAtSecond ?? null,
+    speakerName: segment.speakerName,
+    speakerRole: segment.speakerRole,
+    summary: segment.summary ?? summarizeSegment(segment.speakerName, segment.affiliation, segment.issueTagsJson, segment.position, issueLabels),
+    importance: segment.importance,
+    position: segment.position,
+    issueTags: segment.issueTagsJson
+  }));
+  const entityMap = /* @__PURE__ */ new Map();
+  for (const signal of signals) {
+    const normalizedName = normalizeText(signal.entityName);
+    const key = `${normalizedName}|${signal.entityType}|${normalizeText(signal.affiliation)}`;
+    const segment = signal.segmentId ? segmentById.get(signal.segmentId) ?? null : null;
+    const current = entityMap.get(key) ?? {
+      entityName: signal.entityName,
+      entityType: signal.entityType,
+      stakeholderId: signal.stakeholderId ?? null,
+      affiliation: signal.affiliation ?? null,
+      mentionCount: 0,
+      invited: segment?.invited ?? false,
+      positions: /* @__PURE__ */ new Map()
+    };
+    current.mentionCount += 1;
+    current.invited = current.invited || Boolean(segment?.invited);
+    if (current.stakeholderId === null && signal.stakeholderId !== null) {
+      current.stakeholderId = signal.stakeholderId;
+    }
+    const issueEntry = current.positions.get(signal.issueTag) ?? {
+      issueTag: signal.issueTag,
+      label: issueLabels.get(signal.issueTag) ?? labelFromTag(signal.issueTag),
+      counts: {
+        support: 0,
+        oppose: 0,
+        questioning: 0,
+        neutral: 0,
+        monitoring: 0,
+        unknown: 0
+      },
+      mentionCount: 0,
+      confidenceTotal: 0,
+      confidenceMax: 0
+    };
+    issueEntry.counts[signal.position] += 1;
+    issueEntry.mentionCount += 1;
+    issueEntry.confidenceTotal += signal.confidence;
+    issueEntry.confidenceMax = Math.max(issueEntry.confidenceMax, signal.confidence);
+    current.positions.set(signal.issueTag, issueEntry);
+    entityMap.set(key, current);
+  }
+  const toEntitySummary = (entry) => {
+    const positions = Array.from(entry.positions.values()).map((positionEntry) => {
+      const ordered = Object.entries(positionEntry.counts).sort((left, right) => right[1] - left[1]);
+      return {
+        issueTag: positionEntry.issueTag,
+        label: positionEntry.label,
+        position: ordered[0]?.[0] ?? "unknown",
+        confidence: Number((positionEntry.confidenceTotal / Math.max(positionEntry.mentionCount, 1)).toFixed(2)),
+        mentionCount: positionEntry.mentionCount
+      };
+    }).sort((left, right) => right.mentionCount - left.mentionCount);
+    return {
+      entityName: entry.entityName,
+      entityType: entry.entityType,
+      stakeholderId: entry.stakeholderId,
+      affiliation: entry.affiliation,
+      mentionCount: entry.mentionCount,
+      invited: entry.invited,
+      primaryIssues: positions.slice(0, 3).map((position) => position.label),
+      positions
+    };
+  };
+  const entitySummaries = Array.from(entityMap.values()).map(toEntitySummary).sort((left, right) => right.mentionCount - left.mentionCount);
+  const electedFocus = entitySummaries.filter((entry) => entry.entityType === "legislator" || committeeMemberMap.has(normalizeText(entry.entityName))).slice(0, 10);
+  const activeWitnesses = entitySummaries.filter((entry) => entry.entityType !== "legislator").slice(0, 10);
+  const witnessRankings = buildWitnessRankings(activeWitnesses, keyMoments);
+  const postHearingRecap = buildPostHearingRecap(session, issueCoverage, electedFocus, witnessRankings, segments);
+  const positionMap = entitySummaries.flatMap((entry) => entry.positions.map((position) => ({
+    entityName: entry.entityName,
+    entityType: entry.entityType,
+    stakeholderId: entry.stakeholderId,
+    affiliation: entry.affiliation,
+    issueTag: position.issueTag,
+    label: position.label,
+    position: position.position,
+    confidence: position.confidence,
+    mentionCount: position.mentionCount,
+    invited: entry.invited
+  }))).sort((left, right) => right.mentionCount - left.mentionCount).slice(0, 40);
+  return {
+    analyzedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    summary: buildAnalysisSummary(session, issueCoverage, electedFocus, activeWitnesses, segments.length),
+    totalSegments: segments.length,
+    totalSignals: signals.length,
+    trackedEntities: entitySummaries.length,
+    invitedWitnessCount: activeWitnesses.filter((entry) => entry.invited).length,
+    issueCoverage,
+    keyMoments,
+    electedFocus,
+    activeWitnesses,
+    witnessRankings,
+    postHearingRecap,
+    positionMap
+  };
+}
+async function listCommitteeIntelSessions(filters) {
+  const conditions = [];
+  if (filters?.workspaceId) conditions.push(eq19(committeeIntelSessions.workspaceId, filters.workspaceId));
+  if (filters?.hearingId) conditions.push(eq19(committeeIntelSessions.hearingId, filters.hearingId));
+  if (filters?.status) conditions.push(eq19(committeeIntelSessions.status, filters.status));
+  if (filters?.from) {
+    const fromDate = toDate(filters.from);
+    if (fromDate) conditions.push(gte10(committeeIntelSessions.hearingDate, fromDate));
+  }
+  return policyIntelDb.select().from(committeeIntelSessions).where(conditions.length > 0 ? and11(...conditions) : void 0).orderBy(asc(committeeIntelSessions.hearingDate), asc(committeeIntelSessions.id));
+}
+async function createCommitteeIntelSessionFromHearing(request) {
+  const [hearingRow] = await policyIntelDb.select({
+    hearing: hearingEvents,
+    agendaUrl: sourceDocuments.sourceUrl
+  }).from(hearingEvents).leftJoin(sourceDocuments, eq19(sourceDocuments.id, hearingEvents.sourceDocumentId)).where(eq19(hearingEvents.id, request.hearingId));
+  if (!hearingRow) {
+    throw new Error(`Hearing ${request.hearingId} not found`);
+  }
+  const [existing] = await policyIntelDb.select({ id: committeeIntelSessions.id }).from(committeeIntelSessions).where(and11(
+    eq19(committeeIntelSessions.workspaceId, request.workspaceId),
+    eq19(committeeIntelSessions.hearingId, request.hearingId)
+  ));
+  if (existing) {
+    return updateCommitteeIntelSession(existing.id, {
+      title: request.title,
+      focusTopics: request.focusTopics,
+      interimCharges: request.interimCharges,
+      clientContext: request.clientContext,
+      monitoringNotes: request.monitoringNotes,
+      videoUrl: request.videoUrl,
+      agendaUrl: request.agendaUrl ?? hearingRow.agendaUrl ?? null,
+      transcriptSourceType: request.transcriptSourceType,
+      transcriptSourceUrl: request.transcriptSourceUrl,
+      autoIngestEnabled: request.autoIngestEnabled,
+      autoIngestIntervalSeconds: request.autoIngestIntervalSeconds,
+      status: request.status
+    });
+  }
+  const transcriptSourceType = request.transcriptSourceType ?? "manual";
+  const transcriptSourceUrl = resolveCandidateTranscriptSourceUrl(
+    transcriptSourceType,
+    request.transcriptSourceUrl,
+    request.videoUrl
+  );
+  const autoIngestEnabled = Boolean(request.autoIngestEnabled);
+  const autoIngestIntervalSeconds = clamp(request.autoIngestIntervalSeconds ?? 120, 30, 3600);
+  const autoIngestStatus = resolveAutoIngestStatus(transcriptSourceType, transcriptSourceUrl, autoIngestEnabled, "idle");
+  const [created] = await policyIntelDb.insert(committeeIntelSessions).values({
+    workspaceId: request.workspaceId,
+    hearingId: hearingRow.hearing.id,
+    title: request.title?.trim() || `${hearingRow.hearing.committee} Committee Intelligence`,
+    committee: hearingRow.hearing.committee,
+    chamber: hearingRow.hearing.chamber,
+    hearingDate: hearingRow.hearing.hearingDate,
+    status: request.status ?? "planned",
+    agendaUrl: request.agendaUrl ?? hearingRow.agendaUrl ?? null,
+    videoUrl: request.videoUrl ?? null,
+    transcriptSourceType,
+    transcriptSourceUrl,
+    autoIngestEnabled,
+    autoIngestIntervalSeconds,
+    autoIngestStatus,
+    focusTopicsJson: cleanList(request.focusTopics),
+    interimChargesJson: cleanList(request.interimCharges),
+    clientContext: request.clientContext?.trim() || null,
+    monitoringNotes: request.monitoringNotes?.trim() || null,
+    analyticsJson: {}
+  }).returning();
+  return refreshCommitteeIntelSession(created.id);
+}
+async function getCommitteeIntelSession(sessionId) {
+  return loadSessionDetail(sessionId);
+}
+async function updateCommitteeIntelSession(sessionId, patch) {
+  const core = await loadSessionCore(sessionId);
+  if (!core) {
+    throw new Error(`Committee intelligence session ${sessionId} not found`);
+  }
+  const nextTranscriptSourceType = patch.transcriptSourceType ?? core.session.transcriptSourceType;
+  const nextVideoUrl = patch.videoUrl === void 0 ? core.session.videoUrl : patch.videoUrl;
+  const nextTranscriptSourceUrl = patch.transcriptSourceUrl === void 0 ? core.session.transcriptSourceUrl : resolveCandidateTranscriptSourceUrl(nextTranscriptSourceType, patch.transcriptSourceUrl, nextVideoUrl);
+  const nextAutoIngestEnabled = patch.autoIngestEnabled ?? core.session.autoIngestEnabled;
+  const nextAutoIngestIntervalSeconds = clamp(
+    patch.autoIngestIntervalSeconds ?? core.session.autoIngestIntervalSeconds,
+    30,
+    3600
+  );
+  const nextAutoIngestStatus = resolveAutoIngestStatus(
+    nextTranscriptSourceType,
+    nextTranscriptSourceUrl,
+    nextAutoIngestEnabled,
+    core.session.autoIngestStatus
+  );
+  await policyIntelDb.update(committeeIntelSessions).set({
+    title: patch.title?.trim() || core.session.title,
+    status: patch.status ?? core.session.status,
+    agendaUrl: patch.agendaUrl === void 0 ? core.session.agendaUrl : patch.agendaUrl,
+    videoUrl: nextVideoUrl,
+    transcriptSourceType: nextTranscriptSourceType,
+    transcriptSourceUrl: nextTranscriptSourceUrl,
+    autoIngestEnabled: nextAutoIngestEnabled,
+    autoIngestIntervalSeconds: nextAutoIngestIntervalSeconds,
+    autoIngestStatus: nextAutoIngestStatus,
+    autoIngestError: nextAutoIngestStatus === "error" ? core.session.autoIngestError : null,
+    focusTopicsJson: patch.focusTopics ? cleanList(patch.focusTopics) : core.session.focusTopicsJson,
+    interimChargesJson: patch.interimCharges ? cleanList(patch.interimCharges) : core.session.interimChargesJson,
+    clientContext: patch.clientContext === void 0 ? core.session.clientContext : patch.clientContext,
+    monitoringNotes: patch.monitoringNotes === void 0 ? core.session.monitoringNotes : patch.monitoringNotes,
+    liveSummary: patch.liveSummary === void 0 ? core.session.liveSummary : patch.liveSummary,
+    updatedAt: /* @__PURE__ */ new Date()
+  }).where(eq19(committeeIntelSessions.id, sessionId));
+  return refreshCommitteeIntelSession(sessionId);
+}
+async function addCommitteeIntelSegment(sessionId, request) {
+  const core = await loadSessionCore(sessionId);
+  if (!core) {
+    throw new Error(`Committee intelligence session ${sessionId} not found`);
+  }
+  const transcriptText = request.transcriptText.trim();
+  if (!transcriptText) {
+    throw new Error("transcriptText is required");
+  }
+  await insertCommitteeIntelSegments(core.session, [{
+    ...request,
+    transcriptText
+  }]);
+  if (core.session.status === "planned") {
+    await policyIntelDb.update(committeeIntelSessions).set({
+      status: "monitoring",
+      updatedAt: /* @__PURE__ */ new Date()
+    }).where(eq19(committeeIntelSessions.id, sessionId));
+  }
+  return refreshCommitteeIntelSession(sessionId);
+}
+async function syncCommitteeIntelTranscriptFeed(sessionId) {
+  const core = await loadSessionCore(sessionId);
+  if (!core) {
+    throw new Error(`Committee intelligence session ${sessionId} not found`);
+  }
+  const sourceType = core.session.transcriptSourceType;
+  const sourceUrl = resolveTranscriptSourceUrl(core.session);
+  if (sourceType === "manual" || !sourceUrl) {
+    const message = "This session does not have an automatic transcript feed configured";
+    await policyIntelDb.update(committeeIntelSessions).set({
+      autoIngestStatus: core.session.autoIngestEnabled ? "error" : "idle",
+      autoIngestError: message,
+      updatedAt: /* @__PURE__ */ new Date()
+    }).where(eq19(committeeIntelSessions.id, sessionId));
+    throw new Error(message);
+  }
+  await policyIntelDb.update(committeeIntelSessions).set({
+    autoIngestStatus: "syncing",
+    autoIngestError: null,
+    updatedAt: /* @__PURE__ */ new Date()
+  }).where(eq19(committeeIntelSessions.id, sessionId));
+  try {
+    const response = await fetch(sourceUrl, {
+      headers: {
+        Accept: "text/vtt,application/json,text/plain;q=0.9,*/*;q=0.5"
+      }
+    });
+    if (!response.ok) {
+      throw new Error(`Transcript feed request failed with status ${response.status}`);
+    }
+    const content = await response.text();
+    const parsedEntries = parseTranscriptFeed(content, sourceType, core.session);
+    await mergeDuplicateFeedSegments(core.session);
+    const existingSegments = await loadSessionSegments(sessionId);
+    const existingByKey = new Map(existingSegments.map((segment) => [buildStoredSegmentDedupKey(segment), segment]));
+    const seenParsedKeys = /* @__PURE__ */ new Set();
+    const requests = [];
+    let updatedSegments = 0;
+    let duplicateSegments = 0;
+    for (const entry of parsedEntries) {
+      const dedupKey = buildFeedEntryDedupKey(core.session.id, entry);
+      if (seenParsedKeys.has(dedupKey)) {
+        duplicateSegments += 1;
+        continue;
+      }
+      seenParsedKeys.add(dedupKey);
+      const request = {
+        capturedAt: entry.capturedAt,
+        startedAtSecond: entry.startedAtSecond,
+        endedAtSecond: entry.endedAtSecond,
+        speakerName: entry.speakerName ?? void 0,
+        speakerRole: entry.speakerRole,
+        affiliation: entry.affiliation ?? void 0,
+        transcriptText: entry.transcriptText,
+        invited: entry.invited,
+        metadata: entry.metadata
+      };
+      const existingSegment = existingByKey.get(dedupKey);
+      if (!existingSegment) {
+        requests.push(request);
+        continue;
+      }
+      if (buildStoredSegmentExternalKey(existingSegment) !== entry.externalKey) {
+        await updateCommitteeIntelSegment(core.session, existingSegment, request);
+        updatedSegments += 1;
+      } else {
+        duplicateSegments += 1;
+      }
+    }
+    await insertCommitteeIntelSegments(core.session, requests);
+    const cursor = parsedEntries.at(-1)?.cursorValue ?? core.session.lastAutoIngestCursor ?? null;
+    await policyIntelDb.update(committeeIntelSessions).set({
+      status: core.session.status === "planned" && (requests.length > 0 || updatedSegments > 0) ? "monitoring" : core.session.status,
+      autoIngestStatus: resolveAutoIngestStatus(sourceType, sourceUrl, core.session.autoIngestEnabled, "ready"),
+      autoIngestError: null,
+      lastAutoIngestedAt: /* @__PURE__ */ new Date(),
+      lastAutoIngestCursor: cursor,
+      updatedAt: /* @__PURE__ */ new Date()
+    }).where(eq19(committeeIntelSessions.id, sessionId));
+    const detail = await refreshCommitteeIntelSession(sessionId);
+    return {
+      detail,
+      sync: {
+        sessionId,
+        sourceType,
+        sourceUrl,
+        fetchedAt: (/* @__PURE__ */ new Date()).toISOString(),
+        totalParsed: parsedEntries.length,
+        ingestedSegments: requests.length,
+        updatedSegments,
+        duplicateSegments,
+        cursor,
+        status: detail.session.autoIngestStatus
+      }
+    };
+  } catch (error) {
+    const message = error?.message ?? String(error);
+    await policyIntelDb.update(committeeIntelSessions).set({
+      autoIngestStatus: "error",
+      autoIngestError: message,
+      updatedAt: /* @__PURE__ */ new Date()
+    }).where(eq19(committeeIntelSessions.id, sessionId));
+    throw new Error(message);
+  }
+}
+async function syncCommitteeIntelAutoIngestSessions() {
+  const rows = await policyIntelDb.select().from(committeeIntelSessions).where(eq19(committeeIntelSessions.autoIngestEnabled, true)).orderBy(asc(committeeIntelSessions.hearingDate), asc(committeeIntelSessions.id));
+  let sessionsSynced = 0;
+  let ingestedSegments = 0;
+  let sessionsSkipped = 0;
+  const errors = [];
+  for (const session of rows) {
+    if (session.status === "completed") {
+      sessionsSkipped += 1;
+      continue;
+    }
+    const lastSync = toDate(session.lastAutoIngestedAt);
+    const intervalMs = Math.max(session.autoIngestIntervalSeconds, 30) * 1e3;
+    if (lastSync && Date.now() - lastSync.getTime() < intervalMs) {
+      sessionsSkipped += 1;
+      continue;
+    }
+    try {
+      const result = await syncCommitteeIntelTranscriptFeed(session.id);
+      sessionsSynced += 1;
+      ingestedSegments += result.sync.ingestedSegments;
+    } catch (error) {
+      errors.push(`session ${session.id}: ${error?.message ?? String(error)}`);
+    }
+  }
+  return {
+    sessionsChecked: rows.length,
+    sessionsSynced,
+    sessionsSkipped,
+    ingestedSegments,
+    errors: errors.length,
+    errorMessages: errors.slice(0, 10)
+  };
+}
+async function generateCommitteeIntelPostHearingRecap(sessionId) {
+  const detail = await refreshCommitteeIntelSession(sessionId);
+  if (detail.analysis.postHearingRecap) {
+    return detail.analysis.postHearingRecap;
+  }
+  return {
+    generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    headline: `${detail.session.committee} recap is not ready yet.`,
+    overview: "No transcript segments have been ingested for this session yet.",
+    issueHighlights: [],
+    memberPressurePoints: [],
+    witnessLeaderboard: [],
+    agencyCommitments: [],
+    followUpActions: ["Enable automatic transcript ingestion or add transcript segments before generating a recap."]
+  };
+}
+async function refreshCommitteeIntelSession(sessionId) {
+  const core = await loadSessionCore(sessionId);
+  if (!core) {
+    throw new Error(`Committee intelligence session ${sessionId} not found`);
+  }
+  const { committeeMemberMap, stakeholderByName, stakeholderByOrganization } = await loadStakeholderContext(core.session);
+  const rawSegments = await loadSessionSegments(sessionId);
+  const updatedSegments = await Promise.all(rawSegments.map(async (segment) => {
+    const derived = deriveSegment(segment, core.session);
+    const [updated] = await policyIntelDb.update(committeeIntelSegments).set({
+      speakerRole: derived.speakerRole,
+      summary: derived.summary,
+      issueTagsJson: derived.issueTagsJson,
+      position: derived.position,
+      importance: derived.importance,
+      invited: derived.invited,
+      metadataJson: derived.metadataJson
+    }).where(eq19(committeeIntelSegments.id, segment.id)).returning();
+    return updated ?? { ...segment, ...derived };
+  }));
+  await policyIntelDb.delete(committeeIntelSignals).where(eq19(committeeIntelSignals.sessionId, sessionId));
+  const signalPayloads = updatedSegments.flatMap((segment) => {
+    const entityName = selectEntityName(segment, core.session.committee);
+    if (!entityName || segment.issueTagsJson.length === 0) return [];
+    const entityType = resolveEntityType(segment.speakerRole, segment.speakerName, segment.affiliation, committeeMemberMap);
+    const stakeholderId = resolveStakeholderId(
+      entityName,
+      segment.affiliation,
+      committeeMemberMap,
+      stakeholderByName,
+      stakeholderByOrganization
+    );
+    const evidenceQuote = segment.transcriptText.replace(/\s+/g, " ").trim().slice(0, 320);
+    const confidence = Number(Math.min(0.95, 0.45 + segment.importance / 120).toFixed(2));
+    return segment.issueTagsJson.map((issueTag) => ({
+      sessionId,
+      segmentId: segment.id,
+      stakeholderId,
+      entityName,
+      entityType,
+      affiliation: segment.affiliation,
+      issueTag,
+      position: segment.position,
+      confidence,
+      evidenceQuote,
+      sourceKind: "transcript"
+    }));
+  });
+  const insertedSignals = signalPayloads.length > 0 ? await policyIntelDb.insert(committeeIntelSignals).values(signalPayloads).returning() : [];
+  const analysis = buildAnalysis(core.session, updatedSegments, insertedSignals, committeeMemberMap);
+  const [updatedSession] = await policyIntelDb.update(committeeIntelSessions).set({
+    liveSummary: analysis.summary,
+    analyticsJson: analysis,
+    lastAnalyzedAt: /* @__PURE__ */ new Date(),
+    updatedAt: /* @__PURE__ */ new Date()
+  }).where(eq19(committeeIntelSessions.id, sessionId)).returning();
+  return {
+    session: updatedSession,
+    hearing: core.hearing,
+    segments: updatedSegments,
+    signals: insertedSignals,
+    analysis
+  };
+}
+async function generateCommitteeIntelFocusedBrief(sessionId, issue) {
+  const detail = await refreshCommitteeIntelSession(sessionId);
+  const normalizedIssue = normalizeText(issue);
+  const matchedIssues = detail.analysis.issueCoverage.filter((item) => {
+    const normalizedLabel = normalizeText(item.label);
+    return normalizedLabel.includes(normalizedIssue) || item.issueTag.includes(slugifyIssue(issue));
+  });
+  const matchedIssueTags = matchedIssues.length > 0 ? matchedIssues.map((item) => item.issueTag) : detail.analysis.issueCoverage.slice(0, 1).map((item) => item.issueTag);
+  const topMoments = detail.analysis.keyMoments.filter((moment) => moment.issueTags.some((tag) => matchedIssueTags.includes(tag))).slice(0, 6);
+  const relevantPositions = detail.analysis.positionMap.filter((row) => matchedIssueTags.includes(row.issueTag));
+  const supporters = relevantPositions.filter((row) => row.position === "support").slice(0, 8);
+  const opponents = relevantPositions.filter((row) => row.position === "oppose" || row.position === "questioning").slice(0, 8);
+  const electedFocus = detail.analysis.electedFocus.filter((entry) => entry.positions.some((position) => matchedIssueTags.includes(position.issueTag))).slice(0, 6);
+  const activeWitnesses = detail.analysis.activeWitnesses.filter((entry) => entry.positions.some((position) => matchedIssueTags.includes(position.issueTag))).slice(0, 6);
+  const issueLabel = matchedIssues[0]?.label ?? issue;
+  const summaryParts = [
+    `${detail.session.committee} is tracking ${issueLabel}.`,
+    supporters.length > 0 ? `Support signals are led by ${supporters.slice(0, 3).map((row) => row.entityName).join(", ")}.` : `No clear support bloc has surfaced yet.`,
+    opponents.length > 0 ? `Concern or resistance is coming from ${opponents.slice(0, 3).map((row) => row.entityName).join(", ")}.` : `No direct opposition or skeptical questioning has been isolated yet.`,
+    electedFocus.length > 0 ? `${electedFocus.slice(0, 2).map((entry) => entry.entityName).join(" and ")} are the committee members most engaged on this issue.` : `Member questioning on this issue has not been isolated yet.`
+  ];
+  return {
+    issue: issueLabel,
+    matchedIssueTags,
+    summary: summaryParts.join(" "),
+    topMoments,
+    supporters,
+    opponents,
+    electedFocus,
+    activeWitnesses,
+    recommendations: buildRecommendations(
+      issueLabel,
+      supporters,
+      opponents,
+      electedFocus,
+      activeWitnesses,
+      toIsoString(detail.session.hearingDate)
+    )
+  };
+}
+
 // server/policy-intel/scheduler.ts
 var jobs = /* @__PURE__ */ new Map();
 var runningFlags = /* @__PURE__ */ new Map();
@@ -8329,6 +9711,9 @@ var MAX_HISTORY = 50;
 var DEFAULT_JOB_TIMEOUT_MS = Number(process.env.SCHEDULER_JOB_TIMEOUT_MS || 20 * 60 * 1e3);
 var DEFAULT_INTEL_BRIEFING_TIMEOUT_MS = Number(
   process.env.SCHEDULER_INTEL_BRIEFING_TIMEOUT_MS || 15 * 60 * 1e3
+);
+var DEFAULT_COMMITTEE_INTEL_SYNC_TIMEOUT_MS = Number(
+  process.env.SCHEDULER_COMMITTEE_INTEL_SYNC_TIMEOUT_MS || 5 * 60 * 1e3
 );
 var schedulerEnabled = false;
 var schedulerStartedAt = null;
@@ -8459,6 +9844,9 @@ async function intelligenceBriefing() {
     threatTrend: briefing.delta.threatTrend
   };
 }
+async function committeeIntelSync() {
+  return syncCommitteeIntelAutoIngestSessions();
+}
 function startScheduler() {
   const enabled = process.env.SCHEDULER_ENABLED !== "false";
   if (!enabled) {
@@ -8474,6 +9862,8 @@ function startScheduler() {
   const tecCron = process.env.CRON_TEC_SWEEP ?? "0 3 * * *";
   const intelBriefingCron = process.env.CRON_INTEL_BRIEFING ?? "30 */6 * * *";
   const intelBriefingEnabled = process.env.SCHEDULER_INTEL_BRIEFING !== "false";
+  const committeeIntelSyncCron = process.env.CRON_COMMITTEE_INTEL_SYNC ?? "*/2 * * * *";
+  const committeeIntelSyncEnabled = process.env.SCHEDULER_COMMITTEE_INTEL_SYNC !== "false";
   const jobDefs = [
     {
       name: "legiscan-recent",
@@ -8508,6 +9898,16 @@ function startScheduler() {
         DEFAULT_INTEL_BRIEFING_TIMEOUT_MS
       ),
       enabled: intelBriefingEnabled
+    },
+    {
+      name: "committee-intel-sync",
+      cron: committeeIntelSyncCron,
+      fn: committeeIntelSync,
+      timeoutMs: normaliseTimeoutMs(
+        Number(process.env.SCHEDULER_COMMITTEE_INTEL_SYNC_TIMEOUT_MS),
+        DEFAULT_COMMITTEE_INTEL_SYNC_TIMEOUT_MS
+      ),
+      enabled: committeeIntelSyncEnabled
     }
   ];
   for (const def of jobDefs) {
@@ -8563,7 +9963,8 @@ async function triggerJob(jobName) {
     "tlo-rss": tloRss,
     "local-feeds": localFeeds,
     "tec-sweep": tecSweep,
-    "intel-briefing": intelligenceBriefing
+    "intel-briefing": intelligenceBriefing,
+    "committee-intel-sync": committeeIntelSync
   };
   const runner = runners[jobName];
   if (!runner) return null;
@@ -8577,25 +9978,25 @@ function getJobHistory() {
 // server/policy-intel/services/deliverable-service.ts
 init_db();
 init_schema_policy_intel();
-import { eq as eq19, and as and11, gte as gte10, lte, inArray as inArray3, desc as desc13 } from "drizzle-orm";
+import { eq as eq20, and as and12, gte as gte11, lte, inArray as inArray4, desc as desc14 } from "drizzle-orm";
 async function generateClientAlert(req) {
-  const [room] = await policyIntelDb.select().from(issueRooms).where(eq19(issueRooms.id, req.issueRoomId));
+  const [room] = await policyIntelDb.select().from(issueRooms).where(eq20(issueRooms.id, req.issueRoomId));
   if (!room) throw new Error(`Issue room ${req.issueRoomId} not found`);
-  const sourceLinks = await policyIntelDb.select().from(issueRoomSourceDocuments).where(eq19(issueRoomSourceDocuments.issueRoomId, req.issueRoomId));
+  const sourceLinks = await policyIntelDb.select().from(issueRoomSourceDocuments).where(eq20(issueRoomSourceDocuments.issueRoomId, req.issueRoomId));
   const sourceDocs = sourceLinks.length > 0 ? await policyIntelDb.select().from(sourceDocuments).where(
-    inArray3(
+    inArray4(
       sourceDocuments.id,
       sourceLinks.map((l) => l.sourceDocumentId)
     )
   ) : [];
-  const updates = await policyIntelDb.select().from(issueRoomUpdates).where(eq19(issueRoomUpdates.issueRoomId, req.issueRoomId)).orderBy(desc13(issueRoomUpdates.id));
-  const strategies = await policyIntelDb.select().from(issueRoomStrategyOptions).where(eq19(issueRoomStrategyOptions.issueRoomId, req.issueRoomId)).orderBy(issueRoomStrategyOptions.recommendationRank);
+  const updates = await policyIntelDb.select().from(issueRoomUpdates).where(eq20(issueRoomUpdates.issueRoomId, req.issueRoomId)).orderBy(desc14(issueRoomUpdates.id));
+  const strategies = await policyIntelDb.select().from(issueRoomStrategyOptions).where(eq20(issueRoomStrategyOptions.issueRoomId, req.issueRoomId)).orderBy(issueRoomStrategyOptions.recommendationRank);
   const relatedAlerts = sourceDocs.length > 0 ? await policyIntelDb.select().from(alerts).where(
-    inArray3(
+    inArray4(
       alerts.sourceDocumentId,
       sourceDocs.map((d) => d.id)
     )
-  ).orderBy(desc13(alerts.relevanceScore)).limit(10) : [];
+  ).orderBy(desc14(alerts.relevanceScore)).limit(10) : [];
   const firm = req.firmName ?? "Grace & McEwan LLP";
   const recipient = req.recipientName ?? "Client";
   const today = (/* @__PURE__ */ new Date()).toLocaleDateString("en-US", {
@@ -8774,27 +10175,27 @@ async function generateWeeklyReport(req) {
     weekEnd.setHours(23, 59, 59, 999);
   }
   const weekAlerts = await policyIntelDb.select().from(alerts).where(
-    and11(
-      eq19(alerts.workspaceId, req.workspaceId),
-      gte10(alerts.createdAt, weekStart),
+    and12(
+      eq20(alerts.workspaceId, req.workspaceId),
+      gte11(alerts.createdAt, weekStart),
       lte(alerts.createdAt, weekEnd)
     )
-  ).orderBy(desc13(alerts.relevanceScore));
+  ).orderBy(desc14(alerts.relevanceScore));
   const watchlistIds = Array.from(
     new Set(weekAlerts.filter((a) => a.watchlistId).map((a) => a.watchlistId))
   );
   const watchlistMap = /* @__PURE__ */ new Map();
   if (watchlistIds.length > 0) {
-    const wlRows = await policyIntelDb.select({ id: watchlists.id, name: watchlists.name }).from(watchlists).where(inArray3(watchlists.id, watchlistIds));
+    const wlRows = await policyIntelDb.select({ id: watchlists.id, name: watchlists.name }).from(watchlists).where(inArray4(watchlists.id, watchlistIds));
     for (const wl of wlRows) watchlistMap.set(wl.id, wl.name);
   }
   const weekActivities = await policyIntelDb.select().from(activities).where(
-    and11(
-      eq19(activities.workspaceId, req.workspaceId),
-      gte10(activities.createdAt, weekStart),
+    and12(
+      eq20(activities.workspaceId, req.workspaceId),
+      gte11(activities.createdAt, weekStart),
       lte(activities.createdAt, weekEnd)
     )
-  ).orderBy(desc13(activities.createdAt));
+  ).orderBy(desc14(activities.createdAt));
   const firm = req.firmName ?? "Grace & McEwan LLP";
   const recipient = req.recipientName ?? "Client";
   const weekLabel = req.week ?? `${weekStart.getFullYear()}-W${String(Math.ceil((weekStart.getDate() + weekStart.getDay()) / 7)).padStart(2, "0")}`;
@@ -8909,9 +10310,9 @@ async function generateWeeklyReport(req) {
   const nextWeekEnd = new Date(nextWeekStart);
   nextWeekEnd.setDate(nextWeekEnd.getDate() + 6);
   const upcomingHearings = await policyIntelDb.select().from(hearingEvents).where(
-    and11(
-      eq19(hearingEvents.workspaceId, req.workspaceId),
-      gte10(hearingEvents.hearingDate, nextWeekStart),
+    and12(
+      eq20(hearingEvents.workspaceId, req.workspaceId),
+      gte11(hearingEvents.hearingDate, nextWeekStart),
       lte(hearingEvents.hearingDate, nextWeekEnd)
     )
   ).orderBy(hearingEvents.hearingDate);
@@ -8970,13 +10371,13 @@ async function generateWeeklyReport(req) {
   };
 }
 async function generateHearingMemo(req) {
-  const [hearing] = await policyIntelDb.select().from(hearingEvents).where(eq19(hearingEvents.id, req.hearingId));
+  const [hearing] = await policyIntelDb.select().from(hearingEvents).where(eq20(hearingEvents.id, req.hearingId));
   if (!hearing) throw new Error(`Hearing ${req.hearingId} not found`);
   const relatedBills = hearing.relatedBillIds ?? [];
   let relatedDocs = [];
   if (relatedBills.length > 0) {
     const conditions = relatedBills.map(
-      (bill) => eq19(sourceDocuments.title, bill)
+      (bill) => eq20(sourceDocuments.title, bill)
     );
     const allDocs = await policyIntelDb.select().from(sourceDocuments).limit(500);
     relatedDocs = allDocs.filter(
@@ -8985,15 +10386,15 @@ async function generateHearingMemo(req) {
       )
     );
   }
-  const members = await policyIntelDb.select().from(committeeMembers).where(eq19(committeeMembers.committeeName, hearing.committee));
+  const members = await policyIntelDb.select().from(committeeMembers).where(eq20(committeeMembers.committeeName, hearing.committee));
   const memberStakeholderIds = members.filter((m) => m.stakeholderId).map((m) => m.stakeholderId);
-  const memberStakeholders = memberStakeholderIds.length > 0 ? await policyIntelDb.select().from(stakeholders).where(inArray3(stakeholders.id, memberStakeholderIds)) : [];
+  const memberStakeholders = memberStakeholderIds.length > 0 ? await policyIntelDb.select().from(stakeholders).where(inArray4(stakeholders.id, memberStakeholderIds)) : [];
   const billAlerts = relatedDocs.length > 0 ? await policyIntelDb.select().from(alerts).where(
-    inArray3(
+    inArray4(
       alerts.sourceDocumentId,
       relatedDocs.map((d) => d.id)
     )
-  ).orderBy(desc13(alerts.relevanceScore)).limit(10) : [];
+  ).orderBy(desc14(alerts.relevanceScore)).limit(10) : [];
   const firm = req.firmName ?? "Grace & McEwan LLP";
   const recipient = req.recipientName ?? "Client";
   const hearingDate = new Date(hearing.hearingDate).toLocaleDateString(
@@ -9141,735 +10542,6 @@ async function generateHearingMemo(req) {
   };
 }
 
-// server/policy-intel/services/committee-intel-service.ts
-init_db();
-init_schema_policy_intel();
-import { and as and12, asc, desc as desc14, eq as eq20, gte as gte11, ilike as ilike5 } from "drizzle-orm";
-var ISSUE_CATALOG = [
-  {
-    tag: "critical_infrastructure",
-    label: "Critical Infrastructure",
-    patterns: [/\bcritical infrastructure\b/i, /\bgrid security\b/i, /\binfrastructure security\b/i, /\bsecure the grid\b/i]
-  },
-  {
-    tag: "supply_chain_integrity",
-    label: "Supply Chain Integrity",
-    patterns: [/\bsupply chain\b/i, /\bprocurement\b/i, /\bvendor risk\b/i, /\bmanufactur/i]
-  },
-  {
-    tag: "foreign_entity_risk",
-    label: "Foreign Entity Risk",
-    patterns: [/\bchina\b/i, /\brussia\b/i, /\biran\b/i, /\bforeign entit(y|ies)\b/i, /\bhostile foreign\b/i]
-  },
-  {
-    tag: "utility_regulation",
-    label: "Utility Regulation",
-    patterns: [/\bercot\b/i, /\bpuct\b/i, /\bpublic utility commission\b/i, /\bpublic utility counsel\b/i, /\btransmission\b/i]
-  },
-  {
-    tag: "grid_reliability",
-    label: "Grid Reliability",
-    patterns: [/\breliab/i, /\boutage\b/i, /\bblackout\b/i, /\bresilien/i, /\bgeneration\b/i]
-  },
-  {
-    tag: "ratepayer_impact",
-    label: "Ratepayer Impact",
-    patterns: [/\bratepayer/i, /\baffordab/i, /\brate(s)?\b/i, /\bcost(s)?\b/i, /\bprice(s)?\b/i]
-  },
-  {
-    tag: "witness_process",
-    label: "Witness Process",
-    patterns: [/\binvited testimony\b/i, /\bpublic testimony\b/i, /\bwitness(es)?\b/i, /\bpublic comment\b/i]
-  }
-];
-var AGENCY_HINTS = ["commission", "council", "office", "department", "agency", "authority", "ercot", "utility"];
-var ORGANIZATION_HINTS = ["association", "alliance", "coalition", "chamber", "company", "corp", "foundation", "group", "llc", "inc", "union"];
-function normalizeText(value) {
-  return (value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\b(senator|sen|representative|rep|chairman|chairwoman|chair|dr|mr|mrs|ms)\b/g, " ").replace(/\s+/g, " ").trim();
-}
-function cleanList(values) {
-  const next = /* @__PURE__ */ new Set();
-  for (const value of values ?? []) {
-    const cleaned = value.trim();
-    if (!cleaned) continue;
-    next.add(cleaned);
-  }
-  return Array.from(next);
-}
-function slugifyIssue(value) {
-  return normalizeText(value).replace(/\s+/g, "_").slice(0, 64) || "general";
-}
-function labelFromTag(tag) {
-  return tag.split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
-}
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-function toIsoString(value) {
-  if (!value) return null;
-  const date = value instanceof Date ? value : new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date.toISOString();
-}
-function toDate(value) {
-  if (!value) return null;
-  const date = value instanceof Date ? value : new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-function formatTimestampLabel(seconds, capturedAt) {
-  if (seconds !== null && seconds !== void 0) {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor(seconds % 3600 / 60);
-    const secs = seconds % 60;
-    if (hours > 0) {
-      return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
-    }
-    return `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
-  }
-  const date = toDate(capturedAt);
-  if (!date) return "Unknown";
-  return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-}
-function buildIssueLabelMap(session) {
-  const labels = /* @__PURE__ */ new Map();
-  for (const item of ISSUE_CATALOG) {
-    labels.set(item.tag, item.label);
-  }
-  for (const topic of cleanList(session.focusTopicsJson)) {
-    labels.set(slugifyIssue(topic), topic);
-  }
-  return labels;
-}
-function matchesFocusTopic(normalizedTranscript, topic) {
-  const normalizedTopic = normalizeText(topic);
-  if (!normalizedTopic) return false;
-  if (normalizedTranscript.includes(normalizedTopic)) return true;
-  const tokens = normalizedTopic.split(" ").filter((token) => token.length >= 5);
-  if (tokens.length < 2) return false;
-  const matchedTokens = tokens.filter((token) => normalizedTranscript.includes(token));
-  return matchedTokens.length >= Math.min(2, tokens.length);
-}
-function detectIssueTags(transcriptText, focusTopics) {
-  const normalizedTranscript = normalizeText(transcriptText);
-  const matched = /* @__PURE__ */ new Set();
-  for (const item of ISSUE_CATALOG) {
-    if (item.patterns.some((pattern) => pattern.test(transcriptText))) {
-      matched.add(item.tag);
-    }
-  }
-  for (const topic of cleanList(focusTopics)) {
-    if (matchesFocusTopic(normalizedTranscript, topic)) {
-      matched.add(slugifyIssue(topic));
-    }
-  }
-  return Array.from(matched);
-}
-function determineSpeakerRole(currentRole, speakerName, affiliation, transcriptText) {
-  if (currentRole && currentRole !== "unknown") return currentRole;
-  const normalizedName = normalizeText(speakerName);
-  const normalizedAffiliation = normalizeText(affiliation);
-  const normalizedTranscript = normalizeText(transcriptText);
-  if (normalizedName.includes("chair") || normalizedTranscript.includes("chair recognizes")) return "chair";
-  if (normalizedName.includes("senator") || normalizedName.includes("representative")) return "member";
-  if (AGENCY_HINTS.some((hint) => normalizedAffiliation.includes(hint))) return "agency";
-  if (normalizedTranscript.includes("invited testimony") || normalizedAffiliation.includes("invited")) return "invited_witness";
-  if (normalizedTranscript.includes("public testimony") || normalizedTranscript.includes("public witness")) return "public_witness";
-  if (normalizedAffiliation.includes("staff") || normalizedTranscript.includes("committee staff")) return "staff";
-  return "unknown";
-}
-function determinePosition(transcriptText, speakerRole) {
-  const normalized = normalizeText(transcriptText);
-  const looksLikeQuestion = /\?|^(can|could|would|how|why|what|when|where|who|is|are|do|does|did)\b/i.test(transcriptText.trim());
-  if ((speakerRole === "chair" || speakerRole === "member") && looksLikeQuestion) return "questioning";
-  if (/\boppose\b|\bobject\b|\bconcern(ed|ing)?\b|\brisks?\b|\bvulnerab/i.test(normalized)) return "oppose";
-  if (/\bsupport\b|\bback\b|\bendorse\b|\bfavor\b|\brecommend\b|\bpromote\b/i.test(normalized)) return "support";
-  if ((speakerRole === "chair" || speakerRole === "member") && /\bhow\b|\bwhy\b|\bwhat\b/i.test(normalized)) return "questioning";
-  if (/\bupdate\b|\bbrief(ed|ing)?\b|\boverview\b|\bresponded\b|\bstated\b|\breported\b/i.test(normalized) || speakerRole === "agency") return "neutral";
-  if (speakerRole === "chair" || speakerRole === "member") return "questioning";
-  return "monitoring";
-}
-function scoreImportance(transcriptText, speakerRole, issueTags, position, invited) {
-  let score = 20;
-  score += issueTags.length * 12;
-  if (speakerRole === "chair" || speakerRole === "member") score += 12;
-  if (speakerRole === "agency" || invited) score += 8;
-  if (position === "support" || position === "oppose" || position === "questioning") score += 10;
-  if (transcriptText.trim().length > 240) score += 8;
-  if (/\bcritical\b|\burgent\b|\brecommend\b|\bsecurity\b|\bvulnerab/i.test(transcriptText)) score += 8;
-  return clamp(score, 10, 100);
-}
-function summarizeSegment(speakerName, affiliation, issueTags, position, issueLabels) {
-  const speakerLabel = speakerName?.trim() || affiliation?.trim() || "Speaker";
-  const issueLabel = issueTags.length > 0 ? issueTags.slice(0, 2).map((tag) => issueLabels.get(tag) ?? labelFromTag(tag)).join(", ") : "general hearing discussion";
-  if (position === "support") return `${speakerLabel} voiced support on ${issueLabel}.`;
-  if (position === "oppose") return `${speakerLabel} raised concerns about ${issueLabel}.`;
-  if (position === "questioning") return `${speakerLabel} pressed witnesses on ${issueLabel}.`;
-  if (position === "neutral") return `${speakerLabel} provided updates on ${issueLabel}.`;
-  return `${speakerLabel} spoke on ${issueLabel}.`;
-}
-function detectInvitedWitness(transcriptText, speakerRole, invited) {
-  if (invited === true) return true;
-  if (speakerRole === "invited_witness") return true;
-  return /\binvited testimony\b|\binvited witness\b/i.test(transcriptText);
-}
-function resolveEntityType(speakerRole, speakerName, affiliation, committeeMemberMap) {
-  const normalizedName = normalizeText(speakerName);
-  const normalizedAffiliation = normalizeText(affiliation);
-  if (committeeMemberMap.has(normalizedName) || speakerRole === "chair" || speakerRole === "member") return "legislator";
-  if (speakerRole === "agency" || AGENCY_HINTS.some((hint) => normalizedAffiliation.includes(hint))) return "agency";
-  if (speakerRole === "staff") return "staff";
-  if (speakerRole === "invited_witness" || speakerRole === "public_witness") return "witness";
-  if (ORGANIZATION_HINTS.some((hint) => normalizedAffiliation.includes(hint))) return "organization";
-  if (speakerName && affiliation) return "witness";
-  return "unknown";
-}
-function selectEntityName(segment, fallbackCommittee) {
-  const name = segment.speakerName?.trim();
-  if (name) return name;
-  const affiliation = segment.affiliation?.trim();
-  if (affiliation) return affiliation;
-  return fallbackCommittee || null;
-}
-function buildStakeholderLookups(rows) {
-  const byName = /* @__PURE__ */ new Map();
-  const byOrganization = /* @__PURE__ */ new Map();
-  for (const row of rows) {
-    const normalizedName = normalizeText(row.name);
-    if (normalizedName && !byName.has(normalizedName)) byName.set(normalizedName, row);
-    const normalizedOrganization = normalizeText(row.organization);
-    if (normalizedOrganization && !byOrganization.has(normalizedOrganization)) byOrganization.set(normalizedOrganization, row);
-  }
-  return { byName, byOrganization };
-}
-function resolveStakeholderId(entityName, affiliation, committeeMemberMap, stakeholderByName, stakeholderByOrganization) {
-  const normalizedName = normalizeText(entityName);
-  const normalizedAffiliation = normalizeText(affiliation);
-  if (normalizedName && committeeMemberMap.has(normalizedName)) {
-    return committeeMemberMap.get(normalizedName)?.stakeholderId ?? null;
-  }
-  if (normalizedName && stakeholderByName.has(normalizedName)) {
-    return stakeholderByName.get(normalizedName)?.id ?? null;
-  }
-  if (normalizedAffiliation && stakeholderByOrganization.has(normalizedAffiliation)) {
-    return stakeholderByOrganization.get(normalizedAffiliation)?.id ?? null;
-  }
-  return null;
-}
-function buildEmptyAnalysis(session, totalSegments = 0, totalSignals = 0) {
-  return {
-    analyzedAt: session.lastAnalyzedAt ? toIsoString(session.lastAnalyzedAt) : null,
-    summary: totalSegments > 0 ? `Tracking ${totalSegments} transcript segments for ${session.committee}, but no issue-level signals have been extracted yet.` : `Committee intelligence is ready for ${session.committee}. Add transcript or caption segments to begin live analysis.`,
-    totalSegments,
-    totalSignals,
-    trackedEntities: 0,
-    invitedWitnessCount: 0,
-    issueCoverage: [],
-    keyMoments: [],
-    electedFocus: [],
-    activeWitnesses: [],
-    positionMap: []
-  };
-}
-function parseStoredAnalysis(session, segments, signals) {
-  const raw = session.analyticsJson;
-  if (!raw || typeof raw.summary !== "string") {
-    return buildEmptyAnalysis(session, segments.length, signals.length);
-  }
-  return {
-    analyzedAt: typeof raw.analyzedAt === "string" ? raw.analyzedAt : null,
-    summary: raw.summary,
-    totalSegments: typeof raw.totalSegments === "number" ? raw.totalSegments : segments.length,
-    totalSignals: typeof raw.totalSignals === "number" ? raw.totalSignals : signals.length,
-    trackedEntities: typeof raw.trackedEntities === "number" ? raw.trackedEntities : 0,
-    invitedWitnessCount: typeof raw.invitedWitnessCount === "number" ? raw.invitedWitnessCount : 0,
-    issueCoverage: Array.isArray(raw.issueCoverage) ? raw.issueCoverage : [],
-    keyMoments: Array.isArray(raw.keyMoments) ? raw.keyMoments : [],
-    electedFocus: Array.isArray(raw.electedFocus) ? raw.electedFocus : [],
-    activeWitnesses: Array.isArray(raw.activeWitnesses) ? raw.activeWitnesses : [],
-    positionMap: Array.isArray(raw.positionMap) ? raw.positionMap : []
-  };
-}
-function buildAnalysisSummary(session, issueCoverage, electedFocus, activeWitnesses, totalSegments) {
-  if (totalSegments === 0) {
-    return `Committee intelligence is standing by for ${session.committee}. No live transcript segments have been ingested yet.`;
-  }
-  const issueText = issueCoverage.length > 0 ? issueCoverage.slice(0, 3).map((issue) => `${issue.label} (${issue.mentionCount})`).join(", ") : "no dominant issue cluster yet";
-  const electedText = electedFocus.length > 0 ? `Committee-member pressure is coming from ${electedFocus.slice(0, 2).map((entry) => entry.entityName).join(" and ")}.` : "No committee-member questioning has been isolated yet.";
-  const witnessText = activeWitnesses.length > 0 ? `Active witnesses include ${activeWitnesses.slice(0, 3).map((entry) => entry.entityName).join(", ")}.` : "No witness or agency bloc has been isolated yet.";
-  return `Tracking ${totalSegments} transcript segments for ${session.committee}. Most active issues: ${issueText}. ${electedText} ${witnessText}`;
-}
-function buildRecommendations(issue, supporters, opponents, electedFocus, activeWitnesses, hearingDate) {
-  const recommendations = [];
-  if (supporters.length === 0 && opponents.length === 0) {
-    recommendations.push(`No direct signals are tied to ${issue} yet. Add more transcript segments or tighten the session focus topics.`);
-  }
-  if (opponents.length > supporters.length) {
-    recommendations.push(`Opposition is stronger than support on ${issue}. Prepare counter-messaging and targeted member follow-up before the next committee touchpoint.`);
-  }
-  if (supporters.length >= opponents.length && supporters.length > 0) {
-    recommendations.push(`Support is building around ${issue}. Identify the most credible supportive witnesses and reinforce their record in follow-up materials.`);
-  }
-  if (electedFocus.length > 0) {
-    recommendations.push(`Brief ${electedFocus.slice(0, 2).map((entry) => entry.entityName).join(" and ")} directly on ${issue}; they are already signaling active engagement.`);
-  }
-  if (activeWitnesses.some((entry) => entry.invited)) {
-    recommendations.push(`Invited witnesses are shaping the record on ${issue}. Prioritize outreach to those entities before written follow-up closes.`);
-  }
-  if (hearingDate) {
-    const hearing = new Date(hearingDate);
-    const diffHours = (hearing.getTime() - Date.now()) / 36e5;
-    if (diffHours >= -6 && diffHours <= 36) {
-      recommendations.push(`Keep live transcript ingestion running through the hearing window so member questioning on ${issue} is captured in real time.`);
-    }
-  }
-  return recommendations.slice(0, 4);
-}
-async function loadSessionCore(sessionId) {
-  const [row] = await policyIntelDb.select({
-    session: committeeIntelSessions,
-    hearing: hearingEvents
-  }).from(committeeIntelSessions).leftJoin(hearingEvents, eq20(hearingEvents.id, committeeIntelSessions.hearingId)).where(eq20(committeeIntelSessions.id, sessionId));
-  if (!row) return null;
-  return { session: row.session, hearing: row.hearing ?? null };
-}
-async function loadSessionSegments(sessionId) {
-  return policyIntelDb.select().from(committeeIntelSegments).where(eq20(committeeIntelSegments.sessionId, sessionId)).orderBy(asc(committeeIntelSegments.segmentIndex), asc(committeeIntelSegments.createdAt));
-}
-async function loadSessionSignals(sessionId) {
-  return policyIntelDb.select().from(committeeIntelSignals).where(eq20(committeeIntelSignals.sessionId, sessionId)).orderBy(desc14(committeeIntelSignals.createdAt), asc(committeeIntelSignals.id));
-}
-async function loadSessionDetail(sessionId) {
-  const core = await loadSessionCore(sessionId);
-  if (!core) return null;
-  const [segments, signals] = await Promise.all([
-    loadSessionSegments(sessionId),
-    loadSessionSignals(sessionId)
-  ]);
-  return {
-    session: core.session,
-    hearing: core.hearing,
-    segments,
-    signals,
-    analysis: parseStoredAnalysis(core.session, segments, signals)
-  };
-}
-async function loadStakeholderContext(session) {
-  const [stakeholderRows, committeeRows] = await Promise.all([
-    policyIntelDb.select({
-      id: stakeholders.id,
-      name: stakeholders.name,
-      type: stakeholders.type,
-      organization: stakeholders.organization,
-      party: stakeholders.party,
-      chamber: stakeholders.chamber,
-      title: stakeholders.title
-    }).from(stakeholders).where(eq20(stakeholders.workspaceId, session.workspaceId)),
-    policyIntelDb.select({
-      stakeholderId: committeeMembers.stakeholderId,
-      role: committeeMembers.role,
-      name: stakeholders.name,
-      party: stakeholders.party,
-      chamber: stakeholders.chamber
-    }).from(committeeMembers).innerJoin(stakeholders, eq20(stakeholders.id, committeeMembers.stakeholderId)).where(and12(
-      ilike5(committeeMembers.committeeName, session.committee),
-      eq20(committeeMembers.chamber, session.chamber)
-    ))
-  ]);
-  const { byName, byOrganization } = buildStakeholderLookups(stakeholderRows);
-  const committeeMemberMap = /* @__PURE__ */ new Map();
-  for (const row of committeeRows) {
-    committeeMemberMap.set(normalizeText(row.name), row);
-  }
-  return {
-    stakeholderRows,
-    stakeholderByName: byName,
-    stakeholderByOrganization: byOrganization,
-    committeeMemberMap
-  };
-}
-function deriveSegment(segment, session) {
-  const issueLabels = buildIssueLabelMap(session);
-  const speakerRole = determineSpeakerRole(segment.speakerRole, segment.speakerName, segment.affiliation, segment.transcriptText);
-  const issueTagsJson = detectIssueTags(segment.transcriptText, session.focusTopicsJson);
-  const position = determinePosition(segment.transcriptText, speakerRole);
-  const invited = detectInvitedWitness(segment.transcriptText, speakerRole, segment.invited);
-  const importance = scoreImportance(segment.transcriptText, speakerRole, issueTagsJson, position, invited);
-  const summary = summarizeSegment(segment.speakerName, segment.affiliation, issueTagsJson, position, issueLabels);
-  const metadataJson = {
-    ...segment.metadataJson ?? {},
-    wordCount: normalizeText(segment.transcriptText).split(" ").filter(Boolean).length
-  };
-  return {
-    speakerRole,
-    summary,
-    issueTagsJson,
-    position,
-    importance,
-    invited,
-    metadataJson
-  };
-}
-function buildAnalysis(session, segments, signals, committeeMemberMap) {
-  if (segments.length === 0) {
-    return buildEmptyAnalysis(session, 0, 0);
-  }
-  const issueLabels = buildIssueLabelMap(session);
-  const segmentById = new Map(segments.map((segment) => [segment.id, segment]));
-  const issueMap = /* @__PURE__ */ new Map();
-  for (const signal of signals) {
-    const current = issueMap.get(signal.issueTag) ?? {
-      issueTag: signal.issueTag,
-      label: issueLabels.get(signal.issueTag) ?? labelFromTag(signal.issueTag),
-      mentionCount: 0,
-      supportCount: 0,
-      opposeCount: 0,
-      questioningCount: 0,
-      neutralCount: 0,
-      keyEntities: []
-    };
-    current.mentionCount += 1;
-    if (signal.position === "support") current.supportCount += 1;
-    else if (signal.position === "oppose") current.opposeCount += 1;
-    else if (signal.position === "questioning") current.questioningCount += 1;
-    else current.neutralCount += 1;
-    if (!current.keyEntities.includes(signal.entityName)) {
-      current.keyEntities.push(signal.entityName);
-    }
-    issueMap.set(signal.issueTag, current);
-  }
-  const issueCoverage = Array.from(issueMap.values()).map((issue) => ({ ...issue, keyEntities: issue.keyEntities.slice(0, 4) })).sort((left, right) => right.mentionCount - left.mentionCount);
-  const keyMoments = segments.filter((segment) => segment.importance >= 35).sort((left, right) => right.importance - left.importance || left.segmentIndex - right.segmentIndex).slice(0, 12).map((segment) => ({
-    segmentId: segment.id,
-    timestampLabel: formatTimestampLabel(segment.startedAtSecond, segment.capturedAt),
-    timestampSecond: segment.startedAtSecond ?? null,
-    speakerName: segment.speakerName,
-    speakerRole: segment.speakerRole,
-    summary: segment.summary ?? summarizeSegment(segment.speakerName, segment.affiliation, segment.issueTagsJson, segment.position, issueLabels),
-    importance: segment.importance,
-    position: segment.position,
-    issueTags: segment.issueTagsJson
-  }));
-  const entityMap = /* @__PURE__ */ new Map();
-  for (const signal of signals) {
-    const normalizedName = normalizeText(signal.entityName);
-    const key = `${normalizedName}|${signal.entityType}|${normalizeText(signal.affiliation)}`;
-    const segment = signal.segmentId ? segmentById.get(signal.segmentId) ?? null : null;
-    const current = entityMap.get(key) ?? {
-      entityName: signal.entityName,
-      entityType: signal.entityType,
-      stakeholderId: signal.stakeholderId ?? null,
-      affiliation: signal.affiliation ?? null,
-      mentionCount: 0,
-      invited: segment?.invited ?? false,
-      positions: /* @__PURE__ */ new Map()
-    };
-    current.mentionCount += 1;
-    current.invited = current.invited || Boolean(segment?.invited);
-    if (current.stakeholderId === null && signal.stakeholderId !== null) {
-      current.stakeholderId = signal.stakeholderId;
-    }
-    const issueEntry = current.positions.get(signal.issueTag) ?? {
-      issueTag: signal.issueTag,
-      label: issueLabels.get(signal.issueTag) ?? labelFromTag(signal.issueTag),
-      counts: {
-        support: 0,
-        oppose: 0,
-        questioning: 0,
-        neutral: 0,
-        monitoring: 0,
-        unknown: 0
-      },
-      mentionCount: 0,
-      confidenceTotal: 0,
-      confidenceMax: 0
-    };
-    issueEntry.counts[signal.position] += 1;
-    issueEntry.mentionCount += 1;
-    issueEntry.confidenceTotal += signal.confidence;
-    issueEntry.confidenceMax = Math.max(issueEntry.confidenceMax, signal.confidence);
-    current.positions.set(signal.issueTag, issueEntry);
-    entityMap.set(key, current);
-  }
-  const toEntitySummary = (entry) => {
-    const positions = Array.from(entry.positions.values()).map((positionEntry) => {
-      const ordered = Object.entries(positionEntry.counts).sort((left, right) => right[1] - left[1]);
-      return {
-        issueTag: positionEntry.issueTag,
-        label: positionEntry.label,
-        position: ordered[0]?.[0] ?? "unknown",
-        confidence: Number((positionEntry.confidenceTotal / Math.max(positionEntry.mentionCount, 1)).toFixed(2)),
-        mentionCount: positionEntry.mentionCount
-      };
-    }).sort((left, right) => right.mentionCount - left.mentionCount);
-    return {
-      entityName: entry.entityName,
-      entityType: entry.entityType,
-      stakeholderId: entry.stakeholderId,
-      affiliation: entry.affiliation,
-      mentionCount: entry.mentionCount,
-      invited: entry.invited,
-      primaryIssues: positions.slice(0, 3).map((position) => position.label),
-      positions
-    };
-  };
-  const entitySummaries = Array.from(entityMap.values()).map(toEntitySummary).sort((left, right) => right.mentionCount - left.mentionCount);
-  const electedFocus = entitySummaries.filter((entry) => entry.entityType === "legislator" || committeeMemberMap.has(normalizeText(entry.entityName))).slice(0, 10);
-  const activeWitnesses = entitySummaries.filter((entry) => entry.entityType !== "legislator").slice(0, 10);
-  const positionMap = entitySummaries.flatMap((entry) => entry.positions.map((position) => ({
-    entityName: entry.entityName,
-    entityType: entry.entityType,
-    stakeholderId: entry.stakeholderId,
-    affiliation: entry.affiliation,
-    issueTag: position.issueTag,
-    label: position.label,
-    position: position.position,
-    confidence: position.confidence,
-    mentionCount: position.mentionCount,
-    invited: entry.invited
-  }))).sort((left, right) => right.mentionCount - left.mentionCount).slice(0, 40);
-  return {
-    analyzedAt: (/* @__PURE__ */ new Date()).toISOString(),
-    summary: buildAnalysisSummary(session, issueCoverage, electedFocus, activeWitnesses, segments.length),
-    totalSegments: segments.length,
-    totalSignals: signals.length,
-    trackedEntities: entitySummaries.length,
-    invitedWitnessCount: activeWitnesses.filter((entry) => entry.invited).length,
-    issueCoverage,
-    keyMoments,
-    electedFocus,
-    activeWitnesses,
-    positionMap
-  };
-}
-async function listCommitteeIntelSessions(filters) {
-  const conditions = [];
-  if (filters?.workspaceId) conditions.push(eq20(committeeIntelSessions.workspaceId, filters.workspaceId));
-  if (filters?.hearingId) conditions.push(eq20(committeeIntelSessions.hearingId, filters.hearingId));
-  if (filters?.status) conditions.push(eq20(committeeIntelSessions.status, filters.status));
-  if (filters?.from) {
-    const fromDate = toDate(filters.from);
-    if (fromDate) conditions.push(gte11(committeeIntelSessions.hearingDate, fromDate));
-  }
-  return policyIntelDb.select().from(committeeIntelSessions).where(conditions.length > 0 ? and12(...conditions) : void 0).orderBy(asc(committeeIntelSessions.hearingDate), asc(committeeIntelSessions.id));
-}
-async function createCommitteeIntelSessionFromHearing(request) {
-  const [hearingRow] = await policyIntelDb.select({
-    hearing: hearingEvents,
-    agendaUrl: sourceDocuments.sourceUrl
-  }).from(hearingEvents).leftJoin(sourceDocuments, eq20(sourceDocuments.id, hearingEvents.sourceDocumentId)).where(eq20(hearingEvents.id, request.hearingId));
-  if (!hearingRow) {
-    throw new Error(`Hearing ${request.hearingId} not found`);
-  }
-  const [existing] = await policyIntelDb.select({ id: committeeIntelSessions.id }).from(committeeIntelSessions).where(and12(
-    eq20(committeeIntelSessions.workspaceId, request.workspaceId),
-    eq20(committeeIntelSessions.hearingId, request.hearingId)
-  ));
-  if (existing) {
-    return updateCommitteeIntelSession(existing.id, {
-      title: request.title,
-      focusTopics: request.focusTopics,
-      interimCharges: request.interimCharges,
-      clientContext: request.clientContext,
-      monitoringNotes: request.monitoringNotes,
-      videoUrl: request.videoUrl,
-      agendaUrl: request.agendaUrl ?? hearingRow.agendaUrl ?? null,
-      status: request.status
-    });
-  }
-  const [created] = await policyIntelDb.insert(committeeIntelSessions).values({
-    workspaceId: request.workspaceId,
-    hearingId: hearingRow.hearing.id,
-    title: request.title?.trim() || `${hearingRow.hearing.committee} Committee Intelligence`,
-    committee: hearingRow.hearing.committee,
-    chamber: hearingRow.hearing.chamber,
-    hearingDate: hearingRow.hearing.hearingDate,
-    status: request.status ?? "planned",
-    agendaUrl: request.agendaUrl ?? hearingRow.agendaUrl ?? null,
-    videoUrl: request.videoUrl ?? null,
-    focusTopicsJson: cleanList(request.focusTopics),
-    interimChargesJson: cleanList(request.interimCharges),
-    clientContext: request.clientContext?.trim() || null,
-    monitoringNotes: request.monitoringNotes?.trim() || null,
-    analyticsJson: {}
-  }).returning();
-  return refreshCommitteeIntelSession(created.id);
-}
-async function getCommitteeIntelSession(sessionId) {
-  return loadSessionDetail(sessionId);
-}
-async function updateCommitteeIntelSession(sessionId, patch) {
-  const core = await loadSessionCore(sessionId);
-  if (!core) {
-    throw new Error(`Committee intelligence session ${sessionId} not found`);
-  }
-  await policyIntelDb.update(committeeIntelSessions).set({
-    title: patch.title?.trim() || core.session.title,
-    status: patch.status ?? core.session.status,
-    agendaUrl: patch.agendaUrl === void 0 ? core.session.agendaUrl : patch.agendaUrl,
-    videoUrl: patch.videoUrl === void 0 ? core.session.videoUrl : patch.videoUrl,
-    focusTopicsJson: patch.focusTopics ? cleanList(patch.focusTopics) : core.session.focusTopicsJson,
-    interimChargesJson: patch.interimCharges ? cleanList(patch.interimCharges) : core.session.interimChargesJson,
-    clientContext: patch.clientContext === void 0 ? core.session.clientContext : patch.clientContext,
-    monitoringNotes: patch.monitoringNotes === void 0 ? core.session.monitoringNotes : patch.monitoringNotes,
-    liveSummary: patch.liveSummary === void 0 ? core.session.liveSummary : patch.liveSummary,
-    updatedAt: /* @__PURE__ */ new Date()
-  }).where(eq20(committeeIntelSessions.id, sessionId));
-  return refreshCommitteeIntelSession(sessionId);
-}
-async function addCommitteeIntelSegment(sessionId, request) {
-  const core = await loadSessionCore(sessionId);
-  if (!core) {
-    throw new Error(`Committee intelligence session ${sessionId} not found`);
-  }
-  const transcriptText = request.transcriptText.trim();
-  if (!transcriptText) {
-    throw new Error("transcriptText is required");
-  }
-  const [lastSegment] = await policyIntelDb.select({ segmentIndex: committeeIntelSegments.segmentIndex }).from(committeeIntelSegments).where(eq20(committeeIntelSegments.sessionId, sessionId)).orderBy(desc14(committeeIntelSegments.segmentIndex)).limit(1);
-  const capturedAt = toDate(request.capturedAt) ?? /* @__PURE__ */ new Date();
-  const baseSegment = {
-    id: 0,
-    sessionId,
-    segmentIndex: (lastSegment?.segmentIndex ?? -1) + 1,
-    capturedAt,
-    startedAtSecond: request.startedAtSecond ?? null,
-    endedAtSecond: request.endedAtSecond ?? null,
-    speakerName: request.speakerName?.trim() || null,
-    speakerRole: request.speakerRole ?? "unknown",
-    affiliation: request.affiliation?.trim() || null,
-    transcriptText,
-    summary: null,
-    issueTagsJson: [],
-    position: "unknown",
-    importance: 0,
-    invited: request.invited ?? false,
-    metadataJson: request.metadata ?? {},
-    createdAt: /* @__PURE__ */ new Date()
-  };
-  const derived = deriveSegment(baseSegment, core.session);
-  await policyIntelDb.insert(committeeIntelSegments).values({
-    sessionId,
-    segmentIndex: baseSegment.segmentIndex,
-    capturedAt,
-    startedAtSecond: baseSegment.startedAtSecond,
-    endedAtSecond: baseSegment.endedAtSecond,
-    speakerName: baseSegment.speakerName,
-    speakerRole: derived.speakerRole,
-    affiliation: baseSegment.affiliation,
-    transcriptText,
-    summary: derived.summary,
-    issueTagsJson: derived.issueTagsJson,
-    position: derived.position,
-    importance: derived.importance,
-    invited: derived.invited,
-    metadataJson: derived.metadataJson
-  });
-  return refreshCommitteeIntelSession(sessionId);
-}
-async function refreshCommitteeIntelSession(sessionId) {
-  const core = await loadSessionCore(sessionId);
-  if (!core) {
-    throw new Error(`Committee intelligence session ${sessionId} not found`);
-  }
-  const { committeeMemberMap, stakeholderByName, stakeholderByOrganization } = await loadStakeholderContext(core.session);
-  const rawSegments = await loadSessionSegments(sessionId);
-  const updatedSegments = await Promise.all(rawSegments.map(async (segment) => {
-    const derived = deriveSegment(segment, core.session);
-    const [updated] = await policyIntelDb.update(committeeIntelSegments).set({
-      speakerRole: derived.speakerRole,
-      summary: derived.summary,
-      issueTagsJson: derived.issueTagsJson,
-      position: derived.position,
-      importance: derived.importance,
-      invited: derived.invited,
-      metadataJson: derived.metadataJson
-    }).where(eq20(committeeIntelSegments.id, segment.id)).returning();
-    return updated ?? { ...segment, ...derived };
-  }));
-  await policyIntelDb.delete(committeeIntelSignals).where(eq20(committeeIntelSignals.sessionId, sessionId));
-  const signalPayloads = updatedSegments.flatMap((segment) => {
-    const entityName = selectEntityName(segment, core.session.committee);
-    if (!entityName || segment.issueTagsJson.length === 0) return [];
-    const entityType = resolveEntityType(segment.speakerRole, segment.speakerName, segment.affiliation, committeeMemberMap);
-    const stakeholderId = resolveStakeholderId(
-      entityName,
-      segment.affiliation,
-      committeeMemberMap,
-      stakeholderByName,
-      stakeholderByOrganization
-    );
-    const evidenceQuote = segment.transcriptText.replace(/\s+/g, " ").trim().slice(0, 320);
-    const confidence = Number(Math.min(0.95, 0.45 + segment.importance / 120).toFixed(2));
-    return segment.issueTagsJson.map((issueTag) => ({
-      sessionId,
-      segmentId: segment.id,
-      stakeholderId,
-      entityName,
-      entityType,
-      affiliation: segment.affiliation,
-      issueTag,
-      position: segment.position,
-      confidence,
-      evidenceQuote,
-      sourceKind: "transcript"
-    }));
-  });
-  const insertedSignals = signalPayloads.length > 0 ? await policyIntelDb.insert(committeeIntelSignals).values(signalPayloads).returning() : [];
-  const analysis = buildAnalysis(core.session, updatedSegments, insertedSignals, committeeMemberMap);
-  const [updatedSession] = await policyIntelDb.update(committeeIntelSessions).set({
-    liveSummary: analysis.summary,
-    analyticsJson: analysis,
-    lastAnalyzedAt: /* @__PURE__ */ new Date(),
-    updatedAt: /* @__PURE__ */ new Date()
-  }).where(eq20(committeeIntelSessions.id, sessionId)).returning();
-  return {
-    session: updatedSession,
-    hearing: core.hearing,
-    segments: updatedSegments,
-    signals: insertedSignals,
-    analysis
-  };
-}
-async function generateCommitteeIntelFocusedBrief(sessionId, issue) {
-  const detail = await refreshCommitteeIntelSession(sessionId);
-  const normalizedIssue = normalizeText(issue);
-  const matchedIssues = detail.analysis.issueCoverage.filter((item) => {
-    const normalizedLabel = normalizeText(item.label);
-    return normalizedLabel.includes(normalizedIssue) || item.issueTag.includes(slugifyIssue(issue));
-  });
-  const matchedIssueTags = matchedIssues.length > 0 ? matchedIssues.map((item) => item.issueTag) : detail.analysis.issueCoverage.slice(0, 1).map((item) => item.issueTag);
-  const topMoments = detail.analysis.keyMoments.filter((moment) => moment.issueTags.some((tag) => matchedIssueTags.includes(tag))).slice(0, 6);
-  const relevantPositions = detail.analysis.positionMap.filter((row) => matchedIssueTags.includes(row.issueTag));
-  const supporters = relevantPositions.filter((row) => row.position === "support").slice(0, 8);
-  const opponents = relevantPositions.filter((row) => row.position === "oppose" || row.position === "questioning").slice(0, 8);
-  const electedFocus = detail.analysis.electedFocus.filter((entry) => entry.positions.some((position) => matchedIssueTags.includes(position.issueTag))).slice(0, 6);
-  const activeWitnesses = detail.analysis.activeWitnesses.filter((entry) => entry.positions.some((position) => matchedIssueTags.includes(position.issueTag))).slice(0, 6);
-  const issueLabel = matchedIssues[0]?.label ?? issue;
-  const summaryParts = [
-    `${detail.session.committee} is tracking ${issueLabel}.`,
-    supporters.length > 0 ? `Support signals are led by ${supporters.slice(0, 3).map((row) => row.entityName).join(", ")}.` : `No clear support bloc has surfaced yet.`,
-    opponents.length > 0 ? `Concern or resistance is coming from ${opponents.slice(0, 3).map((row) => row.entityName).join(", ")}.` : `No direct opposition or skeptical questioning has been isolated yet.`,
-    electedFocus.length > 0 ? `${electedFocus.slice(0, 2).map((entry) => entry.entityName).join(" and ")} are the committee members most engaged on this issue.` : `Member questioning on this issue has not been isolated yet.`
-  ];
-  return {
-    issue: issueLabel,
-    matchedIssueTags,
-    summary: summaryParts.join(" "),
-    topMoments,
-    supporters,
-    opponents,
-    electedFocus,
-    activeWitnesses,
-    recommendations: buildRecommendations(
-      issueLabel,
-      supporters,
-      opponents,
-      electedFocus,
-      activeWitnesses,
-      toIsoString(detail.session.hearingDate)
-    )
-  };
-}
-
 // server/policy-intel/routes.ts
 function slugifyIssueRoom(value) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 150);
@@ -9962,7 +10634,7 @@ function createPolicyIntelRouter() {
         }).from(alerts).groupBy(alerts.status)
       ]);
       const wlIds = alertsByWatchlist.map((r) => r.watchlistId).filter((id) => id !== null);
-      const wlRows = wlIds.length > 0 ? await policyIntelDb.select({ id: watchlists.id, name: watchlists.name }).from(watchlists).where(inArray4(watchlists.id, wlIds)) : [];
+      const wlRows = wlIds.length > 0 ? await policyIntelDb.select({ id: watchlists.id, name: watchlists.name }).from(watchlists).where(inArray5(watchlists.id, wlIds)) : [];
       const wlNameMap = new Map(wlRows.map((w) => [w.id, w.name]));
       res.json({
         totalAlerts: totalAlertsRow?.count ?? 0,
@@ -10259,7 +10931,7 @@ function createPolicyIntelRouter() {
           sourceDocumentId: alerts.sourceDocumentId,
           count: sql14`count(*)::int`,
           maxScore: sql14`coalesce(max(${alerts.relevanceScore}), 0)`
-        }).from(alerts).where(inArray4(alerts.sourceDocumentId, docIds)).groupBy(alerts.sourceDocumentId);
+        }).from(alerts).where(inArray5(alerts.sourceDocumentId, docIds)).groupBy(alerts.sourceDocumentId);
         for (const a of alertAgg) {
           if (a.sourceDocumentId) {
             alertCountMap[a.sourceDocumentId] = { count: a.count, maxScore: a.maxScore };
@@ -10504,7 +11176,7 @@ function createPolicyIntelRouter() {
         grouped[wlId].alerts.push(alert);
       }
       const wlIds = Object.keys(grouped).map(Number).filter((id) => id > 0);
-      const wlRows = wlIds.length > 0 ? await policyIntelDb.select().from(watchlists).where(inArray4(watchlists.id, wlIds)) : [];
+      const wlRows = wlIds.length > 0 ? await policyIntelDb.select().from(watchlists).where(inArray5(watchlists.id, wlIds)) : [];
       const wlNameMap = new Map(wlRows.map((w) => [w.id, w.name]));
       const sections = Object.values(grouped).map((g) => ({
         watchlist: wlNameMap.get(g.watchlistId) ?? "Unlinked",
@@ -10689,7 +11361,7 @@ function createPolicyIntelRouter() {
         policyIntelDb.select().from(stakeholders).where(eq21(stakeholders.issueRoomId, id)).orderBy(desc15(stakeholders.id))
       ]);
       const sourceIds = linkedSources.map((row) => row.sourceDocumentId);
-      const sourceRows = sourceIds.length > 0 ? await policyIntelDb.select().from(sourceDocuments).where(inArray4(sourceDocuments.id, sourceIds)) : [];
+      const sourceRows = sourceIds.length > 0 ? await policyIntelDb.select().from(sourceDocuments).where(inArray5(sourceDocuments.id, sourceIds)) : [];
       res.json({
         issueRoom,
         sourceDocuments: sourceRows,
@@ -10794,7 +11466,7 @@ function createPolicyIntelRouter() {
       const rows = linkedSourceDocumentIds.length > 0 ? await policyIntelDb.select().from(alerts).where(
         or(
           eq21(alerts.issueRoomId, issueRoomId),
-          inArray4(alerts.sourceDocumentId, linkedSourceDocumentIds)
+          inArray5(alerts.sourceDocumentId, linkedSourceDocumentIds)
         )
       ).orderBy(desc15(alerts.id)) : await policyIntelDb.select().from(alerts).where(eq21(alerts.issueRoomId, issueRoomId)).orderBy(desc15(alerts.id));
       res.json(rows);
@@ -11001,7 +11673,7 @@ function createPolicyIntelRouter() {
       const links = await policyIntelDb.select().from(matterWatchlists).where(eq21(matterWatchlists.matterId, matterId));
       if (links.length === 0) return res.json([]);
       const wlIds = links.map((l) => l.watchlistId);
-      const rows = await policyIntelDb.select().from(watchlists).where(inArray4(watchlists.id, wlIds));
+      const rows = await policyIntelDb.select().from(watchlists).where(inArray5(watchlists.id, wlIds));
       res.json(rows);
     } catch (err) {
       next(err);
@@ -11013,7 +11685,7 @@ function createPolicyIntelRouter() {
       const links = await policyIntelDb.select().from(matterWatchlists).where(eq21(matterWatchlists.matterId, matterId));
       if (links.length === 0) return res.json([]);
       const wlIds = links.map((l) => l.watchlistId);
-      const rows = await policyIntelDb.select().from(alerts).where(inArray4(alerts.watchlistId, wlIds)).orderBy(desc15(alerts.id));
+      const rows = await policyIntelDb.select().from(alerts).where(inArray5(alerts.watchlistId, wlIds)).orderBy(desc15(alerts.id));
       res.json(rows);
     } catch (err) {
       next(err);
@@ -11090,7 +11762,7 @@ function createPolicyIntelRouter() {
           title: stakeholders.title,
           email: stakeholders.email,
           phone: stakeholders.phone
-        }).from(committeeMembers).innerJoin(stakeholders, eq21(committeeMembers.stakeholderId, stakeholders.id)).where(inArray4(committeeMembers.committeeName, [...committeeNames]));
+        }).from(committeeMembers).innerJoin(stakeholders, eq21(committeeMembers.stakeholderId, stakeholders.id)).where(inArray5(committeeMembers.committeeName, [...committeeNames]));
       }
       const observedStakeholders = await policyIntelDb.select({
         stakeholderId: stakeholders.id,
@@ -11288,7 +11960,7 @@ function createPolicyIntelRouter() {
   router.post("/scheduler/trigger/:jobName", async (req, res, next) => {
     try {
       const { jobName } = req.params;
-      const validJobs = ["legiscan-recent", "tlo-rss", "local-feeds", "tec-sweep", "intel-briefing"];
+      const validJobs = ["legiscan-recent", "tlo-rss", "local-feeds", "tec-sweep", "intel-briefing", "committee-intel-sync"];
       if (!validJobs.includes(jobName)) {
         return res.status(400).json({ message: `Invalid job name. Valid: ${validJobs.join(", ")}` });
       }
@@ -11510,6 +12182,10 @@ function createPolicyIntelRouter() {
         monitoringNotes: typeof req.body?.monitoringNotes === "string" ? req.body.monitoringNotes : void 0,
         videoUrl: typeof req.body?.videoUrl === "string" ? req.body.videoUrl : void 0,
         agendaUrl: typeof req.body?.agendaUrl === "string" ? req.body.agendaUrl : void 0,
+        transcriptSourceType: typeof req.body?.transcriptSourceType === "string" ? req.body.transcriptSourceType : void 0,
+        transcriptSourceUrl: typeof req.body?.transcriptSourceUrl === "string" ? req.body.transcriptSourceUrl : void 0,
+        autoIngestEnabled: typeof req.body?.autoIngestEnabled === "boolean" ? req.body.autoIngestEnabled : void 0,
+        autoIngestIntervalSeconds: typeof req.body?.autoIngestIntervalSeconds === "number" ? req.body.autoIngestIntervalSeconds : void 0,
         status: typeof req.body?.status === "string" ? req.body.status : void 0
       });
       res.status(201).json(detail);
@@ -11541,6 +12217,10 @@ function createPolicyIntelRouter() {
         liveSummary: typeof req.body?.liveSummary === "string" || req.body?.liveSummary === null ? req.body.liveSummary : void 0,
         agendaUrl: typeof req.body?.agendaUrl === "string" || req.body?.agendaUrl === null ? req.body.agendaUrl : void 0,
         videoUrl: typeof req.body?.videoUrl === "string" || req.body?.videoUrl === null ? req.body.videoUrl : void 0,
+        transcriptSourceType: typeof req.body?.transcriptSourceType === "string" ? req.body.transcriptSourceType : void 0,
+        transcriptSourceUrl: typeof req.body?.transcriptSourceUrl === "string" || req.body?.transcriptSourceUrl === null ? req.body.transcriptSourceUrl : void 0,
+        autoIngestEnabled: typeof req.body?.autoIngestEnabled === "boolean" ? req.body.autoIngestEnabled : void 0,
+        autoIngestIntervalSeconds: typeof req.body?.autoIngestIntervalSeconds === "number" ? req.body.autoIngestIntervalSeconds : void 0,
         status: typeof req.body?.status === "string" ? req.body.status : void 0
       });
       res.json(detail);
@@ -11581,6 +12261,16 @@ function createPolicyIntelRouter() {
       next(err);
     }
   });
+  router.post("/committee-intel/sessions/:id/sync-feed", async (req, res, next) => {
+    try {
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
+      const result = await syncCommitteeIntelTranscriptFeed(id);
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  });
   router.post("/committee-intel/sessions/:id/focused-brief", async (req, res, next) => {
     try {
       const id = parseId(req.params.id);
@@ -11590,6 +12280,16 @@ function createPolicyIntelRouter() {
       }
       const brief = await generateCommitteeIntelFocusedBrief(id, req.body.issue);
       res.json(brief);
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.post("/committee-intel/sessions/:id/post-hearing-recap", async (req, res, next) => {
+    try {
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
+      const recap = await generateCommitteeIntelPostHearingRecap(id);
+      res.json(recap);
     } catch (err) {
       next(err);
     }

@@ -480,6 +480,20 @@ export const committeeIntelEntityTypeEnum = pgEnum("policy_intel_committee_intel
   "unknown",
 ]);
 
+export const committeeIntelTranscriptSourceTypeEnum = pgEnum("policy_intel_committee_intel_transcript_source_type", [
+  "manual",
+  "webvtt",
+  "json",
+  "text",
+]);
+
+export const committeeIntelAutoIngestStatusEnum = pgEnum("policy_intel_committee_intel_auto_ingest_status", [
+  "idle",
+  "ready",
+  "syncing",
+  "error",
+]);
+
 export const hearingEvents = pgTable("policy_intel_hearing_events", {
   id: serial("id").primaryKey(),
   workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
@@ -542,6 +556,14 @@ export const committeeIntelSessions = pgTable(
     status: committeeIntelSessionStatusEnum("status").notNull().default("planned"),
     agendaUrl: text("agenda_url"),
     videoUrl: text("video_url"),
+    transcriptSourceType: committeeIntelTranscriptSourceTypeEnum("transcript_source_type").notNull().default("manual"),
+    transcriptSourceUrl: text("transcript_source_url"),
+    autoIngestEnabled: boolean("auto_ingest_enabled").notNull().default(false),
+    autoIngestIntervalSeconds: integer("auto_ingest_interval_seconds").notNull().default(120),
+    autoIngestStatus: committeeIntelAutoIngestStatusEnum("auto_ingest_status").notNull().default("idle"),
+    autoIngestError: text("auto_ingest_error"),
+    lastAutoIngestedAt: timestamp("last_auto_ingested_at", { withTimezone: true }),
+    lastAutoIngestCursor: text("last_auto_ingest_cursor"),
     focusTopicsJson: jsonb("focus_topics_json").$type<string[]>().notNull().default([]),
     interimChargesJson: jsonb("interim_charges_json").$type<string[]>().notNull().default([]),
     clientContext: text("client_context"),
@@ -556,6 +578,7 @@ export const committeeIntelSessions = pgTable(
     workspaceHearingIdx: uniqueIndex("policy_intel_committee_intel_session_workspace_hearing_idx").on(table.workspaceId, table.hearingId),
     committeeDateIdx: index("policy_intel_committee_intel_session_committee_date_idx").on(table.committee, table.hearingDate),
     statusIdx: index("policy_intel_committee_intel_session_status_idx").on(table.status),
+    autoIngestIdx: index("policy_intel_committee_intel_session_auto_ingest_idx").on(table.autoIngestEnabled, table.autoIngestStatus),
   }),
 );
 

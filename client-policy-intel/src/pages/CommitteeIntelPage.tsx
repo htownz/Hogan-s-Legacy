@@ -3,8 +3,10 @@ import { Link } from "wouter";
 import {
   api,
   type CommitteeIntelFocusedBrief,
+  type CommitteeIntelPostHearingRecap,
   type CommitteeIntelSession,
   type CommitteeIntelSessionDetail,
+  type CommitteeIntelTranscriptSyncResult,
   type HearingEvent,
 } from "../api";
 import { DEFAULT_WORKSPACE_ID } from "../constants";
@@ -36,6 +38,8 @@ const SPEAKER_ROLES = [
   "staff",
   "moderator",
 ];
+
+const TRANSCRIPT_SOURCE_TYPES = ["manual", "webvtt", "json", "text"];
 
 function formatHearingDate(value: string): string {
   return new Date(value).toLocaleString("en-US", {
@@ -149,8 +153,12 @@ export function CommitteeIntelPage({ hearingId, sessionId }: CommitteeIntelPageP
   const [actionError, setActionError] = useState<string | null>(null);
   const [savingSession, setSavingSession] = useState(false);
   const [addingSegment, setAddingSegment] = useState(false);
+  const [syncingFeed, setSyncingFeed] = useState(false);
   const [generatingBrief, setGeneratingBrief] = useState(false);
+  const [generatingRecap, setGeneratingRecap] = useState(false);
   const [brief, setBrief] = useState<CommitteeIntelFocusedBrief | null>(null);
+  const [recap, setRecap] = useState<CommitteeIntelPostHearingRecap | null>(null);
+  const [syncResult, setSyncResult] = useState<CommitteeIntelTranscriptSyncResult | null>(null);
 
   const [sessionForm, setSessionForm] = useState({
     title: "",
@@ -161,6 +169,10 @@ export function CommitteeIntelPage({ hearingId, sessionId }: CommitteeIntelPageP
     monitoringNotes: "",
     agendaUrl: "",
     videoUrl: "",
+    transcriptSourceType: "manual",
+    transcriptSourceUrl: "",
+    autoIngestEnabled: false,
+    autoIngestIntervalSeconds: "120",
   });
   const [segmentForm, setSegmentForm] = useState({
     capturedAt: "",
@@ -264,18 +276,41 @@ export function CommitteeIntelPage({ hearingId, sessionId }: CommitteeIntelPageP
       monitoringNotes: sessionDetail.session.monitoringNotes ?? "",
       agendaUrl: sessionDetail.session.agendaUrl ?? "",
       videoUrl: sessionDetail.session.videoUrl ?? "",
+      transcriptSourceType: sessionDetail.session.transcriptSourceType,
+      transcriptSourceUrl: sessionDetail.session.transcriptSourceUrl ?? "",
+      autoIngestEnabled: sessionDetail.session.autoIngestEnabled,
+      autoIngestIntervalSeconds: String(sessionDetail.session.autoIngestIntervalSeconds),
     });
+    setRecap(sessionDetail.analysis.postHearingRecap);
 
     if (sessionDetail.session.hearingId) {
       setSelectedHearingId(sessionDetail.session.hearingId);
     }
   }, [sessionDetail, selectedHearing]);
 
+  useEffect(() => {
+    if (!selectedSessionId || !sessionDetail?.session.autoIngestEnabled) return;
+
+    const timer = window.setInterval(() => {
+      api.getCommitteeIntelSession(selectedSessionId)
+        .then((detail) => {
+          setSessionDetail(detail);
+          setRecap(detail.analysis.postHearingRecap);
+        })
+        .catch(() => {
+          // Silent background refresh failure; surfaced on the next manual action.
+        });
+    }, 30_000);
+
+    return () => window.clearInterval(timer);
+  }, [selectedSessionId, sessionDetail?.session.autoIngestEnabled]);
+
   function applySessionDetail(detail: CommitteeIntelSessionDetail) {
     setSessionDetail(detail);
     setSelectedSessionId(detail.session.id);
     setSelectedHearingId(detail.session.hearingId ?? selectedHearingId);
     setBrief(null);
+    setRecap(detail.analysis.postHearingRecap);
     setActionError(null);
     setSessionRefreshNonce((value) => value + 1);
     refetchSessions();
@@ -297,6 +332,10 @@ export function CommitteeIntelPage({ hearingId, sessionId }: CommitteeIntelPageP
         monitoringNotes: sessionForm.monitoringNotes.trim() || undefined,
         agendaUrl: sessionForm.agendaUrl.trim() || undefined,
         videoUrl: sessionForm.videoUrl.trim() || undefined,
+        transcriptSourceType: sessionForm.transcriptSourceType,
+        transcriptSourceUrl: sessionForm.transcriptSourceUrl.trim() || undefined,
+        autoIngestEnabled: sessionForm.autoIngestEnabled,
+        autoIngestIntervalSeconds: Number(sessionForm.autoIngestIntervalSeconds || 120),
       });
       applySessionDetail(detail);
     } catch (err: unknown) {
@@ -320,6 +359,10 @@ export function CommitteeIntelPage({ hearingId, sessionId }: CommitteeIntelPageP
         monitoringNotes: sessionForm.monitoringNotes.trim() || null,
         agendaUrl: sessionForm.agendaUrl.trim() || null,
         videoUrl: sessionForm.videoUrl.trim() || null,
+        transcriptSourceType: sessionForm.transcriptSourceType,
+        transcriptSourceUrl: sessionForm.transcriptSourceUrl.trim() || null,
+        autoIngestEnabled: sessionForm.autoIngestEnabled,
+        autoIngestIntervalSeconds: Number(sessionForm.autoIngestIntervalSeconds || 120),
       });
       applySessionDetail(detail);
     } catch (err: unknown) {
@@ -391,7 +434,37 @@ export function CommitteeIntelPage({ hearingId, sessionId }: CommitteeIntelPageP
     }
   }
 
+  async function handleSyncFeed() {
+    if (!sessionDetail) return;
+    setSyncingFeed(true);
+    setActionError(null);
+    try {
+      const result = await api.syncCommitteeIntelFeed(sessionDetail.session.id);
+      setSyncResult(result.sync);
+      applySessionDetail(result.detail);
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSyncingFeed(false);
+    }
+  }
+
+  async function handleGenerateRecap() {
+    if (!sessionDetail) return;
+    setGeneratingRecap(true);
+    setActionError(null);
+    try {
+      const nextRecap = await api.getCommitteeIntelPostHearingRecap(sessionDetail.session.id);
+      setRecap(nextRecap);
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setGeneratingRecap(false);
+    }
+  }
+
   const primarySession = sessionDetail?.session ?? null;
+  const displayedRecap = recap ?? sessionDetail?.analysis.postHearingRecap ?? null;
 
   return (
     <div style={{ display: "grid", gap: 20 }}>
@@ -430,6 +503,12 @@ export function CommitteeIntelPage({ hearingId, sessionId }: CommitteeIntelPageP
       {(hearingsError || sessionsError || detailError || actionError) && (
         <div style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#991b1b", borderRadius: 12, padding: 14, fontSize: 13 }}>
           {[hearingsError, sessionsError, detailError, actionError].filter(Boolean).join(" | ")}
+        </div>
+      )}
+
+      {syncResult && (
+        <div style={{ background: "#ecfeff", border: "1px solid #a5f3fc", color: "#155e75", borderRadius: 12, padding: 14, fontSize: 13 }}>
+          Feed sync ingested {syncResult.ingestedSegments} segment{syncResult.ingestedSegments === 1 ? "" : "s"}, updated {syncResult.updatedSegments} existing cue{syncResult.updatedSegments === 1 ? "" : "s"}, and skipped {syncResult.duplicateSegments} duplicate{syncResult.duplicateSegments === 1 ? "" : "s"} from {syncResult.sourceType} at {new Date(syncResult.fetchedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}.
         </div>
       )}
 
@@ -644,6 +723,57 @@ export function CommitteeIntelPage({ hearingId, sessionId }: CommitteeIntelPageP
                 />
               </label>
 
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <label style={labelStyle}>
+                  Transcript Feed Type
+                  <select
+                    value={sessionForm.transcriptSourceType}
+                    onChange={(event) => setSessionForm((current) => ({ ...current, transcriptSourceType: event.target.value }))}
+                    style={inputStyle}
+                  >
+                    {TRANSCRIPT_SOURCE_TYPES.map((type) => (
+                      <option key={type} value={type}>{statusLabel(type)}</option>
+                    ))}
+                  </select>
+                </label>
+                <label style={labelStyle}>
+                  Auto-Ingest Interval (seconds)
+                  <input
+                    value={sessionForm.autoIngestIntervalSeconds}
+                    onChange={(event) => setSessionForm((current) => ({ ...current, autoIngestIntervalSeconds: event.target.value }))}
+                    placeholder="120"
+                    style={inputStyle}
+                  />
+                </label>
+              </div>
+
+              <label style={labelStyle}>
+                Transcript Feed URL
+                <input
+                  value={sessionForm.transcriptSourceUrl}
+                  onChange={(event) => setSessionForm((current) => ({ ...current, transcriptSourceUrl: event.target.value }))}
+                  placeholder="https://example.com/live-captions.vtt or data:text/vtt,..."
+                  style={inputStyle}
+                />
+              </label>
+
+              <label style={{ ...labelStyle, gap: 8, flexDirection: "row", alignItems: "center" }}>
+                <input
+                  type="checkbox"
+                  checked={sessionForm.autoIngestEnabled}
+                  onChange={(event) => setSessionForm((current) => ({ ...current, autoIngestEnabled: event.target.checked }))}
+                />
+                Automatically poll the transcript feed for new segments
+              </label>
+
+              {primarySession && (
+                <div style={{ background: "#f8fafc", borderRadius: 12, padding: 12, border: "1px solid #e2e8f0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>
+                  <div><strong>Status:</strong> {statusLabel(primarySession.autoIngestStatus)}</div>
+                  <div><strong>Last Sync:</strong> {primarySession.lastAutoIngestedAt ? new Date(primarySession.lastAutoIngestedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "Never"}</div>
+                  {primarySession.autoIngestError && <div><strong>Error:</strong> {primarySession.autoIngestError}</div>}
+                </div>
+              )}
+
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                 {!primarySession ? (
                   <button type="button" onClick={handleCreateSession} disabled={!selectedHearing || savingSession} style={primaryButtonStyle}>
@@ -652,6 +782,11 @@ export function CommitteeIntelPage({ hearingId, sessionId }: CommitteeIntelPageP
                 ) : (
                   <button type="button" onClick={handleSaveSession} disabled={savingSession} style={primaryButtonStyle}>
                     {savingSession ? "Saving..." : "Save Session"}
+                  </button>
+                )}
+                {primarySession && (
+                  <button type="button" onClick={handleSyncFeed} disabled={syncingFeed} style={secondaryButtonStyle}>
+                    {syncingFeed ? "Syncing Feed..." : "Sync Feed Now"}
                   </button>
                 )}
                 {selectedHearing && (
@@ -804,6 +939,16 @@ export function CommitteeIntelPage({ hearingId, sessionId }: CommitteeIntelPageP
 
                 <div style={{ fontSize: 14, color: "#334155", lineHeight: 1.7 }}>{sessionDetail.analysis.summary}</div>
 
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
+                  <Badge label={`feed ${statusLabel(primarySession.autoIngestStatus)}`} color={primarySession.autoIngestStatus === "error" ? "#b91c1c" : primarySession.autoIngestEnabled ? "#0f766e" : "#64748b"} />
+                  {primarySession.autoIngestEnabled && (
+                    <Badge label={`every ${primarySession.autoIngestIntervalSeconds}s`} color="#1d4ed8" />
+                  )}
+                  {primarySession.transcriptSourceType !== "manual" && (
+                    <Badge label={primarySession.transcriptSourceType} color="#0f766e" />
+                  )}
+                </div>
+
                 {(primarySession.agendaUrl || primarySession.videoUrl) && (
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
                     {primarySession.agendaUrl && (
@@ -880,6 +1025,46 @@ export function CommitteeIntelPage({ hearingId, sessionId }: CommitteeIntelPageP
                 </SectionCard>
               </div>
 
+              <SectionCard
+                title="Post-Hearing Recap"
+                subtitle="A ready-to-send readout once the hearing record is populated"
+                actions={
+                  <button type="button" onClick={handleGenerateRecap} disabled={generatingRecap} style={secondaryButtonStyle}>
+                    {generatingRecap ? "Generating..." : "Generate Recap"}
+                  </button>
+                }
+              >
+                {!displayedRecap && (
+                  <div style={{ fontSize: 13, color: "#64748b", lineHeight: 1.6 }}>
+                    No recap is available yet. Add transcript or feed-synced segments, then generate a recap for a post-hearing client readout.
+                  </div>
+                )}
+                {displayedRecap && (
+                  <div style={{ display: "grid", gap: 14 }}>
+                    <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 12, padding: 14 }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>{displayedRecap.headline}</div>
+                      <div style={{ fontSize: 13, color: "#334155", marginTop: 8, lineHeight: 1.6 }}>{displayedRecap.overview}</div>
+                    </div>
+
+                    {displayedRecap.issueHighlights.length > 0 && (
+                      <div style={{ display: "grid", gap: 8 }}>
+                        {displayedRecap.issueHighlights.map((highlight) => (
+                          <div key={highlight} style={{ fontSize: 13, color: "#334155", lineHeight: 1.6, padding: 12, borderRadius: 10, background: "#fff", border: "1px solid #e2e8f0" }}>
+                            {highlight}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14 }}>
+                      <RecapListCard title="Member Pressure Points" items={displayedRecap.memberPressurePoints} emptyLabel="No member pressure points isolated yet." />
+                      <RecapListCard title="Agency Commitments" items={displayedRecap.agencyCommitments} emptyLabel="No explicit commitments or next steps captured yet." />
+                      <RecapListCard title="Follow-Up Actions" items={displayedRecap.followUpActions} emptyLabel="No follow-up actions generated yet." />
+                    </div>
+                  </div>
+                )}
+              </SectionCard>
+
               <SectionCard title="Key Moments" subtitle="High-signal segments to review or clip for follow-up">
                 <div style={{ display: "grid", gap: 10 }}>
                   {sessionDetail.analysis.keyMoments.length === 0 && (
@@ -916,6 +1101,35 @@ export function CommitteeIntelPage({ hearingId, sessionId }: CommitteeIntelPageP
                     )}
                     {sessionDetail.analysis.electedFocus.map((entry) => (
                       <EntitySummaryCard key={`${entry.entityName}-${entry.entityType}`} entry={entry} />
+                    ))}
+                  </div>
+                </SectionCard>
+
+                <SectionCard title="Witness Ranking" subtitle="Who carried the most weight in testimony or agency updates">
+                  <div style={{ display: "grid", gap: 10 }}>
+                    {sessionDetail.analysis.witnessRankings.length === 0 && (
+                      <div style={{ fontSize: 13, color: "#64748b" }}>No witness or agency rankings are available yet.</div>
+                    )}
+                    {sessionDetail.analysis.witnessRankings.map((entry) => (
+                      <div key={`${entry.entityName}-${entry.rank}`} style={{ border: "1px solid #e2e8f0", borderRadius: 12, padding: 12, background: "#fff" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>#{entry.rank} {entry.entityName}</div>
+                            <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
+                              {entry.entityType}
+                              {entry.affiliation ? ` · ${entry.affiliation}` : ""}
+                              {entry.invited ? " · invited" : ""}
+                            </div>
+                          </div>
+                          <Badge label={`score ${entry.score}`} color="#0f766e" />
+                        </div>
+                        <div style={{ fontSize: 12, color: "#334155", marginTop: 8, lineHeight: 1.6 }}>{entry.summary}</div>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+                          <Badge label={positionLabel(entry.dominantPosition)} color={POSITION_COLORS[entry.dominantPosition] ?? "#475569"} />
+                          <Badge label={`${entry.mentionCount} mentions`} color="#1d4ed8" />
+                          <Badge label={`${entry.issueBreadth} issues`} color="#b45309" />
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </SectionCard>
@@ -1056,6 +1270,26 @@ function EntitySummaryCard(props: {
           <Link href={`/stakeholders/${entry.stakeholderId}`}>
             <span style={{ fontSize: 12, color: "#0f766e", fontWeight: 700, cursor: "pointer" }}>Open stakeholder record</span>
           </Link>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RecapListCard(props: { title: string; items: string[]; emptyLabel: string }) {
+  return (
+    <div style={{ border: "1px solid #e2e8f0", borderRadius: 12, padding: 12, background: "#f8fafc" }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", marginBottom: 10 }}>{props.title}</div>
+      {props.items.length === 0 && (
+        <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.6 }}>{props.emptyLabel}</div>
+      )}
+      {props.items.length > 0 && (
+        <div style={{ display: "grid", gap: 8 }}>
+          {props.items.map((item) => (
+            <div key={item} style={{ fontSize: 12, color: "#334155", lineHeight: 1.6 }}>
+              {item}
+            </div>
+          ))}
         </div>
       )}
     </div>

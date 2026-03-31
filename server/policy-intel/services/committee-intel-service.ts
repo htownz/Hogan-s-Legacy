@@ -1,4 +1,5 @@
-import { and, asc, desc, eq, gte, ilike } from "drizzle-orm";
+import { createHash } from "node:crypto";
+import { and, asc, desc, eq, gte, ilike, inArray } from "drizzle-orm";
 import { policyIntelDb } from "../db";
 import {
   committeeIntelSegments,
@@ -18,6 +19,8 @@ type HearingRow = typeof hearingEvents.$inferSelect;
 type CommitteeIntelSpeakerRole = CommitteeIntelSegmentRow["speakerRole"];
 type CommitteeIntelPosition = CommitteeIntelSegmentRow["position"];
 type CommitteeIntelEntityType = CommitteeIntelSignalRow["entityType"];
+type CommitteeIntelTranscriptSourceType = CommitteeIntelSessionRow["transcriptSourceType"];
+type CommitteeIntelAutoIngestStatus = CommitteeIntelSessionRow["autoIngestStatus"];
 
 interface IssueCatalogEntry {
   tag: string;
@@ -49,6 +52,20 @@ interface CommitteeIntelEntityPosition {
   position: CommitteeIntelPosition;
   confidence: number;
   mentionCount: number;
+}
+
+interface NormalizedTranscriptFeedEntry {
+  externalKey: string;
+  cursorValue: string;
+  capturedAt: string;
+  startedAtSecond: number | null;
+  endedAtSecond: number | null;
+  speakerName: string | null;
+  speakerRole?: CommitteeIntelSpeakerRole;
+  affiliation: string | null;
+  transcriptText: string;
+  invited: boolean;
+  metadata: Record<string, unknown>;
 }
 
 export interface CommitteeIntelIssueSummary {
@@ -109,6 +126,8 @@ export interface CommitteeIntelAnalysis {
   keyMoments: CommitteeIntelMoment[];
   electedFocus: CommitteeIntelEntitySummary[];
   activeWitnesses: CommitteeIntelEntitySummary[];
+  witnessRankings: CommitteeIntelWitnessRanking[];
+  postHearingRecap: CommitteeIntelPostHearingRecap | null;
   positionMap: CommitteeIntelPositionRow[];
 }
 
@@ -132,6 +151,47 @@ export interface CommitteeIntelFocusedBrief {
   recommendations: string[];
 }
 
+export interface CommitteeIntelWitnessRanking {
+  rank: number;
+  entityName: string;
+  entityType: CommitteeIntelEntityType;
+  stakeholderId: number | null;
+  affiliation: string | null;
+  invited: boolean;
+  score: number;
+  dominantPosition: CommitteeIntelPosition;
+  mentionCount: number;
+  issueBreadth: number;
+  keyMomentCount: number;
+  primaryIssues: string[];
+  summary: string;
+}
+
+export interface CommitteeIntelPostHearingRecap {
+  generatedAt: string;
+  headline: string;
+  overview: string;
+  issueHighlights: string[];
+  memberPressurePoints: string[];
+  witnessLeaderboard: CommitteeIntelWitnessRanking[];
+  agencyCommitments: string[];
+  followUpActions: string[];
+}
+
+export interface CommitteeIntelTranscriptSyncResult {
+  sessionId: number;
+  sourceType: CommitteeIntelTranscriptSourceType;
+  sourceUrl: string | null;
+  fetchedAt: string;
+  totalParsed: number;
+  ingestedSegments: number;
+  updatedSegments: number;
+  duplicateSegments: number;
+  cursor: string | null;
+  status: CommitteeIntelAutoIngestStatus;
+  error?: string;
+}
+
 export interface CreateCommitteeIntelSessionRequest {
   workspaceId: number;
   hearingId: number;
@@ -142,6 +202,10 @@ export interface CreateCommitteeIntelSessionRequest {
   monitoringNotes?: string;
   videoUrl?: string;
   agendaUrl?: string;
+  transcriptSourceType?: CommitteeIntelTranscriptSourceType;
+  transcriptSourceUrl?: string;
+  autoIngestEnabled?: boolean;
+  autoIngestIntervalSeconds?: number;
   status?: CommitteeIntelSessionRow["status"];
 }
 
@@ -154,6 +218,10 @@ export interface UpdateCommitteeIntelSessionRequest {
   liveSummary?: string | null;
   agendaUrl?: string | null;
   videoUrl?: string | null;
+  transcriptSourceType?: CommitteeIntelTranscriptSourceType;
+  transcriptSourceUrl?: string | null;
+  autoIngestEnabled?: boolean;
+  autoIngestIntervalSeconds?: number;
   status?: CommitteeIntelSessionRow["status"];
 }
 
@@ -209,6 +277,310 @@ const ISSUE_CATALOG: IssueCatalogEntry[] = [
 
 const AGENCY_HINTS = ["commission", "council", "office", "department", "agency", "authority", "ercot", "utility"];
 const ORGANIZATION_HINTS = ["association", "alliance", "coalition", "chamber", "company", "corp", "foundation", "group", "llc", "inc", "union"];
+
+function hashValue(value: string): string {
+  return createHash("sha1").update(value).digest("hex");
+}
+
+function getMetadataRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function buildTranscriptFeedIdentityKey(
+  sessionId: number,
+  sourceType: string | null | undefined,
+  cursorValue: string | null | undefined,
+  sourceId: string | number | null | undefined,
+): string | null {
+  const normalizedSourceType = sourceType?.trim().toLowerCase() || null;
+  if (!normalizedSourceType || normalizedSourceType === "manual") return null;
+
+  const normalizedCursor = cursorValue?.trim() || "";
+  const normalizedSourceId = sourceId === null || sourceId === undefined ? "" : String(sourceId).trim();
+  if (!normalizedCursor && !normalizedSourceId) return null;
+
+  return [sessionId, normalizedSourceType, normalizedSourceId, normalizedCursor].join("|");
+}
+
+function cleanUrl(value: string | null | undefined): string | null {
+  const next = value?.trim();
+  return next ? next : null;
+}
+
+function resolveCandidateTranscriptSourceUrl(
+  sourceType: CommitteeIntelTranscriptSourceType,
+  transcriptSourceUrl: string | null | undefined,
+  videoUrl: string | null | undefined,
+): string | null {
+  const explicit = cleanUrl(transcriptSourceUrl);
+  if (explicit) return explicit;
+
+  if (sourceType !== "manual") {
+    const fallback = cleanUrl(videoUrl);
+    if (fallback && /^(data:|https?:)/i.test(fallback) && /\.(vtt|json|txt)(\?.*)?$/i.test(fallback)) {
+      return fallback;
+    }
+  }
+
+  return null;
+}
+
+function resolveTranscriptSourceUrl(session: CommitteeIntelSessionRow): string | null {
+  return resolveCandidateTranscriptSourceUrl(session.transcriptSourceType, session.transcriptSourceUrl, session.videoUrl);
+}
+
+function resolveAutoIngestStatus(
+  sourceType: CommitteeIntelTranscriptSourceType,
+  sourceUrl: string | null,
+  autoIngestEnabled: boolean,
+  current: CommitteeIntelAutoIngestStatus,
+): CommitteeIntelAutoIngestStatus {
+  if (!autoIngestEnabled) return "idle";
+  if (sourceType === "manual" || !sourceUrl) return current === "error" ? "error" : "idle";
+  return current === "error" ? "error" : "ready";
+}
+
+function parseTimestampToSeconds(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  const match = trimmed.match(/^(?:(\d+):)?(\d{1,2}):(\d{2})(?:[\.,](\d{1,3}))?$/);
+  if (!match) return null;
+
+  const hours = Number(match[1] ?? 0);
+  const minutes = Number(match[2] ?? 0);
+  const seconds = Number(match[3] ?? 0);
+  const milliseconds = Number((match[4] ?? "0").padEnd(3, "0"));
+  return hours * 3600 + minutes * 60 + seconds + milliseconds / 1000;
+}
+
+function buildCapturedAtFromOffset(session: CommitteeIntelSessionRow, startedAtSecond: number | null, fallbackIndex: number): string {
+  const base = toDate(session.hearingDate) ?? new Date();
+  const offset = startedAtSecond ?? fallbackIndex * 30;
+  return new Date(base.getTime() + Math.max(offset, 0) * 1000).toISOString();
+}
+
+function normaliseSpeakerFromText(transcriptText: string): {
+  speakerName: string | null;
+  affiliation: string | null;
+  transcriptText: string;
+} {
+  const cleaned = transcriptText.replace(/^>>\s*/, "").trim();
+  const match = cleaned.match(/^([^:(]{2,120}?)(?:\s+\(([^)]+)\))?:\s+(.+)$/s);
+  if (!match) {
+    return {
+      speakerName: null,
+      affiliation: null,
+      transcriptText: cleaned,
+    };
+  }
+
+  const speakerName = match[1]?.trim() || null;
+  const affiliation = match[2]?.trim() || null;
+  const nextText = match[3]?.trim() || cleaned;
+  return {
+    speakerName,
+    affiliation,
+    transcriptText: nextText,
+  };
+}
+
+function buildTranscriptExternalKey(parts: Array<string | number | null | undefined>): string {
+  return hashValue(parts.map((part) => String(part ?? "")).join("|"));
+}
+
+function buildFeedEntry(
+  session: CommitteeIntelSessionRow,
+  index: number,
+  value: {
+    cursorValue?: string;
+    capturedAt?: string | null;
+    startedAtSecond?: number | null;
+    endedAtSecond?: number | null;
+    speakerName?: string | null;
+    speakerRole?: CommitteeIntelSpeakerRole;
+    affiliation?: string | null;
+    transcriptText: string;
+    invited?: boolean;
+    metadata?: Record<string, unknown>;
+  },
+): NormalizedTranscriptFeedEntry | null {
+  const trimmedText = value.transcriptText.replace(/\s+/g, " ").trim();
+  if (!trimmedText) return null;
+
+  const metadata = getMetadataRecord(value.metadata);
+  const sourceType = typeof metadata.sourceType === "string" ? metadata.sourceType : null;
+  const sourceId = typeof metadata.sourceId === "string" || typeof metadata.sourceId === "number"
+    ? metadata.sourceId
+    : null;
+  const normalizedSpeaker = normaliseSpeakerFromText(trimmedText);
+  const speakerName = value.speakerName?.trim() || normalizedSpeaker.speakerName;
+  const affiliation = value.affiliation?.trim() || normalizedSpeaker.affiliation;
+  const transcriptText = speakerName || affiliation ? normalizedSpeaker.transcriptText : trimmedText;
+  const startedAtSecond = value.startedAtSecond ?? null;
+  const endedAtSecond = value.endedAtSecond ?? null;
+  const capturedAt = value.capturedAt ?? buildCapturedAtFromOffset(session, startedAtSecond, index);
+  const cursorValue = value.cursorValue ?? String(startedAtSecond ?? index);
+  const dedupKey = buildTranscriptFeedIdentityKey(session.id, sourceType, cursorValue, sourceId);
+  const externalKey = buildTranscriptExternalKey([
+    session.id,
+    cursorValue,
+    startedAtSecond,
+    endedAtSecond,
+    speakerName,
+    affiliation,
+    transcriptText,
+  ]);
+
+  return {
+    externalKey,
+    cursorValue,
+    capturedAt,
+    startedAtSecond,
+    endedAtSecond,
+    speakerName,
+    speakerRole: value.speakerRole,
+    affiliation,
+    transcriptText,
+    invited: value.invited ?? false,
+    metadata: {
+      ...metadata,
+      externalKey,
+      dedupKey,
+      feedCursor: cursorValue,
+    },
+  };
+}
+
+function buildFeedEntryDedupKey(sessionId: number, entry: NormalizedTranscriptFeedEntry): string {
+  const metadata = getMetadataRecord(entry.metadata);
+  const storedKey = typeof metadata.dedupKey === "string" ? metadata.dedupKey.trim() : "";
+  if (storedKey) return storedKey;
+
+  return buildTranscriptFeedIdentityKey(
+    sessionId,
+    typeof metadata.sourceType === "string" ? metadata.sourceType : null,
+    entry.cursorValue,
+    typeof metadata.sourceId === "string" || typeof metadata.sourceId === "number" ? metadata.sourceId : null,
+  ) ?? entry.externalKey;
+}
+
+function parseWebVttFeed(content: string, session: CommitteeIntelSessionRow): NormalizedTranscriptFeedEntry[] {
+  const cues: NormalizedTranscriptFeedEntry[] = [];
+  const blocks = content
+    .replace(/^WEBVTT\s*/i, "")
+    .split(/\r?\n\r?\n/)
+    .map((block) => block.trim())
+    .filter(Boolean);
+
+  let cueIndex = 0;
+  for (const block of blocks) {
+    const lines = block.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const timeLineIndex = lines.findIndex((line) => line.includes("-->"));
+    if (timeLineIndex === -1) continue;
+
+    const timeLine = lines[timeLineIndex];
+    const [rawStart, rawEnd] = timeLine.split("-->").map((part) => part.trim());
+    const startedAtSecond = parseTimestampToSeconds(rawStart);
+    const endedAtSecond = parseTimestampToSeconds(rawEnd);
+    const textLines = lines.slice(timeLineIndex + 1).filter((line) => !line.startsWith("NOTE"));
+    const entry = buildFeedEntry(session, cueIndex, {
+      cursorValue: `${cueIndex}:${rawStart}`,
+      startedAtSecond: startedAtSecond === null ? null : Math.floor(startedAtSecond),
+      endedAtSecond: endedAtSecond === null ? null : Math.floor(endedAtSecond),
+      transcriptText: textLines.join(" "),
+      metadata: {
+        sourceType: "webvtt",
+      },
+    });
+    if (entry) cues.push(entry);
+    cueIndex += 1;
+  }
+
+  return cues;
+}
+
+function findJsonTranscriptArray(value: unknown): Array<Record<string, unknown>> {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null);
+  }
+  if (!value || typeof value !== "object") return [];
+
+  const record = value as Record<string, unknown>;
+  for (const key of ["segments", "items", "entries", "cues", "transcript", "data"]) {
+    const next = record[key];
+    if (Array.isArray(next)) {
+      return next.filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null);
+    }
+  }
+
+  return [];
+}
+
+function parseJsonFeed(content: string, session: CommitteeIntelSessionRow): NormalizedTranscriptFeedEntry[] {
+  const parsed = JSON.parse(content) as unknown;
+  const items = findJsonTranscriptArray(parsed);
+
+  return items
+    .map((item, index) => {
+      const transcriptText = String(item.text ?? item.content ?? item.body ?? item.transcript ?? "").trim();
+      const startedAtSecond = item.start === undefined ? item.startTime : item.start;
+      const endedAtSecond = item.end === undefined ? item.endTime : item.end;
+      const capturedAt = item.capturedAt ?? item.timestamp ?? item.createdAt ?? null;
+      const entry = buildFeedEntry(session, index, {
+        cursorValue: String(item.id ?? item.sequence ?? item.index ?? startedAtSecond ?? index),
+        capturedAt: typeof capturedAt === "string" ? capturedAt : null,
+        startedAtSecond: typeof startedAtSecond === "number" ? startedAtSecond : parseTimestampToSeconds(String(startedAtSecond ?? "")),
+        endedAtSecond: typeof endedAtSecond === "number" ? endedAtSecond : parseTimestampToSeconds(String(endedAtSecond ?? "")),
+        speakerName: typeof item.speaker === "string" ? item.speaker : typeof item.name === "string" ? item.name : null,
+        speakerRole: typeof item.role === "string" ? item.role as CommitteeIntelSpeakerRole : undefined,
+        affiliation: typeof item.affiliation === "string" ? item.affiliation : typeof item.organization === "string" ? item.organization : null,
+        transcriptText,
+        invited: Boolean(item.invited),
+        metadata: {
+          sourceType: "json",
+          sourceId: item.id ?? null,
+        },
+      });
+      return entry;
+    })
+    .filter((entry): entry is NormalizedTranscriptFeedEntry => Boolean(entry));
+}
+
+function parseTextFeed(content: string, session: CommitteeIntelSessionRow): NormalizedTranscriptFeedEntry[] {
+  const lines = content
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  return lines
+    .map((line, index) => {
+      const timestampMatch = line.match(/^\[?(\d{1,2}:\d{2}(?::\d{2})?(?:[\.,]\d{1,3})?)\]?\s+(.*)$/);
+      const startedAtSecond = timestampMatch ? parseTimestampToSeconds(timestampMatch[1]) : null;
+      const transcriptText = timestampMatch ? timestampMatch[2] : line;
+      return buildFeedEntry(session, index, {
+        cursorValue: String(index),
+        startedAtSecond: startedAtSecond === null ? null : Math.floor(startedAtSecond),
+        transcriptText,
+        metadata: {
+          sourceType: "text",
+        },
+      });
+    })
+    .filter((entry): entry is NormalizedTranscriptFeedEntry => Boolean(entry));
+}
+
+function parseTranscriptFeed(
+  content: string,
+  sourceType: CommitteeIntelTranscriptSourceType,
+  session: CommitteeIntelSessionRow,
+): NormalizedTranscriptFeedEntry[] {
+  if (sourceType === "webvtt") return parseWebVttFeed(content, session);
+  if (sourceType === "json") return parseJsonFeed(content, session);
+  if (sourceType === "text") return parseTextFeed(content, session);
+  return [];
+}
 
 function normalizeText(value: string | null | undefined): string {
   return (value ?? "")
@@ -322,16 +694,19 @@ function determineSpeakerRole(
 ): CommitteeIntelSpeakerRole {
   if (currentRole && currentRole !== "unknown") return currentRole;
 
+  const rawSpeakerName = (speakerName ?? "").toLowerCase();
   const normalizedName = normalizeText(speakerName);
   const normalizedAffiliation = normalizeText(affiliation);
   const normalizedTranscript = normalizeText(transcriptText);
 
   if (normalizedName.includes("chair") || normalizedTranscript.includes("chair recognizes")) return "chair";
-  if (normalizedName.includes("senator") || normalizedName.includes("representative")) return "member";
+  if (/^(sen\.?|senator|rep\.?|representative)\b/i.test(rawSpeakerName) || normalizedTranscript.includes("senator") || normalizedTranscript.includes("representative")) return "member";
+  if (/^commissioner\b/i.test(rawSpeakerName)) return "agency";
   if (AGENCY_HINTS.some((hint) => normalizedAffiliation.includes(hint))) return "agency";
   if (normalizedTranscript.includes("invited testimony") || normalizedAffiliation.includes("invited")) return "invited_witness";
   if (normalizedTranscript.includes("public testimony") || normalizedTranscript.includes("public witness")) return "public_witness";
   if (normalizedAffiliation.includes("staff") || normalizedTranscript.includes("committee staff")) return "staff";
+  if (speakerName && affiliation) return "public_witness";
   return "unknown";
 }
 
@@ -396,15 +771,15 @@ function resolveEntityType(
   affiliation: string | null,
   committeeMemberMap: Map<string, CommitteeMemberLookupEntry>,
 ): CommitteeIntelEntityType {
+  const rawSpeakerName = (speakerName ?? "").toLowerCase();
   const normalizedName = normalizeText(speakerName);
   const normalizedAffiliation = normalizeText(affiliation);
 
-  if (committeeMemberMap.has(normalizedName) || speakerRole === "chair" || speakerRole === "member") return "legislator";
+  if (committeeMemberMap.has(normalizedName) || speakerRole === "chair" || speakerRole === "member" || /^(sen\.?|senator|rep\.?|representative)\b/i.test(rawSpeakerName)) return "legislator";
   if (speakerRole === "agency" || AGENCY_HINTS.some((hint) => normalizedAffiliation.includes(hint))) return "agency";
   if (speakerRole === "staff") return "staff";
-  if (speakerRole === "invited_witness" || speakerRole === "public_witness") return "witness";
+  if (speakerRole === "invited_witness" || speakerRole === "public_witness" || (speakerName && affiliation)) return "witness";
   if (ORGANIZATION_HINTS.some((hint) => normalizedAffiliation.includes(hint))) return "organization";
-  if (speakerName && affiliation) return "witness";
   return "unknown";
 }
 
@@ -467,6 +842,8 @@ function buildEmptyAnalysis(session: CommitteeIntelSessionRow, totalSegments = 0
     keyMoments: [],
     electedFocus: [],
     activeWitnesses: [],
+    witnessRankings: [],
+    postHearingRecap: null,
     positionMap: [],
   };
 }
@@ -488,6 +865,11 @@ function parseStoredAnalysis(session: CommitteeIntelSessionRow, segments: Commit
     keyMoments: Array.isArray(raw.keyMoments) ? raw.keyMoments as CommitteeIntelMoment[] : [],
     electedFocus: Array.isArray(raw.electedFocus) ? raw.electedFocus as CommitteeIntelEntitySummary[] : [],
     activeWitnesses: Array.isArray(raw.activeWitnesses) ? raw.activeWitnesses as CommitteeIntelEntitySummary[] : [],
+    witnessRankings: Array.isArray(raw.witnessRankings) ? raw.witnessRankings as CommitteeIntelWitnessRanking[] : [],
+    postHearingRecap:
+      raw.postHearingRecap && typeof raw.postHearingRecap === "object"
+        ? raw.postHearingRecap as CommitteeIntelPostHearingRecap
+        : null,
     positionMap: Array.isArray(raw.positionMap) ? raw.positionMap as CommitteeIntelPositionRow[] : [],
   };
 }
@@ -552,6 +934,133 @@ function buildRecommendations(
   }
 
   return recommendations.slice(0, 4);
+}
+
+function getDominantPosition(entry: CommitteeIntelEntitySummary): CommitteeIntelPosition {
+  return entry.positions[0]?.position ?? "unknown";
+}
+
+function buildWitnessRankings(
+  activeWitnesses: CommitteeIntelEntitySummary[],
+  keyMoments: CommitteeIntelMoment[],
+): CommitteeIntelWitnessRanking[] {
+  const keyMomentCounts = new Map<string, number>();
+  for (const moment of keyMoments) {
+    const key = normalizeText(moment.speakerName);
+    if (!key) continue;
+    keyMomentCounts.set(key, (keyMomentCounts.get(key) ?? 0) + 1);
+  }
+
+  return activeWitnesses
+    .map((entry) => {
+      const issueBreadth = entry.positions.length;
+      const keyMomentCount = keyMomentCounts.get(normalizeText(entry.entityName)) ?? 0;
+      const dominantPosition = getDominantPosition(entry);
+      const score = clamp(
+        entry.mentionCount * 12 +
+          issueBreadth * 8 +
+          keyMomentCount * 10 +
+          (entry.invited ? 15 : 0) +
+          (entry.entityType === "agency" ? 6 : 0) +
+          (dominantPosition !== "monitoring" && dominantPosition !== "unknown" ? 8 : 0),
+        0,
+        100,
+      );
+
+      const summaryParts = [
+        `${entry.entityName} appeared ${entry.mentionCount} time${entry.mentionCount === 1 ? "" : "s"}`,
+        entry.primaryIssues.length > 0 ? `across ${entry.primaryIssues.slice(0, 2).join(" and ")}` : undefined,
+        entry.invited ? "as invited testimony" : undefined,
+      ].filter(Boolean);
+
+      return {
+        rank: 0,
+        entityName: entry.entityName,
+        entityType: entry.entityType,
+        stakeholderId: entry.stakeholderId,
+        affiliation: entry.affiliation,
+        invited: entry.invited,
+        score,
+        dominantPosition,
+        mentionCount: entry.mentionCount,
+        issueBreadth,
+        keyMomentCount,
+        primaryIssues: entry.primaryIssues,
+        summary: `${summaryParts.join(" ")}.`,
+      } satisfies CommitteeIntelWitnessRanking;
+    })
+    .sort((left, right) => right.score - left.score || right.mentionCount - left.mentionCount)
+    .slice(0, 10)
+    .map((entry, index) => ({ ...entry, rank: index + 1 }));
+}
+
+function buildMemberPressurePoints(electedFocus: CommitteeIntelEntitySummary[]): string[] {
+  return electedFocus.slice(0, 5).map((entry) => {
+    const topIssue = entry.positions[0]?.label ?? "the central issues";
+    const topPosition = getDominantPosition(entry).replace(/_/g, " ");
+    return `${entry.entityName} concentrated on ${topIssue} and is primarily ${topPosition}.`;
+  });
+}
+
+function buildAgencyCommitments(segments: CommitteeIntelSegmentRow[]): string[] {
+  return segments
+    .filter((segment) =>
+      (segment.speakerRole === "agency" || segment.invited) &&
+      /\b(will|plan to|committed|recommend|working on|next step|we are going to|intend to)\b/i.test(segment.transcriptText),
+    )
+    .sort((left, right) => right.importance - left.importance)
+    .slice(0, 5)
+    .map((segment) => `${segment.speakerName || segment.affiliation || "Witness"}: ${segment.summary ?? segment.transcriptText.slice(0, 180)}`);
+}
+
+function buildPostHearingRecap(
+  session: CommitteeIntelSessionRow,
+  issueCoverage: CommitteeIntelIssueSummary[],
+  electedFocus: CommitteeIntelEntitySummary[],
+  witnessRankings: CommitteeIntelWitnessRanking[],
+  segments: CommitteeIntelSegmentRow[],
+): CommitteeIntelPostHearingRecap | null {
+  if (segments.length === 0) return null;
+
+  const topIssues = issueCoverage.slice(0, 4);
+  const issueLabels = topIssues.map((issue) => issue.label);
+  const headline = issueLabels.length > 0
+    ? `${session.committee} recap: ${issueLabels.join(", ")} dominated the hearing.`
+    : `${session.committee} recap: testimony centered on the committee's interim agenda.`;
+  const overview = [
+    `The session generated ${segments.length} tracked transcript segments and ${witnessRankings.length} ranked witnesses or agencies.`,
+    topIssues.length > 0
+      ? `Primary areas of focus were ${topIssues.map((issue) => `${issue.label} (${issue.mentionCount} mentions)`).join(", ")}.`
+      : `No single issue cluster dominated the hearing record.`,
+  ].join(" ");
+
+  const issueHighlights = topIssues.map((issue) => {
+    const entityText = issue.keyEntities.length > 0 ? ` Key voices: ${issue.keyEntities.join(", ")}.` : "";
+    return `${issue.label}: ${issue.mentionCount} mentions, ${issue.supportCount} support, ${issue.opposeCount} oppose, ${issue.questioningCount} questioning.${entityText}`;
+  });
+
+  const followUpActions = [
+    witnessRankings.length > 0
+      ? `Follow up with ${witnessRankings.slice(0, 2).map((entry) => entry.entityName).join(" and ")} while the hearing record is still fresh.`
+      : null,
+    electedFocus.length > 0
+      ? `Prepare a member-specific response for ${electedFocus.slice(0, 2).map((entry) => entry.entityName).join(" and ")} based on their questioning.`
+      : null,
+    topIssues.length > 0
+      ? `Build a short readout on ${topIssues[0].label} for client distribution after testimony closes.`
+      : null,
+  ].filter((value): value is string => Boolean(value));
+
+  return {
+    generatedAt: new Date().toISOString(),
+    headline,
+    overview,
+    issueHighlights,
+    memberPressurePoints: buildMemberPressurePoints(electedFocus),
+    witnessLeaderboard: witnessRankings.slice(0, 5),
+    agencyCommitments: buildAgencyCommitments(segments),
+    followUpActions,
+  };
 }
 
 async function loadSessionCore(sessionId: number): Promise<{ session: CommitteeIntelSessionRow; hearing: HearingRow | null } | null> {
@@ -672,6 +1181,211 @@ function deriveSegment(
     invited,
     metadataJson,
   };
+}
+
+function buildStoredSegmentExternalKey(segment: CommitteeIntelSegmentRow): string {
+  const metadata = getMetadataRecord(segment.metadataJson);
+  const metadataKey = typeof metadata.externalKey === "string" ? metadata.externalKey : null;
+  if (metadataKey) return metadataKey;
+
+  return buildTranscriptExternalKey([
+    segment.sessionId,
+    segment.segmentIndex,
+    segment.startedAtSecond,
+    segment.endedAtSecond,
+    segment.speakerName,
+    segment.affiliation,
+    segment.transcriptText,
+  ]);
+}
+
+function buildStoredSegmentDedupKey(segment: CommitteeIntelSegmentRow): string {
+  const metadata = getMetadataRecord(segment.metadataJson);
+  const storedKey = typeof metadata.dedupKey === "string" ? metadata.dedupKey.trim() : "";
+  if (storedKey) return storedKey;
+
+  return buildTranscriptFeedIdentityKey(
+    segment.sessionId,
+    typeof metadata.sourceType === "string" ? metadata.sourceType : null,
+    typeof metadata.feedCursor === "string" ? metadata.feedCursor : null,
+    typeof metadata.sourceId === "string" || typeof metadata.sourceId === "number" ? metadata.sourceId : null,
+  ) ?? buildStoredSegmentExternalKey(segment);
+}
+
+function buildStoredSegmentFeedIdentity(segment: CommitteeIntelSegmentRow): string | null {
+  const metadata = getMetadataRecord(segment.metadataJson);
+  return buildTranscriptFeedIdentityKey(
+    segment.sessionId,
+    typeof metadata.sourceType === "string" ? metadata.sourceType : null,
+    typeof metadata.feedCursor === "string" ? metadata.feedCursor : null,
+    typeof metadata.sourceId === "string" || typeof metadata.sourceId === "number" ? metadata.sourceId : null,
+  );
+}
+
+async function getNextSegmentIndex(sessionId: number): Promise<number> {
+  const [lastSegment] = await policyIntelDb
+    .select({ segmentIndex: committeeIntelSegments.segmentIndex })
+    .from(committeeIntelSegments)
+    .where(eq(committeeIntelSegments.sessionId, sessionId))
+    .orderBy(desc(committeeIntelSegments.segmentIndex))
+    .limit(1);
+
+  return (lastSegment?.segmentIndex ?? -1) + 1;
+}
+
+function buildCommitteeIntelSegmentValues(
+  session: CommitteeIntelSessionRow,
+  segmentIndex: number,
+  request: AddCommitteeIntelSegmentRequest,
+  current?: Pick<CommitteeIntelSegmentRow, "id" | "createdAt">,
+) {
+  const capturedAt = toDate(request.capturedAt) ?? new Date();
+  const createdAt = current?.createdAt ? toDate(current.createdAt) ?? new Date() : new Date();
+  const baseSegment = {
+    id: current?.id ?? 0,
+    sessionId: session.id,
+    segmentIndex,
+    capturedAt,
+    startedAtSecond: request.startedAtSecond ?? null,
+    endedAtSecond: request.endedAtSecond ?? null,
+    speakerName: request.speakerName?.trim() || null,
+    speakerRole: request.speakerRole ?? "unknown",
+    affiliation: request.affiliation?.trim() || null,
+    transcriptText: request.transcriptText.trim(),
+    summary: null,
+    issueTagsJson: [],
+    position: "unknown" as CommitteeIntelPosition,
+    importance: 0,
+    invited: request.invited ?? false,
+    metadataJson: request.metadata ?? {},
+    createdAt,
+  } as CommitteeIntelSegmentRow;
+
+  const derived = deriveSegment(baseSegment, session);
+  return {
+    sessionId: session.id,
+    segmentIndex: baseSegment.segmentIndex,
+    capturedAt,
+    startedAtSecond: baseSegment.startedAtSecond,
+    endedAtSecond: baseSegment.endedAtSecond,
+    speakerName: baseSegment.speakerName,
+    speakerRole: derived.speakerRole,
+    affiliation: baseSegment.affiliation,
+    transcriptText: baseSegment.transcriptText,
+    summary: derived.summary,
+    issueTagsJson: derived.issueTagsJson,
+    position: derived.position,
+    importance: derived.importance,
+    invited: derived.invited,
+    metadataJson: derived.metadataJson,
+  };
+}
+
+async function insertCommitteeIntelSegments(
+  session: CommitteeIntelSessionRow,
+  requests: AddCommitteeIntelSegmentRequest[],
+): Promise<CommitteeIntelSegmentRow[]> {
+  if (requests.length === 0) return [];
+
+  const startingIndex = await getNextSegmentIndex(session.id);
+  const rows = requests.map((request, requestIndex) =>
+    buildCommitteeIntelSegmentValues(session, startingIndex + requestIndex, request),
+  );
+
+  return policyIntelDb.insert(committeeIntelSegments).values(rows).returning();
+}
+
+async function updateCommitteeIntelSegment(
+  session: CommitteeIntelSessionRow,
+  segment: CommitteeIntelSegmentRow,
+  request: AddCommitteeIntelSegmentRequest,
+): Promise<CommitteeIntelSegmentRow> {
+  const values = buildCommitteeIntelSegmentValues(
+    session,
+    segment.segmentIndex,
+    request,
+    { id: segment.id, createdAt: segment.createdAt },
+  );
+
+  const [updated] = await policyIntelDb
+    .update(committeeIntelSegments)
+    .set({
+      capturedAt: values.capturedAt,
+      startedAtSecond: values.startedAtSecond,
+      endedAtSecond: values.endedAtSecond,
+      speakerName: values.speakerName,
+      speakerRole: values.speakerRole,
+      affiliation: values.affiliation,
+      transcriptText: values.transcriptText,
+      summary: values.summary,
+      issueTagsJson: values.issueTagsJson,
+      position: values.position,
+      importance: values.importance,
+      invited: values.invited,
+      metadataJson: values.metadataJson,
+    })
+    .where(eq(committeeIntelSegments.id, segment.id))
+    .returning();
+
+  return updated ?? { ...segment, ...values };
+}
+
+async function mergeDuplicateFeedSegments(session: CommitteeIntelSessionRow): Promise<void> {
+  const segments = await loadSessionSegments(session.id);
+  const grouped = new Map<string, CommitteeIntelSegmentRow[]>();
+
+  for (const segment of segments) {
+    const identityKey = buildStoredSegmentFeedIdentity(segment);
+    if (!identityKey) continue;
+
+    const current = grouped.get(identityKey) ?? [];
+    current.push(segment);
+    grouped.set(identityKey, current);
+  }
+
+  for (const group of grouped.values()) {
+    if (group.length < 2) continue;
+
+    const orderedByIndex = [...group].sort((left, right) => left.segmentIndex - right.segmentIndex || left.id - right.id);
+    const orderedByFreshness = [...group].sort((left, right) => {
+      const rightTime = toDate(right.createdAt)?.getTime() ?? 0;
+      const leftTime = toDate(left.createdAt)?.getTime() ?? 0;
+      return rightTime - leftTime || right.id - left.id;
+    });
+
+    const keeper = orderedByIndex[0];
+    const canonical = orderedByFreshness[0];
+    if (canonical.id !== keeper.id) {
+      await updateCommitteeIntelSegment(session, keeper, {
+        capturedAt: toIsoString(canonical.capturedAt) ?? undefined,
+        startedAtSecond: canonical.startedAtSecond,
+        endedAtSecond: canonical.endedAtSecond,
+        speakerName: canonical.speakerName ?? undefined,
+        speakerRole: canonical.speakerRole,
+        affiliation: canonical.affiliation ?? undefined,
+        transcriptText: canonical.transcriptText,
+        invited: canonical.invited,
+        metadata: getMetadataRecord(canonical.metadataJson),
+      });
+    }
+
+    const duplicateIds = group
+      .filter((segment) => segment.id !== keeper.id)
+      .map((segment) => segment.id);
+
+    if (duplicateIds.length === 0) continue;
+
+    await policyIntelDb
+      .delete(committeeIntelSignals)
+      .where(and(
+        eq(committeeIntelSignals.sessionId, session.id),
+        inArray(committeeIntelSignals.segmentId, duplicateIds),
+      ));
+
+    await policyIntelDb
+      .delete(committeeIntelSegments)
+      .where(inArray(committeeIntelSegments.id, duplicateIds));
+  }
 }
 
 function buildAnalysis(
@@ -825,6 +1539,9 @@ function buildAnalysis(
     .filter((entry) => entry.entityType !== "legislator")
     .slice(0, 10);
 
+  const witnessRankings = buildWitnessRankings(activeWitnesses, keyMoments);
+  const postHearingRecap = buildPostHearingRecap(session, issueCoverage, electedFocus, witnessRankings, segments);
+
   const positionMap = entitySummaries
     .flatMap<CommitteeIntelPositionRow>((entry) => entry.positions.map((position) => ({
       entityName: entry.entityName,
@@ -852,6 +1569,8 @@ function buildAnalysis(
     keyMoments,
     electedFocus,
     activeWitnesses,
+    witnessRankings,
+    postHearingRecap,
     positionMap,
   };
 }
@@ -911,9 +1630,23 @@ export async function createCommitteeIntelSessionFromHearing(
       monitoringNotes: request.monitoringNotes,
       videoUrl: request.videoUrl,
       agendaUrl: request.agendaUrl ?? hearingRow.agendaUrl ?? null,
+      transcriptSourceType: request.transcriptSourceType,
+      transcriptSourceUrl: request.transcriptSourceUrl,
+      autoIngestEnabled: request.autoIngestEnabled,
+      autoIngestIntervalSeconds: request.autoIngestIntervalSeconds,
       status: request.status,
     });
   }
+
+  const transcriptSourceType = request.transcriptSourceType ?? "manual";
+  const transcriptSourceUrl = resolveCandidateTranscriptSourceUrl(
+    transcriptSourceType,
+    request.transcriptSourceUrl,
+    request.videoUrl,
+  );
+  const autoIngestEnabled = Boolean(request.autoIngestEnabled);
+  const autoIngestIntervalSeconds = clamp(request.autoIngestIntervalSeconds ?? 120, 30, 3600);
+  const autoIngestStatus = resolveAutoIngestStatus(transcriptSourceType, transcriptSourceUrl, autoIngestEnabled, "idle");
 
   const [created] = await policyIntelDb
     .insert(committeeIntelSessions)
@@ -927,6 +1660,11 @@ export async function createCommitteeIntelSessionFromHearing(
       status: request.status ?? "planned",
       agendaUrl: request.agendaUrl ?? hearingRow.agendaUrl ?? null,
       videoUrl: request.videoUrl ?? null,
+      transcriptSourceType,
+      transcriptSourceUrl,
+      autoIngestEnabled,
+      autoIngestIntervalSeconds,
+      autoIngestStatus,
       focusTopicsJson: cleanList(request.focusTopics),
       interimChargesJson: cleanList(request.interimCharges),
       clientContext: request.clientContext?.trim() || null,
@@ -951,13 +1689,38 @@ export async function updateCommitteeIntelSession(
     throw new Error(`Committee intelligence session ${sessionId} not found`);
   }
 
+  const nextTranscriptSourceType = patch.transcriptSourceType ?? core.session.transcriptSourceType;
+  const nextVideoUrl = patch.videoUrl === undefined ? core.session.videoUrl : patch.videoUrl;
+  const nextTranscriptSourceUrl =
+    patch.transcriptSourceUrl === undefined
+      ? core.session.transcriptSourceUrl
+      : resolveCandidateTranscriptSourceUrl(nextTranscriptSourceType, patch.transcriptSourceUrl, nextVideoUrl);
+  const nextAutoIngestEnabled = patch.autoIngestEnabled ?? core.session.autoIngestEnabled;
+  const nextAutoIngestIntervalSeconds = clamp(
+    patch.autoIngestIntervalSeconds ?? core.session.autoIngestIntervalSeconds,
+    30,
+    3600,
+  );
+  const nextAutoIngestStatus = resolveAutoIngestStatus(
+    nextTranscriptSourceType,
+    nextTranscriptSourceUrl,
+    nextAutoIngestEnabled,
+    core.session.autoIngestStatus,
+  );
+
   await policyIntelDb
     .update(committeeIntelSessions)
     .set({
       title: patch.title?.trim() || core.session.title,
       status: patch.status ?? core.session.status,
       agendaUrl: patch.agendaUrl === undefined ? core.session.agendaUrl : patch.agendaUrl,
-      videoUrl: patch.videoUrl === undefined ? core.session.videoUrl : patch.videoUrl,
+      videoUrl: nextVideoUrl,
+      transcriptSourceType: nextTranscriptSourceType,
+      transcriptSourceUrl: nextTranscriptSourceUrl,
+      autoIngestEnabled: nextAutoIngestEnabled,
+      autoIngestIntervalSeconds: nextAutoIngestIntervalSeconds,
+      autoIngestStatus: nextAutoIngestStatus,
+      autoIngestError: nextAutoIngestStatus === "error" ? core.session.autoIngestError : null,
       focusTopicsJson: patch.focusTopics ? cleanList(patch.focusTopics) : core.session.focusTopicsJson,
       interimChargesJson: patch.interimCharges ? cleanList(patch.interimCharges) : core.session.interimChargesJson,
       clientContext: patch.clientContext === undefined ? core.session.clientContext : patch.clientContext,
@@ -984,54 +1747,218 @@ export async function addCommitteeIntelSegment(
     throw new Error("transcriptText is required");
   }
 
-  const [lastSegment] = await policyIntelDb
-    .select({ segmentIndex: committeeIntelSegments.segmentIndex })
-    .from(committeeIntelSegments)
-    .where(eq(committeeIntelSegments.sessionId, sessionId))
-    .orderBy(desc(committeeIntelSegments.segmentIndex))
-    .limit(1);
-
-  const capturedAt = toDate(request.capturedAt) ?? new Date();
-  const baseSegment = {
-    id: 0,
-    sessionId,
-    segmentIndex: (lastSegment?.segmentIndex ?? -1) + 1,
-    capturedAt,
-    startedAtSecond: request.startedAtSecond ?? null,
-    endedAtSecond: request.endedAtSecond ?? null,
-    speakerName: request.speakerName?.trim() || null,
-    speakerRole: request.speakerRole ?? "unknown",
-    affiliation: request.affiliation?.trim() || null,
+  await insertCommitteeIntelSegments(core.session, [{
+    ...request,
     transcriptText,
-    summary: null,
-    issueTagsJson: [],
-    position: "unknown" as CommitteeIntelPosition,
-    importance: 0,
-    invited: request.invited ?? false,
-    metadataJson: request.metadata ?? {},
-    createdAt: new Date(),
-  } as CommitteeIntelSegmentRow;
+  }]);
 
-  const derived = deriveSegment(baseSegment, core.session);
-  await policyIntelDb.insert(committeeIntelSegments).values({
-    sessionId,
-    segmentIndex: baseSegment.segmentIndex,
-    capturedAt,
-    startedAtSecond: baseSegment.startedAtSecond,
-    endedAtSecond: baseSegment.endedAtSecond,
-    speakerName: baseSegment.speakerName,
-    speakerRole: derived.speakerRole,
-    affiliation: baseSegment.affiliation,
-    transcriptText,
-    summary: derived.summary,
-    issueTagsJson: derived.issueTagsJson,
-    position: derived.position,
-    importance: derived.importance,
-    invited: derived.invited,
-    metadataJson: derived.metadataJson,
-  });
+  if (core.session.status === "planned") {
+    await policyIntelDb
+      .update(committeeIntelSessions)
+      .set({
+        status: "monitoring",
+        updatedAt: new Date(),
+      })
+      .where(eq(committeeIntelSessions.id, sessionId));
+  }
 
   return refreshCommitteeIntelSession(sessionId);
+}
+
+export async function syncCommitteeIntelTranscriptFeed(
+  sessionId: number,
+): Promise<{ detail: CommitteeIntelSessionDetail; sync: CommitteeIntelTranscriptSyncResult }> {
+  const core = await loadSessionCore(sessionId);
+  if (!core) {
+    throw new Error(`Committee intelligence session ${sessionId} not found`);
+  }
+
+  const sourceType = core.session.transcriptSourceType;
+  const sourceUrl = resolveTranscriptSourceUrl(core.session);
+  if (sourceType === "manual" || !sourceUrl) {
+    const message = "This session does not have an automatic transcript feed configured";
+    await policyIntelDb
+      .update(committeeIntelSessions)
+      .set({
+        autoIngestStatus: core.session.autoIngestEnabled ? "error" : "idle",
+        autoIngestError: message,
+        updatedAt: new Date(),
+      })
+      .where(eq(committeeIntelSessions.id, sessionId));
+    throw new Error(message);
+  }
+
+  await policyIntelDb
+    .update(committeeIntelSessions)
+    .set({
+      autoIngestStatus: "syncing",
+      autoIngestError: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(committeeIntelSessions.id, sessionId));
+
+  try {
+    const response = await fetch(sourceUrl, {
+      headers: {
+        Accept: "text/vtt,application/json,text/plain;q=0.9,*/*;q=0.5",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Transcript feed request failed with status ${response.status}`);
+    }
+
+    const content = await response.text();
+    const parsedEntries = parseTranscriptFeed(content, sourceType, core.session);
+    await mergeDuplicateFeedSegments(core.session);
+    const existingSegments = await loadSessionSegments(sessionId);
+    const existingByKey = new Map(existingSegments.map((segment) => [buildStoredSegmentDedupKey(segment), segment]));
+    const seenParsedKeys = new Set<string>();
+    const requests: AddCommitteeIntelSegmentRequest[] = [];
+    let updatedSegments = 0;
+    let duplicateSegments = 0;
+
+    for (const entry of parsedEntries) {
+      const dedupKey = buildFeedEntryDedupKey(core.session.id, entry);
+      if (seenParsedKeys.has(dedupKey)) {
+        duplicateSegments += 1;
+        continue;
+      }
+      seenParsedKeys.add(dedupKey);
+
+      const request = {
+        capturedAt: entry.capturedAt,
+        startedAtSecond: entry.startedAtSecond,
+        endedAtSecond: entry.endedAtSecond,
+        speakerName: entry.speakerName ?? undefined,
+        speakerRole: entry.speakerRole,
+        affiliation: entry.affiliation ?? undefined,
+        transcriptText: entry.transcriptText,
+        invited: entry.invited,
+        metadata: entry.metadata,
+      } satisfies AddCommitteeIntelSegmentRequest;
+
+      const existingSegment = existingByKey.get(dedupKey);
+      if (!existingSegment) {
+        requests.push(request);
+        continue;
+      }
+
+      if (buildStoredSegmentExternalKey(existingSegment) !== entry.externalKey) {
+        await updateCommitteeIntelSegment(core.session, existingSegment, request);
+        updatedSegments += 1;
+      } else {
+        duplicateSegments += 1;
+      }
+    }
+
+    await insertCommitteeIntelSegments(core.session, requests);
+
+    const cursor = parsedEntries.at(-1)?.cursorValue ?? core.session.lastAutoIngestCursor ?? null;
+    await policyIntelDb
+      .update(committeeIntelSessions)
+      .set({
+        status: core.session.status === "planned" && (requests.length > 0 || updatedSegments > 0) ? "monitoring" : core.session.status,
+        autoIngestStatus: resolveAutoIngestStatus(sourceType, sourceUrl, core.session.autoIngestEnabled, "ready"),
+        autoIngestError: null,
+        lastAutoIngestedAt: new Date(),
+        lastAutoIngestCursor: cursor,
+        updatedAt: new Date(),
+      })
+      .where(eq(committeeIntelSessions.id, sessionId));
+
+    const detail = await refreshCommitteeIntelSession(sessionId);
+    return {
+      detail,
+      sync: {
+        sessionId,
+        sourceType,
+        sourceUrl,
+        fetchedAt: new Date().toISOString(),
+        totalParsed: parsedEntries.length,
+        ingestedSegments: requests.length,
+        updatedSegments,
+        duplicateSegments,
+        cursor,
+        status: detail.session.autoIngestStatus,
+      },
+    };
+  } catch (error: any) {
+    const message = error?.message ?? String(error);
+    await policyIntelDb
+      .update(committeeIntelSessions)
+      .set({
+        autoIngestStatus: "error",
+        autoIngestError: message,
+        updatedAt: new Date(),
+      })
+      .where(eq(committeeIntelSessions.id, sessionId));
+    throw new Error(message);
+  }
+}
+
+export async function syncCommitteeIntelAutoIngestSessions(): Promise<Record<string, unknown>> {
+  const rows = await policyIntelDb
+    .select()
+    .from(committeeIntelSessions)
+    .where(eq(committeeIntelSessions.autoIngestEnabled, true))
+    .orderBy(asc(committeeIntelSessions.hearingDate), asc(committeeIntelSessions.id));
+
+  let sessionsSynced = 0;
+  let ingestedSegments = 0;
+  let sessionsSkipped = 0;
+  const errors: string[] = [];
+
+  for (const session of rows) {
+    if (session.status === "completed") {
+      sessionsSkipped += 1;
+      continue;
+    }
+
+    const lastSync = toDate(session.lastAutoIngestedAt);
+    const intervalMs = Math.max(session.autoIngestIntervalSeconds, 30) * 1000;
+    if (lastSync && Date.now() - lastSync.getTime() < intervalMs) {
+      sessionsSkipped += 1;
+      continue;
+    }
+
+    try {
+      const result = await syncCommitteeIntelTranscriptFeed(session.id);
+      sessionsSynced += 1;
+      ingestedSegments += result.sync.ingestedSegments;
+    } catch (error: any) {
+      errors.push(`session ${session.id}: ${error?.message ?? String(error)}`);
+    }
+  }
+
+  return {
+    sessionsChecked: rows.length,
+    sessionsSynced,
+    sessionsSkipped,
+    ingestedSegments,
+    errors: errors.length,
+    errorMessages: errors.slice(0, 10),
+  };
+}
+
+export async function generateCommitteeIntelPostHearingRecap(
+  sessionId: number,
+): Promise<CommitteeIntelPostHearingRecap> {
+  const detail = await refreshCommitteeIntelSession(sessionId);
+  if (detail.analysis.postHearingRecap) {
+    return detail.analysis.postHearingRecap;
+  }
+
+  return {
+    generatedAt: new Date().toISOString(),
+    headline: `${detail.session.committee} recap is not ready yet.`,
+    overview: "No transcript segments have been ingested for this session yet.",
+    issueHighlights: [],
+    memberPressurePoints: [],
+    witnessLeaderboard: [],
+    agencyCommitments: [],
+    followUpActions: ["Enable automatic transcript ingestion or add transcript segments before generating a recap."],
+  };
 }
 
 export async function refreshCommitteeIntelSession(sessionId: number): Promise<CommitteeIntelSessionDetail> {

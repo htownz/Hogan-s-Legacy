@@ -15,6 +15,7 @@ import { runLegiscanJob, type RunLegiscanResult } from "./jobs/run-legiscan";
 import { runTloRssJob, type RunTloRssResult } from "./jobs/run-tlo-rss";
 import { runLocalFeedsJob, type RunLocalFeedsResult } from "./jobs/run-local-feeds";
 import { runTecImportJob, type RunTecResult } from "./jobs/run-tec";
+import { syncCommitteeIntelAutoIngestSessions } from "./services/committee-intel-service";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -67,6 +68,9 @@ const MAX_HISTORY = 50;
 const DEFAULT_JOB_TIMEOUT_MS = Number(process.env.SCHEDULER_JOB_TIMEOUT_MS || 20 * 60 * 1000);
 const DEFAULT_INTEL_BRIEFING_TIMEOUT_MS = Number(
   process.env.SCHEDULER_INTEL_BRIEFING_TIMEOUT_MS || 15 * 60 * 1000,
+);
+const DEFAULT_COMMITTEE_INTEL_SYNC_TIMEOUT_MS = Number(
+  process.env.SCHEDULER_COMMITTEE_INTEL_SYNC_TIMEOUT_MS || 5 * 60 * 1000,
 );
 
 let schedulerEnabled = false;
@@ -227,6 +231,10 @@ async function intelligenceBriefing(): Promise<Record<string, unknown>> {
   };
 }
 
+async function committeeIntelSync(): Promise<Record<string, unknown>> {
+  return syncCommitteeIntelAutoIngestSessions();
+}
+
 // ── Public API ───────────────────────────────────────────────────────────────
 
 export function startScheduler() {
@@ -246,6 +254,8 @@ export function startScheduler() {
   const tecCron = process.env.CRON_TEC_SWEEP ?? "0 3 * * *"; // daily at 3 AM
   const intelBriefingCron = process.env.CRON_INTEL_BRIEFING ?? "30 */6 * * *"; // every 6 hours
   const intelBriefingEnabled = process.env.SCHEDULER_INTEL_BRIEFING !== "false";
+  const committeeIntelSyncCron = process.env.CRON_COMMITTEE_INTEL_SYNC ?? "*/2 * * * *"; // every 2 minutes
+  const committeeIntelSyncEnabled = process.env.SCHEDULER_COMMITTEE_INTEL_SYNC !== "false";
 
   // Register jobs
   const jobDefs: JobDefinition[] = [
@@ -282,6 +292,16 @@ export function startScheduler() {
         DEFAULT_INTEL_BRIEFING_TIMEOUT_MS,
       ),
       enabled: intelBriefingEnabled,
+    },
+    {
+      name: "committee-intel-sync",
+      cron: committeeIntelSyncCron,
+      fn: committeeIntelSync,
+      timeoutMs: normaliseTimeoutMs(
+        Number(process.env.SCHEDULER_COMMITTEE_INTEL_SYNC_TIMEOUT_MS),
+        DEFAULT_COMMITTEE_INTEL_SYNC_TIMEOUT_MS,
+      ),
+      enabled: committeeIntelSyncEnabled,
     },
   ];
 
@@ -349,6 +369,7 @@ export async function triggerJob(jobName: string): Promise<JobRunRecord | null> 
     "local-feeds": localFeeds,
     "tec-sweep": tecSweep,
     "intel-briefing": intelligenceBriefing,
+    "committee-intel-sync": committeeIntelSync,
   };
 
   const runner = runners[jobName];

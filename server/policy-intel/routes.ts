@@ -32,10 +32,12 @@ import { analyzeInfluenceMaps } from "./engine/intelligence/influence-map";
 import {
   addCommitteeIntelSegment,
   createCommitteeIntelSessionFromHearing,
+  generateCommitteeIntelPostHearingRecap,
   generateCommitteeIntelFocusedBrief,
   getCommitteeIntelSession,
   listCommitteeIntelSessions,
   refreshCommitteeIntelSession,
+  syncCommitteeIntelTranscriptFeed,
   updateCommitteeIntelSession,
 } from "./services/committee-intel-service";
 
@@ -1897,7 +1899,7 @@ export function createPolicyIntelRouter() {
   router.post("/scheduler/trigger/:jobName", async (req, res, next) => {
     try {
       const { jobName } = req.params;
-      const validJobs = ["legiscan-recent", "tlo-rss", "local-feeds", "tec-sweep", "intel-briefing"];
+      const validJobs = ["legiscan-recent", "tlo-rss", "local-feeds", "tec-sweep", "intel-briefing", "committee-intel-sync"];
       if (!validJobs.includes(jobName)) {
         return res.status(400).json({ message: `Invalid job name. Valid: ${validJobs.join(", ")}` });
       }
@@ -2198,6 +2200,10 @@ export function createPolicyIntelRouter() {
         monitoringNotes: typeof req.body?.monitoringNotes === "string" ? req.body.monitoringNotes : undefined,
         videoUrl: typeof req.body?.videoUrl === "string" ? req.body.videoUrl : undefined,
         agendaUrl: typeof req.body?.agendaUrl === "string" ? req.body.agendaUrl : undefined,
+        transcriptSourceType: typeof req.body?.transcriptSourceType === "string" ? req.body.transcriptSourceType : undefined,
+        transcriptSourceUrl: typeof req.body?.transcriptSourceUrl === "string" ? req.body.transcriptSourceUrl : undefined,
+        autoIngestEnabled: typeof req.body?.autoIngestEnabled === "boolean" ? req.body.autoIngestEnabled : undefined,
+        autoIngestIntervalSeconds: typeof req.body?.autoIngestIntervalSeconds === "number" ? req.body.autoIngestIntervalSeconds : undefined,
         status: typeof req.body?.status === "string" ? req.body.status : undefined,
       });
 
@@ -2234,6 +2240,10 @@ export function createPolicyIntelRouter() {
         liveSummary: typeof req.body?.liveSummary === "string" || req.body?.liveSummary === null ? req.body.liveSummary : undefined,
         agendaUrl: typeof req.body?.agendaUrl === "string" || req.body?.agendaUrl === null ? req.body.agendaUrl : undefined,
         videoUrl: typeof req.body?.videoUrl === "string" || req.body?.videoUrl === null ? req.body.videoUrl : undefined,
+        transcriptSourceType: typeof req.body?.transcriptSourceType === "string" ? req.body.transcriptSourceType : undefined,
+        transcriptSourceUrl: typeof req.body?.transcriptSourceUrl === "string" || req.body?.transcriptSourceUrl === null ? req.body.transcriptSourceUrl : undefined,
+        autoIngestEnabled: typeof req.body?.autoIngestEnabled === "boolean" ? req.body.autoIngestEnabled : undefined,
+        autoIngestIntervalSeconds: typeof req.body?.autoIngestIntervalSeconds === "number" ? req.body.autoIngestIntervalSeconds : undefined,
         status: typeof req.body?.status === "string" ? req.body.status : undefined,
       });
 
@@ -2281,6 +2291,18 @@ export function createPolicyIntelRouter() {
     }
   });
 
+  router.post("/committee-intel/sessions/:id/sync-feed", async (req, res, next) => {
+    try {
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
+
+      const result = await syncCommitteeIntelTranscriptFeed(id);
+      res.json(result);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
   router.post("/committee-intel/sessions/:id/focused-brief", async (req, res, next) => {
     try {
       const id = parseId(req.params.id);
@@ -2291,6 +2313,18 @@ export function createPolicyIntelRouter() {
 
       const brief = await generateCommitteeIntelFocusedBrief(id, req.body.issue);
       res.json(brief);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.post("/committee-intel/sessions/:id/post-hearing-recap", async (req, res, next) => {
+    try {
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
+
+      const recap = await generateCommitteeIntelPostHearingRecap(id);
+      res.json(recap);
     } catch (err: any) {
       next(err);
     }
