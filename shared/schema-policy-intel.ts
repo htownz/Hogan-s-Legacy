@@ -482,6 +482,7 @@ export const committeeIntelEntityTypeEnum = pgEnum("policy_intel_committee_intel
 
 export const committeeIntelTranscriptSourceTypeEnum = pgEnum("policy_intel_committee_intel_transcript_source_type", [
   "manual",
+  "official",
   "webvtt",
   "json",
   "text",

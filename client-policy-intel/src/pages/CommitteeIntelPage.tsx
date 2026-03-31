@@ -39,7 +39,7 @@ const SPEAKER_ROLES = [
   "moderator",
 ];
 
-const TRANSCRIPT_SOURCE_TYPES = ["manual", "webvtt", "json", "text"];
+const TRANSCRIPT_SOURCE_TYPES = ["official", "manual", "webvtt", "json", "text"];
 
 function formatHearingDate(value: string): string {
   return new Date(value).toLocaleString("en-US", {
@@ -151,8 +151,11 @@ export function CommitteeIntelPage({ hearingId, sessionId }: CommitteeIntelPageP
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [maintenanceNotice, setMaintenanceNotice] = useState<string | null>(null);
   const [savingSession, setSavingSession] = useState(false);
   const [deletingSession, setDeletingSession] = useState(false);
+  const [resettingSession, setResettingSession] = useState(false);
+  const [rebuildingSession, setRebuildingSession] = useState(false);
   const [addingSegment, setAddingSegment] = useState(false);
   const [syncingFeed, setSyncingFeed] = useState(false);
   const [generatingBrief, setGeneratingBrief] = useState(false);
@@ -170,7 +173,7 @@ export function CommitteeIntelPage({ hearingId, sessionId }: CommitteeIntelPageP
     monitoringNotes: "",
     agendaUrl: "",
     videoUrl: "",
-    transcriptSourceType: "manual",
+    transcriptSourceType: "official",
     transcriptSourceUrl: "",
     autoIngestEnabled: false,
     autoIngestIntervalSeconds: "120",
@@ -463,6 +466,7 @@ export function CommitteeIntelPage({ hearingId, sessionId }: CommitteeIntelPageP
     if (!sessionDetail) return;
     setSyncingFeed(true);
     setActionError(null);
+    setMaintenanceNotice(null);
     try {
       const result = await api.syncCommitteeIntelFeed(sessionDetail.session.id);
       setSyncResult(result.sync);
@@ -488,6 +492,46 @@ export function CommitteeIntelPage({ hearingId, sessionId }: CommitteeIntelPageP
     }
   }
 
+  async function handleResetSession() {
+    if (!sessionDetail) return;
+    const confirmReset = window.confirm(`Reset monitoring data for "${sessionDetail.session.title}"? This clears synced segments, signals, recap output, and the ingestion cursor but keeps the session shell.`);
+    if (!confirmReset) return;
+
+    setResettingSession(true);
+    setActionError(null);
+    setMaintenanceNotice(null);
+    try {
+      const result = await api.resetCommitteeIntelSession(sessionDetail.session.id);
+      setSyncResult(null);
+      applySessionDetail(result.detail);
+      setMaintenanceNotice(`Reset cleared ${result.reset.clearedSegments} segment${result.reset.clearedSegments === 1 ? "" : "s"} and ${result.reset.clearedSignals} signal${result.reset.clearedSignals === 1 ? "" : "s"}.`);
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setResettingSession(false);
+    }
+  }
+
+  async function handleRebuildSession() {
+    if (!sessionDetail) return;
+    const confirmRebuild = window.confirm(`Rebuild "${sessionDetail.session.title}" from its configured source? This clears existing synced data first and then repopulates the session from the official source or transcript feed.`);
+    if (!confirmRebuild) return;
+
+    setRebuildingSession(true);
+    setActionError(null);
+    setMaintenanceNotice(null);
+    try {
+      const result = await api.rebuildCommitteeIntelSession(sessionDetail.session.id);
+      setSyncResult(result.sync);
+      applySessionDetail(result.detail);
+      setMaintenanceNotice(`Rebuild cleared ${result.reset.clearedSegments} segment${result.reset.clearedSegments === 1 ? "" : "s"} and ${result.reset.clearedSignals} signal${result.reset.clearedSignals === 1 ? "" : "s"} before repopulating the session.`);
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRebuildingSession(false);
+    }
+  }
+
   const primarySession = sessionDetail?.session ?? null;
   const displayedRecap = recap ?? sessionDetail?.analysis.postHearingRecap ?? null;
 
@@ -509,7 +553,7 @@ export function CommitteeIntelPage({ hearingId, sessionId }: CommitteeIntelPageP
             </div>
             <h1 style={{ margin: "8px 0 10px", fontSize: 30, lineHeight: 1.1 }}>Committee Intelligence</h1>
             <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: "#cbd5e1" }}>
-              Launch a live hearing session, paste transcript or caption chunks as the meeting unfolds, and continuously map who is advancing, questioning, or resisting each issue.
+              Launch a live hearing session, wire in official House or Senate committee sources, paste transcript chunks when needed, and continuously map who is advancing, questioning, or resisting each issue.
             </p>
           </div>
           <div style={{ display: "grid", gap: 10, minWidth: 240 }}>
@@ -531,9 +575,15 @@ export function CommitteeIntelPage({ hearingId, sessionId }: CommitteeIntelPageP
         </div>
       )}
 
+      {maintenanceNotice && (
+        <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", color: "#9a3412", borderRadius: 12, padding: 14, fontSize: 13 }}>
+          {maintenanceNotice}
+        </div>
+      )}
+
       {syncResult && (
         <div style={{ background: "#ecfeff", border: "1px solid #a5f3fc", color: "#155e75", borderRadius: 12, padding: 14, fontSize: 13 }}>
-          Feed sync ingested {syncResult.ingestedSegments} segment{syncResult.ingestedSegments === 1 ? "" : "s"}, updated {syncResult.updatedSegments} existing cue{syncResult.updatedSegments === 1 ? "" : "s"}, and skipped {syncResult.duplicateSegments} duplicate{syncResult.duplicateSegments === 1 ? "" : "s"} from {syncResult.sourceType} at {new Date(syncResult.fetchedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}.
+          Source sync ingested {syncResult.ingestedSegments} segment{syncResult.ingestedSegments === 1 ? "" : "s"}, updated {syncResult.updatedSegments} existing cue{syncResult.updatedSegments === 1 ? "" : "s"}, and skipped {syncResult.duplicateSegments} duplicate{syncResult.duplicateSegments === 1 ? "" : "s"} using {syncResult.sourceMode === "audio_transcription" ? "audio transcription" : "a transcript feed"} from {syncResult.sourceLabel ?? syncResult.sourceType} at {new Date(syncResult.fetchedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}.
         </div>
       )}
 
@@ -743,14 +793,14 @@ export function CommitteeIntelPage({ hearingId, sessionId }: CommitteeIntelPageP
                 <input
                   value={sessionForm.videoUrl}
                   onChange={(event) => setSessionForm((current) => ({ ...current, videoUrl: event.target.value }))}
-                  placeholder="Optional livestream or archive URL"
+                  placeholder="Optional livestream, archive page, or direct HLS URL"
                   style={inputStyle}
                 />
               </label>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 <label style={labelStyle}>
-                  Transcript Feed Type
+                  Source Type
                   <select
                     value={sessionForm.transcriptSourceType}
                     onChange={(event) => setSessionForm((current) => ({ ...current, transcriptSourceType: event.target.value }))}
@@ -773,14 +823,22 @@ export function CommitteeIntelPage({ hearingId, sessionId }: CommitteeIntelPageP
               </div>
 
               <label style={labelStyle}>
-                Transcript Feed URL
+                Source URL / Feed Override
                 <input
                   value={sessionForm.transcriptSourceUrl}
                   onChange={(event) => setSessionForm((current) => ({ ...current, transcriptSourceUrl: event.target.value }))}
-                  placeholder="https://example.com/live-captions.vtt or data:text/vtt,..."
+                  placeholder={sessionForm.transcriptSourceType === "official"
+                    ? "Optional official player page, transcript feed, or event-specific override"
+                    : "https://example.com/live-captions.vtt or data:text/vtt,..."}
                   style={inputStyle}
                 />
               </label>
+
+              {sessionForm.transcriptSourceType === "official" && (
+                <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.6 }}>
+                  Official mode resolves Texas House and Senate committee sources automatically. Use the URL fields only when you want to pin the session to a specific official page, transcript feed, or HLS stream.
+                </div>
+              )}
 
               <label style={{ ...labelStyle, gap: 8, flexDirection: "row", alignItems: "center" }}>
                 <input
@@ -788,7 +846,7 @@ export function CommitteeIntelPage({ hearingId, sessionId }: CommitteeIntelPageP
                   checked={sessionForm.autoIngestEnabled}
                   onChange={(event) => setSessionForm((current) => ({ ...current, autoIngestEnabled: event.target.checked }))}
                 />
-                Automatically poll the transcript feed for new segments
+                Automatically poll the official source or transcript feed for new segments
               </label>
 
               {primarySession && (
@@ -811,7 +869,17 @@ export function CommitteeIntelPage({ hearingId, sessionId }: CommitteeIntelPageP
                 )}
                 {primarySession && (
                   <button type="button" onClick={handleSyncFeed} disabled={syncingFeed} style={secondaryButtonStyle}>
-                    {syncingFeed ? "Syncing Feed..." : "Sync Feed Now"}
+                    {syncingFeed ? "Syncing Source..." : "Sync Source Now"}
+                  </button>
+                )}
+                {primarySession && (
+                  <button type="button" onClick={handleRebuildSession} disabled={rebuildingSession} style={secondaryButtonStyle}>
+                    {rebuildingSession ? "Rebuilding..." : "Rebuild From Source"}
+                  </button>
+                )}
+                {primarySession && (
+                  <button type="button" onClick={handleResetSession} disabled={resettingSession} style={warningButtonStyle}>
+                    {resettingSession ? "Resetting..." : "Reset Session Data"}
                   </button>
                 )}
                 {primarySession && (
@@ -1392,6 +1460,17 @@ const destructiveButtonStyle: React.CSSProperties = {
   borderRadius: 10,
   background: "#fef2f2",
   color: "#991b1b",
+  padding: "10px 14px",
+  fontSize: 13,
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
+const warningButtonStyle: React.CSSProperties = {
+  border: "1px solid #fdba74",
+  borderRadius: 10,
+  background: "#fff7ed",
+  color: "#9a3412",
   padding: "10px 14px",
   fontSize: 13,
   fontWeight: 700,

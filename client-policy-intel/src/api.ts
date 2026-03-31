@@ -268,6 +268,10 @@ export const api = {
   }) => apiFetch<CommitteeIntelSessionDetail>("/committee-intel/sessions/from-hearing", { method: "POST", body: JSON.stringify(body) }),
   getCommitteeIntelSession: (id: number) => apiFetch<CommitteeIntelSessionDetail>(`/committee-intel/sessions/${id}`),
   deleteCommitteeIntelSession: (id: number) => apiFetch<{ ok: true; sessionId: number }>(`/committee-intel/sessions/${id}`, { method: "DELETE" }),
+  resetCommitteeIntelSession: (id: number) =>
+    apiFetch<{ detail: CommitteeIntelSessionDetail; reset: CommitteeIntelResetResult }>(`/committee-intel/sessions/${id}/reset`, { method: "POST" }),
+  rebuildCommitteeIntelSession: (id: number) =>
+    apiFetch<CommitteeIntelRebuildResult>(`/committee-intel/sessions/${id}/rebuild`, { method: "POST" }),
   updateCommitteeIntelSession: (id: number, body: {
     title?: string;
     focusTopics?: string[];
@@ -979,7 +983,10 @@ export interface CommitteeIntelPostHearingRecap {
 export interface CommitteeIntelTranscriptSyncResult {
   sessionId: number;
   sourceType: string;
+  sourceMode: "feed" | "audio_transcription";
   sourceUrl: string | null;
+  sourceLabel: string | null;
+  resolvedFrom: string | null;
   fetchedAt: string;
   totalParsed: number;
   ingestedSegments: number;
@@ -988,6 +995,19 @@ export interface CommitteeIntelTranscriptSyncResult {
   cursor: string | null;
   status: string;
   error?: string;
+}
+
+export interface CommitteeIntelResetResult {
+  sessionId: number;
+  clearedSegments: number;
+  clearedSignals: number;
+  resetAt: string;
+}
+
+export interface CommitteeIntelRebuildResult {
+  detail: CommitteeIntelSessionDetail;
+  reset: CommitteeIntelResetResult;
+  sync: CommitteeIntelTranscriptSyncResult | null;
 }
 
 export interface CommitteeIntelSessionDetail {

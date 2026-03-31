@@ -505,6 +505,7 @@ var init_schema_policy_intel = __esm({
     ]);
     committeeIntelTranscriptSourceTypeEnum = pgEnum("policy_intel_committee_intel_transcript_source_type", [
       "manual",
+      "official",
       "webvtt",
       "json",
       "text"
@@ -8346,8 +8347,14 @@ async function runSwarm() {
 // server/policy-intel/services/committee-intel-service.ts
 init_db();
 init_schema_policy_intel();
+import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
+import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { promisify } from "node:util";
 import { and as and11, asc, desc as desc13, eq as eq19, gte as gte10, ilike as ilike5, inArray as inArray3 } from "drizzle-orm";
+import * as cheerio6 from "cheerio";
 var ISSUE_CATALOG = [
   {
     tag: "critical_infrastructure",
@@ -8387,6 +8394,11 @@ var ISSUE_CATALOG = [
 ];
 var AGENCY_HINTS = ["commission", "council", "office", "department", "agency", "authority", "ercot", "utility"];
 var ORGANIZATION_HINTS = ["association", "alliance", "coalition", "chamber", "company", "corp", "foundation", "group", "llc", "inc", "union"];
+var TEXAS_CAPITOL_TIME_ZONE = "America/Chicago";
+var OFFICIAL_TRANSCRIPTION_CLIP_SECONDS = 150;
+var OFFICIAL_TRANSCRIPTION_TIMEOUT_MS = 12e4;
+var FFMPEG_BINARY = process.env.FFMPEG_PATH?.trim() || "ffmpeg";
+var execFileAsync = promisify(execFile);
 function hashValue(value) {
   return createHash("sha1").update(value).digest("hex");
 }
@@ -8421,7 +8433,9 @@ function resolveTranscriptSourceUrl(session) {
 }
 function resolveAutoIngestStatus(sourceType, sourceUrl, autoIngestEnabled, current) {
   if (!autoIngestEnabled) return "idle";
-  if (sourceType === "manual" || !sourceUrl) return current === "error" ? "error" : "idle";
+  if (sourceType === "manual") return current === "error" ? "error" : "idle";
+  if (sourceType === "official") return current === "error" ? "error" : "ready";
+  if (!sourceUrl) return current === "error" ? "error" : "idle";
   return current === "error" ? "error" : "ready";
 }
 function parseTimestampToSeconds(value) {
@@ -8604,6 +8618,546 @@ function parseTranscriptFeed(content, sourceType, session) {
   if (sourceType === "json") return parseJsonFeed(content, session);
   if (sourceType === "text") return parseTextFeed(content, session);
   return [];
+}
+function inferTranscriptFeedTypeFromUrl(value) {
+  const cleaned = cleanUrl(value);
+  if (!cleaned) return null;
+  if (/\.vtt(\?.*)?$/i.test(cleaned)) return "webvtt";
+  if (/\.json(\?.*)?$/i.test(cleaned)) return "json";
+  if (/\.txt(\?.*)?$/i.test(cleaned)) return "text";
+  return null;
+}
+function formatTexasDateKey(value) {
+  const date = toDate(value);
+  if (!date) return null;
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: TEXAS_CAPITOL_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(date);
+}
+function parseUsDateToKey(value) {
+  if (!value) return null;
+  const match = value.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if (!match) return null;
+  const month = Number(match[1]);
+  const day = Number(match[2]);
+  const rawYear = Number(match[3]);
+  const year = rawYear < 100 ? 2e3 + rawYear : rawYear;
+  const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  return Number.isNaN(date.getTime()) ? null : formatTexasDateKey(date);
+}
+function dayDifferenceFromDateKeys(left, right) {
+  if (!left || !right) return Number.POSITIVE_INFINITY;
+  const leftDate = /* @__PURE__ */ new Date(`${left}T12:00:00Z`);
+  const rightDate = /* @__PURE__ */ new Date(`${right}T12:00:00Z`);
+  return Math.round(Math.abs(leftDate.getTime() - rightDate.getTime()) / 864e5);
+}
+function normalizeCommitteeName(value) {
+  return normalizeText(value).replace(/\b(committee|subcommittee|joint|hearing|select|special|part|room|house|senate|on)\b/g, " ").replace(/\b(i|ii|iii|iv|v)\b/g, " ").replace(/\s+/g, " ").trim();
+}
+function tokenizeCommitteeName(value) {
+  return normalizeCommitteeName(value).split(" ").map((token) => token.trim()).filter((token) => token.length >= 2);
+}
+function scoreCommitteeMatch(expected, candidate) {
+  const expectedName = normalizeCommitteeName(expected);
+  const candidateName = normalizeCommitteeName(candidate);
+  if (!expectedName || !candidateName) return 0;
+  if (expectedName === candidateName) return 120;
+  let score = 0;
+  if (candidateName.includes(expectedName) || expectedName.includes(candidateName)) {
+    score += 40;
+  }
+  const expectedTokens = new Set(tokenizeCommitteeName(expected));
+  const candidateTokens = new Set(tokenizeCommitteeName(candidate));
+  let matches = 0;
+  for (const token of expectedTokens) {
+    if (candidateTokens.has(token)) matches += 1;
+  }
+  if (matches === 0) return score;
+  score += matches * 18;
+  score += Math.round(matches / Math.max(expectedTokens.size, candidateTokens.size, 1) * 30);
+  return score;
+}
+function scoreOfficialSourceCandidate(session, candidateTitle, candidateDateKey) {
+  const committeeScore = scoreCommitteeMatch(session.committee, candidateTitle);
+  if (committeeScore === 0) return 0;
+  const hearingDateKey = formatTexasDateKey(session.hearingDate);
+  if (!hearingDateKey || !candidateDateKey) return committeeScore;
+  const dayDifference = dayDifferenceFromDateKeys(hearingDateKey, candidateDateKey);
+  if (dayDifference === 0) return committeeScore + 100;
+  if (dayDifference <= 2) return committeeScore + 30 - dayDifference * 10;
+  if (dayDifference <= 7) return committeeScore - dayDifference * 6;
+  return committeeScore - dayDifference * 12;
+}
+function resolveTexasLegislativeSessionInfo(session) {
+  const sourceValues = [session.agendaUrl, session.videoUrl, session.transcriptSourceUrl].filter((value) => Boolean(value));
+  for (const value of sourceValues) {
+    const match = value.match(/\/tlodocs\/(\d{2,3}[A-Z0-9]*)\//i);
+    if (!match) continue;
+    const rawToken = match[1].toUpperCase();
+    const tokenMatch = rawToken.match(/^(\d{2,3})([A-Z0-9]*)$/);
+    if (!tokenMatch) continue;
+    const suffix = tokenMatch[2] || "R";
+    return {
+      rawToken,
+      sessionNumber: tokenMatch[1],
+      houseArchiveCode: suffix === "R" ? "R" : suffix.replace(/^[A-Z]+/, "") || suffix
+    };
+  }
+  const hearingDate = toDate(session.hearingDate) ?? /* @__PURE__ */ new Date();
+  const year = hearingDate.getUTCFullYear();
+  const bienniumStartYear = year % 2 === 0 ? year - 1 : year;
+  const sessionNumber = 89 + Math.round((bienniumStartYear - 2025) / 2);
+  return {
+    rawToken: null,
+    sessionNumber: String(sessionNumber),
+    houseArchiveCode: "R"
+  };
+}
+function isHlsUrl(value) {
+  return Boolean(value && /\.m3u8(\?.*)?$/i.test(value));
+}
+function extractHouseVideoEventId(value) {
+  const cleaned = cleanUrl(value);
+  if (!cleaned) return null;
+  const match = cleaned.match(/house\.texas\.gov\/videos\/(\d+)/i);
+  if (!match) return null;
+  const eventId = Number(match[1]);
+  return Number.isFinite(eventId) ? eventId : null;
+}
+function extractSenateVideoPlayerUrl(value) {
+  const cleaned = cleanUrl(value);
+  if (!cleaned) return null;
+  return /senate\.texas\.gov\/videoplayer\.php/i.test(cleaned) ? cleaned : null;
+}
+async function fetchJsonResponse(url) {
+  const response = await fetch(url, {
+    headers: {
+      Accept: "application/json,text/plain,*/*"
+    }
+  });
+  if (!response.ok) {
+    throw new Error(`Request for ${url} failed with status ${response.status}`);
+  }
+  return response.json();
+}
+async function fetchTextResponse(url) {
+  const response = await fetch(url, {
+    headers: {
+      Accept: "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5"
+    }
+  });
+  if (!response.ok) {
+    throw new Error(`Request for ${url} failed with status ${response.status}`);
+  }
+  return response.text();
+}
+function buildHouseOfficialSource(event) {
+  const transcriptUrl = cleanUrl(event.videoTTV) ?? cleanUrl(event.videoTXT);
+  return {
+    sourceId: String(event.id),
+    chamber: "House",
+    sourceLabel: event.name,
+    officialPageUrl: cleanUrl(event.EventUrl),
+    videoStreamUrl: cleanUrl(event.videoUrl),
+    transcriptUrl,
+    transcriptFormat: cleanUrl(event.videoTTV) ? "webvtt" : cleanUrl(event.videoTXT) ? "text" : null,
+    eventDateKey: parseUsDateToKey(event.date),
+    metadata: {
+      channel: event.channel ?? null,
+      room: event.room ?? null,
+      duration: event.duration ?? null,
+      captions: Boolean(event.captions)
+    }
+  };
+}
+async function fetchHouseOfficialEventById(eventId) {
+  const event = await fetchJsonResponse(`https://www.house.texas.gov/api/GetVideoEvent/${eventId}`);
+  if (!event?.id) return null;
+  return buildHouseOfficialSource(event);
+}
+async function resolveHouseOfficialSource(session) {
+  const explicitEventId = extractHouseVideoEventId(session.videoUrl) ?? extractHouseVideoEventId(session.transcriptSourceUrl);
+  if (explicitEventId) {
+    return fetchHouseOfficialEventById(explicitEventId);
+  }
+  const { sessionNumber, houseArchiveCode } = resolveTexasLegislativeSessionInfo(session);
+  const events = await fetchJsonResponse(
+    `https://www.house.texas.gov/api/GetVideoEvents/${sessionNumber}/${houseArchiveCode}/published/committee`
+  );
+  const scored = events.map((event) => ({
+    event,
+    score: scoreOfficialSourceCandidate(session, event.name, parseUsDateToKey(event.date))
+  })).filter((candidate) => candidate.score > 0).sort((left, right) => right.score - left.score || left.event.id - right.event.id);
+  const best = scored[0];
+  if (!best || best.score < 110) return null;
+  return buildHouseOfficialSource(best.event);
+}
+function parseSenateArchiveEvents(html) {
+  const $ = cheerio6.load(html);
+  const results = [];
+  $("tr").each((_index, element) => {
+    const link = $(element).find('a[href*="videoplayer.php?vid="]').attr("href");
+    if (!link) return;
+    const url = new URL(link, "https://senate.texas.gov/");
+    const cells = $(element).find("td");
+    const firstCellText = cells.first().text().trim();
+    const titleCell = $(element).find("td.av-prog").first();
+    const title = titleCell.text().replace(/\s+/g, " ").trim() || $(element).text().replace(/\s+/g, " ").trim();
+    results.push({
+      dateKey: parseUsDateToKey(firstCellText),
+      title,
+      officialPageUrl: url.toString(),
+      sourceId: url.searchParams.get("vid") ?? hashValue(url.toString())
+    });
+  });
+  return results;
+}
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+async function decodeSenatePlayerStreamUrl(officialPageUrl) {
+  const html = await fetchTextResponse(officialPageUrl);
+  const atobMatch = html.match(/src:\s*atob\(([^)]+)\)/i);
+  if (atobMatch) {
+    const variableName = atobMatch[1].trim();
+    const variableMatch = html.match(new RegExp(`(?:const|let|var)\\s+${escapeRegExp(variableName)}\\s*=\\s*"([^"]+)"`, "i"));
+    if (variableMatch) {
+      return Buffer.from(variableMatch[1], "base64").toString("utf8");
+    }
+  }
+  const directMatch = html.match(/sources:\s*\[\{src:"([^"]+\.m3u8[^"]*)"/i);
+  return directMatch ? directMatch[1] : null;
+}
+function buildSenateOfficialSource(event, videoStreamUrl) {
+  return {
+    sourceId: event.sourceId,
+    chamber: "Senate",
+    sourceLabel: event.title,
+    officialPageUrl: event.officialPageUrl,
+    videoStreamUrl,
+    transcriptUrl: null,
+    transcriptFormat: null,
+    eventDateKey: event.dateKey,
+    metadata: {}
+  };
+}
+async function resolveSenateOfficialSource(session) {
+  const explicitPlayerUrl = extractSenateVideoPlayerUrl(session.videoUrl) ?? extractSenateVideoPlayerUrl(session.transcriptSourceUrl);
+  if (explicitPlayerUrl) {
+    const videoStreamUrl = await decodeSenatePlayerStreamUrl(explicitPlayerUrl);
+    if (!videoStreamUrl) return null;
+    return buildSenateOfficialSource({
+      dateKey: formatTexasDateKey(session.hearingDate),
+      title: session.committee,
+      officialPageUrl: explicitPlayerUrl,
+      sourceId: new URL(explicitPlayerUrl).searchParams.get("vid") ?? hashValue(explicitPlayerUrl)
+    }, videoStreamUrl);
+  }
+  const { sessionNumber } = resolveTexasLegislativeSessionInfo(session);
+  const archiveHtml = await fetchTextResponse(`https://senate.texas.gov/av-archive.php?sess=${sessionNumber}&lang=en`);
+  const archiveCandidates = parseSenateArchiveEvents(archiveHtml).map((candidate) => ({
+    candidate,
+    score: scoreOfficialSourceCandidate(session, candidate.title, candidate.dateKey)
+  })).filter((candidate) => candidate.score > 0).sort((left, right) => right.score - left.score || left.candidate.officialPageUrl.localeCompare(right.candidate.officialPageUrl));
+  const bestArchive = archiveCandidates[0];
+  if (bestArchive && bestArchive.score >= 110) {
+    const videoStreamUrl = await decodeSenatePlayerStreamUrl(bestArchive.candidate.officialPageUrl);
+    if (videoStreamUrl) {
+      return buildSenateOfficialSource(bestArchive.candidate, videoStreamUrl);
+    }
+  }
+  const hearingDateKey = formatTexasDateKey(session.hearingDate);
+  const todayKey = formatTexasDateKey(/* @__PURE__ */ new Date());
+  if (!hearingDateKey || hearingDateKey !== todayKey) {
+    return null;
+  }
+  const liveHtml = await fetchTextResponse("https://senate.texas.gov/av-live.php");
+  const liveCandidates = parseSenateArchiveEvents(liveHtml).map((candidate) => ({ candidate, score: scoreCommitteeMatch(session.committee, candidate.title) })).filter((candidate) => candidate.score >= 60).sort((left, right) => right.score - left.score || left.candidate.officialPageUrl.localeCompare(right.candidate.officialPageUrl));
+  const bestLive = liveCandidates[0];
+  if (!bestLive) return null;
+  const liveStreamUrl = await decodeSenatePlayerStreamUrl(bestLive.candidate.officialPageUrl);
+  return liveStreamUrl ? buildSenateOfficialSource(bestLive.candidate, liveStreamUrl) : null;
+}
+async function resolveOfficialCommitteeSource(session) {
+  const explicitVideoUrl = cleanUrl(session.videoUrl) ?? cleanUrl(session.transcriptSourceUrl);
+  if (explicitVideoUrl && isHlsUrl(explicitVideoUrl)) {
+    return {
+      sourceId: hashValue(explicitVideoUrl),
+      chamber: normalizeText(session.chamber).includes("house") ? "House" : "Senate",
+      sourceLabel: session.title,
+      officialPageUrl: explicitVideoUrl,
+      videoStreamUrl: explicitVideoUrl,
+      transcriptUrl: null,
+      transcriptFormat: null,
+      eventDateKey: formatTexasDateKey(session.hearingDate),
+      metadata: {}
+    };
+  }
+  const normalizedChamber = normalizeText(session.chamber);
+  if (normalizedChamber.includes("house")) {
+    return resolveHouseOfficialSource(session);
+  }
+  if (normalizedChamber.includes("senate")) {
+    return resolveSenateOfficialSource(session);
+  }
+  if (normalizedChamber.includes("joint")) {
+    return await resolveHouseOfficialSource(session) ?? await resolveSenateOfficialSource(session);
+  }
+  return null;
+}
+async function resolveTranscriptSyncSource(session) {
+  if (session.transcriptSourceType === "manual") {
+    throw new Error("This session does not have an automatic transcript source configured");
+  }
+  if (session.transcriptSourceType !== "official") {
+    const sourceUrl = resolveTranscriptSourceUrl(session);
+    if (!sourceUrl) {
+      throw new Error("This session does not have an automatic transcript feed configured");
+    }
+    return {
+      sourceType: session.transcriptSourceType,
+      sourceMode: "feed",
+      sourceUrl,
+      sourceLabel: session.title,
+      resolvedFrom: sourceUrl,
+      feedType: session.transcriptSourceType,
+      officialSource: null
+    };
+  }
+  const explicitFeedUrl = cleanUrl(session.transcriptSourceUrl);
+  const explicitFeedType = inferTranscriptFeedTypeFromUrl(explicitFeedUrl);
+  if (explicitFeedUrl && explicitFeedType) {
+    return {
+      sourceType: "official",
+      sourceMode: "feed",
+      sourceUrl: explicitFeedUrl,
+      sourceLabel: session.title,
+      resolvedFrom: explicitFeedUrl,
+      feedType: explicitFeedType,
+      officialSource: null
+    };
+  }
+  const officialSource = await resolveOfficialCommitteeSource(session);
+  if (!officialSource) {
+    throw new Error(`No official ${session.chamber.toLowerCase()} committee source is available for ${session.committee} yet`);
+  }
+  if (officialSource.transcriptUrl && officialSource.transcriptFormat) {
+    return {
+      sourceType: "official",
+      sourceMode: "feed",
+      sourceUrl: officialSource.transcriptUrl,
+      sourceLabel: officialSource.sourceLabel,
+      resolvedFrom: officialSource.officialPageUrl ?? officialSource.transcriptUrl,
+      feedType: officialSource.transcriptFormat,
+      officialSource
+    };
+  }
+  if (officialSource.videoStreamUrl) {
+    return {
+      sourceType: "official",
+      sourceMode: "audio_transcription",
+      sourceUrl: officialSource.videoStreamUrl,
+      sourceLabel: officialSource.sourceLabel,
+      resolvedFrom: officialSource.officialPageUrl ?? officialSource.videoStreamUrl,
+      feedType: null,
+      officialSource
+    };
+  }
+  throw new Error(`Official source resolution succeeded for ${session.committee}, but no transcript or video stream is available yet`);
+}
+function parseCursorSecond(value) {
+  const cleaned = value?.trim();
+  if (!cleaned) return 0;
+  const match = cleaned.match(/^(\d+)/);
+  if (!match) return 0;
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
+}
+function buildOfficialTranscriptionPrompt(session, officialSource) {
+  const hints = cleanList(session.focusTopicsJson).slice(0, 5);
+  return [
+    `Texas ${officialSource.chamber} committee hearing transcription.`,
+    `Committee: ${session.committee}.`,
+    hints.length > 0 ? `Priority topics: ${hints.join(", ")}.` : null,
+    "Keep legislative acronyms, witness names, and agency names verbatim when they are intelligible."
+  ].filter((value) => Boolean(value)).join(" ");
+}
+async function extractAudioClipFromStream(streamUrl, startSecond, durationSeconds) {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "committee-intel-"));
+  const filePath = path.join(tempDir, `clip-${Date.now()}.mp3`);
+  const args = [
+    "-y",
+    "-hide_banner",
+    "-loglevel",
+    "error",
+    "-ss",
+    String(Math.max(0, startSecond)),
+    "-i",
+    streamUrl,
+    "-t",
+    String(Math.max(30, durationSeconds)),
+    "-vn",
+    "-ac",
+    "1",
+    "-ar",
+    "16000",
+    "-b:a",
+    "32k",
+    filePath
+  ];
+  try {
+    await execFileAsync(FFMPEG_BINARY, args, {
+      timeout: OFFICIAL_TRANSCRIPTION_TIMEOUT_MS,
+      windowsHide: true,
+      maxBuffer: 2 * 1024 * 1024
+    });
+    const info = await stat(filePath);
+    if (info.size < 1024) {
+      throw new Error("ffmpeg produced an empty audio clip");
+    }
+    return {
+      filePath,
+      cleanup: async () => {
+        await rm(tempDir, { recursive: true, force: true });
+      }
+    };
+  } catch (error) {
+    await rm(tempDir, { recursive: true, force: true });
+    throw new Error(error?.message ?? "ffmpeg audio extraction failed");
+  }
+}
+async function transcribeAudioFile(filePath, prompt) {
+  if (!process.env.OPENAI_API_KEY?.trim()) {
+    throw new Error("OPENAI_API_KEY is not configured for official video transcription");
+  }
+  const buffer = await readFile(filePath);
+  const formData = new FormData();
+  formData.append("file", new File([buffer], path.basename(filePath), { type: "audio/mpeg" }));
+  formData.append("model", "whisper-1");
+  formData.append("language", "en");
+  formData.append("response_format", "verbose_json");
+  formData.append("timestamp_granularities[]", "segment");
+  if (prompt.trim()) {
+    formData.append("prompt", prompt.trim());
+  }
+  const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
+    },
+    body: formData
+  });
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Audio transcription failed with status ${response.status}: ${body.slice(0, 300)}`);
+  }
+  const data = await response.json();
+  return {
+    text: typeof data.text === "string" ? data.text : "",
+    segments: Array.isArray(data.segments) ? data.segments.map((segment) => ({
+      start: Number(segment.start ?? 0),
+      end: Number(segment.end ?? segment.start ?? 0),
+      text: typeof segment.text === "string" ? segment.text : ""
+    })).filter((segment) => Number.isFinite(segment.start) && Number.isFinite(segment.end) && segment.text.trim().length > 0) : []
+  };
+}
+async function buildOfficialTranscriptEntries(session, officialSource) {
+  if (!officialSource.videoStreamUrl) {
+    throw new Error(`Official source for ${session.committee} does not expose a playable video stream`);
+  }
+  const clipStartSecond = parseCursorSecond(session.lastAutoIngestCursor);
+  const extractedAudio = await extractAudioClipFromStream(
+    officialSource.videoStreamUrl,
+    clipStartSecond,
+    OFFICIAL_TRANSCRIPTION_CLIP_SECONDS
+  );
+  try {
+    const transcription = await transcribeAudioFile(
+      extractedAudio.filePath,
+      buildOfficialTranscriptionPrompt(session, officialSource)
+    );
+    const metadataBase = {
+      sourceType: "official",
+      sourceId: officialSource.sourceId,
+      officialPageUrl: officialSource.officialPageUrl,
+      videoStreamUrl: officialSource.videoStreamUrl,
+      sourceLabel: officialSource.sourceLabel,
+      ...officialSource.metadata
+    };
+    const entries = transcription.segments.length > 0 ? transcription.segments.map((segment, index2) => {
+      const startedAtSecond = clipStartSecond + Math.max(0, Math.floor(segment.start));
+      const endedAtSecond = clipStartSecond + Math.max(Math.floor(segment.end), Math.floor(segment.start));
+      return buildFeedEntry(session, index2, {
+        cursorValue: String(startedAtSecond),
+        startedAtSecond,
+        endedAtSecond,
+        transcriptText: segment.text,
+        metadata: metadataBase
+      });
+    }).filter((entry) => Boolean(entry)) : (() => {
+      const fallback = buildFeedEntry(session, clipStartSecond, {
+        cursorValue: String(clipStartSecond),
+        startedAtSecond: clipStartSecond,
+        endedAtSecond: clipStartSecond + OFFICIAL_TRANSCRIPTION_CLIP_SECONDS,
+        transcriptText: transcription.text,
+        metadata: metadataBase
+      });
+      return fallback ? [fallback] : [];
+    })();
+    const lastEntry = entries.at(-1) ?? null;
+    const cursor = lastEntry ? String(lastEntry.endedAtSecond ?? lastEntry.startedAtSecond ?? clipStartSecond) : null;
+    return { entries, cursor };
+  } finally {
+    await extractedAudio.cleanup();
+  }
+}
+async function applyTranscriptEntries(session, parsedEntries) {
+  await mergeDuplicateFeedSegments(session);
+  const existingSegments = await loadSessionSegments(session.id);
+  const existingByKey = new Map(existingSegments.map((segment) => [buildStoredSegmentDedupKey(segment), segment]));
+  const seenParsedKeys = /* @__PURE__ */ new Set();
+  const requests = [];
+  let updatedSegments = 0;
+  let duplicateSegments = 0;
+  for (const entry of parsedEntries) {
+    const dedupKey = buildFeedEntryDedupKey(session.id, entry);
+    if (seenParsedKeys.has(dedupKey)) {
+      duplicateSegments += 1;
+      continue;
+    }
+    seenParsedKeys.add(dedupKey);
+    const request = {
+      capturedAt: entry.capturedAt,
+      startedAtSecond: entry.startedAtSecond,
+      endedAtSecond: entry.endedAtSecond,
+      speakerName: entry.speakerName ?? void 0,
+      speakerRole: entry.speakerRole,
+      affiliation: entry.affiliation ?? void 0,
+      transcriptText: entry.transcriptText,
+      invited: entry.invited,
+      metadata: entry.metadata
+    };
+    const existingSegment = existingByKey.get(dedupKey);
+    if (!existingSegment) {
+      requests.push(request);
+      continue;
+    }
+    if (buildStoredSegmentExternalKey(existingSegment) !== entry.externalKey) {
+      await updateCommitteeIntelSegment(session, existingSegment, request);
+      updatedSegments += 1;
+    } else {
+      duplicateSegments += 1;
+    }
+  }
+  await insertCommitteeIntelSegments(session, requests);
+  return {
+    ingestedSegments: requests.length,
+    updatedSegments,
+    duplicateSegments
+  };
 }
 function normalizeText(value) {
   return (value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\b(senator|sen|representative|rep|chairman|chairwoman|chair|dr|mr|mrs|ms)\b/g, " ").replace(/\s+/g, " ").trim();
@@ -9103,7 +9657,14 @@ async function insertCommitteeIntelSegments(session, requests) {
   const rows = requests.map(
     (request, requestIndex) => buildCommitteeIntelSegmentValues(session, startingIndex + requestIndex, request)
   );
-  return policyIntelDb.insert(committeeIntelSegments).values(rows).returning();
+  const inserted = [];
+  const batchSize = 250;
+  for (let index2 = 0; index2 < rows.length; index2 += batchSize) {
+    const batch = rows.slice(index2, index2 + batchSize);
+    const created = await policyIntelDb.insert(committeeIntelSegments).values(batch).returning();
+    inserted.push(...created);
+  }
+  return inserted;
 }
 async function updateCommitteeIntelSegment(session, segment, request) {
   const values = buildCommitteeIntelSegmentValues(
@@ -9389,6 +9950,53 @@ async function deleteCommitteeIntelSession(sessionId) {
   await policyIntelDb.delete(committeeIntelSessions).where(eq19(committeeIntelSessions.id, sessionId));
   return { ok: true, sessionId };
 }
+async function resetCommitteeIntelSession(sessionId) {
+  const core = await loadSessionCore(sessionId);
+  if (!core) {
+    throw new Error(`Committee intelligence session ${sessionId} not found`);
+  }
+  const [segments, signals] = await Promise.all([
+    loadSessionSegments(sessionId),
+    loadSessionSignals(sessionId)
+  ]);
+  await policyIntelDb.delete(committeeIntelSignals).where(eq19(committeeIntelSignals.sessionId, sessionId));
+  await policyIntelDb.delete(committeeIntelSegments).where(eq19(committeeIntelSegments.sessionId, sessionId));
+  await policyIntelDb.update(committeeIntelSessions).set({
+    status: "planned",
+    autoIngestStatus: resolveAutoIngestStatus(
+      core.session.transcriptSourceType,
+      resolveTranscriptSourceUrl(core.session),
+      core.session.autoIngestEnabled,
+      "idle"
+    ),
+    autoIngestError: null,
+    lastAutoIngestedAt: null,
+    lastAutoIngestCursor: null,
+    liveSummary: null,
+    analyticsJson: {},
+    lastAnalyzedAt: null,
+    updatedAt: /* @__PURE__ */ new Date()
+  }).where(eq19(committeeIntelSessions.id, sessionId));
+  const detail = await refreshCommitteeIntelSession(sessionId);
+  return {
+    detail,
+    reset: {
+      sessionId,
+      clearedSegments: segments.length,
+      clearedSignals: signals.length,
+      resetAt: (/* @__PURE__ */ new Date()).toISOString()
+    }
+  };
+}
+async function rebuildCommitteeIntelSession(sessionId) {
+  const reset = await resetCommitteeIntelSession(sessionId);
+  const synced = await syncCommitteeIntelTranscriptFeed(sessionId);
+  return {
+    detail: synced.detail,
+    reset: reset.reset,
+    sync: synced.sync
+  };
+}
 async function updateCommitteeIntelSession(sessionId, patch) {
   const core = await loadSessionCore(sessionId);
   if (!core) {
@@ -9455,10 +10063,8 @@ async function syncCommitteeIntelTranscriptFeed(sessionId) {
   if (!core) {
     throw new Error(`Committee intelligence session ${sessionId} not found`);
   }
-  const sourceType = core.session.transcriptSourceType;
-  const sourceUrl = resolveTranscriptSourceUrl(core.session);
-  if (sourceType === "manual" || !sourceUrl) {
-    const message = "This session does not have an automatic transcript feed configured";
+  if (core.session.transcriptSourceType === "manual") {
+    const message = "This session does not have an automatic transcript source configured";
     await policyIntelDb.update(committeeIntelSessions).set({
       autoIngestStatus: core.session.autoIngestEnabled ? "error" : "idle",
       autoIngestError: message,
@@ -9472,58 +10078,40 @@ async function syncCommitteeIntelTranscriptFeed(sessionId) {
     updatedAt: /* @__PURE__ */ new Date()
   }).where(eq19(committeeIntelSessions.id, sessionId));
   try {
-    const response = await fetch(sourceUrl, {
-      headers: {
-        Accept: "text/vtt,application/json,text/plain;q=0.9,*/*;q=0.5"
+    const resolvedSource = await resolveTranscriptSyncSource(core.session);
+    let parsedEntries = [];
+    let cursor = core.session.lastAutoIngestCursor ?? null;
+    if (resolvedSource.sourceMode === "feed") {
+      if (!resolvedSource.sourceUrl || !resolvedSource.feedType) {
+        throw new Error("Resolved transcript feed is missing a fetchable URL");
       }
-    });
-    if (!response.ok) {
-      throw new Error(`Transcript feed request failed with status ${response.status}`);
+      const response = await fetch(resolvedSource.sourceUrl, {
+        headers: {
+          Accept: "text/vtt,application/json,text/plain;q=0.9,*/*;q=0.5"
+        }
+      });
+      if (!response.ok) {
+        throw new Error(`Transcript feed request failed with status ${response.status}`);
+      }
+      const content = await response.text();
+      parsedEntries = parseTranscriptFeed(content, resolvedSource.feedType, core.session);
+      cursor = parsedEntries.at(-1)?.cursorValue ?? cursor;
+    } else {
+      if (!resolvedSource.officialSource) {
+        throw new Error("Official source resolution did not return a playable source");
+      }
+      const transcription = await buildOfficialTranscriptEntries(core.session, resolvedSource.officialSource);
+      parsedEntries = transcription.entries;
+      cursor = transcription.cursor ?? cursor;
     }
-    const content = await response.text();
-    const parsedEntries = parseTranscriptFeed(content, sourceType, core.session);
-    await mergeDuplicateFeedSegments(core.session);
-    const existingSegments = await loadSessionSegments(sessionId);
-    const existingByKey = new Map(existingSegments.map((segment) => [buildStoredSegmentDedupKey(segment), segment]));
-    const seenParsedKeys = /* @__PURE__ */ new Set();
-    const requests = [];
-    let updatedSegments = 0;
-    let duplicateSegments = 0;
-    for (const entry of parsedEntries) {
-      const dedupKey = buildFeedEntryDedupKey(core.session.id, entry);
-      if (seenParsedKeys.has(dedupKey)) {
-        duplicateSegments += 1;
-        continue;
-      }
-      seenParsedKeys.add(dedupKey);
-      const request = {
-        capturedAt: entry.capturedAt,
-        startedAtSecond: entry.startedAtSecond,
-        endedAtSecond: entry.endedAtSecond,
-        speakerName: entry.speakerName ?? void 0,
-        speakerRole: entry.speakerRole,
-        affiliation: entry.affiliation ?? void 0,
-        transcriptText: entry.transcriptText,
-        invited: entry.invited,
-        metadata: entry.metadata
-      };
-      const existingSegment = existingByKey.get(dedupKey);
-      if (!existingSegment) {
-        requests.push(request);
-        continue;
-      }
-      if (buildStoredSegmentExternalKey(existingSegment) !== entry.externalKey) {
-        await updateCommitteeIntelSegment(core.session, existingSegment, request);
-        updatedSegments += 1;
-      } else {
-        duplicateSegments += 1;
-      }
-    }
-    await insertCommitteeIntelSegments(core.session, requests);
-    const cursor = parsedEntries.at(-1)?.cursorValue ?? core.session.lastAutoIngestCursor ?? null;
+    const upsertResult = await applyTranscriptEntries(core.session, parsedEntries);
+    const persistedVideoUrl = core.session.videoUrl ?? cleanUrl(resolvedSource.officialSource?.officialPageUrl) ?? cleanUrl(resolvedSource.officialSource?.videoStreamUrl) ?? null;
+    const persistedTranscriptSourceUrl = core.session.transcriptSourceType === "official" ? core.session.transcriptSourceUrl ?? cleanUrl(resolvedSource.officialSource?.transcriptUrl) ?? null : core.session.transcriptSourceUrl;
     await policyIntelDb.update(committeeIntelSessions).set({
-      status: core.session.status === "planned" && (requests.length > 0 || updatedSegments > 0) ? "monitoring" : core.session.status,
-      autoIngestStatus: resolveAutoIngestStatus(sourceType, sourceUrl, core.session.autoIngestEnabled, "ready"),
+      status: core.session.status === "planned" && (upsertResult.ingestedSegments > 0 || upsertResult.updatedSegments > 0) ? "monitoring" : core.session.status,
+      videoUrl: persistedVideoUrl,
+      transcriptSourceUrl: persistedTranscriptSourceUrl,
+      autoIngestStatus: resolveAutoIngestStatus(core.session.transcriptSourceType, resolvedSource.sourceUrl, core.session.autoIngestEnabled, "ready"),
       autoIngestError: null,
       lastAutoIngestedAt: /* @__PURE__ */ new Date(),
       lastAutoIngestCursor: cursor,
@@ -9534,13 +10122,16 @@ async function syncCommitteeIntelTranscriptFeed(sessionId) {
       detail,
       sync: {
         sessionId,
-        sourceType,
-        sourceUrl,
+        sourceType: resolvedSource.sourceType,
+        sourceMode: resolvedSource.sourceMode,
+        sourceUrl: resolvedSource.sourceUrl,
+        sourceLabel: resolvedSource.sourceLabel,
+        resolvedFrom: resolvedSource.resolvedFrom,
         fetchedAt: (/* @__PURE__ */ new Date()).toISOString(),
         totalParsed: parsedEntries.length,
-        ingestedSegments: requests.length,
-        updatedSegments,
-        duplicateSegments,
+        ingestedSegments: upsertResult.ingestedSegments,
+        updatedSegments: upsertResult.updatedSegments,
+        duplicateSegments: upsertResult.duplicateSegments,
         cursor,
         status: detail.session.autoIngestStatus
       }
@@ -12241,6 +12832,26 @@ function createPolicyIntelRouter() {
       const id = parseId(req.params.id);
       if (!id) return res.status(400).json({ message: "invalid id" });
       const result = await deleteCommitteeIntelSession(id);
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.post("/committee-intel/sessions/:id/reset", async (req, res, next) => {
+    try {
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
+      const result = await resetCommitteeIntelSession(id);
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.post("/committee-intel/sessions/:id/rebuild", async (req, res, next) => {
+    try {
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
+      const result = await rebuildCommitteeIntelSession(id);
       res.json(result);
     } catch (err) {
       next(err);

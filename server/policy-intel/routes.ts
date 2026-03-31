@@ -33,11 +33,13 @@ import {
   addCommitteeIntelSegment,
   createCommitteeIntelSessionFromHearing,
   deleteCommitteeIntelSession,
+  rebuildCommitteeIntelSession,
   generateCommitteeIntelPostHearingRecap,
   generateCommitteeIntelFocusedBrief,
   getCommitteeIntelSession,
   listCommitteeIntelSessions,
   refreshCommitteeIntelSession,
+  resetCommitteeIntelSession,
   syncCommitteeIntelTranscriptFeed,
   updateCommitteeIntelSession,
 } from "./services/committee-intel-service";
@@ -2260,6 +2262,30 @@ export function createPolicyIntelRouter() {
       if (!id) return res.status(400).json({ message: "invalid id" });
 
       const result = await deleteCommitteeIntelSession(id);
+      res.json(result);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.post("/committee-intel/sessions/:id/reset", async (req, res, next) => {
+    try {
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
+
+      const result = await resetCommitteeIntelSession(id);
+      res.json(result);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.post("/committee-intel/sessions/:id/rebuild", async (req, res, next) => {
+    try {
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
+
+      const result = await rebuildCommitteeIntelSession(id);
       res.json(result);
     } catch (err: any) {
       next(err);
