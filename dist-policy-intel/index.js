@@ -8968,6 +8968,21 @@ async function resolveTranscriptSyncSource(session) {
   }
   throw new Error(`Official source resolution succeeded for ${session.committee}, but no transcript or video stream is available yet`);
 }
+function isRetryableOfficialSourceError(session, message) {
+  if (session.transcriptSourceType !== "official") {
+    return false;
+  }
+  if (/No official .* committee source is available .* yet/i.test(message)) {
+    return true;
+  }
+  if (/Official source resolution succeeded .* but no transcript or video stream is available yet/i.test(message)) {
+    return true;
+  }
+  if (/Transcript feed request failed with status (404|429|500|502|503|504)/i.test(message)) {
+    return true;
+  }
+  return false;
+}
 function parseCursorSecond(value) {
   const cleaned = value?.trim();
   if (!cleaned) return 0;
@@ -10078,9 +10093,10 @@ async function syncCommitteeIntelTranscriptFeed(sessionId) {
     updatedAt: /* @__PURE__ */ new Date()
   }).where(eq19(committeeIntelSessions.id, sessionId));
   try {
-    const resolvedSource = await resolveTranscriptSyncSource(core.session);
+    let resolvedSource = null;
     let parsedEntries = [];
     let cursor = core.session.lastAutoIngestCursor ?? null;
+    resolvedSource = await resolveTranscriptSyncSource(core.session);
     if (resolvedSource.sourceMode === "feed") {
       if (!resolvedSource.sourceUrl || !resolvedSource.feedType) {
         throw new Error("Resolved transcript feed is missing a fetchable URL");
@@ -10138,6 +10154,41 @@ async function syncCommitteeIntelTranscriptFeed(sessionId) {
     };
   } catch (error) {
     const message = error?.message ?? String(error);
+    if (isRetryableOfficialSourceError(core.session, message)) {
+      const fallbackSourceUrl = resolveTranscriptSourceUrl(core.session);
+      const nextAutoIngestStatus = resolveAutoIngestStatus(
+        core.session.transcriptSourceType,
+        fallbackSourceUrl,
+        core.session.autoIngestEnabled,
+        "ready"
+      );
+      await policyIntelDb.update(committeeIntelSessions).set({
+        autoIngestStatus: nextAutoIngestStatus,
+        autoIngestError: null,
+        lastAutoIngestedAt: /* @__PURE__ */ new Date(),
+        updatedAt: /* @__PURE__ */ new Date()
+      }).where(eq19(committeeIntelSessions.id, sessionId));
+      const detail = await refreshCommitteeIntelSession(sessionId);
+      return {
+        detail,
+        sync: {
+          sessionId,
+          sourceType: core.session.transcriptSourceType,
+          sourceMode: "audio_transcription",
+          sourceUrl: fallbackSourceUrl,
+          sourceLabel: core.session.title,
+          resolvedFrom: fallbackSourceUrl,
+          fetchedAt: (/* @__PURE__ */ new Date()).toISOString(),
+          totalParsed: 0,
+          ingestedSegments: 0,
+          updatedSegments: 0,
+          duplicateSegments: 0,
+          cursor: core.session.lastAutoIngestCursor ?? null,
+          status: detail.session.autoIngestStatus,
+          error: message
+        }
+      };
+    }
     await policyIntelDb.update(committeeIntelSessions).set({
       autoIngestStatus: "error",
       autoIngestError: message,
@@ -10149,6 +10200,7 @@ async function syncCommitteeIntelTranscriptFeed(sessionId) {
 async function syncCommitteeIntelAutoIngestSessions() {
   const rows = await policyIntelDb.select().from(committeeIntelSessions).where(eq19(committeeIntelSessions.autoIngestEnabled, true)).orderBy(asc(committeeIntelSessions.hearingDate), asc(committeeIntelSessions.id));
   let sessionsSynced = 0;
+  let sessionsWaiting = 0;
   let ingestedSegments = 0;
   let sessionsSkipped = 0;
   const errors = [];
@@ -10165,6 +10217,10 @@ async function syncCommitteeIntelAutoIngestSessions() {
     }
     try {
       const result = await syncCommitteeIntelTranscriptFeed(session.id);
+      if (result.sync.error) {
+        sessionsWaiting += 1;
+        continue;
+      }
       sessionsSynced += 1;
       ingestedSegments += result.sync.ingestedSegments;
     } catch (error) {
@@ -10174,6 +10230,7 @@ async function syncCommitteeIntelAutoIngestSessions() {
   return {
     sessionsChecked: rows.length,
     sessionsSynced,
+    sessionsWaiting,
     sessionsSkipped,
     ingestedSegments,
     errors: errors.length,

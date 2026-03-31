@@ -1109,6 +1109,29 @@ async function resolveTranscriptSyncSource(session: CommitteeIntelSessionRow): P
   throw new Error(`Official source resolution succeeded for ${session.committee}, but no transcript or video stream is available yet`);
 }
 
+function isRetryableOfficialSourceError(
+  session: CommitteeIntelSessionRow,
+  message: string,
+): boolean {
+  if (session.transcriptSourceType !== "official") {
+    return false;
+  }
+
+  if (/No official .* committee source is available .* yet/i.test(message)) {
+    return true;
+  }
+
+  if (/Official source resolution succeeded .* but no transcript or video stream is available yet/i.test(message)) {
+    return true;
+  }
+
+  if (/Transcript feed request failed with status (404|429|500|502|503|504)/i.test(message)) {
+    return true;
+  }
+
+  return false;
+}
+
 function parseCursorSecond(value: string | null | undefined): number {
   const cleaned = value?.trim();
   if (!cleaned) return 0;
@@ -2657,9 +2680,11 @@ export async function syncCommitteeIntelTranscriptFeed(
     .where(eq(committeeIntelSessions.id, sessionId));
 
   try {
-    const resolvedSource = await resolveTranscriptSyncSource(core.session);
+    let resolvedSource: CommitteeIntelResolvedSyncSource | null = null;
     let parsedEntries: NormalizedTranscriptFeedEntry[] = [];
     let cursor = core.session.lastAutoIngestCursor ?? null;
+
+    resolvedSource = await resolveTranscriptSyncSource(core.session);
 
     if (resolvedSource.sourceMode === "feed") {
       if (!resolvedSource.sourceUrl || !resolvedSource.feedType) {
@@ -2733,6 +2758,48 @@ export async function syncCommitteeIntelTranscriptFeed(
     };
   } catch (error: any) {
     const message = error?.message ?? String(error);
+
+    if (isRetryableOfficialSourceError(core.session, message)) {
+      const fallbackSourceUrl = resolveTranscriptSourceUrl(core.session);
+      const nextAutoIngestStatus = resolveAutoIngestStatus(
+        core.session.transcriptSourceType,
+        fallbackSourceUrl,
+        core.session.autoIngestEnabled,
+        "ready",
+      );
+
+      await policyIntelDb
+        .update(committeeIntelSessions)
+        .set({
+          autoIngestStatus: nextAutoIngestStatus,
+          autoIngestError: null,
+          lastAutoIngestedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(committeeIntelSessions.id, sessionId));
+
+      const detail = await refreshCommitteeIntelSession(sessionId);
+      return {
+        detail,
+        sync: {
+          sessionId,
+          sourceType: core.session.transcriptSourceType,
+          sourceMode: "audio_transcription",
+          sourceUrl: fallbackSourceUrl,
+          sourceLabel: core.session.title,
+          resolvedFrom: fallbackSourceUrl,
+          fetchedAt: new Date().toISOString(),
+          totalParsed: 0,
+          ingestedSegments: 0,
+          updatedSegments: 0,
+          duplicateSegments: 0,
+          cursor: core.session.lastAutoIngestCursor ?? null,
+          status: detail.session.autoIngestStatus,
+          error: message,
+        },
+      };
+    }
+
     await policyIntelDb
       .update(committeeIntelSessions)
       .set({
@@ -2753,6 +2820,7 @@ export async function syncCommitteeIntelAutoIngestSessions(): Promise<Record<str
     .orderBy(asc(committeeIntelSessions.hearingDate), asc(committeeIntelSessions.id));
 
   let sessionsSynced = 0;
+  let sessionsWaiting = 0;
   let ingestedSegments = 0;
   let sessionsSkipped = 0;
   const errors: string[] = [];
@@ -2772,6 +2840,11 @@ export async function syncCommitteeIntelAutoIngestSessions(): Promise<Record<str
 
     try {
       const result = await syncCommitteeIntelTranscriptFeed(session.id);
+      if (result.sync.error) {
+        sessionsWaiting += 1;
+        continue;
+      }
+
       sessionsSynced += 1;
       ingestedSegments += result.sync.ingestedSegments;
     } catch (error: any) {
@@ -2782,6 +2855,7 @@ export async function syncCommitteeIntelAutoIngestSessions(): Promise<Record<str
   return {
     sessionsChecked: rows.length,
     sessionsSynced,
+    sessionsWaiting,
     sessionsSkipped,
     ingestedSegments,
     errors: errors.length,
