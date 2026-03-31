@@ -11,8 +11,7 @@ import { alerts, watchlists, type PolicyIntelSourceDocument, type PolicyIntelWat
 import { matchDocumentToAllWatchlists, type WatchlistMatch } from "../engine/match-watchlists";
 import { scoreAlert, buildWhyItMatters } from "../engine/score-alert";
 import { buildScorecard } from "../engine/evaluators";
-import { buildAgentScorecard } from "../engine/agent-pipeline";
-import { detectRegime } from "../engine/agent-pipeline";
+import { buildAgentScorecard, detectRegime } from "../engine/agent-pipeline";
 import { metrics } from "../metrics";
 import { notifyHighPriorityAlert } from "../notify";
 
