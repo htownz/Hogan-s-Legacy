@@ -14,6 +14,7 @@ const DEFAULT_CHUNK_SIZE = 250;
 const MAX_CHUNK_SIZE = 2000;
 const DEFAULT_ADVANCE_CHUNKS = 1;
 const MAX_ADVANCE_CHUNKS = 200;
+const REPLAY_ADVISORY_LOCK_NAMESPACE = 87121;
 let replayPersistenceReady = false;
 
 const VALID_ORDER_BY: ReadonlySet<LegiscanOrderBy> = new Set([
@@ -46,6 +47,11 @@ export interface ReplayRunDetail {
     completionRatio: number;
     remainingCandidates: number | null;
     hasMore: boolean;
+    processedPerMinute: number | null;
+    etaMinutes: number | null;
+    successfulChunks: number;
+    errorChunks: number;
+    lastChunkCompletedAt: string | null;
   };
 }
 
@@ -167,23 +173,60 @@ async function ensureReplayPersistence(): Promise<void> {
   replayPersistenceReady = true;
 }
 
-function calculateProgress(run: ReplayRunRow) {
+function calculateProgress(run: ReplayRunRow, chunks: ReplayChunkRow[]) {
+  const successfulChunks = chunks.filter((chunk) => chunk.status === "success" || chunk.status === "skipped").length;
+  const errorChunks = chunks.filter((chunk) => chunk.status === "error").length;
+  const lastChunkCompletedAt =
+    chunks.find((chunk) => chunk.finishedAt instanceof Date)?.finishedAt?.toISOString() ?? null;
+
   const total = run.totalCandidates;
+  const elapsedMs = run.startedAt ? Date.now() - run.startedAt.getTime() : 0;
+  const elapsedMinutes = elapsedMs > 0 ? elapsedMs / 60000 : 0;
+  const processedPerMinute = elapsedMinutes > 0 && run.processedCandidates > 0
+    ? run.processedCandidates / elapsedMinutes
+    : null;
+
   if (!total || total <= 0) {
     return {
       completionRatio: 0,
       remainingCandidates: null,
       hasMore: run.status !== "completed",
+      processedPerMinute,
+      etaMinutes: null,
+      successfulChunks,
+      errorChunks,
+      lastChunkCompletedAt,
     };
   }
 
   const processed = Math.max(0, Math.min(run.processedCandidates, total));
   const remaining = Math.max(0, total - processed);
+  const etaMinutes = processedPerMinute && processedPerMinute > 0
+    ? remaining / processedPerMinute
+    : null;
+
   return {
     completionRatio: total > 0 ? processed / total : 0,
     remainingCandidates: remaining,
     hasMore: remaining > 0 && run.status !== "completed",
+    processedPerMinute,
+    etaMinutes,
+    successfulChunks,
+    errorChunks,
+    lastChunkCompletedAt,
   };
+}
+
+async function tryAcquireRunAdvanceLock(runId: number): Promise<boolean> {
+  const rows = await queryClient.unsafe<{ locked: boolean }[]>(
+    "select pg_try_advisory_lock($1, $2) as locked",
+    [REPLAY_ADVISORY_LOCK_NAMESPACE, runId],
+  );
+  return Boolean(rows[0]?.locked);
+}
+
+async function releaseRunAdvanceLock(runId: number): Promise<void> {
+  await queryClient.unsafe("select pg_advisory_unlock($1, $2)", [REPLAY_ADVISORY_LOCK_NAMESPACE, runId]);
 }
 
 async function getRunOrThrow(runId: number): Promise<ReplayRunRow> {
@@ -227,7 +270,7 @@ export async function getReplayRunDetail(runId: number): Promise<ReplayRunDetail
   return {
     run,
     chunks,
-    progress: calculateProgress(run),
+    progress: calculateProgress(run, chunks),
   };
 }
 
@@ -295,147 +338,155 @@ export async function advanceReplayRun(
   options: AdvanceReplayOptions = {},
 ): Promise<ReplayRunDetail> {
   await ensureReplayPersistence();
-  const stopOnError = options.stopOnError !== false;
-  const maxChunks = options.untilCompleted ? MAX_ADVANCE_CHUNKS : normalizeMaxChunks(options.maxChunks);
-
-  let run = await getRunOrThrow(runId);
-  if (run.status === "completed") {
+  const lockAcquired = await tryAcquireRunAdvanceLock(runId);
+  if (!lockAcquired) {
     return getReplayRunDetail(runId);
   }
 
-  if (run.status === "failed" || run.status === "paused" || run.status === "planned") {
-    await policyIntelDb
-      .update(replayRuns)
-      .set({
-        status: "running",
-        startedAt: run.startedAt ?? new Date(),
-        lastError: null,
-        updatedAt: new Date(),
-      })
-      .where(eq(replayRuns.id, runId));
-
-    run = await getRunOrThrow(runId);
-  }
-
-  for (let step = 0; step < maxChunks; step++) {
-    run = await getRunOrThrow(runId);
-
-    if (run.status !== "running") {
-      break;
+  const stopOnError = options.stopOnError !== false;
+  const maxChunks = options.untilCompleted ? MAX_ADVANCE_CHUNKS : normalizeMaxChunks(options.maxChunks);
+  try {
+    let run = await getRunOrThrow(runId);
+    if (run.status === "completed") {
+      return getReplayRunDetail(runId);
     }
 
-    if (run.totalCandidates !== null && run.nextOffset >= run.totalCandidates) {
-      await policyIntelDb
-        .update(replayRuns)
-        .set({
-          status: "completed",
-          completedAt: run.completedAt ?? new Date(),
-          updatedAt: new Date(),
-        })
-        .where(eq(replayRuns.id, runId));
-      break;
-    }
-
-    const chunkIndex = Math.floor(run.nextOffset / Math.max(run.chunkSize, 1));
-    const [createdChunk] = await policyIntelDb
-      .insert(replayChunks)
-      .values({
-        replayRunId: run.id,
-        chunkIndex,
-        offset: run.nextOffset,
-        limit: run.chunkSize,
-        status: "running",
-        startedAt: new Date(),
-      })
-      .returning();
-
-    try {
-      const optionsJson = asRecord(run.optionsJson);
-      const result = await runLegiscanJob({
-        mode: normalizeMode(run.mode),
-        sessionId: run.sessionId,
-        offset: run.nextOffset,
-        limit: run.chunkSize,
-        orderBy: normalizeOrderBy(run.orderBy),
-        sinceDays: typeof optionsJson.sinceDays === "number" ? optionsJson.sinceDays : undefined,
-        detailConcurrency: typeof optionsJson.detailConcurrency === "number" ? optionsJson.detailConcurrency : undefined,
-      });
-
-      const totalCandidates = Number.isFinite(result.totalCandidates) ? result.totalCandidates : run.totalCandidates;
-      const remaining = totalCandidates === null
-        ? null
-        : Math.max(0, totalCandidates - run.nextOffset);
-      const candidateCount = remaining === null
-        ? run.chunkSize
-        : Math.min(run.chunkSize, remaining);
-      const nextOffset = run.nextOffset + candidateCount;
-      const hasMore = totalCandidates === null ? result.fetched > 0 : nextOffset < totalCandidates;
-
-      await policyIntelDb
-        .update(replayChunks)
-        .set({
-          status: result.fetched === 0 && candidateCount === 0 ? "skipped" : "success",
-          finishedAt: new Date(),
-          fetched: result.fetched,
-          inserted: result.inserted,
-          skipped: result.skipped,
-          alertsCreated: result.alerts.created,
-          fetchErrors: result.fetchErrors.length,
-          upsertErrors: result.upsertErrors.length,
-          resultJson: result as unknown as Record<string, unknown>,
-        })
-        .where(eq(replayChunks.id, createdChunk.id));
-
-      await policyIntelDb
-        .update(replayRuns)
-        .set({
-          totalCandidates,
-          processedCandidates: run.processedCandidates + candidateCount,
-          nextOffset: hasMore ? nextOffset : run.nextOffset + candidateCount,
-          status: hasMore ? "running" : "completed",
-          completedAt: hasMore ? null : new Date(),
-          updatedAt: new Date(),
-          lastError: null,
-        })
-        .where(eq(replayRuns.id, run.id));
-
-      if (!hasMore) {
-        break;
-      }
-    } catch (error: unknown) {
-      const message = safeErrorMessage(error, "Replay chunk failed");
-
-      await policyIntelDb
-        .update(replayChunks)
-        .set({
-          status: "error",
-          finishedAt: new Date(),
-          error: message,
-        })
-        .where(eq(replayChunks.id, createdChunk.id));
-
-      await policyIntelDb
-        .update(replayRuns)
-        .set({
-          status: "failed",
-          lastError: message,
-          updatedAt: new Date(),
-        })
-        .where(eq(replayRuns.id, run.id));
-
-      if (stopOnError) {
-        break;
-      }
-
+    if (run.status === "failed" || run.status === "paused" || run.status === "planned") {
       await policyIntelDb
         .update(replayRuns)
         .set({
           status: "running",
+          startedAt: run.startedAt ?? new Date(),
+          lastError: null,
           updatedAt: new Date(),
         })
-        .where(and(eq(replayRuns.id, run.id), eq(replayRuns.status, "failed")));
-    }
-  }
+        .where(eq(replayRuns.id, runId));
 
-  return getReplayRunDetail(runId);
+      run = await getRunOrThrow(runId);
+    }
+
+    for (let step = 0; step < maxChunks; step++) {
+      run = await getRunOrThrow(runId);
+
+      if (run.status !== "running") {
+        break;
+      }
+
+      if (run.totalCandidates !== null && run.nextOffset >= run.totalCandidates) {
+        await policyIntelDb
+          .update(replayRuns)
+          .set({
+            status: "completed",
+            completedAt: run.completedAt ?? new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(replayRuns.id, runId));
+        break;
+      }
+
+      const chunkIndex = Math.floor(run.nextOffset / Math.max(run.chunkSize, 1));
+      const [createdChunk] = await policyIntelDb
+        .insert(replayChunks)
+        .values({
+          replayRunId: run.id,
+          chunkIndex,
+          offset: run.nextOffset,
+          limit: run.chunkSize,
+          status: "running",
+          startedAt: new Date(),
+        })
+        .returning();
+
+      try {
+        const optionsJson = asRecord(run.optionsJson);
+        const result = await runLegiscanJob({
+          mode: normalizeMode(run.mode),
+          sessionId: run.sessionId,
+          offset: run.nextOffset,
+          limit: run.chunkSize,
+          orderBy: normalizeOrderBy(run.orderBy),
+          sinceDays: typeof optionsJson.sinceDays === "number" ? optionsJson.sinceDays : undefined,
+          detailConcurrency: typeof optionsJson.detailConcurrency === "number" ? optionsJson.detailConcurrency : undefined,
+        });
+
+        const totalCandidates = Number.isFinite(result.totalCandidates) ? result.totalCandidates : run.totalCandidates;
+        const remaining = totalCandidates === null
+          ? null
+          : Math.max(0, totalCandidates - run.nextOffset);
+        const candidateCount = remaining === null
+          ? run.chunkSize
+          : Math.min(run.chunkSize, remaining);
+        const nextOffset = run.nextOffset + candidateCount;
+        const hasMore = totalCandidates === null ? result.fetched > 0 : nextOffset < totalCandidates;
+
+        await policyIntelDb
+          .update(replayChunks)
+          .set({
+            status: result.fetched === 0 && candidateCount === 0 ? "skipped" : "success",
+            finishedAt: new Date(),
+            fetched: result.fetched,
+            inserted: result.inserted,
+            skipped: result.skipped,
+            alertsCreated: result.alerts.created,
+            fetchErrors: result.fetchErrors.length,
+            upsertErrors: result.upsertErrors.length,
+            resultJson: result as unknown as Record<string, unknown>,
+          })
+          .where(eq(replayChunks.id, createdChunk.id));
+
+        await policyIntelDb
+          .update(replayRuns)
+          .set({
+            totalCandidates,
+            processedCandidates: run.processedCandidates + candidateCount,
+            nextOffset: hasMore ? nextOffset : run.nextOffset + candidateCount,
+            status: hasMore ? "running" : "completed",
+            completedAt: hasMore ? null : new Date(),
+            updatedAt: new Date(),
+            lastError: null,
+          })
+          .where(eq(replayRuns.id, run.id));
+
+        if (!hasMore) {
+          break;
+        }
+      } catch (error: unknown) {
+        const message = safeErrorMessage(error, "Replay chunk failed");
+
+        await policyIntelDb
+          .update(replayChunks)
+          .set({
+            status: "error",
+            finishedAt: new Date(),
+            error: message,
+          })
+          .where(eq(replayChunks.id, createdChunk.id));
+
+        await policyIntelDb
+          .update(replayRuns)
+          .set({
+            status: "failed",
+            lastError: message,
+            updatedAt: new Date(),
+          })
+          .where(eq(replayRuns.id, run.id));
+
+        if (stopOnError) {
+          break;
+        }
+
+        await policyIntelDb
+          .update(replayRuns)
+          .set({
+            status: "running",
+            updatedAt: new Date(),
+          })
+          .where(and(eq(replayRuns.id, run.id), eq(replayRuns.status, "failed")));
+      }
+    }
+
+    return getReplayRunDetail(runId);
+  } finally {
+    await releaseRunAdvanceLock(runId);
+  }
 }

@@ -27,6 +27,7 @@ import { analyzeRisk } from "./engine/intelligence/risk-model";
 import { detectAnomalies } from "./engine/intelligence/anomaly-detector";
 import {
   analyzeForecast,
+  getForecastDriftSummary,
   getLatestOutcomeTruthSnapshotSummary,
   refreshOutcomeTruthSnapshot,
 } from "./engine/intelligence/forecast-tracker";
@@ -107,6 +108,7 @@ export function createPolicyIntelRouter() {
         "/api/intel/intelligence/risk",
         "/api/intel/intelligence/anomalies",
         "/api/intel/intelligence/forecast",
+        "/api/intel/intelligence/forecast/drift",
         "/api/intel/intelligence/sponsors",
         "/api/intel/intelligence/legislators",
         "/api/intel/intelligence/influence-map",
@@ -3087,6 +3089,19 @@ export function createPolicyIntelRouter() {
       const snapshotKey = typeof req.body?.snapshotKey === "string" ? req.body.snapshotKey : undefined;
       const result = await refreshOutcomeTruthSnapshot(snapshotKey);
       res.json(result);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * GET /intelligence/forecast/drift — learning-metric trend summary for calibration drift monitoring.
+   */
+  router.get("/intelligence/forecast/drift", async (req, res, next) => {
+    try {
+      const limit = Number.isFinite(Number(req.query.limit)) ? Number(req.query.limit) : undefined;
+      const summary = await getForecastDriftSummary(limit);
+      res.json(summary);
     } catch (err: any) {
       next(err);
     }

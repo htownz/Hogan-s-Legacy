@@ -123,6 +123,25 @@ export interface ForecastReport {
   historyDepth: number;
 }
 
+export interface ForecastDriftSummary {
+  metricType: "forecast_calibration";
+  points: Array<{
+    capturedAt: string;
+    regime: string;
+    accuracy: number;
+    rankingAccuracy: number;
+    verifiablePredictions: number;
+  }>;
+  latestAccuracy: number | null;
+  baselineAccuracy: number | null;
+  deltaAccuracy: number | null;
+  latestRankingAccuracy: number | null;
+  deltaRankingAccuracy: number | null;
+  trend: "improving" | "stable" | "degrading" | "insufficient_data";
+  driftAlert: boolean;
+  narrative: string;
+}
+
 interface BillOutcomeTruth {
   billId: string;
   stage: string;
@@ -433,6 +452,94 @@ export async function getLatestOutcomeTruthSnapshotSummary(): Promise<{
     capturedAt: latest.capturedAt.toISOString(),
     totalBills,
     outcomeCounts,
+  };
+}
+
+function metricNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+export async function getForecastDriftSummary(limit = 24): Promise<ForecastDriftSummary> {
+  const normalizedLimit = Math.max(2, Math.min(120, Math.floor(Number(limit) || 24)));
+  const rows = await policyIntelDb
+    .select()
+    .from(learningMetrics)
+    .where(eq(learningMetrics.metricType, "forecast_calibration"))
+    .orderBy(desc(learningMetrics.capturedAt))
+    .limit(normalizedLimit);
+
+  const points = rows
+    .slice()
+    .reverse()
+    .map((row) => {
+      const values = row.valuesJson ?? {};
+      return {
+        capturedAt: row.capturedAt.toISOString(),
+        regime: row.regime,
+        accuracy: metricNumber(values.accuracy) ?? 0,
+        rankingAccuracy: metricNumber(values.rankingAccuracy) ?? 0,
+        verifiablePredictions: Math.max(0, Math.floor(metricNumber(values.verifiablePredictions) ?? 0)),
+      };
+    });
+
+  if (points.length < 2) {
+    return {
+      metricType: "forecast_calibration",
+      points,
+      latestAccuracy: points[0]?.accuracy ?? null,
+      baselineAccuracy: points[0]?.accuracy ?? null,
+      deltaAccuracy: null,
+      latestRankingAccuracy: points[0]?.rankingAccuracy ?? null,
+      deltaRankingAccuracy: null,
+      trend: "insufficient_data",
+      driftAlert: false,
+      narrative: "Not enough calibration history yet to detect drift; at least 2 forecast calibration points are required.",
+    };
+  }
+
+  const baseline = points[0];
+  const latest = points[points.length - 1];
+  const deltaAccuracy = latest.accuracy - baseline.accuracy;
+  const deltaRankingAccuracy = latest.rankingAccuracy - baseline.rankingAccuracy;
+
+  const trend: ForecastDriftSummary["trend"] =
+    deltaAccuracy > 0.05
+      ? "improving"
+      : deltaAccuracy < -0.05
+        ? "degrading"
+        : "stable";
+
+  const recentWindow = points.slice(-Math.min(4, points.length));
+  const recentDeclines = recentWindow
+    .slice(1)
+    .filter((point, idx) => point.accuracy < recentWindow[idx].accuracy).length;
+  const driftAlert = trend === "degrading" && (latest.accuracy < 0.55 || recentDeclines >= 2);
+
+  const narrative =
+    `Calibration trend is ${trend.toUpperCase()} over ${points.length} checkpoints ` +
+    `(accuracy delta ${(deltaAccuracy * 100).toFixed(1)}pp, ranking delta ${(deltaRankingAccuracy * 100).toFixed(1)}pp).` +
+    (driftAlert
+      ? " Drift alert: recent forecast quality is deteriorating and should trigger model review."
+      : " No drift alert threshold is currently exceeded.");
+
+  return {
+    metricType: "forecast_calibration",
+    points,
+    latestAccuracy: latest.accuracy,
+    baselineAccuracy: baseline.accuracy,
+    deltaAccuracy,
+    latestRankingAccuracy: latest.rankingAccuracy,
+    deltaRankingAccuracy,
+    trend,
+    driftAlert,
+    narrative,
   };
 }
 
