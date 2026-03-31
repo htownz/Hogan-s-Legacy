@@ -925,7 +925,7 @@ export function detectRegime(text: string = "", date: Date = new Date()): Legisl
     docTitle: "",
     docSummary: "",
     reasons: [],
-    docPublishedAt: date,
+    docDate: date,
   };
   return detectLegislativeRegime(ctx);
 }
