@@ -1,4 +1,4 @@
-FROM node:22.22.2-alpine3.22 AS build
+FROM node:22-alpine3.23 AS build
 
 RUN apk upgrade --no-cache
 
@@ -10,7 +10,7 @@ RUN npm ci
 COPY . .
 RUN npm run build:policy-intel
 
-FROM node:22.22.2-alpine3.22 AS runtime
+FROM node:22-alpine3.23 AS runtime
 
 RUN apk upgrade --no-cache \
 	&& apk add --no-cache ca-certificates ffmpeg

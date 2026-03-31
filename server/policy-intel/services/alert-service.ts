@@ -130,7 +130,7 @@ export async function processDocumentAlerts(
       doc.summary,
       match.reasons,
       {
-        docDate: doc.createdAt ? new Date(doc.createdAt) : null,
+        docDate: doc.publishedAt ? new Date(doc.publishedAt) : (doc.fetchedAt ? new Date(doc.fetchedAt) : null),
         rawPayload: doc.rawPayload as Record<string, unknown> | undefined,
       },
     );

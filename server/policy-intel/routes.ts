@@ -312,9 +312,9 @@ export function createPolicyIntelRouter() {
       ]);
 
       res.json({
-        scoreDistribution: scoreDistRaw.rows ?? scoreDistRaw,
-        sourceTypeBreakdown: sourceBreakdownRaw.rows ?? sourceBreakdownRaw,
-        dailyAlertVolume: dailyVolumeRaw.rows ?? dailyVolumeRaw,
+        scoreDistribution: scoreDistRaw,
+        sourceTypeBreakdown: sourceBreakdownRaw,
+        dailyAlertVolume: dailyVolumeRaw,
       });
     } catch (err: any) {
       next(err);
