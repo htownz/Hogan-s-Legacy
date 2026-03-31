@@ -252,6 +252,8 @@ export const api = {
   getHistoricalReport: () => apiFetch<HistoricalPatternsReport>("/intelligence/historical"),
   getLegislatorReport: () => apiFetch<LegislatorProfileReport>("/intelligence/legislators"),
   getInfluenceMapReport: () => apiFetch<InfluenceMapReport>("/intelligence/influence-map"),
+  getPowerNetworkReport: () => apiFetch<PowerNetworkReport>("/intelligence/power-network"),
+  getLegislationPredictions: () => apiFetch<LegislationPredictorReport>("/intelligence/predictions"),
 };
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -1195,5 +1197,143 @@ export interface InfluenceMapReport {
     totalTargetsIdentified: number;
     avgTargetsPerBill: number;
     engagementGapCount: number;
+  };
+}
+
+// ── Power Network Types ──────────────────────────────────────────────────────
+
+export interface PowerCenterProfile {
+  name: string;
+  role: "governor" | "lieutenant_governor" | "speaker";
+  chamber: "executive" | "senate" | "house";
+  party: string;
+  priorities: Array<{
+    topic: string;
+    stance: "champion" | "oppose" | "cautious";
+    evidence: string;
+    intensity: number;
+  }>;
+  committeeChairs: Array<{
+    name: string;
+    committee: string;
+    chamber: string;
+    party: string;
+    stakeholderId: number;
+  }>;
+  allies: Array<{
+    name: string;
+    party: string;
+    chamber: string;
+    stakeholderId: number;
+    reason: string;
+  }>;
+  metrics: {
+    committeeChairsControlled: number;
+    billsPrioritized: number;
+    chamberControl: number;
+  };
+}
+
+export interface VotingBlocResult {
+  name: string;
+  chamber: string;
+  members: Array<{
+    stakeholderId: number;
+    name: string;
+    party: string;
+    district?: string;
+    loyalty: number;
+    isLeader: boolean;
+  }>;
+  cohesion: number;
+  issueAreas: string[];
+  alignedPowerCenter: string;
+  bipartisan: boolean;
+  narrative: string;
+}
+
+export interface PowerFlowEdge {
+  sourceId: number;
+  sourceName: string;
+  sourceRole: string;
+  targetId: number;
+  targetName: string;
+  targetRole: string;
+  flowType: "appoints" | "controls" | "allies_with" | "opposes" | "co_sponsors";
+  strength: number;
+  evidence: string;
+}
+
+export interface PowerNetworkReport {
+  analyzedAt: string;
+  bigThree: PowerCenterProfile[];
+  votingBlocs: VotingBlocResult[];
+  powerFlows: PowerFlowEdge[];
+  keyFindings: string[];
+  stats: {
+    totalStakeholders: number;
+    totalCommitteeMembers: number;
+    totalChairs: number;
+    totalViceChairs: number;
+    chamberBreakdown: { house: number; senate: number };
+    partyBreakdown: { R: number; D: number; other: number };
+    blocsDetected: number;
+    bipartisanBlocs: number;
+  };
+}
+
+// ── Legislation Predictor Types ──────────────────────────────────────────────
+
+export interface LegislationPredictionItem {
+  topic: string;
+  predictedBillType: string;
+  predictedChamber: string;
+  confidence: number;
+  passageProbability: number;
+  likelySponsor: {
+    stakeholderId: number;
+    name: string;
+    party: string;
+    chamber: string;
+    confidence: number;
+    reasoning: string;
+  } | null;
+  powerCenterDynamic: {
+    governor: string;
+    ltGov: string;
+    speaker: string;
+  };
+  likelyCommittee: string | null;
+  evidenceSources: Array<{
+    type: string;
+    detail: string;
+    weight: number;
+  }>;
+  assessment: string;
+}
+
+export interface LegislationPredictorReport {
+  analyzedAt: string;
+  session: string;
+  predictions: LegislationPredictionItem[];
+  mostLikelyToPass: LegislationPredictionItem[];
+  likelyBlocked: LegislationPredictionItem[];
+  chamberConflicts: Array<{
+    topic: string;
+    housePosition: string;
+    senatePosition: string;
+    narrative: string;
+  }>;
+  signals: Array<{
+    type: string;
+    detail: string;
+    strength: number;
+  }>;
+  stats: {
+    totalPredictions: number;
+    highConfidence: number;
+    mediumConfidence: number;
+    lowConfidence: number;
+    avgPassageProbability: number;
   };
 }

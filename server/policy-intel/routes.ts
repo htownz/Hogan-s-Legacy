@@ -2698,5 +2698,31 @@ export function createPolicyIntelRouter() {
     }
   });
 
+  /**
+   * GET /intelligence/power-network — Political power structure: Big Three, voting blocs, leadership chains.
+   */
+  router.get("/intelligence/power-network", async (_req, res, next) => {
+    try {
+      const { analyzeNetworkPower } = await import("./engine/intelligence/power-network-analyzer");
+      const report = await analyzeNetworkPower();
+      res.json(report);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * GET /intelligence/predictions — Legislation predictions: what bills will emerge, who files them, Big Three dynamics.
+   */
+  router.get("/intelligence/predictions", async (_req, res, next) => {
+    try {
+      const { predictLegislation } = await import("./engine/intelligence/legislation-predictor");
+      const report = await predictLegislation();
+      res.json(report);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
   return router;
 }

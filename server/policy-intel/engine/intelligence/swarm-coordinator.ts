@@ -21,6 +21,8 @@ import { analyzeSponsorNetwork, type SponsorNetworkReport } from "./sponsor-netw
 import { analyzeHistoricalPatterns, type HistoricalPatternsReport } from "./historical-patterns";
 import { analyzeLegislatorProfiles, type LegislatorProfileReport } from "./legislator-profiler";
 import { analyzeInfluenceMaps, type InfluenceMapReport } from "./influence-map";
+import { analyzeNetworkPower, type PowerNetworkReport } from "./power-network-analyzer";
+import { predictLegislation, type LegislationPredictorReport } from "./legislation-predictor";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -66,6 +68,10 @@ export interface IntelligenceBriefing {
   legislators: LegislatorProfileReport;
   /** Bill influence maps — who can change outcomes */
   influenceMap: InfluenceMapReport;
+  /** Power network — Big Three, voting blocs, leadership chains */
+  powerNetwork: PowerNetworkReport;
+  /** Legislation predictions — what bills will emerge */
+  legislationPredictions: LegislationPredictorReport;
   /** Delta briefing — what changed since last run */
   delta: DeltaBriefing;
   /** How long the full swarm run took (ms) */
@@ -78,7 +84,7 @@ export async function runSwarm(): Promise<IntelligenceBriefing> {
   const start = Date.now();
 
   // Launch core analyzers concurrently — this is the "swarm"
-  const [velocity, correlations, influence, risk, anomalies, sponsors, historical, legislators, influenceMap] = await Promise.all([
+  const [velocity, correlations, influence, risk, anomalies, sponsors, historical, legislators, influenceMap, powerNetwork, legislationPredictions] = await Promise.all([
     analyzeVelocity(),
     analyzeCorrelations(),
     analyzeInfluence(),
@@ -103,6 +109,17 @@ export async function runSwarm(): Promise<IntelligenceBriefing> {
       analyzedAt: new Date().toISOString(), maps: [], pivotalLegislators: [], outreachPlan: [],
       stats: { totalBillsAnalyzed: 0, totalTargetsIdentified: 0, avgTargetsPerBill: 0, engagementGapCount: 0 },
     }) as InfluenceMapReport),
+    analyzeNetworkPower().catch(() => ({
+      analyzedAt: new Date().toISOString(), bigThree: [], votingBlocs: [], powerFlows: [],
+      keyFindings: [], stats: { totalStakeholders: 0, totalCommitteeMembers: 0, totalChairs: 0,
+        totalViceChairs: 0, chamberBreakdown: { house: 0, senate: 0 },
+        partyBreakdown: { R: 0, D: 0, other: 0 }, blocsDetected: 0, bipartisanBlocs: 0 },
+    }) as PowerNetworkReport),
+    predictLegislation().catch(() => ({
+      analyzedAt: new Date().toISOString(), session: "89R", predictions: [],
+      mostLikelyToPass: [], likelyBlocked: [], chamberConflicts: [], signals: [],
+      stats: { totalPredictions: 0, highConfidence: 0, mediumConfidence: 0, lowConfidence: 0, avgPassageProbability: 0 },
+    }) as LegislationPredictorReport),
   ]);
 
   const analysisTimeMs = Date.now() - start;
@@ -482,6 +499,61 @@ export async function runSwarm(): Promise<IntelligenceBriefing> {
     }
   }
 
+  // 21. Power Network — Big Three alignment on high-risk bills
+  for (const prediction of legislationPredictions.mostLikelyToPass.slice(0, 3)) {
+    const allSupport = prediction.powerCenterDynamic.governor === "support" &&
+      prediction.powerCenterDynamic.ltGov === "support" &&
+      prediction.powerCenterDynamic.speaker === "support";
+    if (allSupport && prediction.confidence >= 0.7) {
+      insights.push({
+        priority: 1,
+        category: "immediate_action",
+        title: `Big Three aligned on "${prediction.topic}"`,
+        narrative: `${prediction.assessment} Predicted sponsor: ${prediction.likelySponsor?.name ?? "TBD"} (${prediction.predictedBillType}). Passage probability: ${(prediction.passageProbability * 100).toFixed(0)}%. All three power centers support this — legislation is virtually certain.`,
+        sources: ["power-network", "legislation-predictor"],
+        confidence: prediction.confidence,
+      });
+    }
+  }
+
+  // 22. Power Network — voting blocs that could swing outcomes
+  for (const bloc of powerNetwork.votingBlocs.filter(b => b.bipartisan && b.members.length >= 4)) {
+    insights.push({
+      priority: 2,
+      category: "strategic_recommendation",
+      title: `Bipartisan bloc: "${bloc.name}" (${bloc.members.length} members)`,
+      narrative: `${bloc.narrative} This cross-party coalition could be decisive on close votes. Key issues: ${bloc.issueAreas.slice(0, 3).join(", ")}.`,
+      sources: ["power-network"],
+      confidence: 0.75,
+    });
+  }
+
+  // 23. Legislation predictions with contested dynamics
+  for (const prediction of legislationPredictions.likelyBlocked.slice(0, 2)) {
+    if (prediction.powerCenterDynamic.governor === "oppose") {
+      insights.push({
+        priority: 2,
+        category: "emerging_threat",
+        title: `Governor veto risk: "${prediction.topic}"`,
+        narrative: `${prediction.assessment} Despite legislative momentum, gubernatorial opposition creates a significant veto barrier. Supporters will need a 2/3 override strategy or must negotiate acceptable amendments.`,
+        sources: ["legislation-predictor"],
+        confidence: prediction.confidence,
+      });
+    }
+  }
+
+  // 24. Power Network — key findings as strategic awareness
+  for (const finding of powerNetwork.keyFindings.slice(0, 2)) {
+    insights.push({
+      priority: 3,
+      category: "situational_awareness",
+      title: "Power structure insight",
+      narrative: finding,
+      sources: ["power-network"],
+      confidence: 0.85,
+    });
+  }
+
   // Sort by priority
   insights.sort((a, b) => a.priority - b.priority);
 
@@ -508,11 +580,17 @@ export async function runSwarm(): Promise<IntelligenceBriefing> {
   if (bipartisanCount > 0) {
     summaryParts.push(`${bipartisanCount} bipartisan bill${bipartisanCount !== 1 ? "s" : ""} identified`);
   }
+  if (powerNetwork.votingBlocs.length > 0) {
+    summaryParts.push(`${powerNetwork.votingBlocs.length} voting bloc${powerNetwork.votingBlocs.length !== 1 ? "s" : ""} mapped`);
+  }
+  if (legislationPredictions.predictions.length > 0) {
+    summaryParts.push(`${legislationPredictions.predictions.length} legislation prediction${legislationPredictions.predictions.length !== 1 ? "s" : ""} generated`);
+  }
 
   const modelStatus = forecast?.grade.trendDirection === "degrading" ? " ⚠ Model accuracy declining." : "";
   const executiveSummary = summaryParts.length > 0
-    ? `Intelligence briefing identified ${summaryParts.join(", ")}. The legislative landscape is ${risk.regime === "floor_action" || risk.regime === "sine_die" ? "in a high-activity phase" : "in a " + risk.regime.replace(/_/g, " ") + " phase"}. ${insights.length} total strategic insight${insights.length !== 1 ? "s" : ""} generated from cross-referencing ${velocity.vectors.length} velocity vectors, ${correlations.clusters.length} bill clusters, ${influence.profiles.length} stakeholder profiles, ${risk.assessments.length} risk assessments, ${sponsors.networkStats.totalSponsors} sponsor profiles, ${legislators.totalLegislators} legislator intelligence profiles, ${influenceMap.maps.length} bill influence maps, and ${anomalies.anomalies.length} anomaly detections in ${analysisTimeMs}ms.${modelStatus}`
-    : `No critical situations detected. The legislative landscape is in a ${risk.regime.replace(/_/g, " ")} phase. System monitoring ${velocity.vectors.length} activity vectors across ${risk.assessments.length} assessed bills. Sponsor network tracking ${sponsors.networkStats.totalSponsors} legislators. ${legislators.totalLegislators} legislator profiles generated. Analysis completed in ${analysisTimeMs}ms.${modelStatus}`;
+    ? `Intelligence briefing identified ${summaryParts.join(", ")}. The legislative landscape is ${risk.regime === "floor_action" || risk.regime === "sine_die" ? "in a high-activity phase" : "in a " + risk.regime.replace(/_/g, " ") + " phase"}. ${insights.length} total strategic insight${insights.length !== 1 ? "s" : ""} generated from cross-referencing ${velocity.vectors.length} velocity vectors, ${correlations.clusters.length} bill clusters, ${influence.profiles.length} stakeholder profiles, ${risk.assessments.length} risk assessments, ${sponsors.networkStats.totalSponsors} sponsor profiles, ${legislators.totalLegislators} legislator intelligence profiles, ${influenceMap.maps.length} bill influence maps, ${powerNetwork.votingBlocs.length} voting blocs, ${legislationPredictions.predictions.length} legislation predictions, and ${anomalies.anomalies.length} anomaly detections in ${analysisTimeMs}ms.${modelStatus}`
+    : `No critical situations detected. The legislative landscape is in a ${risk.regime.replace(/_/g, " ")} phase. System monitoring ${velocity.vectors.length} activity vectors across ${risk.assessments.length} assessed bills. Sponsor network tracking ${sponsors.networkStats.totalSponsors} legislators. ${legislators.totalLegislators} legislator profiles generated. Power network: ${powerNetwork.votingBlocs.length} voting blocs, ${legislationPredictions.predictions.length} predictions. Analysis completed in ${analysisTimeMs}ms.${modelStatus}`;
 
   const insightCounts: Record<string, number> = {};
   for (const ins of insights) {
@@ -548,6 +626,8 @@ export async function runSwarm(): Promise<IntelligenceBriefing> {
     historical,
     legislators,
     influenceMap,
+    powerNetwork,
+    legislationPredictions,
     forecast: forecast ?? {
       analyzedAt: new Date().toISOString(),
       currentSnapshot: { snapshotId: "", capturedAt: "", predictions: [], regime: risk.regime, totalInsights: 0, criticalRiskCount: 0, anomalyCount: 0 },
