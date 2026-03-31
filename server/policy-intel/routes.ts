@@ -24,6 +24,8 @@ import { analyzeCorrelations } from "./engine/intelligence/cross-correlator";
 import { analyzeInfluence } from "./engine/intelligence/influence-ranker";
 import { analyzeRisk } from "./engine/intelligence/risk-model";
 import { detectAnomalies } from "./engine/intelligence/anomaly-detector";
+import { analyzeForecast } from "./engine/intelligence/forecast-tracker";
+import { analyzeSponsorNetwork } from "./engine/intelligence/sponsor-network";
 
 function slugifyIssueRoom(value: string) {
   return value
@@ -74,7 +76,9 @@ export function createPolicyIntelRouter() {
         "/api/intel/intelligence/correlations",
         "/api/intel/intelligence/influence",
         "/api/intel/intelligence/risk",
-        "/api/intel/intelligence/anomalies"
+        "/api/intel/intelligence/anomalies",
+        "/api/intel/intelligence/forecast",
+        "/api/intel/intelligence/sponsors"
       ]
     });
   });
@@ -2479,6 +2483,47 @@ export function createPolicyIntelRouter() {
   router.get("/intelligence/anomalies", async (_req, res, next) => {
     try {
       const report = await detectAnomalies();
+      res.json(report);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * GET /intelligence/forecast — forecast accuracy, model drift, and delta briefing.
+   */
+  router.get("/intelligence/forecast", async (_req, res, next) => {
+    try {
+      // Need risk data to build predictions for the forecast
+      const riskReport = await analyzeRisk();
+      const anomalyReport = await detectAnomalies();
+      const predictions = riskReport.assessments.map((ra: any) => ({
+        billId: ra.billId,
+        predictedStage: ra.stage,
+        predictedPassageProbability: ra.passageProbability,
+        predictedRiskLevel: ra.riskLevel,
+        riskScore: ra.riskScore,
+      }));
+      const report = await analyzeForecast(
+        predictions,
+        riskReport.regime,
+        0,
+        riskReport.criticalRisks.length,
+        anomalyReport.anomalies.length,
+        0,
+      );
+      res.json(report);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * GET /intelligence/sponsors — sponsor network analysis and coalition power mapping.
+   */
+  router.get("/intelligence/sponsors", async (_req, res, next) => {
+    try {
+      const report = await analyzeSponsorNetwork();
       res.json(report);
     } catch (err: any) {
       next(err);

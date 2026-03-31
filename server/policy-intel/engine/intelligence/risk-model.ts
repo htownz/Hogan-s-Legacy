@@ -21,6 +21,7 @@ import {
 } from "@shared/schema-policy-intel";
 import { eq, sql, gte, desc, count, and, ilike } from "drizzle-orm";
 import { detectRegime } from "../agent-pipeline";
+import { analyzeSponsorNetwork, type BillSponsorAnalysis } from "./sponsor-network";
 
 export interface RiskAssessment {
   billId: string;
@@ -43,6 +44,10 @@ export interface RiskAssessment {
   recommendations: string[];
   /** Data quality flag */
   confidence: "high" | "medium" | "low";
+  /** Sponsor coalition power (0-100), if available */
+  sponsorPower?: number;
+  /** Whether bipartisan support was detected */
+  bipartisanSupport?: boolean;
 }
 
 export interface RiskFactor {
@@ -167,6 +172,16 @@ export async function analyzeRisk(): Promise<RiskReport> {
 
   const committeeChairs = new Map(chairs.map(c => [c.committeeName.toLowerCase(), c]));
 
+  // ── Sponsor network analysis (enriches risk with coalition power) ────
+  let sponsorAnalyses: BillSponsorAnalysis[] = [];
+  try {
+    const sponsorReport = await analyzeSponsorNetwork();
+    sponsorAnalyses = sponsorReport.billAnalyses;
+  } catch {
+    // Sponsor analysis is enrichment — proceed without it if it fails
+  }
+  const sponsorMap = new Map(sponsorAnalyses.map(s => [s.billId, s]));
+
   // ── Build risk assessments ──────────────────────────────────────────
   const assessments: RiskAssessment[] = [];
 
@@ -205,9 +220,31 @@ export async function analyzeRisk(): Promise<RiskReport> {
 
     // ── Alert velocity ──────────────────────────────────────────────
     const d7 = new Date(now.getTime() - 7 * 86400000);
+    const d14 = new Date(now.getTime() - 14 * 86400000);
     const recentCount = billAlertList.filter(a => a.createdAt >= d7).length;
+    const prevWeekCount = billAlertList.filter(a => a.createdAt >= d14 && a.createdAt < d7).length;
+
     if (recentCount >= 3) {
       riskFactors.push({ factor: "High Recent Activity", impact: 0.2, detail: `${recentCount} alerts in past 7 days — accelerating activity` });
+    }
+
+    // ── Alert acceleration (velocity of velocity) ───────────────────
+    if (prevWeekCount > 0 && recentCount > prevWeekCount * 2) {
+      riskFactors.push({
+        factor: "Activity Acceleration",
+        impact: 0.15,
+        detail: `Alert volume doubled from ${prevWeekCount} to ${recentCount} week-over-week — exponential growth detected`,
+      });
+    }
+
+    // ── Multi-source engagement ─────────────────────────────────────
+    const sourceTypes = new Set(billAlertList.map(a => a.watchlistId).filter(Boolean));
+    if (sourceTypes.size >= 3) {
+      riskFactors.push({
+        factor: "Multi-Watchlist Alert",
+        impact: 0.15,
+        detail: `Triggered ${sourceTypes.size} different watchlists — broad cross-domain relevance`,
+      });
     }
 
     // ── Average relevance score ─────────────────────────────────────
@@ -219,14 +256,78 @@ export async function analyzeRisk(): Promise<RiskReport> {
     // ── Stakeholder signals ─────────────────────────────────────────
     const govSignal = /governor|abbott/i.test(combinedText);
     const speakerSignal = /speaker|phelan/i.test(combinedText);
+    const ltGovSignal = /lieutenant governor|lt\.\s*gov/i.test(combinedText);
     if (govSignal) riskFactors.push({ factor: "Governor Involvement", impact: 0.25, detail: "Governor referenced — executive priority signal" });
     if (speakerSignal) riskFactors.push({ factor: "Speaker Involvement", impact: 0.2, detail: "Speaker referenced — leadership priority" });
+    if (ltGovSignal) riskFactors.push({ factor: "Lt. Governor Involvement", impact: 0.2, detail: "Lt. Governor referenced — Senate leadership priority" });
+
+    // ── Sponsor coalition power (from sponsor-network analyzer) ─────
+    const sponsorData = sponsorMap.get(billId);
+    let sponsorPower: number | undefined;
+    let bipartisanSupport: boolean | undefined;
+
+    if (sponsorData) {
+      sponsorPower = sponsorData.coalition.coalitionPower;
+      bipartisanSupport = sponsorData.coalition.isBipartisan;
+
+      if (sponsorData.coalition.coalitionPower >= 60) {
+        riskFactors.push({
+          factor: "Strong Sponsor Coalition",
+          impact: 0.25,
+          detail: `Coalition power ${sponsorData.coalition.coalitionPower}/100 — ${sponsorData.coalition.size} sponsor(s)${sponsorData.coalition.hasLeadership ? " including leadership" : ""}`,
+        });
+      } else if (sponsorData.coalition.coalitionPower <= 20 && sponsorData.coalition.size <= 1) {
+        mitigatingFactors.push({
+          factor: "Weak Sponsor Base",
+          impact: -0.1,
+          detail: `Only ${sponsorData.coalition.size} identified sponsor(s) — limited political support`,
+        });
+      }
+
+      if (sponsorData.coalition.isBipartisan) {
+        riskFactors.push({
+          factor: "Bipartisan Support",
+          impact: 0.2,
+          detail: `Sponsors from ${sponsorData.coalition.parties.join(" & ")} — bipartisan bills pass at significantly higher rates`,
+        });
+      }
+
+      if (sponsorData.coalition.hasCommitteeChair) {
+        riskFactors.push({
+          factor: "Committee Chair Backing",
+          impact: 0.2,
+          detail: "A sponsor chairs the committee where this bill is assigned — provides gate control",
+        });
+      }
+    }
+
+    // ── Amendment / companion bill signals ───────────────────────────
+    const amendmentSignal = /amendment|substitute|companion|engrossed|committee substitute/i.test(combinedText);
+    if (amendmentSignal) {
+      riskFactors.push({
+        factor: "Amendment Activity",
+        impact: 0.1,
+        detail: "Amendment or substitute bill language detected — indicates active negotiation and forward momentum",
+      });
+    }
+
+    // ── Opposition signals ──────────────────────────────────────────
+    const oppositionSignal = /oppose|opposition|against|testified against|registered against/i.test(combinedText);
+    if (oppositionSignal) {
+      mitigatingFactors.push({
+        factor: "Opposition Detected",
+        impact: -0.1,
+        detail: "Opposition language detected in alert text — may slow or block passage",
+      });
+    }
 
     // ── Calculate final scores ──────────────────────────────────────
     const baseProb = stageWeight;
     const riskBoost = riskFactors.reduce((s, f) => s + f.impact * 0.3, 0);
     const mitigate = mitigatingFactors.reduce((s, f) => s + Math.abs(f.impact) * 0.2, 0);
-    const passageProbability = Math.min(0.99, Math.max(0.01, (baseProb + riskBoost - mitigate) * regimeMult));
+    // Sponsor coalition acts as a multiplier — strong coalitions amplify base probability
+    const sponsorMult = sponsorPower !== undefined ? (0.7 + (sponsorPower / 100) * 0.6) : 1.0;
+    const passageProbability = Math.min(0.99, Math.max(0.01, (baseProb + riskBoost - mitigate) * regimeMult * sponsorMult));
 
     const riskScore = Math.round(passageProbability * avgScore); // combine likelihood with severity
     const riskLevel: RiskAssessment["riskLevel"] =
@@ -240,21 +341,26 @@ export async function analyzeRisk(): Promise<RiskReport> {
     if (riskLevel === "critical" || riskLevel === "high") {
       recommendations.push("Prepare client communication on potential impact");
       if (futureHearings.length > 0) recommendations.push("Consider filing testimony or registering position");
+      if (bipartisanSupport) recommendations.push("Bipartisan bill — consider engaging sponsors from both parties");
     }
     if (govSignal) recommendations.push("Monitor executive action — governor involvement increases passage odds");
     if (stage === "hearing" || stage === "referred") {
       recommendations.push("Track committee actions closely — this is the key decision point");
     }
+    if (sponsorData?.coalition.hasCommitteeChair) {
+      recommendations.push("Committee chair is a sponsor — direct outreach to chair's office may be most effective");
+    }
     if (recommendations.length === 0) recommendations.push("Continue standard monitoring");
 
     // ── Confidence assessment ───────────────────────────────────────
-    const dataPoints = billAlertList.length + hearings.length + (govSignal ? 1 : 0);
+    const dataPoints = billAlertList.length + hearings.length + (govSignal ? 1 : 0) + (sponsorData ? sponsorData.sponsors.length : 0);
     const confidence: RiskAssessment["confidence"] = dataPoints >= 5 ? "high" : dataPoints >= 2 ? "medium" : "low";
 
     // ── Narrative ───────────────────────────────────────────────────
     const narrative = `${billId}: ${riskLevel.toUpperCase()} risk (score ${riskScore}/100, ${(passageProbability * 100).toFixed(0)}% passage probability). ` +
       `Currently at "${stage}" stage during "${regime}" regime. ` +
       (riskFactors.length > 0 ? `Key risk factors: ${riskFactors.map(f => f.factor).join(", ")}. ` : "") +
+      (bipartisanSupport ? "Bipartisan support detected. " : "") +
       (recommendations[0] !== "Continue standard monitoring" ? `Recommended: ${recommendations[0]}.` : "No immediate action required.");
 
     assessments.push({
@@ -269,6 +375,8 @@ export async function analyzeRisk(): Promise<RiskReport> {
       narrative,
       recommendations,
       confidence,
+      sponsorPower,
+      bipartisanSupport,
     });
   }
 

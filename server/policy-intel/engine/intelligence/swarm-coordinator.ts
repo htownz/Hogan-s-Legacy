@@ -16,6 +16,8 @@ import { analyzeCorrelations, type CorrelationReport } from "./cross-correlator"
 import { analyzeInfluence, type InfluenceReport } from "./influence-ranker";
 import { analyzeRisk, type RiskReport } from "./risk-model";
 import { detectAnomalies, type AnomalyReport } from "./anomaly-detector";
+import { analyzeForecast, captureSnapshot, computeDelta, type ForecastReport, type DeltaBriefing } from "./forecast-tracker";
+import { analyzeSponsorNetwork, type SponsorNetworkReport } from "./sponsor-network";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -51,6 +53,12 @@ export interface IntelligenceBriefing {
   influence: InfluenceReport;
   risk: RiskReport;
   anomalies: AnomalyReport;
+  /** Sponsor network analysis */
+  sponsors: SponsorNetworkReport;
+  /** Forecast accuracy & model learning */
+  forecast: ForecastReport;
+  /** Delta briefing — what changed since last run */
+  delta: DeltaBriefing;
   /** How long the full swarm run took (ms) */
   analysisTimeMs: number;
 }
@@ -60,16 +68,42 @@ export interface IntelligenceBriefing {
 export async function runSwarm(): Promise<IntelligenceBriefing> {
   const start = Date.now();
 
-  // Launch all analyzers concurrently — this is the "swarm"
-  const [velocity, correlations, influence, risk, anomalies] = await Promise.all([
+  // Launch core analyzers concurrently — this is the "swarm"
+  const [velocity, correlations, influence, risk, anomalies, sponsors] = await Promise.all([
     analyzeVelocity(),
     analyzeCorrelations(),
     analyzeInfluence(),
     analyzeRisk(),
     detectAnomalies(),
+    analyzeSponsorNetwork().catch(() => ({
+      analyzedAt: new Date().toISOString(), billAnalyses: [],
+      prolificSponsors: [], bipartisanBills: [], leadershipBacked: [],
+      networkStats: { totalSponsors: 0, avgCoalitionSize: 0, bipartisanRate: 0, leadershipRate: 0 },
+    }) as SponsorNetworkReport),
   ]);
 
   const analysisTimeMs = Date.now() - start;
+
+  // ── Pre-compute forecast (needs risk results) ────────────────────────
+  const predictions = risk.assessments.map(ra => ({
+    billId: ra.billId,
+    predictedStage: ra.stage,
+    predictedPassageProbability: ra.passageProbability,
+    predictedRiskLevel: ra.riskLevel,
+    riskScore: ra.riskScore,
+  }));
+
+  let forecast: ForecastReport | null = null;
+  try {
+    forecast = await analyzeForecast(
+      predictions,
+      risk.regime,
+      0, // insight count not yet known; updated on next run via snapshot
+      risk.criticalRisks.length,
+      anomalies.anomalies.length,
+      correlations.clusters.length,
+    );
+  } catch { /* forecast is optional — system works without it */ }
 
   // ── Cross-Reference & Synthesize ─────────────────────────────────────
   const insights: StrategicInsight[] = [];
@@ -229,6 +263,109 @@ export async function runSwarm(): Promise<IntelligenceBriefing> {
     }
   }
 
+  // 9. Bipartisan bills + surging velocity = HIGHEST PRIORITY OPPORTUNITY
+  for (const bpBill of sponsors.bipartisanBills) {
+    const isSurging = velocity.topMovers.some(v =>
+      v.momentum === "surging" &&
+      (bpBill.billId.toLowerCase().includes(v.subject.toLowerCase()) ||
+        bpBill.title.toLowerCase().includes(v.subject.toLowerCase())),
+    );
+    if (isSurging) {
+      insights.push({
+        priority: 1,
+        category: "immediate_action",
+        title: `Bipartisan bill ${bpBill.billId} is accelerating`,
+        narrative: `${bpBill.billId} has bipartisan support (${bpBill.coalition.parties.join("/")} coalition of ${bpBill.coalition.size}) AND its topic is surging. Bipartisan bills with momentum have the highest passage probability — this demands immediate strategic positioning.`,
+        sources: ["sponsor-network", "velocity-analyzer"],
+        confidence: 0.9,
+        relatedEntities: [{ type: "bill", id: bpBill.billId, label: bpBill.title }],
+      });
+    }
+  }
+
+  // 10. Leadership-backed bills at high risk = COMPOUND SIGNAL
+  for (const lbBill of sponsors.leadershipBacked) {
+    const riskAssessment = risk.assessments.find(ra => ra.billId === lbBill.billId);
+    if (riskAssessment && (riskAssessment.riskLevel === "critical" || riskAssessment.riskLevel === "high")) {
+      insights.push({
+        priority: 1,
+        category: "emerging_threat",
+        title: `Leadership-backed ${lbBill.billId} at ${riskAssessment.riskLevel} risk`,
+        narrative: `${lbBill.billId} has chamber leadership sponsorship (coalition power: ${lbBill.coalition.coalitionPower}) and scores ${riskAssessment.riskLevel} risk with ${(riskAssessment.passageProbability * 100).toFixed(0)}% passage probability. Leadership-backed bills are structurally favored — the passage probability here may be conservative.`,
+        sources: ["sponsor-network", "risk-model"],
+        confidence: 0.88,
+        relatedEntities: [{ type: "bill", id: lbBill.billId, label: lbBill.title }],
+      });
+    }
+  }
+
+  // 11. Prolific sponsors appearing across multiple risk-assessed bills = POWER BROKER PATTERN
+  for (const sp of sponsors.prolificSponsors) {
+    if (sp.billCount >= 3) {
+      const riskyBills = sp.billIds.filter(bid =>
+        risk.assessments.some(ra => ra.billId === bid && (ra.riskLevel === "critical" || ra.riskLevel === "high")),
+      );
+      if (riskyBills.length >= 2) {
+        insights.push({
+          priority: 2,
+          category: "strategic_recommendation",
+          title: `${sp.name} sponsors ${riskyBills.length} high-risk bills`,
+          narrative: `${sp.name} (${sp.party}) sponsors ${sp.billCount} bills total, of which ${riskyBills.length} are assessed as high/critical risk. This legislator is a key actor — engagement strategy should prioritize understanding their legislative agenda. ${sp.isLeadership ? "ALERT: This sponsor holds a leadership position." : ""}`,
+          sources: ["sponsor-network", "risk-model"],
+          confidence: 0.8,
+          relatedEntities: [{ type: "stakeholder", id: sp.stakeholderId, label: sp.name }],
+        });
+      }
+    }
+  }
+
+  // 12. Velocity anomaly (silence-then-burst) on high-risk bills = WAKE-UP SIGNAL
+  const velocityAnomalies = anomalies.anomalies.filter(a => a.type === "velocity_anomaly");
+  for (const va of velocityAnomalies) {
+    const matchingRisk = risk.assessments.find(ra =>
+      va.subject.toLowerCase().includes(ra.billId.toLowerCase()) ||
+      ra.title.toLowerCase().includes(va.subject.toLowerCase()),
+    );
+    if (matchingRisk && (matchingRisk.riskLevel === "critical" || matchingRisk.riskLevel === "high")) {
+      insights.push({
+        priority: 1,
+        category: "immediate_action",
+        title: `Silence-then-burst on ${matchingRisk.riskLevel}-risk topic`,
+        narrative: `${va.narrative} This watchlist covers a ${matchingRisk.riskLevel}-risk area. After weeks of silence, the sudden burst may indicate behind-the-scenes negotiations have concluded and legislative action is imminent.`,
+        sources: ["anomaly-detector", "risk-model"],
+        confidence: 0.82,
+      });
+    }
+  }
+
+  // 13. Forecast model drift warning = SYSTEM INTELLIGENCE
+  if (forecast && forecast.grade.trendDirection === "degrading") {
+    insights.push({
+      priority: 3,
+      category: "strategic_recommendation",
+      title: "Intelligence model accuracy is declining",
+      narrative: `${forecast.grade.narrative} The system's predictions are becoming less reliable. Consider reviewing watchlist configurations and scoring weights — the legislative landscape may have shifted in ways the model hasn't adapted to yet.`,
+      sources: ["forecast-tracker"],
+      confidence: 0.9,
+    });
+  }
+
+  // 14. Forecast blind spots = COVERAGE GAP
+  if (forecast) {
+    for (const bs of forecast.grade.blindSpots) {
+      if (bs.missCount >= 2) {
+        insights.push({
+          priority: 3,
+          category: "situational_awareness",
+          title: `Forecast blind spot: ${bs.category}`,
+          narrative: `The system has missed ${bs.missCount} predictions in the "${bs.category}" category. ${bs.description} Examples: ${bs.examples.slice(0, 3).join(", ")}.`,
+          sources: ["forecast-tracker"],
+          confidence: 0.7,
+        });
+      }
+    }
+  }
+
   // Sort by priority
   insights.sort((a, b) => a.priority - b.priority);
 
@@ -237,6 +374,7 @@ export async function runSwarm(): Promise<IntelligenceBriefing> {
   const surgingTopics = velocity.topMovers.filter(v => v.momentum === "surging").length;
   const criticalAnomalies = anomalies.criticalCount;
   const p1Insights = insights.filter(i => i.priority === 1).length;
+  const bipartisanCount = sponsors.bipartisanBills.length;
 
   const summaryParts: string[] = [];
   if (p1Insights > 0) {
@@ -251,15 +389,34 @@ export async function runSwarm(): Promise<IntelligenceBriefing> {
   if (criticalAnomalies > 0) {
     summaryParts.push(`${criticalAnomalies} critical anomal${criticalAnomalies !== 1 ? "ies" : "y"} detected`);
   }
+  if (bipartisanCount > 0) {
+    summaryParts.push(`${bipartisanCount} bipartisan bill${bipartisanCount !== 1 ? "s" : ""} identified`);
+  }
 
+  const modelStatus = forecast?.grade.trendDirection === "degrading" ? " ⚠ Model accuracy declining." : "";
   const executiveSummary = summaryParts.length > 0
-    ? `Intelligence briefing identified ${summaryParts.join(", ")}. The legislative landscape is ${risk.regime === "floor_action" || risk.regime === "sine_die" ? "in a high-activity phase" : "in a " + risk.regime.replace(/_/g, " ") + " phase"}. ${insights.length} total strategic insight${insights.length !== 1 ? "s" : ""} generated from cross-referencing ${velocity.vectors.length} velocity vectors, ${correlations.clusters.length} bill clusters, ${influence.profiles.length} stakeholder profiles, ${risk.assessments.length} risk assessments, and ${anomalies.anomalies.length} anomaly detections in ${analysisTimeMs}ms.`
-    : `No critical situations detected. The legislative landscape is in a ${risk.regime.replace(/_/g, " ")} phase. System monitoring ${velocity.vectors.length} activity vectors across ${risk.assessments.length} assessed bills. Analysis completed in ${analysisTimeMs}ms.`;
+    ? `Intelligence briefing identified ${summaryParts.join(", ")}. The legislative landscape is ${risk.regime === "floor_action" || risk.regime === "sine_die" ? "in a high-activity phase" : "in a " + risk.regime.replace(/_/g, " ") + " phase"}. ${insights.length} total strategic insight${insights.length !== 1 ? "s" : ""} generated from cross-referencing ${velocity.vectors.length} velocity vectors, ${correlations.clusters.length} bill clusters, ${influence.profiles.length} stakeholder profiles, ${risk.assessments.length} risk assessments, ${sponsors.networkStats.totalSponsors} sponsor profiles, and ${anomalies.anomalies.length} anomaly detections in ${analysisTimeMs}ms.${modelStatus}`
+    : `No critical situations detected. The legislative landscape is in a ${risk.regime.replace(/_/g, " ")} phase. System monitoring ${velocity.vectors.length} activity vectors across ${risk.assessments.length} assessed bills. Sponsor network tracking ${sponsors.networkStats.totalSponsors} legislators. Analysis completed in ${analysisTimeMs}ms.${modelStatus}`;
 
   const insightCounts: Record<string, number> = {};
   for (const ins of insights) {
     insightCounts[ins.category] = (insightCounts[ins.category] ?? 0) + 1;
   }
+
+  // ── Delta computation ───────────────────────────────────────────────────
+  const delta: DeltaBriefing = forecast?.delta ?? {
+    previousSnapshotId: null,
+    previousCapturedAt: null,
+    newRisks: [],
+    resolvedRisks: [],
+    escalatedRisks: [],
+    deescalatedRisks: [],
+    newAnomalies: 0,
+    resolvedAnomalies: 0,
+    newClusters: 0,
+    threatTrend: "stable",
+    narrative: "First briefing — no comparison available yet. Future briefings will track changes automatically.",
+  };
 
   return {
     generatedAt: new Date().toISOString(),
@@ -271,6 +428,15 @@ export async function runSwarm(): Promise<IntelligenceBriefing> {
     influence,
     risk,
     anomalies,
+    sponsors,
+    forecast: forecast ?? {
+      analyzedAt: new Date().toISOString(),
+      currentSnapshot: { snapshotId: "", capturedAt: "", predictions: [], regime: risk.regime, totalInsights: 0, criticalRiskCount: 0, anomalyCount: 0 },
+      delta,
+      grade: { windowStart: "", windowEnd: "", totalPredictions: 0, verifiablePredictions: 0, accuracy: { overall: 0, calibration: [], rankingAccuracy: 0 }, blindSpots: [], trendDirection: "insufficient_data", narrative: "Forecast system initializing." },
+      historyDepth: 0,
+    },
+    delta,
     analysisTimeMs,
   };
 }

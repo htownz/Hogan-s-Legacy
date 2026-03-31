@@ -17,6 +17,7 @@ import {
   alerts, sourceDocuments, watchlists, hearingEvents,
 } from "@shared/schema-policy-intel";
 import { count, desc, eq, gte, sql } from "drizzle-orm";
+import { detectRegime } from "../agent-pipeline";
 
 export interface Anomaly {
   type:
@@ -25,7 +26,8 @@ export interface Anomaly {
     | "timing_anomaly"
     | "ghost_bill"
     | "source_flood"
-    | "watchlist_convergence";
+    | "watchlist_convergence"
+    | "velocity_anomaly";
   severity: "critical" | "high" | "medium" | "low";
   /** What specifically triggered this anomaly */
   subject: string;
@@ -65,8 +67,18 @@ export async function detectAnomalies(): Promise<AnomalyReport> {
   const d90 = new Date(now.getTime() - 90 * 86400000);
   const anomalies: Anomaly[] = [];
 
-  // ── 1. Volume Spike Detection ──────────────────────────────────────
-  // Compare last-7-day alert volume per watchlist against 90-day average
+  // Detect current regime to adjust baselines
+  const regime = detectRegime("", now);
+  const regimeMultiplier: Record<string, number> = {
+    pre_filing: 0.3, early_session: 0.6, committee_season: 1.0,
+    floor_action: 1.5, conference: 1.3, sine_die: 2.0,
+    special_session: 1.5, interim: 0.2,
+  };
+  const regimeMult = regimeMultiplier[regime] ?? 1.0;
+
+  // ── 1. Volume Spike Detection (regime-adjusted) ────────────────────
+  // Compare last-7-day alert volume per watchlist against 90-day average,
+  // adjusted for expected session-phase activity levels
   const volumeRows = await policyIntelDb
     .select({
       watchlistId: alerts.watchlistId,
@@ -81,21 +93,23 @@ export async function detectAnomalies(): Promise<AnomalyReport> {
 
   for (const row of volumeRows) {
     const avg7d = (row.total90d / 13); // ~13 weeks in 90 days
+    // Adjust baseline for expected regime activity level
+    const adjustedAvg = avg7d * regimeMult;
     const recent = Number(row.recent7d) || 0;
-    if (avg7d < 1) continue; // not enough data
-    const stdApprox = Math.max(avg7d * 0.5, 1); // rough std deviation
-    const zScore = (recent - avg7d) / stdApprox;
+    if (adjustedAvg < 1) continue; // not enough data
+    const stdApprox = Math.max(adjustedAvg * 0.5, 1); // rough std deviation
+    const zScore = (recent - adjustedAvg) / stdApprox;
     if (zScore >= 2) {
       anomalies.push({
         type: "volume_spike",
         severity: severityFromDeviation(zScore),
         subject: row.watchlistName ?? `Watchlist #${row.watchlistId}`,
         deviation: Math.round(zScore * 100) / 100,
-        baseline: Math.round(avg7d * 10) / 10,
+        baseline: Math.round(adjustedAvg * 10) / 10,
         observed: recent,
-        narrative: `"${row.watchlistName}" generated ${recent} alerts in the past 7 days — ${zScore.toFixed(1)}× standard deviations above its weekly average of ${avg7d.toFixed(1)}. This is an unusual spike worth investigating.`,
+        narrative: `"${row.watchlistName}" generated ${recent} alerts in the past 7 days — ${zScore.toFixed(1)}× standard deviations above its regime-adjusted weekly average of ${adjustedAvg.toFixed(1)} (regime: ${regime}). This is an unusual spike worth investigating.`,
         detectedAt: now.toISOString(),
-        metadata: { watchlistId: row.watchlistId, total90d: row.total90d },
+        metadata: { watchlistId: row.watchlistId, total90d: row.total90d, regime },
       });
     }
   }
@@ -210,7 +224,7 @@ export async function detectAnomalies(): Promise<AnomalyReport> {
     });
   }
 
-  // ── 5. Ghost Bill Detection ────────────────────────────────────────
+  // ── 5. Ghost Bill Detection (batched — no N+1 queries) ──────────────
   // Bills that appear in hearings but have no prior alert trail
   const recentHearings = await policyIntelDb
     .select({
@@ -222,17 +236,44 @@ export async function detectAnomalies(): Promise<AnomalyReport> {
     .where(gte(hearingEvents.hearingDate, d7))
     .limit(100);
 
+  // Collect all unique bill IDs from hearings
+  const hearingBillIds = new Map<string, string>(); // billId → committee
   for (const h of recentHearings) {
     for (const billId of (h.relatedBillIds ?? [])) {
-      // Check if there's any alert matching this bill ID
-      const billAlerts = await policyIntelDb
-        .select({ cnt: count() })
-        .from(alerts)
-        .where(sql`(${alerts.title} ILIKE ${"%" + billId + "%"} OR ${alerts.summary} ILIKE ${"%" + billId + "%"})`)
-        .limit(1);
+      hearingBillIds.set(billId, h.committee);
+    }
+  }
 
-      const alertCount = billAlerts[0]?.cnt ?? 0;
-      if (alertCount === 0) {
+  if (hearingBillIds.size > 0) {
+    // Single batched query: find which hearing bill IDs DO have alerts
+    const billIdArray = Array.from(hearingBillIds.keys());
+
+    // Build a single OR condition that checks all bill IDs at once
+    const conditions = billIdArray.map(id => `(${alerts.title.name} ILIKE '%${id.replace(/'/g, "''")}%' OR ${alerts.summary.name} ILIKE '%${id.replace(/'/g, "''")}%')`);
+
+    // Query to find which bill IDs appear in alerts (batch)
+    const coveredBills = new Set<string>();
+    if (conditions.length > 0) {
+      // Use a simpler approach: search for each bill ID pattern in alert titles
+      const alertBillSearch = await policyIntelDb
+        .select({ title: alerts.title, summary: alerts.summary })
+        .from(alerts)
+        .where(gte(alerts.createdAt, d90))
+        .limit(1000);
+
+      for (const a of alertBillSearch) {
+        const text = `${a.title} ${a.summary ?? ""}`;
+        for (const billId of billIdArray) {
+          if (text.includes(billId)) {
+            coveredBills.add(billId);
+          }
+        }
+      }
+    }
+
+    // Ghost bills = in hearings but not in any alert
+    for (const [billId, committee] of hearingBillIds) {
+      if (!coveredBills.has(billId)) {
         anomalies.push({
           type: "ghost_bill",
           severity: "high",
@@ -240,11 +281,45 @@ export async function detectAnomalies(): Promise<AnomalyReport> {
           deviation: 0,
           baseline: 0,
           observed: 0,
-          narrative: `Bill "${billId}" appeared in a hearing scheduled for ${h.committee} but has zero matching alerts in the system. This bill may have bypassed normal monitoring — it needs manual review to determine if your watchlists should cover it.`,
+          narrative: `Bill "${billId}" appeared in a hearing scheduled for ${committee} but has zero matching alerts in the system. This bill may have bypassed normal monitoring — it needs manual review to determine if your watchlists should cover it.`,
           detectedAt: now.toISOString(),
-          metadata: { committee: h.committee, hearingDate: h.hearingDate },
+          metadata: { committee },
         });
       }
+    }
+  }
+
+  // ── 6. Velocity Anomaly Detection ──────────────────────────────────
+  // Detect "silence then burst" patterns — a bill with no alerts for 30+
+  // days that suddenly gets 3+ in a week
+  const burstRows = await policyIntelDb
+    .select({
+      watchlistId: alerts.watchlistId,
+      watchlistName: watchlists.name,
+      recent7d: sql<number>`SUM(CASE WHEN ${alerts.createdAt} >= ${d7.toISOString()}::timestamptz THEN 1 ELSE 0 END)`,
+      mid23d: sql<number>`SUM(CASE WHEN ${alerts.createdAt} >= ${d30.toISOString()}::timestamptz AND ${alerts.createdAt} < ${d7.toISOString()}::timestamptz THEN 1 ELSE 0 END)`,
+    })
+    .from(alerts)
+    .innerJoin(watchlists, eq(alerts.watchlistId, watchlists.id))
+    .where(gte(alerts.createdAt, d30))
+    .groupBy(alerts.watchlistId, watchlists.name);
+
+  for (const row of burstRows) {
+    const recent = Number(row.recent7d) || 0;
+    const prior = Number(row.mid23d) || 0;
+    // Silence-then-burst: 0 alerts in the 23 days before, then 3+ in the last 7
+    if (prior === 0 && recent >= 3) {
+      anomalies.push({
+        type: "velocity_anomaly",
+        severity: recent >= 6 ? "critical" : "high",
+        subject: row.watchlistName ?? `Watchlist #${row.watchlistId}`,
+        deviation: recent,
+        baseline: 0,
+        observed: recent,
+        narrative: `"${row.watchlistName}" was completely silent for 23 days then generated ${recent} alerts in the past week — a classic "silence then burst" pattern that often signals sudden legislative action or a data gap being filled.`,
+        detectedAt: now.toISOString(),
+        metadata: { watchlistId: row.watchlistId, silenceDays: 23, burstCount: recent },
+      });
     }
   }
 

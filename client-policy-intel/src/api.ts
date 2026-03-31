@@ -247,6 +247,8 @@ export const api = {
   getInfluenceReport: () => apiFetch<InfluenceReport>("/intelligence/influence"),
   getRiskReport: () => apiFetch<RiskReport>("/intelligence/risk"),
   getAnomalyReport: () => apiFetch<AnomalyReport>("/intelligence/anomalies"),
+  getForecastReport: () => apiFetch<ForecastReport>("/intelligence/forecast"),
+  getSponsorReport: () => apiFetch<SponsorNetworkReport>("/intelligence/sponsors"),
 };
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -873,5 +875,130 @@ export interface IntelligenceBriefing {
   influence: InfluenceReport;
   risk: RiskReport;
   anomalies: AnomalyReport;
+  sponsors: SponsorNetworkReport;
+  forecast: ForecastReport;
+  delta: DeltaBriefing;
   analysisTimeMs: number;
+}
+
+// ── Forecast Tracker Types ─────────────────────────────────────────────────
+
+export interface ForecastSnapshot {
+  snapshotId: string;
+  capturedAt: string;
+  predictions: BillPrediction[];
+  regime: string;
+  totalInsights: number;
+  criticalRiskCount: number;
+  anomalyCount: number;
+}
+
+export interface BillPrediction {
+  billId: string;
+  predictedStage: string;
+  predictedPassageProbability: number;
+  predictedRiskLevel: string;
+  riskScore: number;
+  actualOutcome?: string;
+  wasAccurate?: boolean;
+}
+
+export interface CalibrationBucket {
+  range: string;
+  lower: number;
+  upper: number;
+  count: number;
+  actualRate: number;
+  calibrationError: number;
+}
+
+export interface BlindSpot {
+  category: string;
+  description: string;
+  missCount: number;
+  examples: string[];
+}
+
+export interface ForecastGrade {
+  windowStart: string;
+  windowEnd: string;
+  totalPredictions: number;
+  verifiablePredictions: number;
+  accuracy: {
+    overall: number;
+    calibration: CalibrationBucket[];
+    rankingAccuracy: number;
+  };
+  blindSpots: BlindSpot[];
+  trendDirection: "improving" | "stable" | "degrading" | "insufficient_data";
+  narrative: string;
+}
+
+export interface DeltaBriefing {
+  previousSnapshotId: string | null;
+  previousCapturedAt: string | null;
+  newRisks: string[];
+  resolvedRisks: string[];
+  escalatedRisks: Array<{ billId: string; previousLevel: string; currentLevel: string }>;
+  deescalatedRisks: Array<{ billId: string; previousLevel: string; currentLevel: string }>;
+  newAnomalies: number;
+  resolvedAnomalies: number;
+  newClusters: number;
+  threatTrend: "escalating" | "stable" | "deescalating";
+  narrative: string;
+}
+
+export interface ForecastReport {
+  analyzedAt: string;
+  currentSnapshot: ForecastSnapshot;
+  delta: DeltaBriefing;
+  grade: ForecastGrade;
+  historyDepth: number;
+}
+
+// ── Sponsor Network Types ──────────────────────────────────────────────────
+
+export interface SponsorProfile {
+  stakeholderId: number;
+  name: string;
+  party: string;
+  chamber: string;
+  billIds: string[];
+  chairPositions: string[];
+  committeeCount: number;
+  isLeadership: boolean;
+  billCount: number;
+}
+
+export interface BillSponsorCoalition {
+  size: number;
+  isBipartisan: boolean;
+  parties: string[];
+  chambers: string[];
+  hasCommitteeChair: boolean;
+  hasLeadership: boolean;
+  coalitionPower: number;
+}
+
+export interface BillSponsorAnalysis {
+  billId: string;
+  title: string;
+  sponsors: SponsorProfile[];
+  coalition: BillSponsorCoalition;
+  networkDensity: number;
+  narrative: string;
+}
+
+export interface SponsorNetworkReport {
+  analyzedAt: string;
+  billAnalyses: BillSponsorAnalysis[];
+  prolificSponsors: SponsorProfile[];
+  bipartisanBills: BillSponsorAnalysis[];
+  leadershipBacked: BillSponsorAnalysis[];
+  networkStats: {
+    totalSponsors: number;
+    avgCoalitionSize: number;
+    bipartisanRate: number;
+    leadershipRate: number;
+  };
 }

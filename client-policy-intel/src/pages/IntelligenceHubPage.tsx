@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { api, type IntelligenceBriefing, type StrategicInsight, type VelocityVector, type RiskAssessment, type Anomaly, type InfluenceProfile, type BillCluster } from "../api";
+import { api, type IntelligenceBriefing, type StrategicInsight, type VelocityVector, type RiskAssessment, type Anomaly, type InfluenceProfile, type BillCluster, type ForecastReport, type DeltaBriefing, type SponsorNetworkReport, type BillSponsorAnalysis, type SponsorProfile, type CalibrationBucket } from "../api";
 import { useAsync } from "../hooks";
 
-type Tab = "briefing" | "velocity" | "risk" | "influence" | "correlations" | "anomalies";
+type Tab = "briefing" | "velocity" | "risk" | "influence" | "correlations" | "anomalies" | "forecast" | "sponsors";
 
 export function IntelligenceHubPage() {
   const [tab, setTab] = useState<Tab>("briefing");
@@ -19,6 +19,8 @@ export function IntelligenceHubPage() {
     { key: "influence", label: "Influence", count: data.influence.profiles.length },
     { key: "correlations", label: "Clusters", count: data.correlations.clusters.length },
     { key: "anomalies", label: "Anomalies", count: data.anomalies.anomalies.length },
+    { key: "forecast", label: "Forecast", count: data.forecast.historyDepth },
+    { key: "sponsors", label: "Sponsors", count: data.sponsors.networkStats.totalSponsors },
   ];
 
   return (
@@ -44,6 +46,8 @@ export function IntelligenceHubPage() {
           <StatBadge label="Critical Risks" value={data.risk.criticalRisks.length} color="#e74c3c" />
           <StatBadge label="Anomalies" value={data.anomalies.anomalies.length} color="#e67e22" />
           <StatBadge label="Surging" value={data.velocity.topMovers.filter(v => v.momentum === "surging").length} color="#2ecc71" />
+          <StatBadge label="Sponsors" value={data.sponsors.networkStats.totalSponsors} color="#1abc9c" />
+          <StatBadge label="Delta" value={data.delta.threatTrend} color={data.delta.threatTrend === "escalating" ? "#e74c3c" : data.delta.threatTrend === "deescalating" ? "#2ecc71" : "#f1c40f"} isText />
           <StatBadge label="Regime" value={data.risk.regime.replace(/_/g, " ")} color="#9b59b6" isText />
         </div>
       </div>
@@ -79,6 +83,8 @@ export function IntelligenceHubPage() {
       {tab === "influence" && <InfluenceTab data={data} />}
       {tab === "correlations" && <CorrelationsTab data={data} />}
       {tab === "anomalies" && <AnomaliesTab data={data} />}
+      {tab === "forecast" && <ForecastTab data={data} />}
+      {tab === "sponsors" && <SponsorsTab data={data} />}
     </div>
   );
 }
@@ -90,9 +96,9 @@ function LoadingState() {
     <div style={{ textAlign: "center", padding: 60 }}>
       <div style={{ fontSize: 36, marginBottom: 12 }}>🧠</div>
       <h2 style={{ fontSize: 18, color: "#555" }}>Running Intelligence Swarm...</h2>
-      <p style={{ fontSize: 13, color: "#888" }}>5 analyzers executing in parallel</p>
+      <p style={{ fontSize: 13, color: "#888" }}>7 analyzers executing in parallel</p>
       <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 16 }}>
-        {["Velocity", "Correlations", "Influence", "Risk", "Anomalies"].map(name => (
+        {["Velocity", "Correlations", "Influence", "Risk", "Anomalies", "Forecast", "Sponsors"].map(name => (
           <span key={name} style={{ padding: "4px 10px", background: "#f0f0f0", borderRadius: 12, fontSize: 11, color: "#888" }}>{name}</span>
         ))}
       </div>
@@ -479,6 +485,264 @@ function AnomalyCard({ anomaly, sevColors }: { anomaly: Anomaly; sevColors: Reco
         <span>Observed: {anomaly.observed}</span>
       </div>
     </Card>
+  );
+}
+
+// ── Forecast Tab ──────────────────────────────────────────────────────────────
+
+function ForecastTab({ data }: { data: IntelligenceBriefing }) {
+  const { forecast, delta } = data;
+
+  return (
+    <div style={{ display: "grid", gap: 16 }}>
+      {/* Delta Briefing */}
+      <Card>
+        <h3 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px" }}>
+          📊 Delta Briefing
+          <span style={{
+            marginLeft: 8, padding: "2px 10px", borderRadius: 10, fontSize: 10, fontWeight: 600,
+            background: delta.threatTrend === "escalating" ? "#e74c3c" : delta.threatTrend === "deescalating" ? "#2ecc71" : "#f1c40f",
+            color: "#fff",
+          }}>
+            {delta.threatTrend}
+          </span>
+        </h3>
+        <p style={{ fontSize: 13, color: "#555", lineHeight: 1.5, margin: "0 0 12px" }}>{delta.narrative}</p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
+          <DeltaStat label="New Risks" value={delta.newRisks.length} color="#e74c3c" />
+          <DeltaStat label="Resolved Risks" value={delta.resolvedRisks.length} color="#2ecc71" />
+          <DeltaStat label="Escalated" value={delta.escalatedRisks.length} color="#e67e22" />
+          <DeltaStat label="De-escalated" value={delta.deescalatedRisks.length} color="#3498db" />
+          <DeltaStat label="New Anomalies" value={delta.newAnomalies} color="#e67e22" />
+          <DeltaStat label="New Clusters" value={delta.newClusters} color="#9b59b6" />
+        </div>
+        {delta.escalatedRisks.length > 0 && (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "#e67e22", marginBottom: 4 }}>Escalated Bills</div>
+            {delta.escalatedRisks.map((e, i) => (
+              <div key={i} style={{ fontSize: 12, color: "#666", padding: "2px 0" }}>
+                ⬆ {e.billId}: {e.previousLevel} → {e.currentLevel}
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Model Accuracy */}
+      <Card>
+        <h3 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px" }}>
+          🎯 Model Accuracy
+          <span style={{
+            marginLeft: 8, padding: "2px 10px", borderRadius: 10, fontSize: 10, fontWeight: 600,
+            background: forecast.grade.trendDirection === "improving" ? "#2ecc71" : forecast.grade.trendDirection === "degrading" ? "#e74c3c" : "#f1c40f",
+            color: "#fff",
+          }}>
+            {forecast.grade.trendDirection}
+          </span>
+        </h3>
+        <p style={{ fontSize: 13, color: "#555", lineHeight: 1.5, margin: "0 0 12px" }}>{forecast.grade.narrative}</p>
+        <div style={{ display: "flex", gap: 20 }}>
+          <StatBadge label="Overall Accuracy" value={`${(forecast.grade.accuracy.overall * 100).toFixed(0)}%`} color="#3498db" isText />
+          <StatBadge label="Ranking Accuracy" value={`${(forecast.grade.accuracy.rankingAccuracy * 100).toFixed(0)}%`} color="#9b59b6" isText />
+          <StatBadge label="Predictions" value={forecast.grade.totalPredictions} color="#888" />
+          <StatBadge label="History Depth" value={forecast.historyDepth} color="#2ecc71" />
+        </div>
+      </Card>
+
+      {/* Calibration */}
+      {forecast.grade.accuracy.calibration.length > 0 && (
+        <Card>
+          <h3 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px" }}>📐 Calibration</h3>
+          <p style={{ fontSize: 12, color: "#888", margin: "0 0 10px" }}>When we predict X% probability, does it happen X% of the time?</p>
+          <div style={{ display: "grid", gap: 6 }}>
+            {forecast.grade.accuracy.calibration.map((bucket, i) => (
+              <CalibrationRow key={i} bucket={bucket} />
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Blind Spots */}
+      {forecast.grade.blindSpots.length > 0 && (
+        <Card>
+          <h3 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px" }}>🔍 Blind Spots</h3>
+          {forecast.grade.blindSpots.map((bs, i) => (
+            <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid #f0f0f0" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontWeight: 600, fontSize: 13 }}>{bs.category}</span>
+                <span style={{ padding: "2px 8px", borderRadius: 10, background: "#e74c3c", color: "#fff", fontSize: 10 }}>{bs.missCount} misses</span>
+              </div>
+              <p style={{ fontSize: 12, color: "#666", margin: "4px 0 0" }}>{bs.description}</p>
+            </div>
+          ))}
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function DeltaStat({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div style={{ background: "#f8f9fa", borderRadius: 6, padding: "8px 12px", textAlign: "center" }}>
+      <div style={{ fontSize: 18, fontWeight: 700, color }}>{value}</div>
+      <div style={{ fontSize: 10, color: "#888" }}>{label}</div>
+    </div>
+  );
+}
+
+function CalibrationRow({ bucket }: { bucket: CalibrationBucket }) {
+  const errorColor = bucket.calibrationError > 0.2 ? "#e74c3c" : bucket.calibrationError > 0.1 ? "#e67e22" : "#2ecc71";
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 0" }}>
+      <div style={{ width: 80, fontSize: 12, fontWeight: 500 }}>{bucket.range}</div>
+      <div style={{ flex: 1, height: 8, background: "#f0f0f0", borderRadius: 4, position: "relative" }}>
+        <div style={{ height: "100%", borderRadius: 4, background: "#3498db", width: `${Math.min(bucket.actualRate * 100, 100)}%` }} />
+        {/* Target line */}
+        <div style={{ position: "absolute", top: -2, height: 12, width: 2, background: "#333", left: `${((bucket.lower + bucket.upper) / 2) * 100}%` }} />
+      </div>
+      <div style={{ width: 50, fontSize: 11, textAlign: "right", color: errorColor, fontWeight: 600 }}>
+        {(bucket.actualRate * 100).toFixed(0)}%
+      </div>
+      <div style={{ width: 30, fontSize: 10, color: "#aaa" }}>n={bucket.count}</div>
+    </div>
+  );
+}
+
+// ── Sponsors Tab ──────────────────────────────────────────────────────────────
+
+function SponsorsTab({ data }: { data: IntelligenceBriefing }) {
+  const { sponsors } = data;
+
+  return (
+    <div style={{ display: "grid", gap: 16 }}>
+      {/* Network Stats */}
+      <Card>
+        <h3 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px" }}>🏛️ Sponsor Network Overview</h3>
+        <div style={{ display: "flex", gap: 20 }}>
+          <StatBadge label="Total Sponsors" value={sponsors.networkStats.totalSponsors} color="#3498db" />
+          <StatBadge label="Avg Coalition" value={sponsors.networkStats.avgCoalitionSize.toFixed(1)} color="#9b59b6" isText />
+          <StatBadge label="Bipartisan Rate" value={`${(sponsors.networkStats.bipartisanRate * 100).toFixed(0)}%`} color="#2ecc71" isText />
+          <StatBadge label="Leadership Rate" value={`${(sponsors.networkStats.leadershipRate * 100).toFixed(0)}%`} color="#e67e22" isText />
+        </div>
+      </Card>
+
+      {/* Leadership-Backed Bills */}
+      {sponsors.leadershipBacked.length > 0 && (
+        <Card>
+          <h3 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px" }}>👑 Leadership-Backed Bills</h3>
+          <div style={{ display: "grid", gap: 8 }}>
+            {sponsors.leadershipBacked.map((bill, i) => (
+              <SponsorBillCard key={i} bill={bill} badge="leadership" />
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Bipartisan Bills */}
+      {sponsors.bipartisanBills.length > 0 && (
+        <Card>
+          <h3 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px" }}>🤝 Bipartisan Bills</h3>
+          <div style={{ display: "grid", gap: 8 }}>
+            {sponsors.bipartisanBills.map((bill, i) => (
+              <SponsorBillCard key={i} bill={bill} badge="bipartisan" />
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Prolific Sponsors */}
+      {sponsors.prolificSponsors.length > 0 && (
+        <Card>
+          <h3 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px" }}>⭐ Prolific Sponsors</h3>
+          <div style={{ display: "grid", gap: 6 }}>
+            {sponsors.prolificSponsors.map((sp, i) => (
+              <ProlificSponsorRow key={i} sponsor={sp} rank={i + 1} />
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Per-Bill Coalition Analysis */}
+      {sponsors.billAnalyses.length > 0 && (
+        <Card>
+          <h3 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px" }}>📋 Coalition Analysis by Bill</h3>
+          <div style={{ display: "grid", gap: 8 }}>
+            {sponsors.billAnalyses.slice(0, 20).map((bill, i) => (
+              <SponsorBillCard key={i} bill={bill} />
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {sponsors.billAnalyses.length === 0 && (
+        <Card><p style={{ color: "#888", textAlign: "center", padding: 20 }}>No sponsor data available — need stakeholder profiles and alert data to analyze sponsor networks.</p></Card>
+      )}
+    </div>
+  );
+}
+
+function SponsorBillCard({ bill, badge }: { bill: BillSponsorAnalysis; badge?: "bipartisan" | "leadership" }) {
+  const [expanded, setExpanded] = useState(false);
+  const powerColor = bill.coalition.coalitionPower >= 60 ? "#e74c3c" : bill.coalition.coalitionPower >= 30 ? "#e67e22" : "#3498db";
+
+  return (
+    <div style={{ padding: "8px 0", borderBottom: "1px solid #f0f0f0" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }} onClick={() => setExpanded(!expanded)}>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontWeight: 700, fontSize: 13 }}>{bill.billId}</span>
+            {badge === "bipartisan" && <span style={{ padding: "1px 6px", borderRadius: 8, background: "#2ecc71", color: "#fff", fontSize: 9, fontWeight: 600 }}>BIPARTISAN</span>}
+            {badge === "leadership" && <span style={{ padding: "1px 6px", borderRadius: 8, background: "#9b59b6", color: "#fff", fontSize: 9, fontWeight: 600 }}>LEADERSHIP</span>}
+            {bill.coalition.hasCommitteeChair && <span style={{ padding: "1px 6px", borderRadius: 8, background: "#e67e22", color: "#fff", fontSize: 9, fontWeight: 600 }}>CHAIR</span>}
+          </div>
+          <p style={{ fontSize: 12, color: "#666", margin: "2px 0 0" }}>{bill.title}</p>
+        </div>
+        <div style={{ textAlign: "center", flexShrink: 0, marginLeft: 12 }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: powerColor }}>{bill.coalition.coalitionPower}</div>
+          <div style={{ fontSize: 9, color: "#aaa" }}>power</div>
+        </div>
+      </div>
+      {expanded && (
+        <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #f5f5f5" }}>
+          <p style={{ fontSize: 12, color: "#555", lineHeight: 1.5 }}>{bill.narrative}</p>
+          <div style={{ display: "flex", gap: 12, marginTop: 6, fontSize: 11, color: "#888" }}>
+            <span>Coalition: {bill.coalition.size}</span>
+            <span>Parties: {bill.coalition.parties.join(", ")}</span>
+            <span>Chambers: {bill.coalition.chambers.join(", ")}</span>
+            <span>Network: {(bill.networkDensity * 100).toFixed(0)}%</span>
+          </div>
+          {bill.sponsors.length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "#888", marginBottom: 4 }}>Sponsors</div>
+              {bill.sponsors.map((sp, j) => (
+                <div key={j} style={{ fontSize: 11, color: "#666", padding: "2px 0" }}>
+                  {sp.name} ({sp.party}) {sp.isLeadership ? "⭐" : ""} {sp.chairPositions.length > 0 ? `[Chair: ${sp.chairPositions.join(", ")}]` : ""}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProlificSponsorRow({ sponsor, rank }: { sponsor: SponsorProfile; rank: number }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0", borderBottom: "1px solid #f5f5f5" }}>
+      <span style={{ fontSize: 14, fontWeight: 700, color: "#bbb", width: 24 }}>#{rank}</span>
+      <div style={{ flex: 1 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>{sponsor.name}</span>
+          <span style={{ fontSize: 10, color: sponsor.party === "R" ? "#e74c3c" : sponsor.party === "D" ? "#3498db" : "#888" }}>({sponsor.party})</span>
+          {sponsor.isLeadership && <span style={{ padding: "1px 6px", borderRadius: 8, background: "#9b59b6", color: "#fff", fontSize: 9, fontWeight: 600 }}>LEADER</span>}
+        </div>
+        <div style={{ fontSize: 11, color: "#888", marginTop: 2 }}>
+          {sponsor.billCount} bills &middot; {sponsor.committeeCount} committees
+          {sponsor.chairPositions.length > 0 && ` · Chair: ${sponsor.chairPositions.join(", ")}`}
+        </div>
+      </div>
+    </div>
   );
 }
 
