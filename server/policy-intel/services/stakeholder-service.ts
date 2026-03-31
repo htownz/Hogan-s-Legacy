@@ -5,7 +5,7 @@
  * Stakeholders are entities (legislators, lobbyists, PACs, orgs)
  * linked to matters via observations referencing source documents.
  */
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { policyIntelDb } from "../db";
 import {
   stakeholders,
@@ -30,7 +30,19 @@ export interface StakeholderWithObservations {
 export async function upsertStakeholder(
   data: InsertPolicyIntelStakeholder,
 ): Promise<{ stakeholder: typeof stakeholders.$inferSelect; created: boolean }> {
-  const existing = await policyIntelDb
+  const [created] = await policyIntelDb
+    .insert(stakeholders)
+    .values(data)
+    .onConflictDoNothing({
+      target: [stakeholders.workspaceId, stakeholders.name, stakeholders.type],
+    })
+    .returning();
+
+  if (created) {
+    return { stakeholder: created, created: true };
+  }
+
+  const [existing] = await policyIntelDb
     .select()
     .from(stakeholders)
     .where(
@@ -41,16 +53,11 @@ export async function upsertStakeholder(
       ),
     );
 
-  if (existing.length > 0) {
-    return { stakeholder: existing[0], created: false };
+  if (!existing) {
+    throw new Error("Failed to resolve stakeholder after upsert conflict");
   }
 
-  const [created] = await policyIntelDb
-    .insert(stakeholders)
-    .values(data)
-    .returning();
-
-  return { stakeholder: created, created: true };
+  return { stakeholder: existing, created: false };
 }
 
 /**
@@ -112,14 +119,8 @@ export async function getStakeholdersForMatter(
   if (obs.length === 0) return [];
 
   const uniqueIds = Array.from(new Set(obs.map((o) => o.stakeholderId)));
-  const results: (typeof stakeholders.$inferSelect)[] = [];
-  for (const id of uniqueIds) {
-    const [s] = await policyIntelDb
-      .select()
-      .from(stakeholders)
-      .where(eq(stakeholders.id, id));
-    if (s) results.push(s);
-  }
-
-  return results;
+  return policyIntelDb
+    .select()
+    .from(stakeholders)
+    .where(inArray(stakeholders.id, uniqueIds));
 }

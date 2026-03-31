@@ -188,6 +188,8 @@ export const alerts = pgTable(
       table.sourceDocumentId,
       table.watchlistId,
     ),
+    issueRoomIdx: index("policy_intel_alerts_issue_room_idx").on(table.issueRoomId),
+    sourceDocumentIdx: index("policy_intel_alerts_source_document_idx").on(table.sourceDocumentId),
     cooldownLookupIdx: index("policy_intel_alerts_watchlist_workspace_title_created_idx").on(
       table.watchlistId,
       table.workspaceId,
@@ -386,29 +388,40 @@ export const stakeholderTypeEnum = pgEnum("policy_intel_stakeholder_type", [
   "individual",
 ]);
 
-export const stakeholders = pgTable("policy_intel_stakeholders", {
-  id: serial("id").primaryKey(),
-  workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
-  issueRoomId: integer("issue_room_id").references(() => issueRooms.id, { onDelete: "set null" }),
-  type: stakeholderTypeEnum("type").notNull(),
-  name: varchar("name", { length: 255 }).notNull(),
-  title: varchar("title", { length: 255 }),
-  organization: varchar("organization", { length: 255 }),
-  jurisdiction: varchar("jurisdiction", { length: 64 }),
-  tagsJson: jsonb("tags_json").$type<string[]>().notNull().default([]),
-  sourceSummary: text("source_summary"),
-  // Extended fields for legislators
-  legiscanPeopleId: integer("legiscan_people_id"),
-  party: varchar("party", { length: 16 }),
-  chamber: varchar("chamber", { length: 32 }),
-  district: varchar("district", { length: 32 }),
-  email: varchar("email", { length: 255 }),
-  phone: varchar("phone", { length: 64 }),
-  officeAddress: text("office_address"),
-  photoUrl: varchar("photo_url", { length: 500 }),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
+export const stakeholders = pgTable(
+  "policy_intel_stakeholders",
+  {
+    id: serial("id").primaryKey(),
+    workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    issueRoomId: integer("issue_room_id").references(() => issueRooms.id, { onDelete: "set null" }),
+    type: stakeholderTypeEnum("type").notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    title: varchar("title", { length: 255 }),
+    organization: varchar("organization", { length: 255 }),
+    jurisdiction: varchar("jurisdiction", { length: 64 }),
+    tagsJson: jsonb("tags_json").$type<string[]>().notNull().default([]),
+    sourceSummary: text("source_summary"),
+    // Extended fields for legislators
+    legiscanPeopleId: integer("legiscan_people_id"),
+    party: varchar("party", { length: 16 }),
+    chamber: varchar("chamber", { length: 32 }),
+    district: varchar("district", { length: 32 }),
+    email: varchar("email", { length: 255 }),
+    phone: varchar("phone", { length: 64 }),
+    officeAddress: text("office_address"),
+    photoUrl: varchar("photo_url", { length: 500 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    workspaceNameTypeUnique: uniqueIndex("policy_intel_stakeholders_workspace_name_type_idx").on(
+      table.workspaceId,
+      table.name,
+      table.type,
+    ),
+    issueRoomIdx: index("policy_intel_stakeholders_issue_room_idx").on(table.issueRoomId),
+  }),
+);
 
 export const stakeholderObservations = pgTable("policy_intel_stakeholder_observations", {
   id: serial("id").primaryKey(),

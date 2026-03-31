@@ -410,12 +410,13 @@ function InfluenceRow({ profile, rank }: { profile: InfluenceProfile; rank?: num
 
 function CorrelationsTab({ data }: { data: IntelligenceBriefing }) {
   const { correlations } = data;
+  const isolatedCount = correlations.isolatedBillCount ?? correlations.isolatedBills.length;
   const sigColors: Record<string, string> = { critical: "#e74c3c", high: "#e67e22", moderate: "#f1c40f", low: "#95a5a6" };
 
   return (
     <div style={{ display: "grid", gap: 12 }}>
       <Card>
-        <p style={{ fontSize: 12, color: "#888", margin: 0 }}>{correlations.totalBillsAnalyzed} bills analyzed &middot; {correlations.clusters.length} clusters found &middot; {correlations.isolatedBills.length} isolated</p>
+        <p style={{ fontSize: 12, color: "#888", margin: 0 }}>{correlations.totalBillsAnalyzed} bills analyzed &middot; {correlations.clusters.length} clusters found &middot; {isolatedCount} isolated</p>
       </Card>
 
       {correlations.clusters.length === 0 && (

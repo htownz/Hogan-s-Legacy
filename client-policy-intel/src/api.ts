@@ -243,7 +243,14 @@ export const api = {
   // ── Intelligence Engine ─────────────────────────────────────────────────
   getIntelligenceBriefing: () => apiFetch<IntelligenceBriefing>("/intelligence/briefing"),
   getVelocityReport: () => apiFetch<VelocityReport>("/intelligence/velocity"),
-  getCorrelationReport: () => apiFetch<CorrelationReport>("/intelligence/correlations"),
+  getCorrelationReport: (params?: { page?: number; pageSize?: number; includeIsolated?: boolean }) => {
+    const q = new URLSearchParams();
+    if (params?.page) q.set("page", String(params.page));
+    if (params?.pageSize) q.set("pageSize", String(params.pageSize));
+    if (params?.includeIsolated) q.set("includeIsolated", "true");
+    const qs = q.toString();
+    return apiFetch<CorrelationReport>(`/intelligence/correlations${qs ? `?${qs}` : ""}`);
+  },
   getInfluenceReport: () => apiFetch<InfluenceReport>("/intelligence/influence"),
   getRiskReport: () => apiFetch<RiskReport>("/intelligence/risk"),
   getAnomalyReport: () => apiFetch<AnomalyReport>("/intelligence/anomalies"),
@@ -783,6 +790,14 @@ export interface CorrelationReport {
   totalBillsAnalyzed: number;
   clusters: BillCluster[];
   isolatedBills: unknown[];
+  isolatedBillCount?: number;
+  pagination?: {
+    page: number;
+    pageSize: number;
+    totalClusters: number;
+    totalPages: number;
+    hasMore: boolean;
+  };
 }
 
 export interface InfluenceProfile {

@@ -1886,7 +1886,7 @@ export function createPolicyIntelRouter() {
   router.post("/scheduler/trigger/:jobName", async (req, res, next) => {
     try {
       const { jobName } = req.params;
-      const validJobs = ["legiscan-recent", "tlo-rss", "local-feeds", "tec-sweep"];
+      const validJobs = ["legiscan-recent", "tlo-rss", "local-feeds", "tec-sweep", "intel-briefing"];
       if (!validJobs.includes(jobName)) {
         return res.status(400).json({ message: `Invalid job name. Valid: ${validJobs.join(", ")}` });
       }
@@ -2603,10 +2603,39 @@ export function createPolicyIntelRouter() {
   /**
    * GET /intelligence/correlations — bill cluster analysis only.
    */
-  router.get("/intelligence/correlations", async (_req, res, next) => {
+  router.get("/intelligence/correlations", async (req, res, next) => {
     try {
       const report = await analyzeCorrelations();
-      res.json(report);
+      const rawPage = Number(req.query.page);
+      const rawPageSize = Number(req.query.pageSize);
+      const includeIsolated = req.query.includeIsolated === "true";
+
+      if (!Number.isFinite(rawPageSize) || rawPageSize <= 0) {
+        return res.json(report);
+      }
+
+      const totalClusters = report.clusters.length;
+      const pageSize = Math.max(1, Math.min(100, Math.floor(rawPageSize)));
+      const totalPages = Math.max(1, Math.ceil(totalClusters / pageSize));
+      const page = Math.min(
+        totalPages,
+        Math.max(1, Number.isFinite(rawPage) && rawPage > 0 ? Math.floor(rawPage) : 1),
+      );
+      const start = (page - 1) * pageSize;
+
+      res.json({
+        ...report,
+        clusters: report.clusters.slice(start, start + pageSize),
+        isolatedBills: includeIsolated ? report.isolatedBills : [],
+        isolatedBillCount: report.isolatedBills.length,
+        pagination: {
+          page,
+          pageSize,
+          totalClusters,
+          totalPages,
+          hasMore: page < totalPages,
+        },
+      });
     } catch (err: any) {
       next(err);
     }

@@ -10,6 +10,7 @@
  * Set SCHEDULER_ENABLED=false in .env to disable all scheduled jobs.
  */
 import cron from "node-cron";
+import { runSwarm } from "./engine/intelligence/swarm-coordinator";
 import { runLegiscanJob, type RunLegiscanResult } from "./jobs/run-legiscan";
 import { runTloRssJob, type RunTloRssResult } from "./jobs/run-tlo-rss";
 import { runLocalFeedsJob, type RunLocalFeedsResult } from "./jobs/run-local-feeds";
@@ -22,6 +23,14 @@ export interface ScheduledJobConfig {
   cronExpression: string;
   enabled: boolean;
   task: cron.ScheduledTask | null;
+}
+
+interface JobDefinition {
+  name: string;
+  cron: string;
+  fn: () => Promise<Record<string, unknown>>;
+  timeoutMs: number;
+  enabled?: boolean;
 }
 
 export interface JobRunRecord {
@@ -55,6 +64,10 @@ const runningFlags = new Map<string, boolean>();
 const lastRuns = new Map<string, JobRunRecord>();
 const history: JobRunRecord[] = [];
 const MAX_HISTORY = 50;
+const DEFAULT_JOB_TIMEOUT_MS = Number(process.env.SCHEDULER_JOB_TIMEOUT_MS || 20 * 60 * 1000);
+const DEFAULT_INTEL_BRIEFING_TIMEOUT_MS = Number(
+  process.env.SCHEDULER_INTEL_BRIEFING_TIMEOUT_MS || 15 * 60 * 1000,
+);
 
 let schedulerEnabled = false;
 let schedulerStartedAt: string | null = null;
@@ -79,9 +92,35 @@ function getNextRun(cronExpr: string): string | null {
   }
 }
 
+function normaliseTimeoutMs(value: number, fallback: number): number {
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+async function withTimeout<T>(
+  jobName: string,
+  timeoutMs: number,
+  runner: () => Promise<T>,
+): Promise<T> {
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(() => {
+      reject(new Error(`${jobName} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+    timeoutHandle.unref?.();
+  });
+
+  try {
+    return await Promise.race([runner(), timeoutPromise]);
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
+  }
+}
+
 async function executeJob(
   jobName: string,
   runner: () => Promise<Record<string, unknown>>,
+  timeoutMs = DEFAULT_JOB_TIMEOUT_MS,
 ) {
   if (runningFlags.get(jobName)) {
     console.log(`[scheduler] ${jobName} already running – skipping`);
@@ -94,7 +133,7 @@ async function executeJob(
 
   try {
     console.log(`[scheduler] ▶ starting ${jobName}`);
-    const result = await runner();
+    const result = await withTimeout(jobName, timeoutMs, runner);
     const record: JobRunRecord = {
       jobName,
       startedAt,
@@ -175,6 +214,19 @@ async function tecSweep(): Promise<Record<string, unknown>> {
   };
 }
 
+async function intelligenceBriefing(): Promise<Record<string, unknown>> {
+  const briefing = await runSwarm();
+  return {
+    generatedAt: briefing.generatedAt,
+    analysisTimeMs: briefing.analysisTimeMs,
+    insights: briefing.insights.length,
+    criticalRisks: briefing.risk.criticalRisks.length,
+    anomalies: briefing.anomalies.anomalies.length,
+    forecastHistoryDepth: briefing.forecast.historyDepth,
+    threatTrend: briefing.delta.threatTrend,
+  };
+}
+
 // ── Public API ───────────────────────────────────────────────────────────────
 
 export function startScheduler() {
@@ -192,23 +244,60 @@ export function startScheduler() {
   const tloCron = process.env.CRON_TLO_RSS ?? "0 1,7,13,19 * * *"; // 4x daily
   const localCron = process.env.CRON_LOCAL_FEEDS ?? "0 2,8,14,20 * * *"; // 4x daily
   const tecCron = process.env.CRON_TEC_SWEEP ?? "0 3 * * *"; // daily at 3 AM
+  const intelBriefingCron = process.env.CRON_INTEL_BRIEFING ?? "30 */6 * * *"; // every 6 hours
+  const intelBriefingEnabled = process.env.SCHEDULER_INTEL_BRIEFING !== "false";
 
   // Register jobs
-  const jobDefs: Array<{ name: string; cron: string; fn: () => Promise<Record<string, unknown>> }> = [
-    { name: "legiscan-recent", cron: legiscanCron, fn: legiscanRecent },
-    { name: "tlo-rss", cron: tloCron, fn: tloRss },
-    { name: "local-feeds", cron: localCron, fn: localFeeds },
-    { name: "tec-sweep", cron: tecCron, fn: tecSweep },
+  const jobDefs: JobDefinition[] = [
+    {
+      name: "legiscan-recent",
+      cron: legiscanCron,
+      fn: legiscanRecent,
+      timeoutMs: normaliseTimeoutMs(Number(process.env.SCHEDULER_LEGISCAN_TIMEOUT_MS), DEFAULT_JOB_TIMEOUT_MS),
+    },
+    {
+      name: "tlo-rss",
+      cron: tloCron,
+      fn: tloRss,
+      timeoutMs: normaliseTimeoutMs(Number(process.env.SCHEDULER_TLO_RSS_TIMEOUT_MS), DEFAULT_JOB_TIMEOUT_MS),
+    },
+    {
+      name: "local-feeds",
+      cron: localCron,
+      fn: localFeeds,
+      timeoutMs: normaliseTimeoutMs(Number(process.env.SCHEDULER_LOCAL_FEEDS_TIMEOUT_MS), DEFAULT_JOB_TIMEOUT_MS),
+    },
+    {
+      name: "tec-sweep",
+      cron: tecCron,
+      fn: tecSweep,
+      timeoutMs: normaliseTimeoutMs(Number(process.env.SCHEDULER_TEC_TIMEOUT_MS), DEFAULT_JOB_TIMEOUT_MS),
+    },
+    {
+      name: "intel-briefing",
+      cron: intelBriefingCron,
+      fn: intelligenceBriefing,
+      timeoutMs: normaliseTimeoutMs(
+        Number(process.env.SCHEDULER_INTEL_BRIEFING_TIMEOUT_MS),
+        DEFAULT_INTEL_BRIEFING_TIMEOUT_MS,
+      ),
+      enabled: intelBriefingEnabled,
+    },
   ];
 
   for (const def of jobDefs) {
+    if (def.enabled === false) {
+      console.log(`[scheduler] skipped ${def.name} → disabled`);
+      continue;
+    }
+
     if (!cron.validate(def.cron)) {
       console.error(`[scheduler] invalid cron expression for ${def.name}: ${def.cron}`);
       continue;
     }
 
     const task = cron.schedule(def.cron, () => {
-      executeJob(def.name, def.fn);
+      void executeJob(def.name, def.fn, def.timeoutMs);
     });
 
     jobs.set(def.name, {
@@ -259,6 +348,7 @@ export async function triggerJob(jobName: string): Promise<JobRunRecord | null> 
     "tlo-rss": tloRss,
     "local-feeds": localFeeds,
     "tec-sweep": tecSweep,
+    "intel-briefing": intelligenceBriefing,
   };
 
   const runner = runners[jobName];

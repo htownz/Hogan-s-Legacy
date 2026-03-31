@@ -54,6 +54,7 @@ export interface CorrelationReport {
   analyzedAt: string;
   clusters: BillCluster[];
   isolatedBills: BillNode[];
+  isolatedBillCount?: number;
   totalBillsAnalyzed: number;
 }
 
@@ -325,6 +326,7 @@ export async function analyzeCorrelations(): Promise<CorrelationReport> {
     analyzedAt: new Date().toISOString(),
     clusters,
     isolatedBills,
+    isolatedBillCount: isolatedBills.length,
     totalBillsAnalyzed: billMap.size,
   };
 }

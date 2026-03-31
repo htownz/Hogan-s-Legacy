@@ -16,7 +16,7 @@ import { analyzeCorrelations, type CorrelationReport } from "./cross-correlator"
 import { analyzeInfluence, type InfluenceReport } from "./influence-ranker";
 import { analyzeRisk, type RiskReport } from "./risk-model";
 import { detectAnomalies, type AnomalyReport } from "./anomaly-detector";
-import { analyzeForecast, captureSnapshot, computeDelta, type ForecastReport, type DeltaBriefing } from "./forecast-tracker";
+import { analyzeForecast, type ForecastReport, type DeltaBriefing } from "./forecast-tracker";
 import { analyzeSponsorNetwork, type SponsorNetworkReport } from "./sponsor-network";
 import { analyzeHistoricalPatterns, type HistoricalPatternsReport } from "./historical-patterns";
 import { analyzeLegislatorProfiles, type LegislatorProfileReport } from "./legislator-profiler";
@@ -78,44 +78,162 @@ export interface IntelligenceBriefing {
   analysisTimeMs: number;
 }
 
+function withAnalyzerFallback<T>(
+  name: string,
+  runner: () => Promise<T>,
+  fallback: () => T,
+  onFailure?: () => void,
+): Promise<T> {
+  return runner().catch((error) => {
+    console.error(`[intelligence] ${name} failed:`, error);
+    onFailure?.();
+    return fallback();
+  });
+}
+
+function emptyVelocityReport(): VelocityReport {
+  return {
+    analyzedAt: new Date().toISOString(),
+    vectors: [],
+    topMovers: [],
+    emergingTopics: [],
+    decayingTopics: [],
+  };
+}
+
+function emptyCorrelationReport(): CorrelationReport {
+  return {
+    analyzedAt: new Date().toISOString(),
+    clusters: [],
+    isolatedBills: [],
+    totalBillsAnalyzed: 0,
+  };
+}
+
+function emptyInfluenceReport(): InfluenceReport {
+  return {
+    analyzedAt: new Date().toISOString(),
+    profiles: [],
+    powerBrokers: [],
+    gatekeepers: [],
+    wellConnected: [],
+    underEngaged: [],
+  };
+}
+
+function emptyRiskReport(): RiskReport {
+  return {
+    analyzedAt: new Date().toISOString(),
+    regime: "interim",
+    assessments: [],
+    criticalRisks: [],
+    risingRisks: [],
+  };
+}
+
+function emptyAnomalyReport(): AnomalyReport {
+  return {
+    analyzedAt: new Date().toISOString(),
+    anomalies: [],
+    criticalCount: 0,
+    highCount: 0,
+    baselineWindow: "n/a",
+  };
+}
+
+function emptyForecastReport(message: string): ForecastReport {
+  const now = new Date().toISOString();
+  return {
+    analyzedAt: now,
+    currentSnapshot: {
+      snapshotId: "unavailable",
+      capturedAt: now,
+      predictions: [],
+      regime: "interim",
+      totalInsights: 0,
+      criticalRiskCount: 0,
+      anomalyCount: 0,
+    },
+    delta: {
+      previousSnapshotId: null,
+      previousCapturedAt: null,
+      newRisks: [],
+      resolvedRisks: [],
+      escalatedRisks: [],
+      deescalatedRisks: [],
+      newAnomalies: 0,
+      resolvedAnomalies: 0,
+      newClusters: 0,
+      threatTrend: "stable",
+      narrative: message,
+    },
+    grade: {
+      windowStart: now,
+      windowEnd: now,
+      totalPredictions: 0,
+      verifiablePredictions: 0,
+      accuracy: {
+        overall: 0,
+        calibration: [],
+        rankingAccuracy: 0,
+      },
+      blindSpots: [],
+      trendDirection: "insufficient_data",
+      narrative: message,
+    },
+    historyDepth: 0,
+  };
+}
+
 // ── Swarm Execution ──────────────────────────────────────────────────────────
 
 export async function runSwarm(): Promise<IntelligenceBriefing> {
   const start = Date.now();
+  let coreAnalyzerFailed = false;
 
   // Launch core analyzers concurrently — this is the "swarm"
   const [velocity, correlations, influence, risk, anomalies, sponsors, historical, legislators, influenceMap, powerNetwork, legislationPredictions] = await Promise.all([
-    analyzeVelocity(),
-    analyzeCorrelations(),
-    analyzeInfluence(),
-    analyzeRisk(),
-    detectAnomalies(),
-    analyzeSponsorNetwork().catch(() => ({
+    withAnalyzerFallback("velocity-analyzer", analyzeVelocity, emptyVelocityReport, () => {
+      coreAnalyzerFailed = true;
+    }),
+    withAnalyzerFallback("cross-correlator", analyzeCorrelations, emptyCorrelationReport, () => {
+      coreAnalyzerFailed = true;
+    }),
+    withAnalyzerFallback("influence-ranker", analyzeInfluence, emptyInfluenceReport, () => {
+      coreAnalyzerFailed = true;
+    }),
+    withAnalyzerFallback("risk-model", analyzeRisk, emptyRiskReport, () => {
+      coreAnalyzerFailed = true;
+    }),
+    withAnalyzerFallback("anomaly-detector", detectAnomalies, emptyAnomalyReport, () => {
+      coreAnalyzerFailed = true;
+    }),
+    withAnalyzerFallback("sponsor-network", analyzeSponsorNetwork, () => ({
       analyzedAt: new Date().toISOString(), billAnalyses: [],
       prolificSponsors: [], bipartisanBills: [], leadershipBacked: [],
       networkStats: { totalSponsors: 0, avgCoalitionSize: 0, bipartisanRate: 0, leadershipRate: 0 },
     }) as SponsorNetworkReport),
-    analyzeHistoricalPatterns().catch(() => ({
+    withAnalyzerFallback("historical-patterns", analyzeHistoricalPatterns, () => ({
       analyzedAt: new Date().toISOString(), totalBillsAnalyzed: 0, sessionsAnalyzed: 0,
       committeeRates: [], billTypePatterns: [], sessionAnalyses: [], chamberPatterns: [],
       timingPatterns: [], keyFindings: [], overallPassageRate: 0,
     }) as HistoricalPatternsReport),
-    analyzeLegislatorProfiles().catch(() => ({
+    withAnalyzerFallback("legislator-profiler", analyzeLegislatorProfiles, () => ({
       analyzedAt: new Date().toISOString(), totalLegislators: 0, totalBillsMatched: 0,
       profiles: [], keyPlayers: [], gatekeepers: [], bridgeBuilders: [], blindSpots: [],
       stats: { byParty: {}, byChamber: {}, avgPowerScore: 0, avgBillCount: 0, engagementBreakdown: { high: 0, moderate: 0, low: 0, none: 0 } },
     }) as LegislatorProfileReport),
-    analyzeInfluenceMaps().catch(() => ({
+    withAnalyzerFallback("influence-map", analyzeInfluenceMaps, () => ({
       analyzedAt: new Date().toISOString(), maps: [], pivotalLegislators: [], outreachPlan: [],
       stats: { totalBillsAnalyzed: 0, totalTargetsIdentified: 0, avgTargetsPerBill: 0, engagementGapCount: 0 },
     }) as InfluenceMapReport),
-    analyzeNetworkPower().catch(() => ({
+    withAnalyzerFallback("power-network-analyzer", analyzeNetworkPower, () => ({
       analyzedAt: new Date().toISOString(), bigThree: [], votingBlocs: [], powerFlows: [],
       keyFindings: [], stats: { totalStakeholders: 0, totalCommitteeMembers: 0, totalChairs: 0,
         totalViceChairs: 0, chamberBreakdown: { house: 0, senate: 0 },
         partyBreakdown: { R: 0, D: 0, other: 0 }, blocsDetected: 0, bipartisanBlocs: 0 },
     }) as PowerNetworkReport),
-    predictLegislation().catch(() => ({
+    withAnalyzerFallback("legislation-predictor", predictLegislation, () => ({
       analyzedAt: new Date().toISOString(), session: "89R", predictions: [],
       mostLikelyToPass: [], likelyBlocked: [], chamberConflicts: [], signals: [],
       stats: { totalPredictions: 0, highConfidence: 0, mediumConfidence: 0, lowConfidence: 0, avgPassageProbability: 0 },
@@ -133,8 +251,8 @@ export async function runSwarm(): Promise<IntelligenceBriefing> {
     riskScore: ra.riskScore,
   }));
 
-  let forecast: ForecastReport | null = null;
-  try {
+  let forecast: ForecastReport;
+  if (!coreAnalyzerFailed && predictions.length > 0) {
     forecast = await analyzeForecast(
       predictions,
       risk.regime,
@@ -143,7 +261,11 @@ export async function runSwarm(): Promise<IntelligenceBriefing> {
       anomalies.anomalies.length,
       correlations.clusters.length,
     );
-  } catch { /* forecast is optional — system works without it */ }
+  } else {
+    forecast = emptyForecastReport(
+      "Forecast unavailable for this run because one or more core analyzers failed or returned no predictions.",
+    );
+  }
 
   // ── Cross-Reference & Synthesize ─────────────────────────────────────
   const insights: StrategicInsight[] = [];
@@ -612,13 +734,19 @@ export async function runSwarm(): Promise<IntelligenceBriefing> {
     narrative: "First briefing — no comparison available yet. Future briefings will track changes automatically.",
   };
 
+  const correlationsForResponse: CorrelationReport = {
+    ...correlations,
+    isolatedBills: [],
+    isolatedBillCount: correlations.isolatedBillCount ?? correlations.isolatedBills.length,
+  };
+
   return {
     generatedAt: new Date().toISOString(),
     executiveSummary,
     insights,
     insightCounts,
     velocity,
-    correlations,
+    correlations: correlationsForResponse,
     influence,
     risk,
     anomalies,

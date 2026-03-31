@@ -1,5 +1,7 @@
+import type { Server } from "node:http";
 import { createPolicyIntelApp } from "./app";
-import { startScheduler } from "./scheduler";
+import { ensureDatabaseConnection, queryClient } from "./db";
+import { startScheduler, stopScheduler } from "./scheduler";
 
 // ── Global crash guards ────────────────────────────────────────────────────
 // Prevent intermittent Drizzle TypeError (orderSelectedFields) from killing
@@ -16,7 +18,58 @@ const host = process.env.HOST || "0.0.0.0";
 
 const app = createPolicyIntelApp();
 
-app.listen(port, host, () => {
-  console.log(`[policy-intel] listening on http://${host}:${port}`);
-  startScheduler();
+let server: Server | null = null;
+let shuttingDown = false;
+
+async function shutdown(signal: string) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+
+  console.log(`[policy-intel] received ${signal}; shutting down`);
+  stopScheduler();
+
+  const forcedExit = setTimeout(() => {
+    console.error("[policy-intel] forced shutdown after timeout");
+    process.exit(1);
+  }, 10_000);
+  forcedExit.unref?.();
+
+  try {
+    if (server) {
+      await new Promise<void>((resolve, reject) => {
+        server?.close((error) => {
+          if (error) reject(error);
+          else resolve();
+        });
+      });
+    }
+    await queryClient.end({ timeout: 5 });
+    process.exit(0);
+  } catch (error) {
+    console.error("[policy-intel] shutdown failed:", error);
+    process.exit(1);
+  } finally {
+    clearTimeout(forcedExit);
+  }
+}
+
+process.on("SIGINT", () => {
+  void shutdown("SIGINT");
+});
+process.on("SIGTERM", () => {
+  void shutdown("SIGTERM");
+});
+
+async function start() {
+  await ensureDatabaseConnection();
+
+  server = app.listen(port, host, () => {
+    console.log(`[policy-intel] listening on http://${host}:${port}`);
+    startScheduler();
+  });
+}
+
+void start().catch((error) => {
+  console.error("[policy-intel] startup failed:", error);
+  process.exit(1);
 });
