@@ -29,6 +29,15 @@ import { analyzeSponsorNetwork } from "./engine/intelligence/sponsor-network";
 import { analyzeHistoricalPatterns } from "./engine/intelligence/historical-patterns";
 import { analyzeLegislatorProfiles } from "./engine/intelligence/legislator-profiler";
 import { analyzeInfluenceMaps } from "./engine/intelligence/influence-map";
+import {
+  addCommitteeIntelSegment,
+  createCommitteeIntelSessionFromHearing,
+  generateCommitteeIntelFocusedBrief,
+  getCommitteeIntelSession,
+  listCommitteeIntelSessions,
+  refreshCommitteeIntelSession,
+  updateCommitteeIntelSession,
+} from "./services/committee-intel-service";
 
 function slugifyIssueRoom(value: string) {
   return value
@@ -83,7 +92,9 @@ export function createPolicyIntelRouter() {
         "/api/intel/intelligence/forecast",
         "/api/intel/intelligence/sponsors",
         "/api/intel/intelligence/legislators",
-        "/api/intel/intelligence/influence-map"
+        "/api/intel/intelligence/influence-map",
+        "/api/intel/committee-intel/sessions",
+        "/api/intel/committee-intel/sessions/from-hearing"
       ]
     });
   });
@@ -2142,6 +2153,144 @@ export function createPolicyIntelRouter() {
       }
 
       res.json({ totalDocs: docs.length, created, skipped });
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  // ── Committee Intelligence ───────────────────────────────────────────────
+
+  router.get("/committee-intel/sessions", async (req, res, next) => {
+    try {
+      const workspaceId = req.query.workspaceId ? parseId(String(req.query.workspaceId)) : null;
+      const hearingId = req.query.hearingId ? parseId(String(req.query.hearingId)) : null;
+      const status = typeof req.query.status === "string" ? req.query.status : undefined;
+      const from = typeof req.query.from === "string" ? req.query.from : undefined;
+
+      const rows = await listCommitteeIntelSessions({
+        workspaceId: workspaceId ?? undefined,
+        hearingId: hearingId ?? undefined,
+        status: status as any,
+        from,
+      });
+
+      res.json(rows);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.post("/committee-intel/sessions/from-hearing", async (req, res, next) => {
+    try {
+      const workspaceId = parseId(String(req.body?.workspaceId ?? ""));
+      const hearingId = parseId(String(req.body?.hearingId ?? ""));
+      if (!workspaceId || !hearingId) {
+        return res.status(400).json({ message: "workspaceId and hearingId are required" });
+      }
+
+      const detail = await createCommitteeIntelSessionFromHearing({
+        workspaceId,
+        hearingId,
+        title: typeof req.body?.title === "string" ? req.body.title : undefined,
+        focusTopics: Array.isArray(req.body?.focusTopics) ? req.body.focusTopics : undefined,
+        interimCharges: Array.isArray(req.body?.interimCharges) ? req.body.interimCharges : undefined,
+        clientContext: typeof req.body?.clientContext === "string" ? req.body.clientContext : undefined,
+        monitoringNotes: typeof req.body?.monitoringNotes === "string" ? req.body.monitoringNotes : undefined,
+        videoUrl: typeof req.body?.videoUrl === "string" ? req.body.videoUrl : undefined,
+        agendaUrl: typeof req.body?.agendaUrl === "string" ? req.body.agendaUrl : undefined,
+        status: typeof req.body?.status === "string" ? req.body.status : undefined,
+      });
+
+      res.status(201).json(detail);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.get("/committee-intel/sessions/:id", async (req, res, next) => {
+    try {
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
+
+      const detail = await getCommitteeIntelSession(id);
+      if (!detail) return res.status(404).json({ message: "Committee intelligence session not found" });
+      res.json(detail);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.patch("/committee-intel/sessions/:id", async (req, res, next) => {
+    try {
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
+
+      const detail = await updateCommitteeIntelSession(id, {
+        title: typeof req.body?.title === "string" ? req.body.title : undefined,
+        focusTopics: Array.isArray(req.body?.focusTopics) ? req.body.focusTopics : undefined,
+        interimCharges: Array.isArray(req.body?.interimCharges) ? req.body.interimCharges : undefined,
+        clientContext: typeof req.body?.clientContext === "string" || req.body?.clientContext === null ? req.body.clientContext : undefined,
+        monitoringNotes: typeof req.body?.monitoringNotes === "string" || req.body?.monitoringNotes === null ? req.body.monitoringNotes : undefined,
+        liveSummary: typeof req.body?.liveSummary === "string" || req.body?.liveSummary === null ? req.body.liveSummary : undefined,
+        agendaUrl: typeof req.body?.agendaUrl === "string" || req.body?.agendaUrl === null ? req.body.agendaUrl : undefined,
+        videoUrl: typeof req.body?.videoUrl === "string" || req.body?.videoUrl === null ? req.body.videoUrl : undefined,
+        status: typeof req.body?.status === "string" ? req.body.status : undefined,
+      });
+
+      res.json(detail);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.post("/committee-intel/sessions/:id/segments", async (req, res, next) => {
+    try {
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
+      if (typeof req.body?.transcriptText !== "string" || !req.body.transcriptText.trim()) {
+        return res.status(400).json({ message: "transcriptText is required" });
+      }
+
+      const detail = await addCommitteeIntelSegment(id, {
+        capturedAt: typeof req.body?.capturedAt === "string" ? req.body.capturedAt : undefined,
+        startedAtSecond: typeof req.body?.startedAtSecond === "number" ? req.body.startedAtSecond : null,
+        endedAtSecond: typeof req.body?.endedAtSecond === "number" ? req.body.endedAtSecond : null,
+        speakerName: typeof req.body?.speakerName === "string" ? req.body.speakerName : undefined,
+        speakerRole: typeof req.body?.speakerRole === "string" ? req.body.speakerRole : undefined,
+        affiliation: typeof req.body?.affiliation === "string" ? req.body.affiliation : undefined,
+        transcriptText: req.body.transcriptText,
+        invited: typeof req.body?.invited === "boolean" ? req.body.invited : undefined,
+        metadata: req.body?.metadata && typeof req.body.metadata === "object" ? req.body.metadata : undefined,
+      });
+
+      res.status(201).json(detail);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.post("/committee-intel/sessions/:id/analyze", async (req, res, next) => {
+    try {
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
+
+      const detail = await refreshCommitteeIntelSession(id);
+      res.json(detail);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.post("/committee-intel/sessions/:id/focused-brief", async (req, res, next) => {
+    try {
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
+      if (typeof req.body?.issue !== "string" || !req.body.issue.trim()) {
+        return res.status(400).json({ message: "issue is required" });
+      }
+
+      const brief = await generateCommitteeIntelFocusedBrief(id, req.body.issue);
+      res.json(brief);
     } catch (err: any) {
       next(err);
     }

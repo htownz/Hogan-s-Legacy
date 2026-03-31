@@ -443,6 +443,43 @@ export const hearingStatusEnum = pgEnum("policy_intel_hearing_status", [
   "postponed",
 ]);
 
+export const committeeIntelSessionStatusEnum = pgEnum("policy_intel_committee_intel_session_status", [
+  "planned",
+  "monitoring",
+  "paused",
+  "completed",
+]);
+
+export const committeeIntelSpeakerRoleEnum = pgEnum("policy_intel_committee_intel_speaker_role", [
+  "chair",
+  "member",
+  "staff",
+  "agency",
+  "invited_witness",
+  "public_witness",
+  "moderator",
+  "unknown",
+]);
+
+export const committeeIntelPositionEnum = pgEnum("policy_intel_committee_intel_position", [
+  "support",
+  "oppose",
+  "questioning",
+  "neutral",
+  "monitoring",
+  "unknown",
+]);
+
+export const committeeIntelEntityTypeEnum = pgEnum("policy_intel_committee_intel_entity_type", [
+  "legislator",
+  "agency",
+  "organization",
+  "witness",
+  "staff",
+  "committee",
+  "unknown",
+]);
+
 export const hearingEvents = pgTable("policy_intel_hearing_events", {
   id: serial("id").primaryKey(),
   workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
@@ -489,6 +526,90 @@ export const meetingNotes = pgTable("policy_intel_meeting_notes", {
   contactMethod: varchar("contact_method", { length: 64 }), // in-person, phone, email, testimony
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+// ── Phase 9: Committee Intelligence ────────────────────────────────────────
+
+export const committeeIntelSessions = pgTable(
+  "policy_intel_committee_intel_sessions",
+  {
+    id: serial("id").primaryKey(),
+    workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    hearingId: integer("hearing_id").references(() => hearingEvents.id, { onDelete: "cascade" }),
+    title: varchar("title", { length: 255 }).notNull(),
+    committee: varchar("committee", { length: 255 }).notNull(),
+    chamber: varchar("chamber", { length: 32 }).notNull(),
+    hearingDate: timestamp("hearing_date", { withTimezone: true }).notNull(),
+    status: committeeIntelSessionStatusEnum("status").notNull().default("planned"),
+    agendaUrl: text("agenda_url"),
+    videoUrl: text("video_url"),
+    focusTopicsJson: jsonb("focus_topics_json").$type<string[]>().notNull().default([]),
+    interimChargesJson: jsonb("interim_charges_json").$type<string[]>().notNull().default([]),
+    clientContext: text("client_context"),
+    monitoringNotes: text("monitoring_notes"),
+    liveSummary: text("live_summary"),
+    analyticsJson: jsonb("analytics_json").$type<Record<string, unknown>>().notNull().default({}),
+    lastAnalyzedAt: timestamp("last_analyzed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    workspaceHearingIdx: uniqueIndex("policy_intel_committee_intel_session_workspace_hearing_idx").on(table.workspaceId, table.hearingId),
+    committeeDateIdx: index("policy_intel_committee_intel_session_committee_date_idx").on(table.committee, table.hearingDate),
+    statusIdx: index("policy_intel_committee_intel_session_status_idx").on(table.status),
+  }),
+);
+
+export const committeeIntelSegments = pgTable(
+  "policy_intel_committee_intel_segments",
+  {
+    id: serial("id").primaryKey(),
+    sessionId: integer("session_id").notNull().references(() => committeeIntelSessions.id, { onDelete: "cascade" }),
+    segmentIndex: integer("segment_index").notNull().default(0),
+    capturedAt: timestamp("captured_at", { withTimezone: true }).defaultNow().notNull(),
+    startedAtSecond: integer("started_at_second"),
+    endedAtSecond: integer("ended_at_second"),
+    speakerName: varchar("speaker_name", { length: 255 }),
+    speakerRole: committeeIntelSpeakerRoleEnum("speaker_role").notNull().default("unknown"),
+    affiliation: varchar("affiliation", { length: 255 }),
+    transcriptText: text("transcript_text").notNull(),
+    summary: text("summary"),
+    issueTagsJson: jsonb("issue_tags_json").$type<string[]>().notNull().default([]),
+    position: committeeIntelPositionEnum("position").notNull().default("unknown"),
+    importance: integer("importance").notNull().default(0),
+    invited: boolean("invited").notNull().default(false),
+    metadataJson: jsonb("metadata_json").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    sessionCapturedIdx: index("policy_intel_committee_intel_segment_session_captured_idx").on(table.sessionId, table.capturedAt),
+    sessionImportanceIdx: index("policy_intel_committee_intel_segment_session_importance_idx").on(table.sessionId, table.importance),
+    speakerIdx: index("policy_intel_committee_intel_segment_speaker_idx").on(table.speakerName),
+  }),
+);
+
+export const committeeIntelSignals = pgTable(
+  "policy_intel_committee_intel_signals",
+  {
+    id: serial("id").primaryKey(),
+    sessionId: integer("session_id").notNull().references(() => committeeIntelSessions.id, { onDelete: "cascade" }),
+    segmentId: integer("segment_id").references(() => committeeIntelSegments.id, { onDelete: "set null" }),
+    stakeholderId: integer("stakeholder_id").references(() => stakeholders.id, { onDelete: "set null" }),
+    entityName: varchar("entity_name", { length: 255 }).notNull(),
+    entityType: committeeIntelEntityTypeEnum("entity_type").notNull().default("unknown"),
+    affiliation: varchar("affiliation", { length: 255 }),
+    issueTag: varchar("issue_tag", { length: 128 }).notNull(),
+    position: committeeIntelPositionEnum("position").notNull().default("unknown"),
+    confidence: doublePrecision("confidence").notNull().default(0),
+    evidenceQuote: text("evidence_quote"),
+    sourceKind: varchar("source_kind", { length: 64 }).notNull().default("transcript"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    sessionIssueIdx: index("policy_intel_committee_intel_signal_session_issue_idx").on(table.sessionId, table.issueTag),
+    entityIdx: index("policy_intel_committee_intel_signal_entity_idx").on(table.entityName, table.issueTag),
+    stakeholderIdx: index("policy_intel_committee_intel_signal_stakeholder_idx").on(table.stakeholderId),
+  }),
+);
 
 // ── Champion / Challenger tables ─────────────────────────────────────────────
 
@@ -666,3 +787,9 @@ export type PolicyIntelCommitteeMember = typeof committeeMembers.$inferSelect;
 export type InsertPolicyIntelCommitteeMember = typeof committeeMembers.$inferInsert;
 export type PolicyIntelMeetingNote = typeof meetingNotes.$inferSelect;
 export type InsertPolicyIntelMeetingNote = typeof meetingNotes.$inferInsert;
+export type PolicyIntelCommitteeIntelSession = typeof committeeIntelSessions.$inferSelect;
+export type InsertPolicyIntelCommitteeIntelSession = typeof committeeIntelSessions.$inferInsert;
+export type PolicyIntelCommitteeIntelSegment = typeof committeeIntelSegments.$inferSelect;
+export type InsertPolicyIntelCommitteeIntelSegment = typeof committeeIntelSegments.$inferInsert;
+export type PolicyIntelCommitteeIntelSignal = typeof committeeIntelSignals.$inferSelect;
+export type InsertPolicyIntelCommitteeIntelSignal = typeof committeeIntelSignals.$inferInsert;

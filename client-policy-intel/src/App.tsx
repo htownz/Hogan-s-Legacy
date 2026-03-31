@@ -24,6 +24,7 @@ import { WeeklyReportPage } from "./pages/WeeklyReportPage";
 import { HearingMemoPage } from "./pages/HearingMemoPage";
 import { IntelligenceHubPage } from "./pages/IntelligenceHubPage";
 import { PowerNetworkPage } from "./pages/PowerNetworkPage";
+import { CommitteeIntelPage } from "./pages/CommitteeIntelPage";
 
 function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(() =>
@@ -44,6 +45,7 @@ const NAV_ITEMS = [
   { path: "/intelligence", label: "🧠 Intelligence Hub" },
   { path: "/power-network", label: "🏛️ Power Network" },
   { path: "/calendar", label: "Calendar" },
+  { path: "/committee-intel", label: "Committee Intel" },
   { path: "/matters", label: "Matters" },
   { path: "/alerts", label: "Alert Queue" },
   { path: "/review", label: "📱 Mobile Review" },
@@ -225,6 +227,9 @@ export function App() {
           <Route path="/intelligence" component={IntelligenceHubPage} />
           <Route path="/power-network" component={PowerNetworkPage} />
           <Route path="/calendar" component={CalendarPage} />
+          <Route path="/committee-intel"><CommitteeIntelPage /></Route>
+          <Route path="/committee-intel/hearing/:id">{(params) => <CommitteeIntelPage hearingId={Number(params.id)} />}</Route>
+          <Route path="/committee-intel/session/:id">{(params) => <CommitteeIntelPage sessionId={Number(params.id)} />}</Route>
           <Route path="/matters" component={MattersPage} />
           <Route path="/matters/:id">{(params) => <MatterDetailPage id={Number(params.id)} />}</Route>
           <Route path="/alerts" component={AlertQueuePage} />

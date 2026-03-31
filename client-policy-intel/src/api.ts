@@ -240,6 +240,55 @@ export const api = {
     firmName?: string;
   }) => apiFetch<DeliverableResult>("/deliverables/generate-hearing-memo", { method: "POST", body: JSON.stringify(body) }),
 
+  // Committee intelligence
+  getCommitteeIntelSessions: (params?: { workspaceId?: number; hearingId?: number; status?: string; from?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.workspaceId) q.set("workspaceId", String(params.workspaceId));
+    if (params?.hearingId) q.set("hearingId", String(params.hearingId));
+    if (params?.status) q.set("status", params.status);
+    if (params?.from) q.set("from", params.from);
+    const qs = q.toString();
+    return apiFetch<CommitteeIntelSession[]>(`/committee-intel/sessions${qs ? `?${qs}` : ""}`);
+  },
+  createCommitteeIntelSessionFromHearing: (body: {
+    workspaceId: number;
+    hearingId: number;
+    title?: string;
+    focusTopics?: string[];
+    interimCharges?: string[];
+    clientContext?: string;
+    monitoringNotes?: string;
+    videoUrl?: string;
+    agendaUrl?: string;
+    status?: string;
+  }) => apiFetch<CommitteeIntelSessionDetail>("/committee-intel/sessions/from-hearing", { method: "POST", body: JSON.stringify(body) }),
+  getCommitteeIntelSession: (id: number) => apiFetch<CommitteeIntelSessionDetail>(`/committee-intel/sessions/${id}`),
+  updateCommitteeIntelSession: (id: number, body: {
+    title?: string;
+    focusTopics?: string[];
+    interimCharges?: string[];
+    clientContext?: string | null;
+    monitoringNotes?: string | null;
+    liveSummary?: string | null;
+    agendaUrl?: string | null;
+    videoUrl?: string | null;
+    status?: string;
+  }) => apiFetch<CommitteeIntelSessionDetail>(`/committee-intel/sessions/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  addCommitteeIntelSegment: (id: number, body: {
+    capturedAt?: string;
+    startedAtSecond?: number | null;
+    endedAtSecond?: number | null;
+    speakerName?: string;
+    speakerRole?: string;
+    affiliation?: string;
+    transcriptText: string;
+    invited?: boolean;
+    metadata?: Record<string, unknown>;
+  }) => apiFetch<CommitteeIntelSessionDetail>(`/committee-intel/sessions/${id}/segments`, { method: "POST", body: JSON.stringify(body) }),
+  analyzeCommitteeIntelSession: (id: number) => apiFetch<CommitteeIntelSessionDetail>(`/committee-intel/sessions/${id}/analyze`, { method: "POST" }),
+  getCommitteeIntelFocusedBrief: (id: number, body: { issue: string }) =>
+    apiFetch<CommitteeIntelFocusedBrief>(`/committee-intel/sessions/${id}/focused-brief`, { method: "POST", body: JSON.stringify(body) }),
+
   // ── Intelligence Engine ─────────────────────────────────────────────────
   getIntelligenceBriefing: () => apiFetch<IntelligenceBriefing>("/intelligence/briefing"),
   getVelocityReport: () => apiFetch<VelocityReport>("/intelligence/velocity"),
@@ -748,6 +797,153 @@ export interface BillStakeholderResult {
     phone: string | null;
     observationText: string;
   }>;
+}
+
+export interface CommitteeIntelSession {
+  id: number;
+  workspaceId: number;
+  hearingId: number | null;
+  title: string;
+  committee: string;
+  chamber: string;
+  hearingDate: string;
+  status: string;
+  agendaUrl: string | null;
+  videoUrl: string | null;
+  focusTopicsJson: string[];
+  interimChargesJson: string[];
+  clientContext: string | null;
+  monitoringNotes: string | null;
+  liveSummary: string | null;
+  analyticsJson: Record<string, unknown>;
+  lastAnalyzedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CommitteeIntelSegment {
+  id: number;
+  sessionId: number;
+  segmentIndex: number;
+  capturedAt: string;
+  startedAtSecond: number | null;
+  endedAtSecond: number | null;
+  speakerName: string | null;
+  speakerRole: string;
+  affiliation: string | null;
+  transcriptText: string;
+  summary: string | null;
+  issueTagsJson: string[];
+  position: string;
+  importance: number;
+  invited: boolean;
+  metadataJson: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface CommitteeIntelSignal {
+  id: number;
+  sessionId: number;
+  segmentId: number | null;
+  stakeholderId: number | null;
+  entityName: string;
+  entityType: string;
+  affiliation: string | null;
+  issueTag: string;
+  position: string;
+  confidence: number;
+  evidenceQuote: string | null;
+  sourceKind: string;
+  createdAt: string;
+}
+
+export interface CommitteeIntelIssueSummary {
+  issueTag: string;
+  label: string;
+  mentionCount: number;
+  supportCount: number;
+  opposeCount: number;
+  questioningCount: number;
+  neutralCount: number;
+  keyEntities: string[];
+}
+
+export interface CommitteeIntelMoment {
+  segmentId: number;
+  timestampLabel: string;
+  timestampSecond: number | null;
+  speakerName: string | null;
+  speakerRole: string;
+  summary: string;
+  importance: number;
+  position: string;
+  issueTags: string[];
+}
+
+export interface CommitteeIntelEntityPosition {
+  issueTag: string;
+  label: string;
+  position: string;
+  confidence: number;
+  mentionCount: number;
+}
+
+export interface CommitteeIntelEntitySummary {
+  entityName: string;
+  entityType: string;
+  stakeholderId: number | null;
+  affiliation: string | null;
+  mentionCount: number;
+  invited: boolean;
+  primaryIssues: string[];
+  positions: CommitteeIntelEntityPosition[];
+}
+
+export interface CommitteeIntelPositionRow {
+  entityName: string;
+  entityType: string;
+  stakeholderId: number | null;
+  affiliation: string | null;
+  issueTag: string;
+  label: string;
+  position: string;
+  confidence: number;
+  mentionCount: number;
+  invited: boolean;
+}
+
+export interface CommitteeIntelAnalysis {
+  analyzedAt: string | null;
+  summary: string;
+  totalSegments: number;
+  totalSignals: number;
+  trackedEntities: number;
+  invitedWitnessCount: number;
+  issueCoverage: CommitteeIntelIssueSummary[];
+  keyMoments: CommitteeIntelMoment[];
+  electedFocus: CommitteeIntelEntitySummary[];
+  activeWitnesses: CommitteeIntelEntitySummary[];
+  positionMap: CommitteeIntelPositionRow[];
+}
+
+export interface CommitteeIntelSessionDetail {
+  session: CommitteeIntelSession;
+  hearing: HearingEvent | null;
+  segments: CommitteeIntelSegment[];
+  signals: CommitteeIntelSignal[];
+  analysis: CommitteeIntelAnalysis;
+}
+
+export interface CommitteeIntelFocusedBrief {
+  issue: string;
+  matchedIssueTags: string[];
+  summary: string;
+  topMoments: CommitteeIntelMoment[];
+  supporters: CommitteeIntelPositionRow[];
+  opponents: CommitteeIntelPositionRow[];
+  electedFocus: CommitteeIntelEntitySummary[];
+  activeWitnesses: CommitteeIntelEntitySummary[];
+  recommendations: string[];
 }
 
 // ── Intelligence Engine Types ────────────────────────────────────────────────

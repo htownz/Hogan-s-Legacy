@@ -155,6 +155,13 @@ export function CalendarPage() {
               🏛️ Hearing Memo
             </span>
           </Link>
+          <Link href="/committee-intel">
+            <span style={{
+              padding: "6px 14px", borderRadius: 6, border: "none", fontSize: 13, cursor: "pointer", background: "#0f766e", color: "#fff", fontWeight: 600, display: "inline-block",
+            }}>
+              Committee Intel
+            </span>
+          </Link>
         </div>
       </div>
 
@@ -250,6 +257,38 @@ export function CalendarPage() {
               ))}
             </div>
           )}
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 16 }}>
+            <Link href={`/committee-intel/hearing/${selectedHearing.id}`}>
+              <span style={{
+                padding: "8px 14px",
+                borderRadius: 8,
+                border: "none",
+                fontSize: 13,
+                cursor: "pointer",
+                background: "#0f766e",
+                color: "#fff",
+                fontWeight: 600,
+                display: "inline-block",
+              }}>
+                Launch Committee Intel
+              </span>
+            </Link>
+            <Link href="/hearing-memo">
+              <span style={{
+                padding: "8px 14px",
+                borderRadius: 8,
+                border: "1px solid #d8b4fe",
+                fontSize: 13,
+                cursor: "pointer",
+                background: "#faf5ff",
+                color: "#6a1b9a",
+                fontWeight: 600,
+                display: "inline-block",
+              }}>
+                Open Hearing Memo
+              </span>
+            </Link>
+          </div>
         </div>
       )}
 
