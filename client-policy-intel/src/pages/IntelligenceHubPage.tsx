@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { api, type IntelligenceBriefing, type StrategicInsight, type VelocityVector, type RiskAssessment, type Anomaly, type InfluenceProfile, type BillCluster, type ForecastReport, type DeltaBriefing, type SponsorNetworkReport, type BillSponsorAnalysis, type SponsorProfile, type CalibrationBucket } from "../api";
+import { api, type IntelligenceBriefing, type StrategicInsight, type VelocityVector, type RiskAssessment, type Anomaly, type InfluenceProfile, type BillCluster, type ForecastReport, type DeltaBriefing, type SponsorNetworkReport, type BillSponsorAnalysis, type SponsorProfile, type CalibrationBucket, type CommitteePassageRate, type SessionAnalysis, type BillTypePattern, type TimingPattern, type LegislatorProfile, type LegislatorIssueFocus, type LegislatorAlly, type InfluenceTarget, type BillInfluenceMap } from "../api";
 import { useAsync } from "../hooks";
 
-type Tab = "briefing" | "velocity" | "risk" | "influence" | "correlations" | "anomalies" | "forecast" | "sponsors";
+type Tab = "briefing" | "velocity" | "risk" | "influence" | "correlations" | "anomalies" | "forecast" | "sponsors" | "historical" | "legislators" | "influenceMap";
 
 export function IntelligenceHubPage() {
   const [tab, setTab] = useState<Tab>("briefing");
@@ -21,6 +21,9 @@ export function IntelligenceHubPage() {
     { key: "anomalies", label: "Anomalies", count: data.anomalies.anomalies.length },
     { key: "forecast", label: "Forecast", count: data.forecast.historyDepth },
     { key: "sponsors", label: "Sponsors", count: data.sponsors.networkStats.totalSponsors },
+    { key: "historical", label: "Historical", count: data.historical.sessionsAnalyzed },
+    { key: "legislators", label: "Legislators", count: data.legislators.totalLegislators },
+    { key: "influenceMap", label: "Influence Map", count: data.influenceMap.maps.length },
   ];
 
   return (
@@ -85,6 +88,9 @@ export function IntelligenceHubPage() {
       {tab === "anomalies" && <AnomaliesTab data={data} />}
       {tab === "forecast" && <ForecastTab data={data} />}
       {tab === "sponsors" && <SponsorsTab data={data} />}
+      {tab === "historical" && <HistoricalTab data={data} />}
+      {tab === "legislators" && <LegislatorsTab data={data} />}
+      {tab === "influenceMap" && <InfluenceMapTab data={data} />}
     </div>
   );
 }
@@ -742,6 +748,535 @@ function ProlificSponsorRow({ sponsor, rank }: { sponsor: SponsorProfile; rank: 
           {sponsor.chairPositions.length > 0 && ` · Chair: ${sponsor.chairPositions.join(", ")}`}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Historical Patterns Tab ─────────────────────────────────────────────────
+
+function HistoricalTab({ data }: { data: IntelligenceBriefing }) {
+  const h = data.historical;
+  const [expandedCommittee, setExpandedCommittee] = useState<string | null>(null);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* Overview */}
+      <Card>
+        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>📊 Historical Pattern Analysis</div>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+          <StatBadge label="Bills Analyzed" value={h.totalBillsAnalyzed.toLocaleString()} color="#3498db" isText />
+          <StatBadge label="Sessions" value={h.sessionsAnalyzed} color="#9b59b6" />
+          <StatBadge label="Passage Rate" value={`${(h.overallPassageRate * 100).toFixed(1)}%`} color="#2ecc71" isText />
+          <StatBadge label="Committees" value={h.committeeRates.length} color="#e67e22" />
+        </div>
+      </Card>
+
+      {/* Key Findings */}
+      <Card>
+        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>🔑 Key Findings</div>
+        {h.keyFindings.map((f, i) => (
+          <div key={i} style={{ fontSize: 13, padding: "6px 0", borderBottom: i < h.keyFindings.length - 1 ? "1px solid #f0f0f0" : "none", color: "#444" }}>
+            • {f}
+          </div>
+        ))}
+      </Card>
+
+      {/* Committee Passage Rates */}
+      <Card>
+        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>🏛️ Committee Bottleneck Analysis</div>
+        <div style={{ fontSize: 11, color: "#888", marginBottom: 12 }}>How many referred bills advance past each committee? Click to see trends.</div>
+        {h.committeeRates.slice(0, 20).map(cr => (
+          <CommitteeRow
+            key={cr.committee}
+            rate={cr}
+            expanded={expandedCommittee === cr.committee}
+            onToggle={() => setExpandedCommittee(expandedCommittee === cr.committee ? null : cr.committee)}
+          />
+        ))}
+      </Card>
+
+      {/* Bill Type Patterns */}
+      <Card>
+        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>📋 Bill Type Outcomes</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12 }}>
+          {h.billTypePatterns.map(bt => (
+            <BillTypeCard key={bt.billType} pattern={bt} />
+          ))}
+        </div>
+      </Card>
+
+      {/* Session Comparison */}
+      <Card>
+        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>📅 Session-by-Session Comparison</div>
+        {h.sessionAnalyses.map(sa => (
+          <SessionRow key={sa.sessionName} session={sa} medianRate={h.overallPassageRate} />
+        ))}
+      </Card>
+
+      {/* Chamber Patterns */}
+      <Card>
+        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>🏢 Chamber Patterns</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+          {h.chamberPatterns.map(cp => (
+            <div key={cp.chamber} style={{ background: "#f8f9fa", borderRadius: 8, padding: 14 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6 }}>{cp.chamber}</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: "#3498db" }}>{(cp.passageRate * 100).toFixed(1)}%</div>
+              <div style={{ fontSize: 11, color: "#888" }}>{cp.passedBills.toLocaleString()} / {cp.totalBills.toLocaleString()} bills passed</div>
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontSize: 11, color: "#888", marginBottom: 4 }}>Top Committees:</div>
+                {cp.topCommittees.map(tc => (
+                  <div key={tc.committee} style={{ fontSize: 12, display: "flex", justifyContent: "space-between", padding: "2px 0" }}>
+                    <span>{tc.committee}</span>
+                    <span style={{ fontWeight: 600 }}>{(tc.passageRate * 100).toFixed(1)}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {/* Timing Patterns */}
+      <Card>
+        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>⏱️ Passage Timing (Month Distribution)</div>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 120 }}>
+          {h.timingPatterns.map(tp => {
+            const maxShare = Math.max(...h.timingPatterns.map(t => t.shareOfPassages), 0.01);
+            const barH = tp.shareOfPassages > 0 ? Math.max((tp.shareOfPassages / maxShare) * 100, 4) : 2;
+            return (
+              <div key={tp.month} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
+                <div style={{ fontSize: 10, color: "#888", marginBottom: 2 }}>{tp.billsPassedInMonth > 0 ? `${(tp.shareOfPassages * 100).toFixed(0)}%` : ""}</div>
+                <div style={{ width: "100%", height: barH, background: tp.shareOfPassages > 0.15 ? "#2ecc71" : tp.shareOfPassages > 0.05 ? "#3498db" : "#ddd", borderRadius: 3 }} />
+                <div style={{ fontSize: 9, color: "#888", marginTop: 4 }}>{tp.monthLabel.slice(0, 3)}</div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function CommitteeRow({ rate, expanded, onToggle }: { rate: CommitteePassageRate; expanded: boolean; onToggle: () => void }) {
+  const barColor = rate.relativePerformance === "above_average" ? "#2ecc71" : rate.relativePerformance === "below_average" ? "#e74c3c" : "#f1c40f";
+  return (
+    <div style={{ borderBottom: "1px solid #f0f0f0", padding: "8px 0" }}>
+      <div onClick={onToggle} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ width: 200, fontWeight: 600, fontSize: 13 }}>{rate.committee}</div>
+        <div style={{ flex: 1, background: "#f0f0f0", borderRadius: 4, height: 18, position: "relative" }}>
+          <div style={{ width: `${Math.min(rate.passageRate * 100, 100)}%`, height: "100%", background: barColor, borderRadius: 4 }} />
+          <span style={{ position: "absolute", right: 6, top: 1, fontSize: 11, fontWeight: 700 }}>{(rate.passageRate * 100).toFixed(1)}% progress</span>
+        </div>
+        <div style={{ width: 100, fontSize: 11, color: "#888", textAlign: "right" }}>{rate.passedBills}/{rate.totalBills} advanced</div>
+        <span style={{ fontSize: 10 }}>{expanded ? "▲" : "▼"}</span>
+      </div>
+      {expanded && (
+        <div style={{ marginTop: 8, padding: "8px 12px", background: "#f8f9fa", borderRadius: 6 }}>
+          <div style={{ fontSize: 12, color: "#555", marginBottom: 8 }}>{rate.narrative}</div>
+          {rate.statusBreakdown && (
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Status Breakdown:</div>
+              {Object.entries(rate.statusBreakdown).map(([status, count]) => (
+                <span key={status} style={{ fontSize: 11, marginRight: 12, color: "#666" }}>
+                  {status}: {count}
+                </span>
+              ))}
+            </div>
+          )}
+          <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Session Trends:</div>
+          {rate.sessionTrends.map(st => (
+            <div key={st.session} style={{ display: "flex", justifyContent: "space-between", fontSize: 11, padding: "2px 0" }}>
+              <span>{st.session}</span>
+              <span>{st.passed}/{st.total} advanced ({(st.rate * 100).toFixed(1)}%)</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BillTypeCard({ pattern }: { pattern: BillTypePattern }) {
+  return (
+    <div style={{ background: "#f8f9fa", borderRadius: 8, padding: 14, textAlign: "center" }}>
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{pattern.label}</div>
+      <div style={{ fontSize: 28, fontWeight: 800, color: "#3498db" }}>{(pattern.passageRate * 100).toFixed(1)}%</div>
+      <div style={{ fontSize: 11, color: "#888" }}>{pattern.passedBills.toLocaleString()} / {pattern.totalBills.toLocaleString()}</div>
+      {pattern.vetoedBills > 0 && (
+        <div style={{ fontSize: 11, color: "#e74c3c", marginTop: 4 }}>{pattern.vetoedBills} vetoed</div>
+      )}
+    </div>
+  );
+}
+
+function SessionRow({ session, medianRate }: { session: SessionAnalysis; medianRate: number }) {
+  const vsMedian = session.performanceVsMedian;
+  const badge = vsMedian > 0.05 ? { label: "Above", color: "#2ecc71" } : vsMedian < -0.05 ? { label: "Below", color: "#e74c3c" } : { label: "Average", color: "#f1c40f" };
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "6px 0", borderBottom: "1px solid #f0f0f0", fontSize: 12 }}>
+      <div style={{ width: 260, fontWeight: 600 }}>{session.sessionName}</div>
+      <div style={{ width: 70 }}>{session.totalBills.toLocaleString()} bills</div>
+      <div style={{ width: 80, fontWeight: 700, color: "#3498db" }}>{(session.passageRate * 100).toFixed(1)}%</div>
+      <div style={{ width: 70 }}>{session.passed.toLocaleString()} passed</div>
+      <div style={{ width: 60 }}>{session.vetoed} vetoed</div>
+      <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, background: badge.color, color: "#fff", fontWeight: 600 }}>{badge.label}</span>
+    </div>
+  );
+}
+
+// ── Legislators Tab ──────────────────────────────────────────────────────────
+
+function LegislatorsTab({ data }: { data: IntelligenceBriefing }) {
+  const { legislators } = data;
+  const [filter, setFilter] = useState<"all" | "critical" | "high" | "moderate" | "low">("all");
+
+  const filtered = filter === "all"
+    ? legislators.profiles
+    : legislators.profiles.filter(p => p.impactLevel === filter);
+
+  return (
+    <div style={{ display: "grid", gap: 16 }}>
+      {/* Overview */}
+      <Card>
+        <h3 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px" }}>🏛️ Legislator Intelligence Profiles</h3>
+        <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+          <StatBadge label="Legislators" value={legislators.totalLegislators} color="#3498db" />
+          <StatBadge label="Bills Matched" value={legislators.totalBillsMatched} color="#9b59b6" />
+          <StatBadge label="Avg Power" value={legislators.stats.avgPowerScore} color="#e67e22" />
+          <StatBadge label="Key Players" value={legislators.keyPlayers.length} color="#e74c3c" />
+          <StatBadge label="Gatekeepers" value={legislators.gatekeepers.length} color="#f1c40f" />
+          <StatBadge label="Bridge Builders" value={legislators.bridgeBuilders.length} color="#2ecc71" />
+          <StatBadge label="Blind Spots" value={legislators.blindSpots.length} color="#95a5a6" />
+        </div>
+        <div style={{ display: "flex", gap: 12, marginTop: 12, fontSize: 11 }}>
+          {Object.entries(legislators.stats.byParty).map(([party, cnt]) => (
+            <span key={party} style={{ background: party === "R" ? "#ffebee" : party === "D" ? "#e3f2fd" : "#f5f5f5", padding: "3px 10px", borderRadius: 12, fontWeight: 600 }}>
+              {party === "R" ? "Republican" : party === "D" ? "Democrat" : party}: {cnt}
+            </span>
+          ))}
+          {Object.entries(legislators.stats.byChamber).map(([ch, cnt]) => (
+            <span key={ch} style={{ background: "#f3e5f5", padding: "3px 10px", borderRadius: 12, fontWeight: 600 }}>{ch}: {cnt}</span>
+          ))}
+        </div>
+      </Card>
+
+      {/* Key Players */}
+      {legislators.keyPlayers.length > 0 && (
+        <Card>
+          <h3 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px" }}>🎯 Key Players (Top Impact on Tracked Issues)</h3>
+          <div style={{ display: "grid", gap: 8 }}>
+            {legislators.keyPlayers.map((p, i) => (
+              <LegislatorRow key={p.stakeholderId} profile={p} rank={i + 1} />
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Blind Spots */}
+      {legislators.blindSpots.length > 0 && (
+        <Card>
+          <h3 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px" }}>⚠️ Blind Spots (High Power, No Engagement)</h3>
+          <div style={{ display: "grid", gap: 8 }}>
+            {legislators.blindSpots.map((p, i) => (
+              <LegislatorRow key={p.stakeholderId} profile={p} rank={i + 1} />
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* All Profiles with Filter */}
+      <Card>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>📋 All Legislator Profiles ({filtered.length})</h3>
+          <div style={{ display: "flex", gap: 4 }}>
+            {(["all", "critical", "high", "moderate", "low"] as const).map(f => (
+              <button key={f} onClick={() => setFilter(f)} style={{
+                padding: "4px 10px", fontSize: 11, border: "none", borderRadius: 4, cursor: "pointer",
+                fontWeight: filter === f ? 700 : 400,
+                background: filter === f ? "#3498db" : "#f0f0f0",
+                color: filter === f ? "#fff" : "#666",
+              }}>
+                {f === "all" ? "All" : f.charAt(0).toUpperCase() + f.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={{ display: "grid", gap: 6 }}>
+          {filtered.slice(0, 50).map((p, i) => (
+            <LegislatorRow key={p.stakeholderId} profile={p} rank={i + 1} />
+          ))}
+          {filtered.length === 0 && <p style={{ color: "#888", textAlign: "center", padding: 20 }}>No legislators match this filter.</p>}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function LegislatorRow({ profile: p, rank }: { profile: LegislatorProfile; rank: number }) {
+  const [expanded, setExpanded] = useState(false);
+  const impactColors: Record<string, string> = { critical: "#e74c3c", high: "#e67e22", moderate: "#f1c40f", low: "#95a5a6" };
+  const partyColor = p.party === "R" ? "#e74c3c" : p.party === "D" ? "#3498db" : "#95a5a6";
+
+  return (
+    <div style={{ padding: "8px 0", borderBottom: "1px solid #f0f0f0" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }} onClick={() => setExpanded(!expanded)}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 11, color: "#aaa", width: 24 }}>#{rank}</span>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", background: partyColor, flexShrink: 0 }} />
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontWeight: 700, fontSize: 13 }}>{p.name}</span>
+              <span style={{ fontSize: 10, color: "#888" }}>{p.party}-{p.chamber}, Dist. {p.district}</span>
+              {p.title && <span style={{ padding: "1px 6px", borderRadius: 8, background: "#9b59b6", color: "#fff", fontSize: 9 }}>LEADERSHIP</span>}
+            </div>
+            <div style={{ display: "flex", gap: 4, marginTop: 3 }}>
+              {p.tags.slice(0, 4).map(tag => (
+                <span key={tag} style={{ padding: "1px 6px", borderRadius: 8, background: "#f0f0f0", fontSize: 9, color: "#666" }}>{tag}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 16, fontWeight: 700 }}>{p.powerScore}</div>
+            <div style={{ fontSize: 9, color: "#aaa" }}>power</div>
+          </div>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 14, fontWeight: 600 }}>{p.sponsorship.totalBills}</div>
+            <div style={{ fontSize: 9, color: "#aaa" }}>bills</div>
+          </div>
+          <span style={{ padding: "2px 8px", borderRadius: 8, background: impactColors[p.impactLevel], color: "#fff", fontSize: 10, fontWeight: 600 }}>
+            {p.impactLevel.toUpperCase()}
+          </span>
+        </div>
+      </div>
+      {expanded && (
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #f5f5f5", fontSize: 12 }}>
+          <p style={{ color: "#555", lineHeight: 1.5, margin: "0 0 8px" }}>{p.assessment}</p>
+          {/* Committees */}
+          {p.committees.length > 0 && (
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "#888", marginBottom: 4 }}>Committees</div>
+              {p.committees.map((c, i) => (
+                <div key={i} style={{ fontSize: 11, color: "#666", padding: "2px 0", display: "flex", gap: 6 }}>
+                  <span style={{ fontWeight: c.role === "chair" ? 700 : 400 }}>{c.name}</span>
+                  <span style={{ color: c.role === "chair" ? "#e74c3c" : c.role === "vice_chair" ? "#e67e22" : "#aaa", fontSize: 10 }}>({c.role})</span>
+                  {c.activeBillCount > 0 && <span style={{ color: "#3498db", fontSize: 10 }}>{c.activeBillCount} active bills</span>}
+                </div>
+              ))}
+            </div>
+          )}
+          {/* Issue Focus */}
+          {p.issueFocus.length > 0 && (
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "#888", marginBottom: 4 }}>Issue Focus</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {p.issueFocus.map((f, i) => (
+                  <span key={i} style={{ padding: "2px 8px", borderRadius: 8, background: f.stance === "champion" ? "#e8f5e9" : f.stance === "aligned" ? "#e3f2fd" : "#f5f5f5", fontSize: 10, color: "#555" }}>
+                    {f.topic} ({f.billCount})
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {/* Allies */}
+          {p.allies.length > 0 && (
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "#888", marginBottom: 4 }}>Legislative Allies</div>
+              {p.allies.map((a, i) => (
+                <div key={i} style={{ fontSize: 11, color: "#666", padding: "2px 0" }}>
+                  {a.name} ({a.party}) — {a.sharedBills} shared bills {a.isCrossParty && <span style={{ color: "#2ecc71", fontSize: 10 }}>✓ cross-party</span>}
+                </div>
+              ))}
+            </div>
+          )}
+          {/* Engagement */}
+          <div style={{ display: "flex", gap: 16, fontSize: 11, color: "#888" }}>
+            <span>Observations: {p.engagement.observationCount}</span>
+            <span>Meeting Notes: {p.engagement.meetingNoteCount}</span>
+            <span>Last Contact: {p.engagement.lastContactDate ? new Date(p.engagement.lastContactDate).toLocaleDateString() : "Never"}</span>
+            <span style={{ color: p.engagement.engagementLevel === "none" ? "#e74c3c" : p.engagement.engagementLevel === "high" ? "#2ecc71" : "#f1c40f" }}>
+              Engagement: {p.engagement.engagementLevel}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Influence Map Tab ────────────────────────────────────────────────────────
+
+function InfluenceMapTab({ data }: { data: IntelligenceBriefing }) {
+  const { influenceMap } = data;
+
+  return (
+    <div style={{ display: "grid", gap: 16 }}>
+      {/* Overview */}
+      <Card>
+        <h3 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px" }}>🗺️ Bill Influence Maps</h3>
+        <p style={{ fontSize: 12, color: "#666", margin: "0 0 12px" }}>For each critical bill, who can change the outcome — and how to reach them.</p>
+        <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+          <StatBadge label="Bills Mapped" value={influenceMap.stats.totalBillsAnalyzed} color="#3498db" />
+          <StatBadge label="Targets Found" value={influenceMap.stats.totalTargetsIdentified} color="#9b59b6" />
+          <StatBadge label="Avg/Bill" value={influenceMap.stats.avgTargetsPerBill.toFixed(1)} color="#2ecc71" isText />
+          <StatBadge label="Engagement Gaps" value={influenceMap.stats.engagementGapCount} color="#e74c3c" />
+          <StatBadge label="Pivotal People" value={influenceMap.pivotalLegislators.length} color="#e67e22" />
+        </div>
+      </Card>
+
+      {/* Outreach Plan */}
+      {influenceMap.outreachPlan.length > 0 && (
+        <Card>
+          <h3 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px" }}>📋 Prioritized Outreach Plan</h3>
+          <p style={{ fontSize: 11, color: "#888", margin: "0 0 8px" }}>Ranked by leverage × engagement gap — who to contact first for maximum impact.</p>
+          <div style={{ display: "grid", gap: 6 }}>
+            {influenceMap.outreachPlan.slice(0, 15).map((p, i) => {
+              const engColor = p.currentEngagement === "none" ? "#e74c3c" : p.currentEngagement === "low" ? "#e67e22" : p.currentEngagement === "moderate" ? "#f1c40f" : "#2ecc71";
+              return (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid #f5f5f5" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "#3498db", width: 28 }}>#{p.priority}</span>
+                    <div>
+                      <span style={{ fontWeight: 600, fontSize: 13 }}>{p.name}</span>
+                      <span style={{ fontSize: 11, color: "#888", marginLeft: 6 }}>{p.party}, {p.chamber}</span>
+                      <div style={{ fontSize: 10, color: "#aaa", marginTop: 2 }}>Influences: {p.billIds.slice(0, 4).join(", ")}{p.billIds.length > 4 ? ` +${p.billIds.length - 4} more` : ""}</div>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                    <div style={{ textAlign: "center" }}>
+                      <div style={{ fontSize: 14, fontWeight: 700 }}>{p.combinedLeverage}</div>
+                      <div style={{ fontSize: 9, color: "#aaa" }}>leverage</div>
+                    </div>
+                    <span style={{ padding: "2px 8px", borderRadius: 8, background: engColor, color: "#fff", fontSize: 10, fontWeight: 600 }}>
+                      {p.currentEngagement}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
+      {/* Pivotal Legislators */}
+      {influenceMap.pivotalLegislators.length > 0 && (
+        <Card>
+          <h3 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px" }}>🔑 Pivotal Legislators (Multi-Bill Influence)</h3>
+          <div style={{ display: "grid", gap: 6 }}>
+            {influenceMap.pivotalLegislators.map((p, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid #f5f5f5" }}>
+                <div>
+                  <span style={{ fontWeight: 600, fontSize: 13 }}>{p.name}</span>
+                  <span style={{ fontSize: 11, color: "#888", marginLeft: 6 }}>({p.party})</span>
+                  <div style={{ fontSize: 10, color: "#aaa", marginTop: 2 }}>{p.billIds.join(", ")}</div>
+                </div>
+                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: "#3498db" }}>{p.billCount}</div>
+                    <div style={{ fontSize: 9, color: "#aaa" }}>bills</div>
+                  </div>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 14, fontWeight: 600 }}>{p.avgLeverage}</div>
+                    <div style={{ fontSize: 9, color: "#aaa" }}>avg lev.</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Per-Bill Influence Maps */}
+      {influenceMap.maps.length > 0 && (
+        <Card>
+          <h3 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px" }}>🎯 Per-Bill Influence Analysis</h3>
+          <div style={{ display: "grid", gap: 10 }}>
+            {influenceMap.maps.slice(0, 20).map((m, i) => (
+              <BillInfluenceCard key={i} map={m} />
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {influenceMap.maps.length === 0 && (
+        <Card><p style={{ color: "#888", textAlign: "center", padding: 20 }}>No influence maps generated — need high-priority bills with committee data.</p></Card>
+      )}
+    </div>
+  );
+}
+
+function BillInfluenceCard({ map: m }: { map: BillInfluenceMap }) {
+  const [expanded, setExpanded] = useState(false);
+  const probColor = m.passageProbability >= 0.6 ? "#e74c3c" : m.passageProbability >= 0.3 ? "#e67e22" : "#3498db";
+
+  return (
+    <div style={{ padding: 12, border: "1px solid #eee", borderRadius: 8, background: "#fafafa" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }} onClick={() => setExpanded(!expanded)}>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontWeight: 700, fontSize: 14 }}>{m.billId}</span>
+            <span style={{ padding: "2px 8px", borderRadius: 8, background: "#f0f0f0", fontSize: 10, color: "#666" }}>{m.stage}</span>
+            {m.engagedCount === 0 && m.targets.length > 0 && (
+              <span style={{ padding: "2px 8px", borderRadius: 8, background: "#e74c3c", color: "#fff", fontSize: 9 }}>NO OUTREACH</span>
+            )}
+          </div>
+          <p style={{ fontSize: 11, color: "#888", margin: "4px 0 0" }}>{m.committeePath.length > 0 ? `Path: ${m.committeePath.join(" → ")}` : "No committee path identified"}</p>
+        </div>
+        <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: probColor }}>{(m.passageProbability * 100).toFixed(0)}%</div>
+            <div style={{ fontSize: 9, color: "#aaa" }}>passage</div>
+          </div>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 14, fontWeight: 600 }}>{m.targets.length}</div>
+            <div style={{ fontSize: 9, color: "#aaa" }}>targets</div>
+          </div>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 14, fontWeight: 600 }}>{m.totalLeverage}</div>
+            <div style={{ fontSize: 9, color: "#aaa" }}>leverage</div>
+          </div>
+        </div>
+      </div>
+      {expanded && (
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #eee" }}>
+          <p style={{ fontSize: 12, color: "#555", lineHeight: 1.5, margin: "0 0 8px" }}>{m.narrative}</p>
+          {m.recommendations.length > 0 && (
+            <div style={{ background: "#fff3cd", borderRadius: 6, padding: "8px 12px", marginBottom: 10, fontSize: 11 }}>
+              <strong>Recommendations:</strong>
+              <ul style={{ margin: "4px 0 0", paddingLeft: 16 }}>
+                {m.recommendations.map((r, i) => <li key={i} style={{ marginBottom: 2 }}>{r}</li>)}
+              </ul>
+            </div>
+          )}
+          <div style={{ display: "grid", gap: 4 }}>
+            {m.targets.map((t, i) => {
+              const leverageWidth = Math.min(100, t.leverage);
+              const stanceColor: Record<string, string> = { support: "#2ecc71", lean_support: "#82e0aa", undecided: "#f1c40f", lean_oppose: "#e67e22", oppose: "#e74c3c", unknown: "#95a5a6" };
+              return (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", fontSize: 11 }}>
+                  <span style={{ width: 20, color: "#aaa", flexShrink: 0 }}>#{i + 1}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontWeight: 600 }}>{t.name}</span>
+                      <span style={{ color: "#888" }}>{t.party}, {t.chamber}</span>
+                      <span style={{ padding: "1px 6px", borderRadius: 8, background: stanceColor[t.likelyStance] ?? "#95a5a6", color: "#fff", fontSize: 9 }}>{t.likelyStance.replace(/_/g, " ")}</span>
+                      <span style={{ fontSize: 9, color: "#aaa" }}>{t.role.replace(/_/g, " ")}</span>
+                    </div>
+                    <div style={{ width: "100%", background: "#f0f0f0", borderRadius: 3, height: 4, marginTop: 3 }}>
+                      <div style={{ width: `${leverageWidth}%`, background: leverageWidth >= 60 ? "#e74c3c" : leverageWidth >= 30 ? "#e67e22" : "#3498db", height: 4, borderRadius: 3 }} />
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right", width: 60, flexShrink: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 13 }}>{t.leverage}</div>
+                    <div style={{ fontSize: 9, color: "#aaa" }}>leverage</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

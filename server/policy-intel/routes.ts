@@ -26,6 +26,9 @@ import { analyzeRisk } from "./engine/intelligence/risk-model";
 import { detectAnomalies } from "./engine/intelligence/anomaly-detector";
 import { analyzeForecast } from "./engine/intelligence/forecast-tracker";
 import { analyzeSponsorNetwork } from "./engine/intelligence/sponsor-network";
+import { analyzeHistoricalPatterns } from "./engine/intelligence/historical-patterns";
+import { analyzeLegislatorProfiles } from "./engine/intelligence/legislator-profiler";
+import { analyzeInfluenceMaps } from "./engine/intelligence/influence-map";
 
 function slugifyIssueRoom(value: string) {
   return value
@@ -78,7 +81,9 @@ export function createPolicyIntelRouter() {
         "/api/intel/intelligence/risk",
         "/api/intel/intelligence/anomalies",
         "/api/intel/intelligence/forecast",
-        "/api/intel/intelligence/sponsors"
+        "/api/intel/intelligence/sponsors",
+        "/api/intel/intelligence/legislators",
+        "/api/intel/intelligence/influence-map"
       ]
     });
   });
@@ -2118,6 +2123,133 @@ export function createPolicyIntelRouter() {
   // ── Committee Members ──────────────────────────────────────────────────────
 
   /**
+   * POST /committee-members/import — import committee memberships from OpenStates GraphQL API.
+   */
+  router.post("/committee-members/import", async (req, res, next) => {
+    try {
+      const apiKey = process.env.OPENSTATES_API_KEY || "";
+      if (!apiKey) return res.status(400).json({ message: "OPENSTATES_API_KEY not configured" });
+
+      const graphqlUrl = "https://openstates.org/graphql";
+      const houseOrgId = "ocd-organization/d6189dbb-417e-429e-ae4b-2ee6747eddc0";
+      const senateOrgId = "ocd-organization/cabf1716-c572-406a-bfdd-1917c11ac629";
+
+      const fetchMembers = async (orgId: string, chamber: string) => {
+        const allEdges: any[] = [];
+        let cursor: string | null = null;
+        let hasMore = true;
+
+        while (hasMore) {
+          const afterClause = cursor ? `, after: "${cursor}"` : "";
+          const query = `{ people(memberOf: "${orgId}", first: 100${afterClause}) { edges { node { name familyName currentMemberships { organization { name classification } role } } } pageInfo { hasNextPage endCursor } } }`;
+
+          const resp = await fetch(graphqlUrl, {
+            method: "POST",
+            headers: { "X-API-KEY": apiKey, "Content-Type": "application/json" },
+            body: JSON.stringify({ query }),
+          });
+          const json = (await resp.json()) as any;
+          const edges = json?.data?.people?.edges ?? [];
+          allEdges.push(...edges);
+          hasMore = json?.data?.people?.pageInfo?.hasNextPage ?? false;
+          cursor = json?.data?.people?.pageInfo?.endCursor ?? null;
+        }
+        return allEdges.map((e: any) => ({
+          name: e.node.name as string,
+          familyName: (e.node.familyName || "") as string,
+          chamber,
+          committees: (e.node.currentMemberships ?? [])
+            .filter((m: any) => m.organization.classification === "committee")
+            .map((m: any) => ({
+              name: m.organization.name as string,
+              role: (m.role || "member") as string,
+            })),
+        }));
+      };
+
+      console.log("🏛️ Importing committee memberships from OpenStates GraphQL...");
+      const [houseMembers, senateMembers] = await Promise.all([
+        fetchMembers(houseOrgId, "House"),
+        fetchMembers(senateOrgId, "Senate"),
+      ]);
+      const allMembers = [...houseMembers, ...senateMembers];
+      console.log(`📊 Fetched ${allMembers.length} legislators from OpenStates (${houseMembers.length} House, ${senateMembers.length} Senate)`);
+
+      // Load existing stakeholders
+      const existingStakeholders = await policyIntelDb
+        .select({ id: stakeholders.id, name: stakeholders.name, chamber: stakeholders.chamber })
+        .from(stakeholders)
+        .where(eq(stakeholders.type, "legislator"));
+
+      // Build name -> stakeholder lookup (normalize: lowercase, trim, strip accents)
+      const normalize = (s: string) => s.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const nameMap = new Map<string, { id: number; chamber: string | null }>();
+      const familyMap = new Map<string, { id: number; chamber: string | null }>();
+      for (const s of existingStakeholders) {
+        nameMap.set(normalize(s.name), { id: s.id, chamber: s.chamber });
+        // Also index by last name for fuzzy matching
+        const parts = s.name.split(/\s+/);
+        if (parts.length > 1) {
+          familyMap.set(normalize(parts[parts.length - 1]), { id: s.id, chamber: s.chamber });
+        }
+      }
+
+      // Delete existing committee memberships to replace
+      await policyIntelDb.delete(committeeMembers);
+
+      let matched = 0;
+      let unmatched = 0;
+      let inserted = 0;
+      const unmatchedNames: string[] = [];
+
+      for (const member of allMembers) {
+        const normName = normalize(member.name);
+        let stakeholder = nameMap.get(normName);
+        // Fallback: match by family name if exact doesn't work
+        if (!stakeholder && member.familyName) {
+          stakeholder = familyMap.get(normalize(member.familyName));
+        }
+        if (!stakeholder) {
+          unmatched++;
+          unmatchedNames.push(member.name);
+          continue;
+        }
+        matched++;
+
+        for (const comm of member.committees) {
+          const roleStr = comm.role.toLowerCase();
+          const dbRole = roleStr.includes("chair") && !roleStr.includes("vice")
+            ? "chair" as const
+            : roleStr.includes("vice")
+              ? "vice_chair" as const
+              : "member" as const;
+
+          await policyIntelDb.insert(committeeMembers).values({
+            stakeholderId: stakeholder.id,
+            committeeName: comm.name,
+            chamber: member.chamber,
+            role: dbRole,
+          });
+          inserted++;
+        }
+      }
+
+      console.log(`✅ Committee import complete: ${matched} matched, ${unmatched} unmatched, ${inserted} memberships inserted`);
+
+      res.json({
+        success: true,
+        matched,
+        unmatched,
+        inserted,
+        unmatchedNames: unmatchedNames.slice(0, 20),
+        totalFetched: allMembers.length,
+      });
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
    * GET /committee-members — list all committee assignments, optionally filtered.
    */
   router.get("/committee-members", async (req, res, next) => {
@@ -2524,6 +2656,42 @@ export function createPolicyIntelRouter() {
   router.get("/intelligence/sponsors", async (_req, res, next) => {
     try {
       const report = await analyzeSponsorNetwork();
+      res.json(report);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * GET /intelligence/historical — historical pattern analysis across 23 sessions.
+   */
+  router.get("/intelligence/historical", async (_req, res, next) => {
+    try {
+      const report = await analyzeHistoricalPatterns();
+      res.json(report);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * GET /intelligence/legislators — AI-generated legislator intelligence profiles.
+   */
+  router.get("/intelligence/legislators", async (_req, res, next) => {
+    try {
+      const report = await analyzeLegislatorProfiles();
+      res.json(report);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * GET /intelligence/influence-map — bill influence maps showing who can change outcomes.
+   */
+  router.get("/intelligence/influence-map", async (_req, res, next) => {
+    try {
+      const report = await analyzeInfluenceMaps();
       res.json(report);
     } catch (err: any) {
       next(err);

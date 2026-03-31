@@ -249,6 +249,9 @@ export const api = {
   getAnomalyReport: () => apiFetch<AnomalyReport>("/intelligence/anomalies"),
   getForecastReport: () => apiFetch<ForecastReport>("/intelligence/forecast"),
   getSponsorReport: () => apiFetch<SponsorNetworkReport>("/intelligence/sponsors"),
+  getHistoricalReport: () => apiFetch<HistoricalPatternsReport>("/intelligence/historical"),
+  getLegislatorReport: () => apiFetch<LegislatorProfileReport>("/intelligence/legislators"),
+  getInfluenceMapReport: () => apiFetch<InfluenceMapReport>("/intelligence/influence-map"),
 };
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -876,6 +879,9 @@ export interface IntelligenceBriefing {
   risk: RiskReport;
   anomalies: AnomalyReport;
   sponsors: SponsorNetworkReport;
+  historical: HistoricalPatternsReport;
+  legislators: LegislatorProfileReport;
+  influenceMap: InfluenceMapReport;
   forecast: ForecastReport;
   delta: DeltaBriefing;
   analysisTimeMs: number;
@@ -1000,5 +1006,194 @@ export interface SponsorNetworkReport {
     avgCoalitionSize: number;
     bipartisanRate: number;
     leadershipRate: number;
+  };
+}
+
+// ── Historical Patterns Types ──────────────────────────────────────────────
+
+export interface CommitteePassageRate {
+  committee: string;
+  totalBills: number;
+  passedBills: number;
+  passageRate: number;
+  vetoedBills: number;
+  vetoRate: number;
+  relativePerformance: "above_average" | "average" | "below_average";
+  statusBreakdown: Record<string, number>;
+  sessionTrends: Array<{ session: string; total: number; passed: number; rate: number }>;
+  narrative: string;
+}
+
+export interface BillTypePattern {
+  billType: string;
+  label: string;
+  totalBills: number;
+  passedBills: number;
+  passageRate: number;
+  vetoedBills: number;
+  engrossedBills: number;
+  avgProgressionDays: number | null;
+  narrative: string;
+}
+
+export interface SessionAnalysis {
+  sessionName: string;
+  sessionId: string;
+  totalBills: number;
+  introduced: number;
+  engrossed: number;
+  enrolled: number;
+  passed: number;
+  vetoed: number;
+  passageRate: number;
+  performanceVsMedian: number;
+  narrative: string;
+}
+
+export interface ChamberPattern {
+  chamber: string;
+  totalBills: number;
+  passedBills: number;
+  passageRate: number;
+  topCommittees: Array<{ committee: string; bills: number; passageRate: number }>;
+  narrative: string;
+}
+
+export interface TimingPattern {
+  month: number;
+  monthLabel: string;
+  billsPassedInMonth: number;
+  shareOfPassages: number;
+  narrative: string;
+}
+
+export interface HistoricalPatternsReport {
+  analyzedAt: string;
+  totalBillsAnalyzed: number;
+  sessionsAnalyzed: number;
+  committeeRates: CommitteePassageRate[];
+  billTypePatterns: BillTypePattern[];
+  sessionAnalyses: SessionAnalysis[];
+  chamberPatterns: ChamberPattern[];
+  timingPatterns: TimingPattern[];
+  keyFindings: string[];
+  overallPassageRate: number;
+}
+
+// ── Legislator Profiler Types ──────────────────────────────────────────────
+
+export interface LegislatorIssueFocus {
+  topic: string;
+  billCount: number;
+  stance: "champion" | "aligned" | "neutral" | "blocker" | "unknown";
+}
+
+export interface LegislatorAlly {
+  name: string;
+  party: string;
+  sharedBills: number;
+  isCrossParty: boolean;
+}
+
+export interface LegislatorProfile {
+  stakeholderId: number;
+  name: string;
+  party: string;
+  chamber: string;
+  district: string;
+  title?: string;
+  powerScore: number;
+  committees: Array<{ name: string; role: "chair" | "vice_chair" | "member"; activeBillCount: number }>;
+  sponsorship: {
+    totalBills: number;
+    billIds: string[];
+    billTypes: Record<string, number>;
+    watchlistOverlap: number;
+  };
+  issueFocus: LegislatorIssueFocus[];
+  allies: LegislatorAlly[];
+  engagement: {
+    observationCount: number;
+    meetingNoteCount: number;
+    lastContactDate: string | null;
+    engagementLevel: "high" | "moderate" | "low" | "none";
+  };
+  assessment: string;
+  tags: string[];
+  impactLevel: "critical" | "high" | "moderate" | "low";
+}
+
+export interface LegislatorProfileReport {
+  analyzedAt: string;
+  totalLegislators: number;
+  totalBillsMatched: number;
+  profiles: LegislatorProfile[];
+  keyPlayers: LegislatorProfile[];
+  gatekeepers: LegislatorProfile[];
+  bridgeBuilders: LegislatorProfile[];
+  blindSpots: LegislatorProfile[];
+  stats: {
+    byParty: Record<string, number>;
+    byChamber: Record<string, number>;
+    avgPowerScore: number;
+    avgBillCount: number;
+    engagementBreakdown: Record<string, number>;
+  };
+}
+
+// ── Influence Map Types ────────────────────────────────────────────────────
+
+export interface InfluenceTarget {
+  stakeholderId: number;
+  name: string;
+  party: string;
+  chamber: string;
+  role: "committee_chair" | "committee_member" | "sponsor" | "co_sponsor" | "swing_vote" | "leadership" | "floor_vote";
+  leverage: number;
+  predictability: "high" | "medium" | "low";
+  likelyStance: "support" | "lean_support" | "undecided" | "lean_oppose" | "oppose" | "unknown";
+  relevantCommittees: string[];
+  engagementDepth: number;
+  recommendation: string;
+  evidence: string[];
+}
+
+export interface BillInfluenceMap {
+  billId: string;
+  title: string;
+  stage: string;
+  committeePath: string[];
+  passageProbability: number;
+  targets: InfluenceTarget[];
+  totalLeverage: number;
+  engagedCount: number;
+  narrative: string;
+  recommendations: string[];
+}
+
+export interface InfluenceMapReport {
+  analyzedAt: string;
+  maps: BillInfluenceMap[];
+  pivotalLegislators: Array<{
+    name: string;
+    party: string;
+    billCount: number;
+    avgLeverage: number;
+    billIds: string[];
+  }>;
+  outreachPlan: Array<{
+    name: string;
+    party: string;
+    chamber: string;
+    billIds: string[];
+    combinedLeverage: number;
+    currentEngagement: "high" | "moderate" | "low" | "none";
+    priority: number;
+  }>;
+  stats: {
+    totalBillsAnalyzed: number;
+    totalTargetsIdentified: number;
+    avgTargetsPerBill: number;
+    engagementGapCount: number;
   };
 }
