@@ -18,6 +18,12 @@ import { recordFeedback, getChampionStatus, getChampionHistory, runRetraining, b
 import type { FeedbackOutcome } from "./engine/champion";
 import { notifySlack } from "./notify";
 import { generateClientAlert, generateWeeklyReport, generateHearingMemo } from "./services/deliverable-service";
+import { runSwarm } from "./engine/intelligence/swarm-coordinator";
+import { analyzeVelocity } from "./engine/intelligence/velocity-analyzer";
+import { analyzeCorrelations } from "./engine/intelligence/cross-correlator";
+import { analyzeInfluence } from "./engine/intelligence/influence-ranker";
+import { analyzeRisk } from "./engine/intelligence/risk-model";
+import { detectAnomalies } from "./engine/intelligence/anomaly-detector";
 
 function slugifyIssueRoom(value: string) {
   return value
@@ -62,7 +68,13 @@ export function createPolicyIntelRouter() {
         "/api/intel/workspaces/:id/digest",
         "/api/intel/champion/status",
         "/api/intel/champion/history",
-        "/api/intel/champion/retrain"
+        "/api/intel/champion/retrain",
+        "/api/intel/intelligence/briefing",
+        "/api/intel/intelligence/velocity",
+        "/api/intel/intelligence/correlations",
+        "/api/intel/intelligence/influence",
+        "/api/intel/intelligence/risk",
+        "/api/intel/intelligence/anomalies"
       ]
     });
   });
@@ -2393,6 +2405,81 @@ export function createPolicyIntelRouter() {
         firmName,
       });
       res.json(result);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  // ── Intelligence Engine ──────────────────────────────────────────────────────
+
+  /**
+   * GET /intelligence/briefing — full swarm analysis (all 5 analyzers + cross-reference).
+   * This is the flagship intelligence endpoint.
+   */
+  router.get("/intelligence/briefing", async (_req, res, next) => {
+    try {
+      const briefing = await runSwarm();
+      res.json(briefing);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * GET /intelligence/velocity — topic momentum vectors only.
+   */
+  router.get("/intelligence/velocity", async (_req, res, next) => {
+    try {
+      const report = await analyzeVelocity();
+      res.json(report);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * GET /intelligence/correlations — bill cluster analysis only.
+   */
+  router.get("/intelligence/correlations", async (_req, res, next) => {
+    try {
+      const report = await analyzeCorrelations();
+      res.json(report);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * GET /intelligence/influence — stakeholder power rankings only.
+   */
+  router.get("/intelligence/influence", async (_req, res, next) => {
+    try {
+      const report = await analyzeInfluence();
+      res.json(report);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * GET /intelligence/risk — bill passage probability assessments only.
+   */
+  router.get("/intelligence/risk", async (_req, res, next) => {
+    try {
+      const report = await analyzeRisk();
+      res.json(report);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * GET /intelligence/anomalies — anomaly detections only.
+   */
+  router.get("/intelligence/anomalies", async (_req, res, next) => {
+    try {
+      const report = await detectAnomalies();
+      res.json(report);
     } catch (err: any) {
       next(err);
     }

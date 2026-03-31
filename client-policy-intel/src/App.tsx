@@ -22,6 +22,7 @@ import { MobileAlertReviewPage } from "./pages/MobileAlertReviewPage";
 import { ClientAlertPage } from "./pages/ClientAlertPage";
 import { WeeklyReportPage } from "./pages/WeeklyReportPage";
 import { HearingMemoPage } from "./pages/HearingMemoPage";
+import { IntelligenceHubPage } from "./pages/IntelligenceHubPage";
 
 function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(() =>
@@ -39,6 +40,7 @@ function useMediaQuery(query: string): boolean {
 
 const NAV_ITEMS = [
   { path: "/", label: "Dashboard" },
+  { path: "/intelligence", label: "🧠 Intelligence Hub" },
   { path: "/calendar", label: "Calendar" },
   { path: "/matters", label: "Matters" },
   { path: "/alerts", label: "Alert Queue" },
@@ -218,6 +220,7 @@ export function App() {
         )}
         <Switch>
           <Route path="/" component={DashboardPage} />
+          <Route path="/intelligence" component={IntelligenceHubPage} />
           <Route path="/calendar" component={CalendarPage} />
           <Route path="/matters" component={MattersPage} />
           <Route path="/matters/:id">{(params) => <MatterDetailPage id={Number(params.id)} />}</Route>

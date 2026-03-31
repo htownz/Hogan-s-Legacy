@@ -239,6 +239,14 @@ export const api = {
     recipientName?: string;
     firmName?: string;
   }) => apiFetch<DeliverableResult>("/deliverables/generate-hearing-memo", { method: "POST", body: JSON.stringify(body) }),
+
+  // ── Intelligence Engine ─────────────────────────────────────────────────
+  getIntelligenceBriefing: () => apiFetch<IntelligenceBriefing>("/intelligence/briefing"),
+  getVelocityReport: () => apiFetch<VelocityReport>("/intelligence/velocity"),
+  getCorrelationReport: () => apiFetch<CorrelationReport>("/intelligence/correlations"),
+  getInfluenceReport: () => apiFetch<InfluenceReport>("/intelligence/influence"),
+  getRiskReport: () => apiFetch<RiskReport>("/intelligence/risk"),
+  getAnomalyReport: () => apiFetch<AnomalyReport>("/intelligence/anomalies"),
 };
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -726,4 +734,144 @@ export interface BillStakeholderResult {
     phone: string | null;
     observationText: string;
   }>;
+}
+
+// ── Intelligence Engine Types ────────────────────────────────────────────────
+
+export interface VelocityVector {
+  subject: string;
+  subjectType: "watchlist" | "source_type" | "bill_prefix" | "committee";
+  subjectId?: number;
+  current7d: number;
+  previous7d: number;
+  current30d: number;
+  previous30d: number;
+  weekOverWeekChange: number;
+  acceleration: number;
+  momentum: "surging" | "heating" | "steady" | "cooling" | "stalled";
+  significance: number;
+  narrative: string;
+}
+
+export interface VelocityReport {
+  analyzedAt: string;
+  vectors: VelocityVector[];
+  topMovers: VelocityVector[];
+  emergingTopics: VelocityVector[];
+  decayingTopics: VelocityVector[];
+}
+
+export interface BillCluster {
+  id: string;
+  label: string;
+  bills: Array<{ billId: string; title: string; sourceType: string; lastSeen: string; alertCount: number }>;
+  linkages: Array<{ type: string; detail: string; strength: number }>;
+  cohesion: number;
+  significance: "critical" | "high" | "moderate" | "low";
+  narrative: string;
+}
+
+export interface CorrelationReport {
+  analyzedAt: string;
+  totalBillsAnalyzed: number;
+  clusters: BillCluster[];
+  isolatedBills: unknown[];
+}
+
+export interface InfluenceProfile {
+  stakeholderId: number;
+  name: string;
+  type: string;
+  party?: string;
+  chamber?: string;
+  influenceScore: number;
+  breakdown: {
+    positionalPower: number;
+    activityLevel: number;
+    networkReach: number;
+    recency: number;
+  };
+  roles: string[];
+  touchpoints: number;
+  assessment: string;
+}
+
+export interface InfluenceReport {
+  analyzedAt: string;
+  profiles: InfluenceProfile[];
+  powerBrokers: InfluenceProfile[];
+  gatekeepers: InfluenceProfile[];
+  wellConnected: InfluenceProfile[];
+  underEngaged: InfluenceProfile[];
+}
+
+export interface RiskFactor {
+  factor: string;
+  impact: number;
+  detail: string;
+}
+
+export interface RiskAssessment {
+  billId: string;
+  title: string;
+  passageProbability: number;
+  riskLevel: "critical" | "high" | "elevated" | "moderate" | "low";
+  stage: string;
+  riskFactors: RiskFactor[];
+  mitigatingFactors: RiskFactor[];
+  riskScore: number;
+  narrative: string;
+  recommendations: string[];
+  confidence: "high" | "medium" | "low";
+}
+
+export interface RiskReport {
+  analyzedAt: string;
+  regime: string;
+  assessments: RiskAssessment[];
+  criticalRisks: RiskAssessment[];
+  risingRisks: RiskAssessment[];
+}
+
+export interface Anomaly {
+  type: string;
+  severity: "critical" | "high" | "medium" | "low";
+  subject: string;
+  deviation: number;
+  baseline: number;
+  observed: number;
+  narrative: string;
+  detectedAt: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface AnomalyReport {
+  analyzedAt: string;
+  anomalies: Anomaly[];
+  criticalCount: number;
+  highCount: number;
+  baselineWindow: string;
+}
+
+export interface StrategicInsight {
+  priority: 1 | 2 | 3 | 4 | 5;
+  category: string;
+  title: string;
+  narrative: string;
+  sources: string[];
+  confidence: number;
+  relatedEntities?: Array<{ type: string; id: string | number; label: string }>;
+}
+
+export interface IntelligenceBriefing {
+  generatedAt: string;
+  executiveSummary: string;
+  insights: StrategicInsight[];
+  insightCounts: Record<string, number>;
+  velocity: VelocityReport;
+  correlations: CorrelationReport;
+  influence: InfluenceReport;
+  risk: RiskReport;
+  anomalies: AnomalyReport;
+  analysisTimeMs: number;
 }

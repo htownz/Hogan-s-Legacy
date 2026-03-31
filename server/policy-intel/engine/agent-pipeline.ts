@@ -907,3 +907,25 @@ export function getPipelineConfig() {
     regimeWeightDeltas: { ...REGIME_WEIGHT_DELTAS },
   };
 }
+
+/**
+ * Detect the current legislative regime from optional text and date.
+ * Exported thin wrapper for the internal detectLegislativeRegime function.
+ */
+export function detectRegime(text: string = "", date: Date = new Date()): LegislativeRegime {
+  // Use text content signals first
+  const lower = text.toLowerCase();
+  for (const { regime, patterns } of REGIME_CONTENT_SIGNALS) {
+    for (const re of patterns) {
+      if (re.test(lower)) return regime;
+    }
+  }
+  // Calendar fallback
+  const ctx: AgentContext = {
+    docTitle: "",
+    docSummary: "",
+    reasons: [],
+    docPublishedAt: date,
+  };
+  return detectLegislativeRegime(ctx);
+}
