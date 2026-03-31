@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { api, type PowerNetworkReport, type LegislationPredictorReport, type PowerCenterProfile, type VotingBlocResult, type LegislationPredictionItem } from "../api";
+import { api, type PowerNetworkReport, type LegislationPredictorReport, type PowerCenterProfile, type VotingBlocResult, type PowerFlowEdge, type LegislationPredictionItem } from "../api";
 import { useAsync } from "../hooks";
 
 type Tab = "bigThree" | "votingBlocs" | "predictions" | "powerFlows" | "findings";
@@ -435,15 +435,3 @@ function confColor(v: number) {
 function flowColor(type: string) {
   return type === "appoints" ? "#8e44ad" : type === "allies_with" ? "#2ecc71" : type === "controls" ? "#e74c3c" : "#3498db";
 }
-
-type PowerFlowEdge = {
-  sourceId: number;
-  sourceName: string;
-  sourceRole: string;
-  targetId: number;
-  targetName: string;
-  targetRole: string;
-  flowType: string;
-  strength: number;
-  evidence: string;
-};
