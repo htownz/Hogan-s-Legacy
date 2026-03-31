@@ -14,9 +14,14 @@
  *
  * This creates an institutional memory — the system learns from its own history.
  */
-import { policyIntelDb } from "../../db";
-import { alerts, sourceDocuments, forecastSnapshots, learningMetrics } from "@shared/schema-policy-intel";
-import { sql, gte, desc, count, eq } from "drizzle-orm";
+import { policyIntelDb, queryClient } from "../../db";
+import {
+  billOutcomeSnapshots,
+  forecastSnapshots,
+  learningMetrics,
+  sourceDocuments,
+} from "@shared/schema-policy-intel";
+import { desc, count, eq } from "drizzle-orm";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -40,7 +45,7 @@ export interface BillPrediction {
   predictedRiskLevel: string;
   riskScore: number;
   /** Populated later when we grade the forecast */
-  actualOutcome?: "passed" | "failed" | "stalled" | "amended" | "unknown";
+  actualOutcome?: "active" | "passed" | "failed" | "stalled" | "amended" | "unknown";
   wasAccurate?: boolean;
 }
 
@@ -118,6 +123,319 @@ export interface ForecastReport {
   historyDepth: number;
 }
 
+interface BillOutcomeTruth {
+  billId: string;
+  stage: string;
+  outcome: "active" | "passed" | "failed" | "stalled" | "amended" | "unknown";
+  statusText: string;
+  sourceDocumentId: number | null;
+  publishedAt: string | null;
+}
+
+const BILL_ID_PATTERN = /\b(H\.?B\.?|S\.?B\.?|H\.?J\.?R\.?|S\.?J\.?R\.?|H\.?C\.?R\.?|S\.?C\.?R\.?)\s*(\d+)\b/i;
+const OUTCOME_SNAPSHOT_STALE_HOURS = 18;
+let outcomeTruthPersistenceReady = false;
+
+async function ensureOutcomeTruthPersistence(): Promise<void> {
+  if (outcomeTruthPersistenceReady) return;
+
+  await queryClient.unsafe(`
+    do $$
+    begin
+      create type policy_intel_bill_outcome as enum ('active', 'passed', 'failed', 'stalled', 'amended', 'unknown');
+    exception
+      when duplicate_object then null;
+    end
+    $$;
+  `);
+
+  await queryClient.unsafe(`
+    create table if not exists policy_intel_bill_outcome_snapshots (
+      id serial primary key,
+      snapshot_key varchar(16) not null,
+      captured_at timestamptz not null default now(),
+      bill_id varchar(64) not null,
+      stage varchar(64) not null default 'unknown',
+      outcome policy_intel_bill_outcome not null default 'unknown',
+      status_text text,
+      source_document_id integer references policy_intel_source_documents(id) on delete set null,
+      published_at timestamptz,
+      metadata_json jsonb not null default '{}'::jsonb,
+      created_at timestamptz not null default now()
+    )
+  `);
+
+  await queryClient.unsafe(`
+    create unique index if not exists policy_intel_bill_outcome_snapshot_bill_idx
+    on policy_intel_bill_outcome_snapshots (snapshot_key, bill_id)
+  `);
+  await queryClient.unsafe(`
+    create index if not exists policy_intel_bill_outcome_snapshot_idx
+    on policy_intel_bill_outcome_snapshots (snapshot_key, captured_at)
+  `);
+  await queryClient.unsafe(`
+    create index if not exists policy_intel_bill_outcome_outcome_idx
+    on policy_intel_bill_outcome_snapshots (outcome)
+  `);
+
+  outcomeTruthPersistenceReady = true;
+}
+
+function utcSnapshotKey(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function normalizeBillId(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const normalized = value
+    .replace(/\./g, "")
+    .toUpperCase()
+    .replace(/\s+/g, " ")
+    .trim();
+  return normalized || null;
+}
+
+function extractBillIdFromTitle(title: string | null | undefined): string | null {
+  const text = title ?? "";
+  const match = text.match(BILL_ID_PATTERN);
+  if (!match) return null;
+  return normalizeBillId(`${match[1]} ${match[2]}`);
+}
+
+function getPayloadRecord(rawPayload: unknown): Record<string, unknown> {
+  if (rawPayload && typeof rawPayload === "object" && !Array.isArray(rawPayload)) {
+    return rawPayload as Record<string, unknown>;
+  }
+  return {};
+}
+
+function classifyOutcome(statusText: string, lastActionText: string): BillOutcomeTruth["outcome"] {
+  const text = `${statusText} ${lastActionText}`.toLowerCase();
+
+  if (/\b(amended|committee substitute|substitute adopted|engrossed as amended)\b/.test(text)) {
+    return "amended";
+  }
+
+  if (/\b(signed|enrolled|chaptered|effective|became law|sent to governor|governor signed|passed both|adopted final)\b/.test(text)) {
+    return "passed";
+  }
+
+  if (/\b(failed|defeated|killed|died|vetoed|withdrawn|stricken|lost|rejected)\b/.test(text)) {
+    return "failed";
+  }
+
+  if (/\b(left pending|held in committee|stalled|tabled|postponed indefinitely)\b/.test(text)) {
+    return "stalled";
+  }
+
+  if (/\b(referred|reported|considered|in committee|on floor|calendar)\b/.test(text)) {
+    return "active";
+  }
+
+  return "unknown";
+}
+
+function classifyStage(statusText: string, lastActionText: string): string {
+  const text = `${statusText} ${lastActionText}`.toLowerCase();
+
+  if (/\b(governor|signed|veto|chaptered|effective|became law)\b/.test(text)) return "governor";
+  if (/\b(passed both|final passage|conference|concurrence)\b/.test(text)) return "final_passage";
+  if (/\b(second reading|third reading|on floor|calendar|engrossed)\b/.test(text)) return "floor";
+  if (/\b(referred|committee|public hearing|left pending|reported favorably)\b/.test(text)) return "committee";
+  if (/\b(prefiled|filed|introduced|read first time)\b/.test(text)) return "introduced";
+  return "unknown";
+}
+
+function resolveBillIdFromDocument(doc: {
+  title: string | null;
+  rawPayload: unknown;
+}): string | null {
+  const payload = getPayloadRecord(doc.rawPayload);
+  const payloadBillId =
+    (typeof payload.billId === "string" ? payload.billId : null) ??
+    (typeof payload.billNumber === "string" ? payload.billNumber : null);
+
+  return normalizeBillId(payloadBillId) ?? extractBillIdFromTitle(doc.title);
+}
+
+function resolveStatusText(payload: Record<string, unknown>): string {
+  const status = typeof payload.status === "string" ? payload.status : "";
+  const statusCode = payload.statusCode !== undefined && payload.statusCode !== null ? String(payload.statusCode) : "";
+  return `${status} ${statusCode}`.trim();
+}
+
+function resolveLastActionText(payload: Record<string, unknown>): string {
+  const raw = payload.lastAction;
+  if (typeof raw === "string") return raw;
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    const action = (raw as Record<string, unknown>).action;
+    if (typeof action === "string") return action;
+  }
+  return "";
+}
+
+function outcomeToBinary(outcome: BillOutcomeTruth["outcome"]): 1 | 0 | null {
+  if (outcome === "passed" || outcome === "amended") return 1;
+  if (outcome === "failed" || outcome === "stalled") return 0;
+  return null;
+}
+
+async function latestOutcomeSnapshotMeta(): Promise<{ snapshotKey: string; capturedAt: Date } | null> {
+  await ensureOutcomeTruthPersistence();
+  const [row] = await policyIntelDb
+    .select({
+      snapshotKey: billOutcomeSnapshots.snapshotKey,
+      capturedAt: billOutcomeSnapshots.capturedAt,
+    })
+    .from(billOutcomeSnapshots)
+    .orderBy(desc(billOutcomeSnapshots.snapshotKey), desc(billOutcomeSnapshots.capturedAt))
+    .limit(1);
+
+  if (!row) return null;
+  return row;
+}
+
+export async function refreshOutcomeTruthSnapshot(snapshotKey = utcSnapshotKey(new Date())): Promise<{
+  snapshotKey: string;
+  capturedAt: string;
+  billsCaptured: number;
+}> {
+  await ensureOutcomeTruthPersistence();
+  const capturedAt = new Date();
+  const docs = await policyIntelDb
+    .select({
+      id: sourceDocuments.id,
+      title: sourceDocuments.title,
+      rawPayload: sourceDocuments.rawPayload,
+      publishedAt: sourceDocuments.publishedAt,
+    })
+    .from(sourceDocuments)
+    .where(eq(sourceDocuments.sourceType, "texas_legislation"))
+    .orderBy(desc(sourceDocuments.publishedAt), desc(sourceDocuments.id));
+
+  const latestByBill = new Map<string, BillOutcomeTruth>();
+  for (const doc of docs) {
+    const billId = resolveBillIdFromDocument(doc);
+    if (!billId || latestByBill.has(billId)) continue;
+
+    const payload = getPayloadRecord(doc.rawPayload);
+    const statusText = resolveStatusText(payload);
+    const lastActionText = resolveLastActionText(payload);
+
+    latestByBill.set(billId, {
+      billId,
+      stage: classifyStage(statusText, lastActionText),
+      outcome: classifyOutcome(statusText, lastActionText),
+      statusText: `${statusText} ${lastActionText}`.trim(),
+      sourceDocumentId: doc.id,
+      publishedAt: doc.publishedAt ? doc.publishedAt.toISOString() : null,
+    });
+  }
+
+  await policyIntelDb
+    .delete(billOutcomeSnapshots)
+    .where(eq(billOutcomeSnapshots.snapshotKey, snapshotKey));
+
+  const rows = Array.from(latestByBill.values()).map((entry) => ({
+    snapshotKey,
+    capturedAt,
+    billId: entry.billId,
+    stage: entry.stage,
+    outcome: entry.outcome,
+    statusText: entry.statusText || null,
+    sourceDocumentId: entry.sourceDocumentId,
+    publishedAt: entry.publishedAt ? new Date(entry.publishedAt) : null,
+    metadataJson: {},
+  }));
+
+  const batchSize = 500;
+  for (let index = 0; index < rows.length; index += batchSize) {
+    const batch = rows.slice(index, index + batchSize);
+    await policyIntelDb.insert(billOutcomeSnapshots).values(batch);
+  }
+
+  return {
+    snapshotKey,
+    capturedAt: capturedAt.toISOString(),
+    billsCaptured: rows.length,
+  };
+}
+
+async function ensureOutcomeTruthSnapshot(): Promise<{
+  snapshotKey: string;
+  outcomes: Map<string, BillOutcomeTruth>;
+}> {
+  const now = new Date();
+  const targetKey = utcSnapshotKey(now);
+  const latest = await latestOutcomeSnapshotMeta();
+
+  const latestAgeMs = latest ? now.getTime() - latest.capturedAt.getTime() : Number.POSITIVE_INFINITY;
+  const shouldRefresh =
+    !latest
+    || latest.snapshotKey !== targetKey
+    || latestAgeMs > OUTCOME_SNAPSHOT_STALE_HOURS * 60 * 60 * 1000;
+
+  const snapshotKey = shouldRefresh
+    ? (await refreshOutcomeTruthSnapshot(targetKey)).snapshotKey
+    : latest!.snapshotKey;
+
+  const rows = await policyIntelDb
+    .select()
+    .from(billOutcomeSnapshots)
+    .where(eq(billOutcomeSnapshots.snapshotKey, snapshotKey));
+
+  const outcomes = new Map<string, BillOutcomeTruth>();
+  for (const row of rows) {
+    outcomes.set(row.billId, {
+      billId: row.billId,
+      stage: row.stage,
+      outcome: row.outcome,
+      statusText: row.statusText ?? "",
+      sourceDocumentId: row.sourceDocumentId ?? null,
+      publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
+    });
+  }
+
+  return { snapshotKey, outcomes };
+}
+
+export async function getLatestOutcomeTruthSnapshotSummary(): Promise<{
+  snapshotKey: string | null;
+  capturedAt: string | null;
+  totalBills: number;
+  outcomeCounts: Record<string, number>;
+}> {
+  await ensureOutcomeTruthPersistence();
+  const latest = await latestOutcomeSnapshotMeta();
+  if (!latest) {
+    return {
+      snapshotKey: null,
+      capturedAt: null,
+      totalBills: 0,
+      outcomeCounts: {},
+    };
+  }
+
+  const rows = await policyIntelDb
+    .select({ outcome: billOutcomeSnapshots.outcome, cnt: count() })
+    .from(billOutcomeSnapshots)
+    .where(eq(billOutcomeSnapshots.snapshotKey, latest.snapshotKey))
+    .groupBy(billOutcomeSnapshots.outcome);
+
+  const outcomeCounts: Record<string, number> = {};
+  for (const row of rows) {
+    outcomeCounts[row.outcome] = Number(row.cnt ?? 0);
+  }
+
+  const totalBills = Object.values(outcomeCounts).reduce((acc, next) => acc + next, 0);
+  return {
+    snapshotKey: latest.snapshotKey,
+    capturedAt: latest.capturedAt.toISOString(),
+    totalBills,
+    outcomeCounts,
+  };
+}
+
 // ── DB-Backed Snapshot Store ─────────────────────────────────────────────────
 // Persists forecast snapshots to PostgreSQL so prediction grading survives
 // server restarts — critical for the learning loop.
@@ -187,10 +505,11 @@ function dbRowToSnapshot(row: typeof forecastSnapshots.$inferSelect): ForecastSn
 
 /**
  * Grade historical forecasts by checking if predicted bill outcomes matched reality.
- * Uses alert activity patterns as a proxy for bill progression.
+ * Uses bill outcome-truth snapshots instead of alert-activity proxies.
  */
 async function gradePredictions(): Promise<ForecastGrade> {
   const snapshots = await getAllSnapshots();
+  const { snapshotKey, outcomes } = await ensureOutcomeTruthSnapshot();
 
   if (snapshots.length < 2) {
     return {
@@ -205,7 +524,7 @@ async function gradePredictions(): Promise<ForecastGrade> {
       },
       blindSpots: [],
       trendDirection: "insufficient_data",
-      narrative: "Insufficient forecast history — need at least 2 briefings to begin tracking accuracy. Continue running the intelligence swarm to build prediction history.",
+      narrative: `Insufficient forecast history — need at least 2 briefings to begin tracking accuracy. Outcome-truth snapshot ${snapshotKey} is ready for grading once more predictions accumulate.`,
     };
   }
 
@@ -226,28 +545,6 @@ async function gradePredictions(): Promise<ForecastGrade> {
     }
   }
 
-  // Grade by checking if bills predicted as high-risk actually showed continued activity
-  const d30 = new Date(Date.now() - 30 * 86400000);
-  const recentAlertBills = await policyIntelDb
-    .select({
-      title: alerts.title,
-      cnt: count(),
-    })
-    .from(alerts)
-    .where(gte(alerts.createdAt, d30))
-    .groupBy(alerts.title)
-    .orderBy(desc(count()));
-
-  // Extract bill IDs from recent alert titles
-  const activeBills = new Set<string>();
-  const billIdPattern = /\b(H\.?B\.?|S\.?B\.?|H\.?J\.?R\.?|S\.?J\.?R\.?)\s*(\d+)\b/gi;
-  for (const row of recentAlertBills) {
-    let m: RegExpExecArray | null;
-    while ((m = billIdPattern.exec(row.title)) !== null) {
-      activeBills.add(`${m[1].replace(/\./g, "").toUpperCase()} ${m[2]}`);
-    }
-  }
-
   // Grade each prediction
   let correct = 0;
   let verifiable = 0;
@@ -255,23 +552,26 @@ async function gradePredictions(): Promise<ForecastGrade> {
   const missedBills: string[] = [];
 
   for (const [billId, pred] of uniquePredictions) {
-    const isActive = activeBills.has(billId);
+    const normalizedBillId = normalizeBillId(billId) ?? billId;
+    const truth = outcomes.get(normalizedBillId);
+    const actual = truth ? outcomeToBinary(truth.outcome) : null;
+    if (actual === null) {
+      pred.actualOutcome = truth?.outcome ?? "unknown";
+      continue;
+    }
 
-    // A prediction is "correct" if:
-    // - high risk + still active = correct (predicted risk materialized)
-    // - low risk + not active = correct (predicted it was safe, it was)
-    // - high risk + not active = we may have over-predicted
-    // - low risk + still active = we under-predicted (blind spot)
-    const predictedHigh = pred.predictedPassageProbability >= 0.4;
+    const predictedPass = pred.predictedPassageProbability >= 0.5;
+    const didPass = actual === 1;
     verifiable++;
+    pred.actualOutcome = truth?.outcome ?? "unknown";
 
-    if ((predictedHigh && isActive) || (!predictedHigh && !isActive)) {
+    if ((predictedPass && didPass) || (!predictedPass && !didPass)) {
       correct++;
       pred.wasAccurate = true;
     } else {
       pred.wasAccurate = false;
-      if (!predictedHigh && isActive) {
-        missedBills.push(billId); // blind spot
+      if (!predictedPass && didPass) {
+        missedBills.push(billId);
       }
     }
 
@@ -279,7 +579,7 @@ async function gradePredictions(): Promise<ForecastGrade> {
     for (const bucket of buckets) {
       if (pred.predictedPassageProbability >= bucket.lower && pred.predictedPassageProbability < bucket.upper) {
         bucket.count++;
-        if (isActive) bucket.actualRate = (bucket.actualRate * (bucket.count - 1) + 1) / bucket.count;
+        if (didPass) bucket.actualRate = (bucket.actualRate * (bucket.count - 1) + 1) / bucket.count;
         else bucket.actualRate = (bucket.actualRate * (bucket.count - 1)) / bucket.count;
         bucket.calibrationError = Math.abs(bucket.actualRate - (bucket.lower + bucket.upper) / 2);
         break;
@@ -293,8 +593,8 @@ async function gradePredictions(): Promise<ForecastGrade> {
   let trendDirection: ForecastGrade["trendDirection"] = "insufficient_data";
   if (snapshots.length >= 4) {
     const midpoint = Math.floor(snapshots.length / 2);
-    const olderAccuracy = computeSubsetAccuracy(snapshots.slice(0, midpoint), activeBills);
-    const newerAccuracy = computeSubsetAccuracy(snapshots.slice(midpoint, -1), activeBills);
+    const olderAccuracy = computeSubsetAccuracy(snapshots.slice(0, midpoint), outcomes);
+    const newerAccuracy = computeSubsetAccuracy(snapshots.slice(midpoint, -1), outcomes);
 
     if (newerAccuracy > olderAccuracy + 0.05) trendDirection = "improving";
     else if (newerAccuracy < olderAccuracy - 0.05) trendDirection = "degrading";
@@ -320,8 +620,13 @@ async function gradePredictions(): Promise<ForecastGrade> {
     for (let j = i + 1; j < Math.min(predsArray.length, 50); j++) {
       const pi = predsArray[i];
       const pj = predsArray[j];
-      const ai = activeBills.has(pi.billId) ? 1 : 0;
-      const aj = activeBills.has(pj.billId) ? 1 : 0;
+
+      const ti = outcomes.get(normalizeBillId(pi.billId) ?? pi.billId);
+      const tj = outcomes.get(normalizeBillId(pj.billId) ?? pj.billId);
+      const ai = ti ? outcomeToBinary(ti.outcome) : null;
+      const aj = tj ? outcomeToBinary(tj.outcome) : null;
+      if (ai === null || aj === null) continue;
+
       if ((pi.predictedPassageProbability > pj.predictedPassageProbability && ai > aj) ||
           (pi.predictedPassageProbability < pj.predictedPassageProbability && ai < aj)) {
         concordant++;
@@ -334,13 +639,15 @@ async function gradePredictions(): Promise<ForecastGrade> {
   const rankingAccuracy = (concordant + discordant) > 0 ? concordant / (concordant + discordant) : 0.5;
 
   const narrative = verifiable === 0
-    ? "No predictions to grade yet. Run the intelligence swarm multiple times to build a forecast history."
+    ? `No predictions are yet verifiable against outcome truth snapshot ${snapshotKey}.`
     : `Graded ${verifiable} predictions: ${(overallAccuracy * 100).toFixed(0)}% accuracy. ` +
-      `Ranking accuracy ${(rankingAccuracy * 100).toFixed(0)}% (higher-risk bills are correctly ranked above lower-risk). ` +
+      `Ranking accuracy ${(rankingAccuracy * 100).toFixed(0)}% (higher predicted passage aligned with actual outcomes). ` +
       (trendDirection === "improving" ? "Model accuracy is improving over time. " :
        trendDirection === "degrading" ? "Warning: model accuracy is declining — check for data quality issues. " :
        trendDirection === "stable" ? "Model accuracy is stable. " : "") +
-      (missedBills.length > 0 ? `${missedBills.length} blind spot(s) detected — bills that were under-predicted but showed high activity.` : "No major blind spots detected.");
+      (missedBills.length > 0
+        ? `${missedBills.length} blind spot(s) detected — bills under-predicted for passage but later passed/amended.`
+        : `No major blind spots detected in outcome snapshot ${snapshotKey}.`);
 
   return {
     windowStart: snapshots[0].capturedAt,
@@ -533,15 +840,19 @@ function buildEmptyCalibration(): CalibrationBucket[] {
   ];
 }
 
-function computeSubsetAccuracy(snapshots: ForecastSnapshot[], activeBills: Set<string>): number {
+function computeSubsetAccuracy(snapshots: ForecastSnapshot[], outcomes: Map<string, BillOutcomeTruth>): number {
   let correct = 0;
   let total = 0;
   for (const snap of snapshots) {
     for (const pred of snap.predictions) {
-      const isActive = activeBills.has(pred.billId);
-      const predictedHigh = pred.predictedPassageProbability >= 0.4;
+      const truth = outcomes.get(normalizeBillId(pred.billId) ?? pred.billId);
+      const actual = truth ? outcomeToBinary(truth.outcome) : null;
+      if (actual === null) continue;
+
+      const predictedPass = pred.predictedPassageProbability >= 0.5;
+      const didPass = actual === 1;
       total++;
-      if ((predictedHigh && isActive) || (!predictedHigh && !isActive)) correct++;
+      if ((predictedPass && didPass) || (!predictedPass && !didPass)) correct++;
     }
   }
   return total > 0 ? correct / total : 0;

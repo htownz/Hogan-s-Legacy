@@ -25,11 +25,22 @@ import { analyzeCorrelations } from "./engine/intelligence/cross-correlator";
 import { analyzeInfluence } from "./engine/intelligence/influence-ranker";
 import { analyzeRisk } from "./engine/intelligence/risk-model";
 import { detectAnomalies } from "./engine/intelligence/anomaly-detector";
-import { analyzeForecast } from "./engine/intelligence/forecast-tracker";
+import {
+  analyzeForecast,
+  getLatestOutcomeTruthSnapshotSummary,
+  refreshOutcomeTruthSnapshot,
+} from "./engine/intelligence/forecast-tracker";
 import { analyzeSponsorNetwork } from "./engine/intelligence/sponsor-network";
 import { analyzeHistoricalPatterns } from "./engine/intelligence/historical-patterns";
 import { analyzeLegislatorProfiles } from "./engine/intelligence/legislator-profiler";
 import { analyzeInfluenceMaps } from "./engine/intelligence/influence-map";
+import {
+  advanceReplayRun,
+  createLegiscanReplayRun,
+  getReplayRunDetail,
+  listReplayRuns,
+  pauseReplayRun,
+} from "./services/replay-orchestrator-service";
 import {
   addCommitteeIntelSegment,
   createCommitteeIntelSessionFromHearing,
@@ -1919,6 +1930,106 @@ export function createPolicyIntelRouter() {
     }
   });
 
+  // ── Replay Orchestrator ─────────────────────────────────────────────────
+
+  router.post("/replay/legiscan/runs", async (req, res, next) => {
+    try {
+      const { sessionId, mode, chunkSize, orderBy, requestedBy, sinceDays, detailConcurrency, startNow, maxChunks } = req.body ?? {};
+      if (!Number.isFinite(Number(sessionId)) || Number(sessionId) <= 0) {
+        return res.status(400).json({ message: "sessionId is required" });
+      }
+
+      const created = await createLegiscanReplayRun({
+        sessionId: Number(sessionId),
+        mode: typeof mode === "string" ? mode as "recent" | "full" | "backfill" : undefined,
+        chunkSize: Number.isFinite(Number(chunkSize)) ? Number(chunkSize) : undefined,
+        orderBy: typeof orderBy === "string" ? orderBy as any : undefined,
+        requestedBy: typeof requestedBy === "string" ? requestedBy : undefined,
+        sinceDays: Number.isFinite(Number(sinceDays)) ? Number(sinceDays) : undefined,
+        detailConcurrency: Number.isFinite(Number(detailConcurrency)) ? Number(detailConcurrency) : undefined,
+      });
+
+      if (startNow === true) {
+        const started = await advanceReplayRun(created.run.id, {
+          maxChunks: Number.isFinite(Number(maxChunks)) ? Number(maxChunks) : 1,
+          untilCompleted: maxChunks === "all",
+          stopOnError: true,
+        });
+        return res.status(201).json(started);
+      }
+
+      res.status(201).json(created);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.get("/replay/legiscan/runs", async (req, res, next) => {
+    try {
+      const status = typeof req.query.status === "string" ? req.query.status : undefined;
+      const limit = Number.isFinite(Number(req.query.limit)) ? Number(req.query.limit) : undefined;
+      const rows = await listReplayRuns({
+        status: status as any,
+        limit,
+      });
+      res.json(rows);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.get("/replay/legiscan/runs/:id", async (req, res, next) => {
+    try {
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
+      const detail = await getReplayRunDetail(id);
+      res.json(detail);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.post("/replay/legiscan/runs/:id/advance", async (req, res, next) => {
+    try {
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
+      const detail = await advanceReplayRun(id, {
+        maxChunks: Number.isFinite(Number(req.body?.maxChunks)) ? Number(req.body.maxChunks) : undefined,
+        untilCompleted: req.body?.untilCompleted === true,
+        stopOnError: req.body?.stopOnError !== false,
+      });
+      res.json(detail);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.post("/replay/legiscan/runs/:id/pause", async (req, res, next) => {
+    try {
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
+      const detail = await pauseReplayRun(id);
+      res.json(detail);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  router.post("/replay/legiscan/runs/:id/resume", async (req, res, next) => {
+    try {
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
+      const detail = await advanceReplayRun(id, {
+        maxChunks: Number.isFinite(Number(req.body?.maxChunks)) ? Number(req.body.maxChunks) : 1,
+        untilCompleted: req.body?.untilCompleted === true,
+        stopOnError: req.body?.stopOnError !== false,
+      });
+      res.json(detail);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
   router.post("/jobs/match-existing", async (_req, res, next) => {
     try {
       const allDocs = await policyIntelDb.select().from(sourceDocuments);
@@ -2951,6 +3062,31 @@ export function createPolicyIntelRouter() {
     try {
       const report = await detectAnomalies();
       res.json(report);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * GET /intelligence/forecast/outcomes — latest outcome-truth snapshot summary.
+   */
+  router.get("/intelligence/forecast/outcomes", async (_req, res, next) => {
+    try {
+      const summary = await getLatestOutcomeTruthSnapshotSummary();
+      res.json(summary);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * POST /intelligence/forecast/outcomes/refresh — rebuild outcome-truth snapshot from bill source documents.
+   */
+  router.post("/intelligence/forecast/outcomes/refresh", async (req, res, next) => {
+    try {
+      const snapshotKey = typeof req.body?.snapshotKey === "string" ? req.body.snapshotKey : undefined;
+      const result = await refreshOutcomeTruthSnapshot(snapshotKey);
+      res.json(result);
     } catch (err: any) {
       next(err);
     }
