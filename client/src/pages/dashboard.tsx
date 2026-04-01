@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { PolicyIntelBridgeWidget } from "@/components/PolicyIntelBridgeWidget";
+import { PolicyIntelAutomationActivityCard } from "@/components/PolicyIntelAutomationActivityCard";
 
 // Sample alerts data to demonstrate the components
 const SAMPLE_ALERTS = [
@@ -240,8 +241,9 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      <div className="px-4 mb-4">
+      <div className="px-4 mb-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
         <PolicyIntelBridgeWidget dark compact />
+        <PolicyIntelAutomationActivityCard dark limit={5} />
       </div>
 
       {/* Smart Alerts Toggle */}

@@ -309,9 +309,16 @@ describe("policy-intel bridge contract", () => {
     expect(first.events).toHaveLength(2);
     expect(first.events[0].jobName).toBe("intel-briefing");
     expect(first.events[0].status).toBe("error");
+    expect(first.statusFilter).toBe("all");
 
     const second = await bridge.getAutomationEvents({ limit: 5 });
     expect(second.cached).toBe(true);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+
+    const successOnly = await bridge.getAutomationEvents({ limit: 5, status: "success" });
+    expect(successOnly.events).toHaveLength(1);
+    expect(successOnly.events[0].status).toBe("success");
+    expect(successOnly.statusFilter).toBe("success");
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 });

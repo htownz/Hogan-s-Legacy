@@ -105,6 +105,7 @@ export interface PolicyIntelBridgeAutomationEventsResult {
   source: "policy-intel";
   generatedAt: string;
   jobs: string[];
+  statusFilter: "all" | "success" | "error";
   events: Array<{
     eventId: string;
     source: "scheduler-history";
@@ -388,6 +389,7 @@ export function createPolicyIntelBridgeClient(
   async function loadAutomationEvents(
     jobs: string[],
     limit: number,
+    statusFilter: "all" | "success" | "error",
   ): Promise<PolicyIntelBridgeAutomationEventsResult> {
     const history = (await fetchJson("/api/intel/scheduler/history", config.requestTimeoutMs)) as SchedulerHistoryRecordResponse[];
     const historyRows = Array.isArray(history) ? history : [];
@@ -396,7 +398,13 @@ export function createPolicyIntelBridgeClient(
     const events = historyRows
       .filter((row) => {
         const jobName = typeof row.jobName === "string" ? row.jobName : "";
-        return jobSet.has(jobName) && typeof row.finishedAt === "string";
+        if (!jobSet.has(jobName) || typeof row.finishedAt !== "string") {
+          return false;
+        }
+        if (statusFilter === "all") {
+          return true;
+        }
+        return row.status === statusFilter;
       })
       .sort((left, right) => Date.parse(String(right.finishedAt ?? "")) - Date.parse(String(left.finishedAt ?? "")))
       .slice(0, limit)
@@ -421,6 +429,7 @@ export function createPolicyIntelBridgeClient(
       source: "policy-intel",
       generatedAt: new Date(now()).toISOString(),
       jobs,
+      statusFilter,
       events,
       failures: [],
       cached: false,
@@ -514,14 +523,20 @@ export function createPolicyIntelBridgeClient(
   }
 
   async function getAutomationEvents(
-    options: { force?: boolean; limit?: number; jobs?: string[] } = {},
+    options: {
+      force?: boolean;
+      limit?: number;
+      jobs?: string[];
+      status?: "all" | "success" | "error";
+    } = {},
   ): Promise<PolicyIntelBridgeAutomationEventsResult> {
     const force = options.force === true;
     const limit = Math.max(1, Math.min(25, Number(options.limit ?? 8)));
+    const statusFilter = options.status === "success" || options.status === "error" ? options.status : "all";
     const jobs = Array.isArray(options.jobs) && options.jobs.length > 0
       ? Array.from(new Set(options.jobs.map((job) => String(job).trim()).filter(Boolean)))
       : ["intel-briefing"];
-    const cacheKey = `${jobs.slice().sort().join(",")}|${limit}`;
+    const cacheKey = `${jobs.slice().sort().join(",")}|${limit}|${statusFilter}`;
     const current = now();
 
     const cached = automationEventsCache.get(cacheKey);
@@ -535,7 +550,7 @@ export function createPolicyIntelBridgeClient(
       return { ...result, cached: true };
     }
 
-    const loader = loadAutomationEvents(jobs, limit);
+    const loader = loadAutomationEvents(jobs, limit, statusFilter);
     automationEventsInFlight.set(cacheKey, loader);
 
     try {

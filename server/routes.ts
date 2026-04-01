@@ -865,11 +865,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .split(",")
         .map((job) => job.trim())
         .filter(Boolean);
+      const statusRaw = typeof req.query.status === "string" ? req.query.status : "";
+      const status = statusRaw === "success" || statusRaw === "error" ? statusRaw : "all";
 
       const payload = await policyIntelBridge.getAutomationEvents({
         force: req.query.force === "true",
         limit,
         jobs,
+        status,
       });
       res.json(payload);
     } catch (error: any) {

@@ -65,6 +65,12 @@ The legacy main app now exposes integration bridge endpoints that proxy key poli
 - `GET /api/integrations/policy-intel/automation/events`
 - `POST /api/integrations/policy-intel/automation/intel-briefing/run`
 
+Automation events endpoint query params:
+
+- `limit` (optional, default server-side limit)
+- `jobs` (optional, comma-separated job names)
+- `status` (optional: `all`, `success`, `error`; default `all`)
+
 Set these environment variables in the main app runtime when connecting to a separate policy-intel service:
 
 - `POLICY_INTEL_INTERNAL_URL` (default: `http://localhost:5050`)
