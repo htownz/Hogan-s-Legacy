@@ -168,6 +168,8 @@ const policyIntelBridge = createPolicyIntelBridgeClient({
   apiToken: POLICY_INTEL_CONFIG.API_TOKEN,
   statusCacheTtlMs: POLICY_INTEL_CONFIG.STATUS_CACHE_TTL_MS,
   briefingCacheTtlMs: POLICY_INTEL_CONFIG.BRIEFING_CACHE_TTL_MS,
+  automationCacheTtlMs: POLICY_INTEL_CONFIG.AUTOMATION_CACHE_TTL_MS,
+  automationTriggerCooldownMs: POLICY_INTEL_CONFIG.AUTOMATION_TRIGGER_COOLDOWN_MS,
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -833,6 +835,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(502).json({
         source: "policy-intel",
         message: "Failed to fetch policy-intel briefing",
+        error: error?.message || String(error),
+      });
+    }
+  });
+
+  app.get("/api/integrations/policy-intel/automation/status", isAuthenticated, async (req, res) => {
+    try {
+      const payload = await policyIntelBridge.getAutomationStatus({
+        force: req.query.force === "true",
+      });
+      res.json(payload);
+    } catch (error: any) {
+      res.status(502).json({
+        source: "policy-intel",
+        message: "Failed to fetch policy-intel automation status",
+        error: error?.message || String(error),
+      });
+    }
+  });
+
+  app.post("/api/integrations/policy-intel/automation/intel-briefing/run", isAuthenticated, async (req, res) => {
+    try {
+      const payload = await policyIntelBridge.triggerIntelBriefingAutomation({
+        force: req.query.force === "true" || req.body?.force === true,
+      });
+      if (!payload.triggered) {
+        return res.status(429).json(payload);
+      }
+      res.json(payload);
+    } catch (error: any) {
+      res.status(502).json({
+        source: "policy-intel",
+        message: "Failed to trigger policy-intel intel-briefing automation",
         error: error?.message || String(error),
       });
     }

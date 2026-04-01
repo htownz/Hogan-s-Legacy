@@ -61,6 +61,8 @@ The legacy main app now exposes integration bridge endpoints that proxy key poli
 
 - `GET /api/integrations/policy-intel/status`
 - `GET /api/integrations/policy-intel/briefing`
+- `GET /api/integrations/policy-intel/automation/status`
+- `POST /api/integrations/policy-intel/automation/intel-briefing/run`
 
 Set these environment variables in the main app runtime when connecting to a separate policy-intel service:
 
@@ -69,6 +71,8 @@ Set these environment variables in the main app runtime when connecting to a sep
 - `POLICY_INTEL_API_TOKEN` (required when policy-intel auth is enabled)
 - `POLICY_INTEL_STATUS_CACHE_TTL_MS` (optional, default: `30000`)
 - `POLICY_INTEL_BRIEFING_CACHE_TTL_MS` (optional, default: `60000`)
+- `POLICY_INTEL_AUTOMATION_CACHE_TTL_MS` (optional, default: `15000`)
+- `POLICY_INTEL_AUTOMATION_TRIGGER_COOLDOWN_MS` (optional, default: `120000`)
 
 ## Production-style local run
 

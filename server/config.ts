@@ -54,6 +54,11 @@ export const POLICY_INTEL_CONFIG = {
   API_TOKEN: process.env.POLICY_INTEL_API_TOKEN || "",
   STATUS_CACHE_TTL_MS: Math.max(0, Number(process.env.POLICY_INTEL_STATUS_CACHE_TTL_MS) || 30000),
   BRIEFING_CACHE_TTL_MS: Math.max(0, Number(process.env.POLICY_INTEL_BRIEFING_CACHE_TTL_MS) || 60000),
+  AUTOMATION_CACHE_TTL_MS: Math.max(0, Number(process.env.POLICY_INTEL_AUTOMATION_CACHE_TTL_MS) || 15000),
+  AUTOMATION_TRIGGER_COOLDOWN_MS: Math.max(
+    0,
+    Number(process.env.POLICY_INTEL_AUTOMATION_TRIGGER_COOLDOWN_MS) || 120000,
+  ),
 };
 
 // Feature toggles

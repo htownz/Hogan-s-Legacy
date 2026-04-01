@@ -4,6 +4,8 @@ export interface PolicyIntelBridgeConfig {
   apiToken?: string;
   statusCacheTtlMs: number;
   briefingCacheTtlMs: number;
+  automationCacheTtlMs: number;
+  automationTriggerCooldownMs: number;
 }
 
 export interface PolicyIntelBridgeStatusResult {
@@ -43,12 +45,108 @@ export interface PolicyIntelBridgeBriefingResult {
   cached: boolean;
 }
 
+export interface PolicyIntelBridgeAutomationStatusResult {
+  source: "policy-intel";
+  checkedAt: string;
+  aiSupport: {
+    providersConfigured: Array<"openai" | "anthropic">;
+    briefingProvider: "anthropic" | "template";
+    transcriptionProvider: "openai" | "unavailable";
+    enhancedBriefingEnabled: boolean;
+  };
+  automation: {
+    schedulerEnabled: boolean;
+    intelBriefing: {
+      enabled: boolean;
+      cronExpression: string | null;
+      running: boolean;
+      runningSince: string | null;
+      lastRun: {
+        status: "success" | "error";
+        finishedAt: string;
+        durationMs: number;
+      } | null;
+      runCounts: {
+        total: number;
+        success: number;
+        error: number;
+        skippedWhileRunning: number;
+      };
+      consecutiveFailures: number;
+      lastSuccessAt: string | null;
+      lastErrorAt: string | null;
+    };
+    manualTriggerCooldownMs: number;
+  };
+  failures: Array<{ call: string; error: string }>;
+  cached: boolean;
+}
+
+export interface PolicyIntelBridgeAutomationTriggerResult {
+  source: "policy-intel";
+  triggered: boolean;
+  triggerAcceptedAt: string;
+  cooldownMs: number;
+  nextEligibleAt: string | null;
+  record?: {
+    jobName: string;
+    startedAt: string;
+    finishedAt: string;
+    durationMs: number;
+    status: "success" | "error";
+    summary: Record<string, unknown>;
+    error?: string;
+  };
+  message?: string;
+}
+
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
 interface CacheEntry<T> {
   value: T;
   expiresAt: number;
 }
+
+interface EnvironmentStatusResponse {
+  variables?: Array<{ key?: string; configured?: boolean }>;
+}
+
+interface SchedulerStatusResponse {
+  enabled?: boolean;
+  jobs?: Array<{
+    name?: string;
+    enabled?: boolean;
+    cronExpression?: string;
+    running?: boolean;
+    runningSince?: string | null;
+    lastRun?: {
+      status?: "success" | "error";
+      finishedAt?: string;
+      durationMs?: number;
+    } | null;
+    runCounts?: {
+      total?: number;
+      success?: number;
+      error?: number;
+      skippedWhileRunning?: number;
+    };
+    consecutiveFailures?: number;
+    lastSuccessAt?: string | null;
+    lastErrorAt?: string | null;
+  }>;
+}
+
+interface SchedulerTriggerResponse {
+  jobName?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  durationMs?: number;
+  status?: "success" | "error";
+  summary?: Record<string, unknown>;
+  error?: string;
+}
+
+type IntelBriefingAutomationState = PolicyIntelBridgeAutomationStatusResult["automation"]["intelBriefing"];
 
 export function createPolicyIntelBridgeClient(
   config: PolicyIntelBridgeConfig,
@@ -60,8 +158,10 @@ export function createPolicyIntelBridgeClient(
 
   let statusCache: CacheEntry<PolicyIntelBridgeStatusResult> | null = null;
   let briefingCache: CacheEntry<PolicyIntelBridgeBriefingResult> | null = null;
+  let automationCache: CacheEntry<PolicyIntelBridgeAutomationStatusResult> | null = null;
   let statusInFlight: Promise<PolicyIntelBridgeStatusResult> | null = null;
   let briefingInFlight: Promise<PolicyIntelBridgeBriefingResult> | null = null;
+  let automationInFlight: Promise<PolicyIntelBridgeAutomationStatusResult> | null = null;
 
   function headers() {
     const out: Record<string, string> = { Accept: "application/json" };
@@ -71,12 +171,20 @@ export function createPolicyIntelBridgeClient(
     return out;
   }
 
-  async function fetchJson(path: string, timeoutMs = config.requestTimeoutMs) {
+  async function requestJson(
+    path: string,
+    options: {
+      method?: "GET" | "POST";
+      timeoutMs?: number;
+    } = {},
+  ) {
+    const method = options.method ?? "GET";
+    const timeoutMs = options.timeoutMs ?? config.requestTimeoutMs;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const res = await fetchImpl(`${baseUrl}${path}`, {
-        method: "GET",
+        method,
         headers: headers(),
         signal: controller.signal,
       });
@@ -90,6 +198,10 @@ export function createPolicyIntelBridgeClient(
     } finally {
       clearTimeout(timeout);
     }
+  }
+
+  async function fetchJson(path: string, timeoutMs = config.requestTimeoutMs) {
+    return requestJson(path, { method: "GET", timeoutMs });
   }
 
   async function loadStatus(): Promise<PolicyIntelBridgeStatusResult> {
@@ -161,6 +273,86 @@ export function createPolicyIntelBridgeClient(
     };
   }
 
+  function mapConfiguredProviders(environment: EnvironmentStatusResponse): Array<"openai" | "anthropic"> {
+    const variables = Array.isArray(environment.variables) ? environment.variables : [];
+    const hasOpenAi = variables.some((variable) => variable.key === "OPENAI_API_KEY" && variable.configured === true);
+    const hasAnthropic = variables.some(
+      (variable) => variable.key === "ANTHROPIC_API_KEY" && variable.configured === true,
+    );
+
+    const providers: Array<"openai" | "anthropic"> = [];
+    if (hasOpenAi) providers.push("openai");
+    if (hasAnthropic) providers.push("anthropic");
+    return providers;
+  }
+
+  function mapIntelBriefingJob(scheduler: SchedulerStatusResponse): IntelBriefingAutomationState {
+    const jobs = Array.isArray(scheduler.jobs) ? scheduler.jobs : [];
+    const job = jobs.find((entry) => entry.name === "intel-briefing");
+
+    return {
+      enabled: Boolean(job?.enabled),
+      cronExpression: typeof job?.cronExpression === "string" ? job.cronExpression : null,
+      running: Boolean(job?.running),
+      runningSince: typeof job?.runningSince === "string" ? job.runningSince : null,
+      lastRun:
+        job?.lastRun && typeof job.lastRun.finishedAt === "string"
+          ? {
+              status: job.lastRun.status === "error" ? "error" : "success",
+              finishedAt: job.lastRun.finishedAt,
+              durationMs: Number(job.lastRun.durationMs ?? 0),
+            }
+          : null,
+      runCounts: {
+        total: Number(job?.runCounts?.total ?? 0),
+        success: Number(job?.runCounts?.success ?? 0),
+        error: Number(job?.runCounts?.error ?? 0),
+        skippedWhileRunning: Number(job?.runCounts?.skippedWhileRunning ?? 0),
+      },
+      consecutiveFailures: Number(job?.consecutiveFailures ?? 0),
+      lastSuccessAt: typeof job?.lastSuccessAt === "string" ? job.lastSuccessAt : null,
+      lastErrorAt: typeof job?.lastErrorAt === "string" ? job.lastErrorAt : null,
+    };
+  }
+
+  async function loadAutomationStatus(): Promise<PolicyIntelBridgeAutomationStatusResult> {
+    const calls = await Promise.allSettled([
+      fetchJson("/api/intel/ops/environment", Math.min(config.requestTimeoutMs, 7000)),
+      fetchJson("/api/intel/scheduler/status", config.requestTimeoutMs),
+    ]);
+
+    const environment = calls[0].status === "fulfilled" ? (calls[0].value as EnvironmentStatusResponse) : {};
+    const scheduler = calls[1].status === "fulfilled" ? (calls[1].value as SchedulerStatusResponse) : {};
+    const providers = mapConfiguredProviders(environment);
+    const intelBriefing = mapIntelBriefingJob(scheduler);
+
+    const failures = calls
+      .map((result, idx) => ({ result, idx }))
+      .filter((entry) => entry.result.status === "rejected")
+      .map((entry) => ({
+        call: ["environment", "scheduler"][entry.idx],
+        error: String((entry.result as PromiseRejectedResult).reason?.message || (entry.result as PromiseRejectedResult).reason),
+      }));
+
+    return {
+      source: "policy-intel",
+      checkedAt: new Date(now()).toISOString(),
+      aiSupport: {
+        providersConfigured: providers,
+        briefingProvider: providers.includes("anthropic") ? "anthropic" : "template",
+        transcriptionProvider: providers.includes("openai") ? "openai" : "unavailable",
+        enhancedBriefingEnabled: providers.includes("anthropic"),
+      },
+      automation: {
+        schedulerEnabled: Boolean(scheduler.enabled),
+        intelBriefing,
+        manualTriggerCooldownMs: config.automationTriggerCooldownMs,
+      },
+      failures,
+      cached: false,
+    };
+  }
+
   async function getStatus(options: { force?: boolean } = {}): Promise<PolicyIntelBridgeStatusResult> {
     const force = options.force === true;
     const current = now();
@@ -217,12 +409,111 @@ export function createPolicyIntelBridgeClient(
     }
   }
 
+  async function getAutomationStatus(
+    options: { force?: boolean } = {},
+  ): Promise<PolicyIntelBridgeAutomationStatusResult> {
+    const force = options.force === true;
+    const current = now();
+
+    if (!force && config.automationCacheTtlMs > 0 && automationCache && automationCache.expiresAt > current) {
+      return { ...automationCache.value, cached: true };
+    }
+
+    if (!force && automationInFlight) {
+      const inFlight = await automationInFlight;
+      return { ...inFlight, cached: true };
+    }
+
+    automationInFlight = loadAutomationStatus();
+    try {
+      const fresh = await automationInFlight;
+      if (config.automationCacheTtlMs > 0) {
+        automationCache = {
+          value: { ...fresh, cached: false },
+          expiresAt: now() + config.automationCacheTtlMs,
+        };
+      }
+      return fresh;
+    } finally {
+      automationInFlight = null;
+    }
+  }
+
+  async function triggerIntelBriefingAutomation(
+    options: { force?: boolean } = {},
+  ): Promise<PolicyIntelBridgeAutomationTriggerResult> {
+    const force = options.force === true;
+    const triggerAcceptedAt = new Date(now()).toISOString();
+
+    if (!force && config.automationTriggerCooldownMs > 0) {
+      const status = await getAutomationStatus({ force: true });
+      const lastRun = status.automation.intelBriefing.lastRun;
+      if (status.automation.intelBriefing.running) {
+        return {
+          source: "policy-intel",
+          triggered: false,
+          triggerAcceptedAt,
+          cooldownMs: config.automationTriggerCooldownMs,
+          nextEligibleAt: null,
+          message: "intel-briefing is already running",
+        };
+      }
+      if (lastRun?.finishedAt) {
+        const elapsed = now() - Date.parse(lastRun.finishedAt);
+        if (Number.isFinite(elapsed) && elapsed >= 0 && elapsed < config.automationTriggerCooldownMs) {
+          const nextEligibleAt = new Date(
+            Date.parse(lastRun.finishedAt) + config.automationTriggerCooldownMs,
+          ).toISOString();
+          return {
+            source: "policy-intel",
+            triggered: false,
+            triggerAcceptedAt,
+            cooldownMs: config.automationTriggerCooldownMs,
+            nextEligibleAt,
+            message: "intel-briefing trigger skipped due to cooldown",
+          };
+        }
+      }
+    }
+
+    const record = (await requestJson("/api/intel/scheduler/trigger/intel-briefing", {
+      method: "POST",
+      timeoutMs: Math.max(config.requestTimeoutMs, 30_000),
+    })) as SchedulerTriggerResponse;
+
+    statusCache = null;
+    briefingCache = null;
+    automationCache = null;
+
+    return {
+      source: "policy-intel",
+      triggered: true,
+      triggerAcceptedAt,
+      cooldownMs: config.automationTriggerCooldownMs,
+      nextEligibleAt: config.automationTriggerCooldownMs > 0
+        ? new Date(now() + config.automationTriggerCooldownMs).toISOString()
+        : null,
+      record: {
+        jobName: String(record.jobName ?? "intel-briefing"),
+        startedAt: String(record.startedAt ?? triggerAcceptedAt),
+        finishedAt: String(record.finishedAt ?? triggerAcceptedAt),
+        durationMs: Number(record.durationMs ?? 0),
+        status: record.status === "error" ? "error" : "success",
+        summary: record.summary ?? {},
+        error: typeof record.error === "string" ? record.error : undefined,
+      },
+    };
+  }
+
   return {
     getStatus,
     getBriefing,
+    getAutomationStatus,
+    triggerIntelBriefingAutomation,
     clearCache() {
       statusCache = null;
       briefingCache = null;
+      automationCache = null;
     },
   };
 }

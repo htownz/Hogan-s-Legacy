@@ -41,6 +41,8 @@ describe("policy-intel bridge contract", () => {
         apiToken: "abc",
         statusCacheTtlMs: 30_000,
         briefingCacheTtlMs: 60_000,
+        automationCacheTtlMs: 15_000,
+        automationTriggerCooldownMs: 120_000,
       },
       { fetchImpl: fetchImpl as any, now: () => 1_000 },
     );
@@ -71,6 +73,8 @@ describe("policy-intel bridge contract", () => {
         requestTimeoutMs: 10_000,
         statusCacheTtlMs: 30_000,
         briefingCacheTtlMs: 60_000,
+        automationCacheTtlMs: 15_000,
+        automationTriggerCooldownMs: 120_000,
       },
       { fetchImpl: fetchImpl as any, now: () => now },
     );
@@ -109,6 +113,8 @@ describe("policy-intel bridge contract", () => {
         requestTimeoutMs: 10_000,
         statusCacheTtlMs: 30_000,
         briefingCacheTtlMs: 60_000,
+        automationCacheTtlMs: 15_000,
+        automationTriggerCooldownMs: 120_000,
       },
       { fetchImpl: fetchImpl as any, now: () => now },
     );
@@ -127,5 +133,123 @@ describe("policy-intel bridge contract", () => {
     now += 61_000;
     await bridge.getBriefing();
     expect(fetchImpl).toHaveBeenCalledTimes(3);
+  });
+
+  it("builds automation status with AI provider readiness", async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url.endsWith("/api/intel/ops/environment")) {
+        return jsonResponse({
+          variables: [
+            { key: "OPENAI_API_KEY", configured: true },
+            { key: "ANTHROPIC_API_KEY", configured: false },
+          ],
+        });
+      }
+      if (url.endsWith("/api/intel/scheduler/status")) {
+        return jsonResponse({
+          enabled: true,
+          jobs: [
+            {
+              name: "intel-briefing",
+              enabled: true,
+              cronExpression: "30 */6 * * *",
+              running: false,
+              runningSince: null,
+              lastRun: {
+                status: "success",
+                finishedAt: "2026-03-31T00:00:00.000Z",
+                durationMs: 1234,
+              },
+              runCounts: { total: 4, success: 4, error: 0, skippedWhileRunning: 0 },
+              consecutiveFailures: 0,
+              lastSuccessAt: "2026-03-31T00:00:00.000Z",
+              lastErrorAt: null,
+            },
+          ],
+        });
+      }
+      return jsonResponse({ message: "not found" }, 404);
+    });
+
+    const bridge = createPolicyIntelBridgeClient(
+      {
+        baseUrl: "http://policy-intel.local",
+        requestTimeoutMs: 10_000,
+        statusCacheTtlMs: 30_000,
+        briefingCacheTtlMs: 60_000,
+        automationCacheTtlMs: 15_000,
+        automationTriggerCooldownMs: 120_000,
+      },
+      { fetchImpl: fetchImpl as any, now: () => 10_000 },
+    );
+
+    const status = await bridge.getAutomationStatus();
+
+    expect(status.aiSupport.providersConfigured).toEqual(["openai"]);
+    expect(status.aiSupport.briefingProvider).toBe("template");
+    expect(status.automation.intelBriefing.enabled).toBe(true);
+    expect(status.automation.intelBriefing.lastRun?.durationMs).toBe(1234);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it("enforces cooldown for automation trigger and allows force", async () => {
+    let now = Date.parse("2026-03-31T00:02:00.000Z");
+    const recentRun = new Date(now - 30_000).toISOString();
+
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/api/intel/ops/environment")) {
+        return jsonResponse({ variables: [] });
+      }
+      if (url.endsWith("/api/intel/scheduler/status")) {
+        return jsonResponse({
+          enabled: true,
+          jobs: [
+            {
+              name: "intel-briefing",
+              enabled: true,
+              running: false,
+              runningSince: null,
+              lastRun: { status: "success", finishedAt: recentRun, durationMs: 5000 },
+              runCounts: { total: 1, success: 1, error: 0, skippedWhileRunning: 0 },
+              consecutiveFailures: 0,
+              lastSuccessAt: recentRun,
+              lastErrorAt: null,
+            },
+          ],
+        });
+      }
+      if (url.endsWith("/api/intel/scheduler/trigger/intel-briefing") && init?.method === "POST") {
+        return jsonResponse({
+          jobName: "intel-briefing",
+          startedAt: "2026-03-31T00:02:00.000Z",
+          finishedAt: "2026-03-31T00:02:10.000Z",
+          durationMs: 10000,
+          status: "success",
+          summary: { insights: 3 },
+        });
+      }
+      return jsonResponse({ message: "not found" }, 404);
+    });
+
+    const bridge = createPolicyIntelBridgeClient(
+      {
+        baseUrl: "http://policy-intel.local",
+        requestTimeoutMs: 10_000,
+        statusCacheTtlMs: 30_000,
+        briefingCacheTtlMs: 60_000,
+        automationCacheTtlMs: 15_000,
+        automationTriggerCooldownMs: 120_000,
+      },
+      { fetchImpl: fetchImpl as any, now: () => now },
+    );
+
+    const skipped = await bridge.triggerIntelBriefingAutomation();
+    expect(skipped.triggered).toBe(false);
+    expect(skipped.message).toContain("cooldown");
+
+    now += 1_000;
+    const forced = await bridge.triggerIntelBriefingAutomation({ force: true });
+    expect(forced.triggered).toBe(true);
+    expect(forced.record?.jobName).toBe("intel-briefing");
   });
 });
