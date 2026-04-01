@@ -12,6 +12,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { PolicyIntelBridgeWidget } from "@/components/PolicyIntelBridgeWidget";
 
 // Sample alerts data to demonstrate the components
 const SAMPLE_ALERTS = [
@@ -237,6 +238,10 @@ export default function DashboardPage() {
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      <div className="px-4 mb-4">
+        <PolicyIntelBridgeWidget dark compact />
       </div>
 
       {/* Smart Alerts Toggle */}

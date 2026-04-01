@@ -52,6 +52,8 @@ export const POLICY_INTEL_CONFIG = {
   BASE_URL: (process.env.POLICY_INTEL_INTERNAL_URL || "http://localhost:5050").replace(/\/$/, ""),
   REQUEST_TIMEOUT_MS: Math.max(1000, Number(process.env.POLICY_INTEL_REQUEST_TIMEOUT_MS) || 12000),
   API_TOKEN: process.env.POLICY_INTEL_API_TOKEN || "",
+  STATUS_CACHE_TTL_MS: Math.max(0, Number(process.env.POLICY_INTEL_STATUS_CACHE_TTL_MS) || 30000),
+  BRIEFING_CACHE_TTL_MS: Math.max(0, Number(process.env.POLICY_INTEL_BRIEFING_CACHE_TTL_MS) || 60000),
 };
 
 // Feature toggles

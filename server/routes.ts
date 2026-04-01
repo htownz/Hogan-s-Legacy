@@ -118,6 +118,7 @@ import { registerLegislativeImpactRoutes } from "./routes-legislative-impact";
 import legislativeMapRoutes from "./routes-legislative-map";
 import { openAIStatusMiddleware } from "./middleware/openai-status";
 import { POLICY_INTEL_CONFIG } from "./config";
+import { createPolicyIntelBridgeClient } from "./services/policy-intel-bridge";
 // import { texasLegislatureScraper } from "./services/texas-legislature-scraper";
 import liveCommitteeStream from "./services/live-committee-stream";
 import stateAgencyTracker from "./services/state-agency-tracker";
@@ -161,36 +162,13 @@ import {
   insertUserNetworkImpactSchema
 } from "@shared/schema";
 
-function policyIntelHeaders() {
-  const headers: Record<string, string> = {
-    Accept: "application/json",
-  };
-  if (POLICY_INTEL_CONFIG.API_TOKEN?.trim()) {
-    headers.Authorization = `Bearer ${POLICY_INTEL_CONFIG.API_TOKEN.trim()}`;
-  }
-  return headers;
-}
-
-async function policyIntelFetchJson(path: string, timeoutMs = POLICY_INTEL_CONFIG.REQUEST_TIMEOUT_MS) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(`${POLICY_INTEL_CONFIG.BASE_URL}${path}`, {
-      method: "GET",
-      headers: policyIntelHeaders(),
-      signal: controller.signal,
-    });
-
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      throw new Error(`policy-intel ${path} failed (${res.status}): ${body || res.statusText}`);
-    }
-
-    return await res.json();
-  } finally {
-    clearTimeout(timeout);
-  }
-}
+const policyIntelBridge = createPolicyIntelBridgeClient({
+  baseUrl: POLICY_INTEL_CONFIG.BASE_URL,
+  requestTimeoutMs: POLICY_INTEL_CONFIG.REQUEST_TIMEOUT_MS,
+  apiToken: POLICY_INTEL_CONFIG.API_TOKEN,
+  statusCacheTtlMs: POLICY_INTEL_CONFIG.STATUS_CACHE_TTL_MS,
+  briefingCacheTtlMs: POLICY_INTEL_CONFIG.BRIEFING_CACHE_TTL_MS,
+});
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Set up authentication with Passport.js
@@ -838,77 +816,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ---- POLICY INTEL BRIDGE ROUTES ----
   // Provides a stable integration layer from the main app into the
   // policy-intel bounded context.
-  app.get("/api/integrations/policy-intel/status", isAuthenticated, async (_req, res) => {
-    const started = Date.now();
-    const calls = await Promise.allSettled([
-      policyIntelFetchJson("/health", Math.min(POLICY_INTEL_CONFIG.REQUEST_TIMEOUT_MS, 5000)),
-      policyIntelFetchJson("/api/intel/dashboard/stats"),
-      policyIntelFetchJson("/api/intel/intelligence/forecast/drift"),
-      policyIntelFetchJson("/api/intel/replay/legiscan/runs?limit=1"),
-    ]);
-
-    const health = calls[0].status === "fulfilled" ? calls[0].value : null;
-    const stats = calls[1].status === "fulfilled" ? calls[1].value : null;
-    const drift = calls[2].status === "fulfilled" ? calls[2].value : null;
-    const replay = calls[3].status === "fulfilled" ? calls[3].value : null;
-
-    const failures = calls
-      .map((result, idx) => ({ result, idx }))
-      .filter((entry) => entry.result.status === "rejected")
-      .map((entry) => ({
-        call: ["health", "dashboard", "forecastDrift", "replay"][entry.idx],
-        error: String((entry.result as PromiseRejectedResult).reason?.message || (entry.result as PromiseRejectedResult).reason),
-      }));
-
-    res.json({
-      connected: Boolean(health?.ok),
-      checkedAt: new Date().toISOString(),
-      latencyMs: Date.now() - started,
-      baseUrl: POLICY_INTEL_CONFIG.BASE_URL,
-      tokenConfigured: Boolean(POLICY_INTEL_CONFIG.API_TOKEN?.trim()),
-      health,
-      dashboard: stats,
-      forecastDrift: drift
-        ? {
-            trend: drift.trend,
-            driftAlert: drift.driftAlert,
-            latestAccuracy: drift.latestAccuracy,
-            latestRankingAccuracy: drift.latestRankingAccuracy,
-          }
-        : null,
-      replay: Array.isArray(replay) && replay.length > 0
-        ? {
-            runId: replay[0]?.run?.id,
-            status: replay[0]?.run?.status,
-            completionRatio: replay[0]?.progress?.completionRatio,
-            hasMore: replay[0]?.progress?.hasMore,
-          }
-        : null,
-      failures,
+  app.get("/api/integrations/policy-intel/status", isAuthenticated, async (req, res) => {
+    const payload = await policyIntelBridge.getStatus({
+      force: req.query.force === "true",
     });
+    res.json(payload);
   });
 
   app.get("/api/integrations/policy-intel/briefing", isAuthenticated, async (req, res) => {
     try {
-      const force = req.query.force === "true" ? "?force=true" : "";
-      const briefing = await policyIntelFetchJson(
-        `/api/intel/intelligence/briefing${force}`,
-        Math.max(POLICY_INTEL_CONFIG.REQUEST_TIMEOUT_MS, 25000),
-      );
-
-      const summary = {
-        generatedAt: briefing?.generatedAt || new Date().toISOString(),
-        threatTrend: briefing?.forecast?.delta?.threatTrend || "unknown",
-        keyInsightCount: Array.isArray(briefing?.crossRefInsights) ? briefing.crossRefInsights.length : 0,
-        highRiskBillCount: Array.isArray(briefing?.risk?.criticalRisks) ? briefing.risk.criticalRisks.length : 0,
-        anomalyCount: Array.isArray(briefing?.anomalies?.anomalies) ? briefing.anomalies.anomalies.length : 0,
-      };
-
-      res.json({
-        source: "policy-intel",
-        summary,
-        briefing,
+      const payload = await policyIntelBridge.getBriefing({
+        force: req.query.force === "true",
       });
+      res.json(payload);
     } catch (error: any) {
       res.status(502).json({
         source: "policy-intel",

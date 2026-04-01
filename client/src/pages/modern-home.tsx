@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { PolicyIntelBridgeWidget } from "@/components/PolicyIntelBridgeWidget";
 import { 
   Search, 
   Users, 
@@ -197,6 +198,10 @@ export default function ModernHome() {
                   <TrendingUp className="w-4 h-4 ml-2" />
                 </Button>
               </Link>
+            </div>
+
+            <div className="max-w-5xl mx-auto mb-12">
+              <PolicyIntelBridgeWidget compact />
             </div>
           </div>
 

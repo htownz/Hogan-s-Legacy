@@ -67,6 +67,8 @@ Set these environment variables in the main app runtime when connecting to a sep
 - `POLICY_INTEL_INTERNAL_URL` (default: `http://localhost:5050`)
 - `POLICY_INTEL_REQUEST_TIMEOUT_MS` (optional, default: `12000`)
 - `POLICY_INTEL_API_TOKEN` (required when policy-intel auth is enabled)
+- `POLICY_INTEL_STATUS_CACHE_TTL_MS` (optional, default: `30000`)
+- `POLICY_INTEL_BRIEFING_CACHE_TTL_MS` (optional, default: `60000`)
 
 ## Production-style local run
 
