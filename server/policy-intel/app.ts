@@ -1,5 +1,6 @@
 import express, { NextFunction, Request, Response } from "express";
 import cors from "cors";
+import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { createPolicyIntelRouter } from "./routes";
 import { metrics } from "./metrics";
@@ -10,6 +11,21 @@ export function createPolicyIntelApp() {
   const app = express();
 
   app.set("trust proxy", 1);
+
+  // ── Security headers ──
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "https:"],
+        connectSrc: ["'self'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false, // allow loading cross-origin resources (e.g. legislator photos)
+  }));
+
   const allowedOrigins = process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(",").map(o => o.trim())
     : ["http://localhost:5173", "http://localhost:5050"];
@@ -69,7 +85,10 @@ export function createPolicyIntelApp() {
   app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
     const message = safeErrorMessage(err);
     console.error(`[policy-intel] ${req.method} ${req.path} failed: ${message}`);
-    res.status(500).json({ message });
+    const clientMessage = process.env.NODE_ENV === "production"
+      ? "Internal server error"
+      : message;
+    res.status(500).json({ message: clientMessage });
   });
 
   return app;

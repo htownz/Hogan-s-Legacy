@@ -25,6 +25,7 @@ import { HearingMemoPage } from "./pages/HearingMemoPage";
 import { IntelligenceHubPage } from "./pages/IntelligenceHubPage";
 import { PowerNetworkPage } from "./pages/PowerNetworkPage";
 import { CommitteeIntelPage } from "./pages/CommitteeIntelPage";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(() =>
@@ -222,6 +223,7 @@ export function App() {
             <span style={{ fontSize: 11, color: "#7f8c9b", marginLeft: 4 }}>Click to view</span>
           </div>
         )}
+        <ErrorBoundary>
         <Switch>
           <Route path="/" component={DashboardPage} />
           <Route path="/intelligence" component={IntelligenceHubPage} />
@@ -253,6 +255,7 @@ export function App() {
             <div style={{ padding: 40, textAlign: "center", color: "#888" }}>Page not found</div>
           </Route>
         </Switch>
+        </ErrorBoundary>
       </main>
     </div>
   );
