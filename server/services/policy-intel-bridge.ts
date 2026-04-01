@@ -5,6 +5,7 @@ export interface PolicyIntelBridgeConfig {
   statusCacheTtlMs: number;
   briefingCacheTtlMs: number;
   automationCacheTtlMs: number;
+  automationEventsCacheTtlMs: number;
   automationTriggerCooldownMs: number;
 }
 
@@ -100,6 +101,25 @@ export interface PolicyIntelBridgeAutomationTriggerResult {
   message?: string;
 }
 
+export interface PolicyIntelBridgeAutomationEventsResult {
+  source: "policy-intel";
+  generatedAt: string;
+  jobs: string[];
+  events: Array<{
+    eventId: string;
+    source: "scheduler-history";
+    jobName: string;
+    status: "success" | "error";
+    startedAt: string;
+    finishedAt: string;
+    durationMs: number;
+    summary: Record<string, unknown>;
+    error?: string;
+  }>;
+  failures: Array<{ call: string; error: string }>;
+  cached: boolean;
+}
+
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
 interface CacheEntry<T> {
@@ -146,6 +166,16 @@ interface SchedulerTriggerResponse {
   error?: string;
 }
 
+interface SchedulerHistoryRecordResponse {
+  jobName?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  durationMs?: number;
+  status?: "success" | "error";
+  summary?: Record<string, unknown>;
+  error?: string;
+}
+
 type IntelBriefingAutomationState = PolicyIntelBridgeAutomationStatusResult["automation"]["intelBriefing"];
 
 export function createPolicyIntelBridgeClient(
@@ -159,9 +189,11 @@ export function createPolicyIntelBridgeClient(
   let statusCache: CacheEntry<PolicyIntelBridgeStatusResult> | null = null;
   let briefingCache: CacheEntry<PolicyIntelBridgeBriefingResult> | null = null;
   let automationCache: CacheEntry<PolicyIntelBridgeAutomationStatusResult> | null = null;
+  const automationEventsCache = new Map<string, CacheEntry<PolicyIntelBridgeAutomationEventsResult>>();
   let statusInFlight: Promise<PolicyIntelBridgeStatusResult> | null = null;
   let briefingInFlight: Promise<PolicyIntelBridgeBriefingResult> | null = null;
   let automationInFlight: Promise<PolicyIntelBridgeAutomationStatusResult> | null = null;
+  const automationEventsInFlight = new Map<string, Promise<PolicyIntelBridgeAutomationEventsResult>>();
 
   function headers() {
     const out: Record<string, string> = { Accept: "application/json" };
@@ -353,6 +385,48 @@ export function createPolicyIntelBridgeClient(
     };
   }
 
+  async function loadAutomationEvents(
+    jobs: string[],
+    limit: number,
+  ): Promise<PolicyIntelBridgeAutomationEventsResult> {
+    const history = (await fetchJson("/api/intel/scheduler/history", config.requestTimeoutMs)) as SchedulerHistoryRecordResponse[];
+    const historyRows = Array.isArray(history) ? history : [];
+    const jobSet = new Set(jobs);
+
+    const events = historyRows
+      .filter((row) => {
+        const jobName = typeof row.jobName === "string" ? row.jobName : "";
+        return jobSet.has(jobName) && typeof row.finishedAt === "string";
+      })
+      .sort((left, right) => Date.parse(String(right.finishedAt ?? "")) - Date.parse(String(left.finishedAt ?? "")))
+      .slice(0, limit)
+      .map((row) => {
+        const jobName = String(row.jobName ?? "unknown");
+        const finishedAt = String(row.finishedAt ?? "");
+        const status: "success" | "error" = row.status === "error" ? "error" : "success";
+        return {
+          eventId: `${jobName}|${finishedAt}|${status}`,
+          source: "scheduler-history" as const,
+          jobName,
+          status,
+          startedAt: String(row.startedAt ?? finishedAt),
+          finishedAt,
+          durationMs: Number(row.durationMs ?? 0),
+          summary: row.summary ?? {},
+          error: typeof row.error === "string" ? row.error : undefined,
+        };
+      });
+
+    return {
+      source: "policy-intel",
+      generatedAt: new Date(now()).toISOString(),
+      jobs,
+      events,
+      failures: [],
+      cached: false,
+    };
+  }
+
   async function getStatus(options: { force?: boolean } = {}): Promise<PolicyIntelBridgeStatusResult> {
     const force = options.force === true;
     const current = now();
@@ -439,6 +513,45 @@ export function createPolicyIntelBridgeClient(
     }
   }
 
+  async function getAutomationEvents(
+    options: { force?: boolean; limit?: number; jobs?: string[] } = {},
+  ): Promise<PolicyIntelBridgeAutomationEventsResult> {
+    const force = options.force === true;
+    const limit = Math.max(1, Math.min(25, Number(options.limit ?? 8)));
+    const jobs = Array.isArray(options.jobs) && options.jobs.length > 0
+      ? Array.from(new Set(options.jobs.map((job) => String(job).trim()).filter(Boolean)))
+      : ["intel-briefing"];
+    const cacheKey = `${jobs.slice().sort().join(",")}|${limit}`;
+    const current = now();
+
+    const cached = automationEventsCache.get(cacheKey);
+    if (!force && config.automationEventsCacheTtlMs > 0 && cached && cached.expiresAt > current) {
+      return { ...cached.value, cached: true };
+    }
+
+    const inFlight = automationEventsInFlight.get(cacheKey);
+    if (!force && inFlight) {
+      const result = await inFlight;
+      return { ...result, cached: true };
+    }
+
+    const loader = loadAutomationEvents(jobs, limit);
+    automationEventsInFlight.set(cacheKey, loader);
+
+    try {
+      const fresh = await loader;
+      if (config.automationEventsCacheTtlMs > 0) {
+        automationEventsCache.set(cacheKey, {
+          value: { ...fresh, cached: false },
+          expiresAt: now() + config.automationEventsCacheTtlMs,
+        });
+      }
+      return fresh;
+    } finally {
+      automationEventsInFlight.delete(cacheKey);
+    }
+  }
+
   async function triggerIntelBriefingAutomation(
     options: { force?: boolean } = {},
   ): Promise<PolicyIntelBridgeAutomationTriggerResult> {
@@ -484,6 +597,7 @@ export function createPolicyIntelBridgeClient(
     statusCache = null;
     briefingCache = null;
     automationCache = null;
+    automationEventsCache.clear();
 
     return {
       source: "policy-intel",
@@ -509,11 +623,13 @@ export function createPolicyIntelBridgeClient(
     getStatus,
     getBriefing,
     getAutomationStatus,
+    getAutomationEvents,
     triggerIntelBriefingAutomation,
     clearCache() {
       statusCache = null;
       briefingCache = null;
       automationCache = null;
+      automationEventsCache.clear();
     },
   };
 }

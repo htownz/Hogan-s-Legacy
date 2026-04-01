@@ -42,6 +42,7 @@ describe("policy-intel bridge contract", () => {
         statusCacheTtlMs: 30_000,
         briefingCacheTtlMs: 60_000,
         automationCacheTtlMs: 15_000,
+        automationEventsCacheTtlMs: 15_000,
         automationTriggerCooldownMs: 120_000,
       },
       { fetchImpl: fetchImpl as any, now: () => 1_000 },
@@ -74,6 +75,7 @@ describe("policy-intel bridge contract", () => {
         statusCacheTtlMs: 30_000,
         briefingCacheTtlMs: 60_000,
         automationCacheTtlMs: 15_000,
+        automationEventsCacheTtlMs: 15_000,
         automationTriggerCooldownMs: 120_000,
       },
       { fetchImpl: fetchImpl as any, now: () => now },
@@ -114,6 +116,7 @@ describe("policy-intel bridge contract", () => {
         statusCacheTtlMs: 30_000,
         briefingCacheTtlMs: 60_000,
         automationCacheTtlMs: 15_000,
+        automationEventsCacheTtlMs: 15_000,
         automationTriggerCooldownMs: 120_000,
       },
       { fetchImpl: fetchImpl as any, now: () => now },
@@ -178,6 +181,7 @@ describe("policy-intel bridge contract", () => {
         statusCacheTtlMs: 30_000,
         briefingCacheTtlMs: 60_000,
         automationCacheTtlMs: 15_000,
+        automationEventsCacheTtlMs: 15_000,
         automationTriggerCooldownMs: 120_000,
       },
       { fetchImpl: fetchImpl as any, now: () => 10_000 },
@@ -238,6 +242,7 @@ describe("policy-intel bridge contract", () => {
         statusCacheTtlMs: 30_000,
         briefingCacheTtlMs: 60_000,
         automationCacheTtlMs: 15_000,
+        automationEventsCacheTtlMs: 15_000,
         automationTriggerCooldownMs: 120_000,
       },
       { fetchImpl: fetchImpl as any, now: () => now },
@@ -251,5 +256,62 @@ describe("policy-intel bridge contract", () => {
     const forced = await bridge.triggerIntelBriefingAutomation({ force: true });
     expect(forced.triggered).toBe(true);
     expect(forced.record?.jobName).toBe("intel-briefing");
+  });
+
+  it("returns filtered automation events and caches by options", async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url.endsWith("/api/intel/scheduler/history")) {
+        return jsonResponse([
+          {
+            jobName: "intel-briefing",
+            startedAt: "2026-03-31T00:00:00.000Z",
+            finishedAt: "2026-03-31T00:00:08.000Z",
+            durationMs: 8000,
+            status: "success",
+            summary: { insights: 4 },
+          },
+          {
+            jobName: "local-feeds",
+            startedAt: "2026-03-31T00:01:00.000Z",
+            finishedAt: "2026-03-31T00:01:03.000Z",
+            durationMs: 3000,
+            status: "success",
+            summary: { inserted: 2 },
+          },
+          {
+            jobName: "intel-briefing",
+            startedAt: "2026-03-31T00:02:00.000Z",
+            finishedAt: "2026-03-31T00:02:05.000Z",
+            durationMs: 5000,
+            status: "error",
+            summary: {},
+            error: "timeout",
+          },
+        ]);
+      }
+      return jsonResponse({ message: "not found" }, 404);
+    });
+
+    const bridge = createPolicyIntelBridgeClient(
+      {
+        baseUrl: "http://policy-intel.local",
+        requestTimeoutMs: 10_000,
+        statusCacheTtlMs: 30_000,
+        briefingCacheTtlMs: 60_000,
+        automationCacheTtlMs: 15_000,
+        automationEventsCacheTtlMs: 15_000,
+        automationTriggerCooldownMs: 120_000,
+      },
+      { fetchImpl: fetchImpl as any, now: () => 10_000 },
+    );
+
+    const first = await bridge.getAutomationEvents({ limit: 5 });
+    expect(first.events).toHaveLength(2);
+    expect(first.events[0].jobName).toBe("intel-briefing");
+    expect(first.events[0].status).toBe("error");
+
+    const second = await bridge.getAutomationEvents({ limit: 5 });
+    expect(second.cached).toBe(true);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 });

@@ -169,6 +169,7 @@ const policyIntelBridge = createPolicyIntelBridgeClient({
   statusCacheTtlMs: POLICY_INTEL_CONFIG.STATUS_CACHE_TTL_MS,
   briefingCacheTtlMs: POLICY_INTEL_CONFIG.BRIEFING_CACHE_TTL_MS,
   automationCacheTtlMs: POLICY_INTEL_CONFIG.AUTOMATION_CACHE_TTL_MS,
+  automationEventsCacheTtlMs: POLICY_INTEL_CONFIG.AUTOMATION_EVENTS_CACHE_TTL_MS,
   automationTriggerCooldownMs: POLICY_INTEL_CONFIG.AUTOMATION_TRIGGER_COOLDOWN_MS,
 });
 
@@ -850,6 +851,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(502).json({
         source: "policy-intel",
         message: "Failed to fetch policy-intel automation status",
+        error: error?.message || String(error),
+      });
+    }
+  });
+
+  app.get("/api/integrations/policy-intel/automation/events", isAuthenticated, async (req, res) => {
+    try {
+      const limitRaw = Number(req.query.limit);
+      const limit = Number.isFinite(limitRaw) ? limitRaw : undefined;
+      const jobsRaw = typeof req.query.jobs === "string" ? req.query.jobs : "";
+      const jobs = jobsRaw
+        .split(",")
+        .map((job) => job.trim())
+        .filter(Boolean);
+
+      const payload = await policyIntelBridge.getAutomationEvents({
+        force: req.query.force === "true",
+        limit,
+        jobs,
+      });
+      res.json(payload);
+    } catch (error: any) {
+      res.status(502).json({
+        source: "policy-intel",
+        message: "Failed to fetch policy-intel automation events",
         error: error?.message || String(error),
       });
     }

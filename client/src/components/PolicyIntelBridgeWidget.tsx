@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 import { AlertCircle, Bot, Link2, RefreshCw } from "lucide-react";
 
 interface PolicyIntelBridgeStatus {
@@ -52,9 +53,22 @@ interface PolicyIntelAutomationTriggerResult {
   message?: string;
 }
 
+interface PolicyIntelAutomationEvents {
+  events: Array<{
+    eventId: string;
+    jobName: string;
+    status: "success" | "error";
+    finishedAt: string;
+    durationMs: number;
+  }>;
+}
+
 export function PolicyIntelBridgeWidget({ className = "", dark = false, compact = true }: PolicyIntelBridgeWidgetProps) {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [automationMessage, setAutomationMessage] = useState<string>("");
+  const automationInitializedRef = useRef(false);
+  const lastEventIdRef = useRef<string | null>(null);
 
   const {
     data,
@@ -96,6 +110,24 @@ export function PolicyIntelBridgeWidget({ className = "", dark = false, compact 
     refetchInterval: 60_000,
   });
 
+  const {
+    data: automationEvents,
+    refetch: refetchAutomationEvents,
+  } = useQuery<PolicyIntelAutomationEvents>({
+    queryKey: ["/api/integrations/policy-intel/automation/events"],
+    queryFn: async () => {
+      const res = await fetch("/api/integrations/policy-intel/automation/events?limit=5", {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        throw new Error(`Automation events request failed (${res.status})`);
+      }
+      return res.json();
+    },
+    retry: 0,
+    refetchInterval: 30_000,
+  });
+
   const triggerAutomation = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/integrations/policy-intel/automation/intel-briefing/run", {
@@ -116,6 +148,7 @@ export function PolicyIntelBridgeWidget({ className = "", dark = false, compact 
       setAutomationMessage(result.triggered ? "Intel briefing automation started." : result.message || "Trigger skipped.");
       void queryClient.invalidateQueries({ queryKey: ["/api/integrations/policy-intel/status"] });
       void queryClient.invalidateQueries({ queryKey: ["/api/integrations/policy-intel/automation/status"] });
+      void queryClient.invalidateQueries({ queryKey: ["/api/integrations/policy-intel/automation/events"] });
     },
     onError: (error: any) => {
       setAutomationMessage(error?.message || "Automation trigger failed");
@@ -125,6 +158,32 @@ export function PolicyIntelBridgeWidget({ className = "", dark = false, compact 
   const cardClass = dark
     ? "bg-[#1e2334] border-gray-700 text-white"
     : "bg-white/80 backdrop-blur-sm border border-white/40";
+
+  useEffect(() => {
+    const latest = automationEvents?.events?.[0];
+    if (!latest?.eventId) return;
+
+    if (!automationInitializedRef.current) {
+      automationInitializedRef.current = true;
+      lastEventIdRef.current = latest.eventId;
+      return;
+    }
+
+    if (latest.eventId === lastEventIdRef.current) {
+      return;
+    }
+
+    lastEventIdRef.current = latest.eventId;
+    const finishedAt = new Date(latest.finishedAt);
+    const finishedLabel = Number.isNaN(finishedAt.getTime())
+      ? latest.finishedAt
+      : finishedAt.toLocaleTimeString();
+
+    toast({
+      title: latest.status === "success" ? "AI automation completed" : "AI automation reported an error",
+      description: `${latest.jobName} finished at ${finishedLabel} (${latest.durationMs}ms).`,
+    });
+  }, [automationEvents, toast]);
 
   return (
     <Card className={`${cardClass} ${className}`}>
@@ -146,6 +205,7 @@ export function PolicyIntelBridgeWidget({ className = "", dark = false, compact 
             onClick={() => {
               refetch();
               refetchAutomation();
+              refetchAutomationEvents();
             }}
           >
             <RefreshCw className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`} />
@@ -221,6 +281,12 @@ export function PolicyIntelBridgeWidget({ className = "", dark = false, compact 
 
         {automationMessage && !isLoading && !isError && (
           <div className={`mt-2 text-xs ${dark ? "text-gray-300" : "text-gray-600"}`}>{automationMessage}</div>
+        )}
+
+        {!isLoading && !isError && automationEvents?.events?.[0] && (
+          <div className={`mt-2 text-xs ${dark ? "text-gray-300" : "text-gray-600"}`}>
+            Latest automation event: {automationEvents.events[0].jobName} {automationEvents.events[0].status} at {new Date(automationEvents.events[0].finishedAt).toLocaleTimeString()}
+          </div>
         )}
       </CardContent>
     </Card>
