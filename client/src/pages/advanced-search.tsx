@@ -22,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 
 import { apiRequest } from '@/lib/api';
+import { sanitizeHtml } from '@/lib/sanitize';
 
 // Type definition for search result hit highlighting
 interface HighlightedText {
@@ -32,15 +33,15 @@ interface HighlightedText {
 // Helper function to highlight search terms in text
 const highlightSearchTerm = (text: string, searchTerm: string): HighlightedText => {
   if (!searchTerm || !text) {
-    return { original: text, highlighted: text };
+    return { original: text, highlighted: sanitizeHtml(text) };
   }
   
   try {
     const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-    const highlighted = text.replace(regex, '<mark>$1</mark>');
+    const highlighted = sanitizeHtml(text).replace(regex, '<mark>$1</mark>');
     return { original: text, highlighted };
   } catch (e) {
-    return { original: text, highlighted: text };
+    return { original: text, highlighted: sanitizeHtml(text) };
   }
 };
 

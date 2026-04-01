@@ -17,6 +17,9 @@ import {
 } from "@shared/schema-policy-intel";
 import { legislationPredictions } from "@shared/schema-power-network";
 import { eq, sql, desc, count, and, gte, ilike } from "drizzle-orm";
+import { createLogger } from "../../logger";
+
+const log = createLogger("legislation-predictor");
 
 const CURRENT_SESSION = "89R";
 
@@ -290,7 +293,7 @@ export async function predictLegislation(force = false): Promise<LegislationPred
 
   // Persist predictions to database (fire-and-forget)
   seedPredictions(predictions).catch(err =>
-    console.error("[legislation-predictor] Failed to seed predictions:", err.message)
+    log.error({ err: err.message }, "failed to seed predictions")
   );
 
   cachedReport = report;
@@ -684,5 +687,5 @@ async function seedPredictions(predictions: LegislationPredictionResult[]) {
       )
     );
   }
-  console.log(`[legislation-predictor] Persisted ${predictions.length} predictions (${inserts.length} new, ${updates.length} updated)`);
+  log.info({ total: predictions.length, new: inserts.length, updated: updates.length }, "persisted predictions");
 }

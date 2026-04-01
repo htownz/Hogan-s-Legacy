@@ -3,9 +3,14 @@ import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { createPolicyIntelRouter } from "./routes";
+import { policyIntelDb } from "./db";
+import { sql } from "drizzle-orm";
 import { metrics } from "./metrics";
 import { authMiddleware } from "./auth";
 import { safeErrorMessage } from "./security";
+import { createLogger } from "./logger";
+
+const log = createLogger("policy-intel");
 
 export function createPolicyIntelApp() {
   const app = express();
@@ -26,8 +31,12 @@ export function createPolicyIntelApp() {
     crossOriginEmbedderPolicy: false, // allow loading cross-origin resources (e.g. legislator photos)
   }));
 
-  const allowedOrigins = process.env.CORS_ORIGINS
-    ? process.env.CORS_ORIGINS.split(",").map(o => o.trim())
+  const corsRaw = process.env.CORS_ORIGINS?.split(",").map(o => o.trim()).filter(Boolean);
+  if ((!corsRaw || corsRaw.length === 0) && process.env.NODE_ENV === "production") {
+    throw new Error("CORS_ORIGINS must be set in production (comma-separated list of allowed origins)");
+  }
+  const allowedOrigins = corsRaw && corsRaw.length > 0
+    ? corsRaw
     : ["http://localhost:5173", "http://localhost:5050"];
   app.use(cors({ origin: allowedOrigins, credentials: true }));
   app.use(express.json({ limit: "2mb" }));
@@ -70,8 +79,19 @@ export function createPolicyIntelApp() {
     next();
   });
 
-  app.get("/health", (_req, res) => {
+  // ── Liveness: always responds OK (container is running) ──
+  app.get("/health/liveness", (_req, res) => {
     res.json({ ok: true, app: "actup-policy-intel" });
+  });
+
+  // ── Readiness: verifies DB connectivity ──
+  app.get("/health", async (_req, res) => {
+    try {
+      await policyIntelDb.execute(sql`SELECT 1`);
+      res.json({ ok: true, app: "actup-policy-intel" });
+    } catch {
+      res.status(503).json({ ok: false, app: "actup-policy-intel", error: "database unreachable" });
+    }
   });
 
   // ── Prometheus metrics endpoint ──
@@ -84,7 +104,7 @@ export function createPolicyIntelApp() {
 
   app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
     const message = safeErrorMessage(err);
-    console.error(`[policy-intel] ${req.method} ${req.path} failed: ${message}`);
+    log.error({ method: req.method, path: req.path, err: message }, "request failed");
     const clientMessage = process.env.NODE_ENV === "production"
       ? "Internal server error"
       : message;

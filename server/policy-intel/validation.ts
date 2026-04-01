@@ -23,6 +23,11 @@ export function validateBody<T extends z.ZodTypeAny>(schema: T) {
 // ── Shared primitives ──────────────────────────────────────────────────────
 
 const positiveInt = z.number().int().positive();
+
+/** Escape SQL LIKE/ILIKE wildcard characters in user input */
+export function escapeLike(input: string): string {
+  return input.replace(/[%_\\]/g, "\\$&");
+}
 const optionalPositiveInt = z.number().int().positive().optional();
 const optionalString = z.string().optional();
 const safeString = z.string().min(1).max(5000);

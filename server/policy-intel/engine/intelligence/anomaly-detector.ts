@@ -303,16 +303,11 @@ export async function detectAnomalies(): Promise<AnomalyReport> {
   }
 
   if (hearingBillIds.size > 0) {
-    // Single batched query: find which hearing bill IDs DO have alerts
     const billIdArray = Array.from(hearingBillIds.keys());
 
-    // Build a single OR condition that checks all bill IDs at once
-    const conditions = billIdArray.map(id => `(${alerts.title.name} ILIKE '%${id.replace(/'/g, "''")}%' OR ${alerts.summary.name} ILIKE '%${id.replace(/'/g, "''")}%')`);
-
-    // Query to find which bill IDs appear in alerts (batch)
+    // Find which hearing bill IDs appear in recent alerts (client-side match)
     const coveredBills = new Set<string>();
-    if (conditions.length > 0) {
-      // Use a simpler approach: search for each bill ID pattern in alert titles
+    if (billIdArray.length > 0) {
       const alertBillSearch = await policyIntelDb
         .select({ title: alerts.title, summary: alerts.summary })
         .from(alerts)

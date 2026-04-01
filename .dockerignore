@@ -21,3 +21,25 @@ client/node_modules
 attached_assets
 scout-bot-final-moderator-publisher-bundle.zip
 Act-Up-v2-main.zip
+
+# Dev/build artifacts not needed in images
+data
+tests
+docs
+scripts
+monitoring
+background
+*.sql
+*.md
+*.bat
+*.txt
+vitest.config.ts
+drizzle.config.ts
+drizzle.policy-intel.config.ts
+legiscan-*.js
+openstates-*.js
+upload-*.js
+working-*.js
+texas-*.js
+local-collector-*.json
+local-collector-*.md

@@ -4,15 +4,18 @@ import { validatePolicyIntelAuthConfiguration } from "./auth";
 import { ensureDatabaseConnection, queryClient } from "./db";
 import { startScheduler, stopScheduler } from "./scheduler";
 import { safeErrorMessage } from "./security";
+import { createLogger } from "./logger";
+
+const log = createLogger("policy-intel");
 
 // ── Global crash guards ────────────────────────────────────────────────────
 // Prevent intermittent Drizzle TypeError (orderSelectedFields) from killing
 // the process.  Log and continue so Docker doesn't enter a restart loop.
 process.on("uncaughtException", (err) => {
-  console.error(`[policy-intel] uncaughtException: ${safeErrorMessage(err)}`);
+  log.error({ err: safeErrorMessage(err) }, "uncaughtException");
 });
 process.on("unhandledRejection", (reason) => {
-  console.error(`[policy-intel] unhandledRejection: ${safeErrorMessage(reason)}`);
+  log.error({ err: safeErrorMessage(reason) }, "unhandledRejection");
 });
 
 const port = Number(process.env.POLICY_INTEL_PORT || 5050);
@@ -28,11 +31,11 @@ async function shutdown(signal: string) {
   if (shuttingDown) return;
   shuttingDown = true;
 
-  console.log(`[policy-intel] received ${signal}; shutting down`);
+  log.info({ signal }, "shutting down");
   stopScheduler();
 
   const forcedExit = setTimeout(() => {
-    console.error("[policy-intel] forced shutdown after timeout");
+    log.error("forced shutdown after timeout");
     process.exit(1);
   }, 10_000);
   forcedExit.unref?.();
@@ -49,7 +52,7 @@ async function shutdown(signal: string) {
     await queryClient.end({ timeout: 5 });
     process.exit(0);
   } catch (error) {
-    console.error("[policy-intel] shutdown failed:", error);
+    log.error({ err: error }, "shutdown failed");
     process.exit(1);
   } finally {
     clearTimeout(forcedExit);
@@ -67,12 +70,12 @@ async function start() {
   await ensureDatabaseConnection();
 
   server = app.listen(port, host, () => {
-    console.log(`[policy-intel] listening on http://${host}:${port}`);
+    log.info({ host, port }, "listening");
     startScheduler();
   });
 }
 
 void start().catch((error) => {
-  console.error(`[policy-intel] startup failed: ${safeErrorMessage(error)}`);
+  log.fatal({ err: safeErrorMessage(error) }, "startup failed");
   process.exit(1);
 });

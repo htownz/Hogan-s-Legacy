@@ -11,8 +11,11 @@
  */
 import cron from "node-cron";
 import { queryClient } from "./db";
+import { createLogger } from "./logger";
 import { runSwarm } from "./engine/intelligence/swarm-coordinator";
 import { runLegiscanJob, type RunLegiscanResult } from "./jobs/run-legiscan";
+
+const log = createLogger("scheduler");
 import { runTloRssJob, type RunTloRssResult } from "./jobs/run-tlo-rss";
 import { runLocalFeedsJob, type RunLocalFeedsResult } from "./jobs/run-local-feeds";
 import { runTecImportJob, type RunTecResult } from "./jobs/run-tec";
@@ -225,7 +228,7 @@ async function initializeHistoryPersistence(): Promise<void> {
     persistenceEnabled = true;
   } catch (error: any) {
     persistenceEnabled = false;
-    console.warn(`[scheduler] persistent history disabled: ${error?.message ?? String(error)}`);
+    log.warn({ err: error?.message ?? String(error) }, "persistent history disabled");
   }
 }
 
@@ -262,7 +265,7 @@ async function persistHistoryRecord(record: JobRunRecord): Promise<void> {
       persistedHistory.length = MAX_PERSISTED_HISTORY;
     }
   } catch (error: any) {
-    console.warn(`[scheduler] failed to persist run history: ${error?.message ?? String(error)}`);
+    log.warn({ err: error?.message ?? String(error) }, "failed to persist run history");
   }
 }
 
@@ -332,7 +335,7 @@ async function executeJob(
   if (runningFlags.get(jobName)) {
     const telemetry = getOrCreateTelemetry(jobName);
     telemetry.skippedWhileRunning += 1;
-    console.log(`[scheduler] ${jobName} already running – skipping`);
+    log.info({ job: jobName }, "already running, skipping");
     return;
   }
 
@@ -342,7 +345,7 @@ async function executeJob(
   runningSince.set(jobName, startedAt);
 
   try {
-    console.log(`[scheduler] ▶ starting ${jobName}`);
+    log.info({ job: jobName }, "starting");
     const result = await withTimeout(jobName, timeoutMs, runner);
     const record: JobRunRecord = {
       jobName,
@@ -354,7 +357,7 @@ async function executeJob(
     };
     pushHistory(record);
     await persistHistoryRecord(record);
-    console.log(`[scheduler] ✓ ${jobName} completed in ${record.durationMs}ms`);
+    log.info({ job: jobName, durationMs: record.durationMs }, "completed");
   } catch (err: any) {
     const record: JobRunRecord = {
       jobName,
@@ -367,7 +370,7 @@ async function executeJob(
     };
     pushHistory(record);
     await persistHistoryRecord(record);
-    console.error(`[scheduler] ✗ ${jobName} failed: ${record.error}`);
+    log.error({ job: jobName, err: record.error }, "failed");
   } finally {
     runningFlags.set(jobName, false);
     runningSince.set(jobName, null);
@@ -449,7 +452,7 @@ async function committeeIntelSync(): Promise<Record<string, unknown>> {
 export function startScheduler() {
   const enabled = process.env.SCHEDULER_ENABLED !== "false";
   if (!enabled) {
-    console.log("[scheduler] disabled via SCHEDULER_ENABLED=false");
+    log.info("scheduler disabled via SCHEDULER_ENABLED=false");
     schedulerEnabled = false;
     return;
   }
@@ -517,12 +520,12 @@ export function startScheduler() {
 
   for (const def of jobDefs) {
     if (def.enabled === false) {
-      console.log(`[scheduler] skipped ${def.name} → disabled`);
+      log.info({ job: def.name }, "skipped, disabled");
       continue;
     }
 
     if (!cron.validate(def.cron)) {
-      console.error(`[scheduler] invalid cron expression for ${def.name}: ${def.cron}`);
+      log.error({ job: def.name, cron: def.cron }, "invalid cron expression");
       continue;
     }
 
@@ -540,10 +543,10 @@ export function startScheduler() {
     runningFlags.set(def.name, false);
     runningSince.set(def.name, null);
     getOrCreateTelemetry(def.name);
-    console.log(`[scheduler] registered ${def.name} → ${def.cron}`);
+    log.info({ job: def.name, cron: def.cron }, "registered");
   }
 
-  console.log(`[scheduler] started with ${jobs.size} jobs`);
+  log.info({ jobCount: jobs.size }, "started");
 }
 
 export function stopScheduler() {
@@ -555,7 +558,7 @@ export function stopScheduler() {
     runningSince.set(key, null);
   });
   schedulerEnabled = false;
-  console.log("[scheduler] stopped all jobs");
+  log.info("stopped all jobs");
 }
 
 export function getSchedulerStatus(): SchedulerStatus {

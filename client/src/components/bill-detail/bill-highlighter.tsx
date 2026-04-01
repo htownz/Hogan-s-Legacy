@@ -13,6 +13,7 @@ import {
   PopoverTrigger 
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
+import { sanitizeHtml } from "@/lib/sanitize";
 import { Input } from "@/components/ui/input";
 import { 
   Select, 
@@ -245,7 +246,7 @@ export function BillHighlighter({ billId, billContent, contentContainerId }: Bil
         data-user-highlight="${isUserHighlight}">${text}</span>${after}`;
     });
     
-    return <div dangerouslySetInnerHTML={{ __html: result }} />;
+    return <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(result) }} />;
   };
   
   // Set up event listeners for text selection

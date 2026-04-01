@@ -5,6 +5,7 @@ import * as z from 'zod';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { sanitizeHtml } from '@/lib/sanitize';
 import {
   Form,
   FormControl,
@@ -418,7 +419,7 @@ export const InfographicCreator: React.FC<InfographicCreatorProps> = ({
           <CardContent>
             <div
               className="border rounded-md p-4"
-              dangerouslySetInnerHTML={{ __html: preview }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(preview) }}
             />
           </CardContent>
         </Card>

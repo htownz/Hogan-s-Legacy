@@ -5,8 +5,12 @@ import { activities, alerts, briefs, deliverables, issueRoomSourceDocuments, iss
 import { seedGraceMcEwan } from "./seed/grace-mcewan";
 import { runTloRssJob } from "./jobs/run-tlo-rss";
 import { runLegiscanJob } from "./jobs/run-legiscan";
+import { createLogger } from "./logger";
+
+const log = createLogger("routes");
 import {
   validateBody,
+  escapeLike,
   createWorkspaceSchema,
   createWatchlistSchema,
   patchWatchlistSchema,
@@ -764,7 +768,7 @@ export function createPolicyIntelRouter() {
           });
         } catch (feedbackErr) {
           // Non-fatal — don't block the review response
-          console.error("[champion] feedback recording failed:", feedbackErr);
+          log.error({ err: feedbackErr }, "champion feedback recording failed");
         }
       }
 
@@ -1274,7 +1278,7 @@ export function createPolicyIntelRouter() {
           regime: (pipelineEntry?.regime as string) ?? "interim",
         });
       } catch (feedbackErr) {
-        console.error("[champion] strong_positive feedback failed:", feedbackErr);
+        log.error({ err: feedbackErr }, "champion strong_positive feedback failed");
       }
 
       res.status(201).json({ issueRoom: created, alert: updatedAlert });
@@ -1678,7 +1682,7 @@ export function createPolicyIntelRouter() {
         .from(sourceDocuments)
         .where(
           or(
-            ilike(sourceDocuments.title, `%${billId}%`),
+            ilike(sourceDocuments.title, `%${escapeLike(billId)}%`),
             sql`${sourceDocuments.rawPayload}->>'billId' = ${billId}`,
           ),
         );
@@ -1724,7 +1728,7 @@ export function createPolicyIntelRouter() {
         })
         .from(stakeholderObservations)
         .innerJoin(stakeholders, eq(stakeholderObservations.stakeholderId, stakeholders.id))
-        .where(ilike(stakeholderObservations.observationText, `%${billId}%`));
+        .where(ilike(stakeholderObservations.observationText, `%${escapeLike(billId)}%`));
 
       res.json({
         billId,
@@ -2153,7 +2157,7 @@ export function createPolicyIntelRouter() {
       if (from) conditions.push(gte(hearingEvents.hearingDate, new Date(from as string)));
       if (to) conditions.push(lt(hearingEvents.hearingDate, new Date(to as string)));
       if (chamber) conditions.push(eq(hearingEvents.chamber, chamber as string));
-      if (committee) conditions.push(ilike(hearingEvents.committee, `%${committee}%`));
+      if (committee) conditions.push(ilike(hearingEvents.committee, `%${escapeLike(committee as string)}%`));
 
       const rows = await policyIntelDb
         .select()
@@ -2535,13 +2539,13 @@ export function createPolicyIntelRouter() {
         }));
       };
 
-      console.log("🏛️ Importing committee memberships from OpenStates GraphQL...");
+      log.info("importing committee memberships from OpenStates GraphQL");
       const [houseMembers, senateMembers] = await Promise.all([
         fetchMembers(houseOrgId, "House"),
         fetchMembers(senateOrgId, "Senate"),
       ]);
       const allMembers = [...houseMembers, ...senateMembers];
-      console.log(`📊 Fetched ${allMembers.length} legislators from OpenStates (${houseMembers.length} House, ${senateMembers.length} Senate)`);
+      log.info({ total: allMembers.length, house: houseMembers.length, senate: senateMembers.length }, "fetched legislators from OpenStates");
 
       // Load existing stakeholders
       const existingStakeholders = await policyIntelDb
@@ -2602,7 +2606,7 @@ export function createPolicyIntelRouter() {
         }
       }
 
-      console.log(`✅ Committee import complete: ${matched} matched, ${unmatched} unmatched, ${inserted} memberships inserted`);
+      log.info({ matched, unmatched, inserted }, "committee import complete");
 
       res.json({
         success: true,
@@ -2625,7 +2629,7 @@ export function createPolicyIntelRouter() {
       const { stakeholderId, committee, chamber } = req.query;
       const conditions = [];
       if (stakeholderId) conditions.push(eq(committeeMembers.stakeholderId, Number(stakeholderId)));
-      if (committee) conditions.push(ilike(committeeMembers.committeeName, `%${committee}%`));
+      if (committee) conditions.push(ilike(committeeMembers.committeeName, `%${escapeLike(committee as string)}%`));
       if (chamber) conditions.push(eq(committeeMembers.chamber, chamber as string));
 
       const rows = await policyIntelDb

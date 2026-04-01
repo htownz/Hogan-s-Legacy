@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { LegislatorDetailView } from "@/components/legislators/LegislatorDetailView";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft } from "lucide-react";
-import { Helmet } from "react-helmet";
+import { Helmet } from "react-helmet-async";
 
 export default function LegislatorDetailPage() {
   const { id } = useParams<{ id: string }>();

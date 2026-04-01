@@ -1,5 +1,5 @@
 import { BillComplexityTranslator } from '@/components/BillComplexityTranslator';
-import { Helmet } from 'react-helmet';
+import { Helmet } from 'react-helmet-async';
 
 export default function BillComplexityTranslatorPage() {
   return (

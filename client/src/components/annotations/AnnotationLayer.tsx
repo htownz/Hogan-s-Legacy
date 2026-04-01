@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
+import { sanitizeHtml } from '@/lib/sanitize';
 
 interface Annotation {
   id: number;
@@ -606,7 +607,7 @@ const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
           <div 
             ref={contentRef}
             className="prose max-w-none"
-            dangerouslySetInnerHTML={{ __html: highlightedContent }}
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(highlightedContent) }}
             onMouseOver={(e) => {
               const target = e.target as HTMLElement;
               if (target.classList.contains('annotation-highlight')) {

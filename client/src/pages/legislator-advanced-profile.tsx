@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useRoute } from 'wouter';
-import { Helmet } from 'react-helmet';
+import { Helmet } from 'react-helmet-async';
 import LegislatorAdvancedProfileView from '@/components/legislators/LegislatorAdvancedProfileView';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft } from 'lucide-react';

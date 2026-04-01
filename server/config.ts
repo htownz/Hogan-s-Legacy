@@ -34,8 +34,14 @@ export const DB_CONFIG = {
 
 // Session and authentication configuration
 export const AUTH_CONFIG = {
-  // Secret used for session encryption (defaults to a random string in development)
-  SESSION_SECRET: process.env.SESSION_SECRET || (SERVER_CONFIG.IS_PRODUCTION ? "" : "dev-secret-key-change-in-production"),
+  // Secret used for session encryption — required in production
+  SESSION_SECRET: (() => {
+    const secret = process.env.SESSION_SECRET?.trim();
+    if (!secret && SERVER_CONFIG.IS_PRODUCTION) {
+      throw new Error("SESSION_SECRET must be set in production");
+    }
+    return secret || "dev-secret-key-change-in-production";
+  })(),
   
   // Cookie configuration - always secure in Replit, as it uses HTTPS
   COOKIE_SECURE: true, // Always secure when using Replit

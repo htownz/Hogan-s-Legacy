@@ -1,6 +1,9 @@
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import * as schema from "@shared/schema-policy-intel";
+import { createLogger } from "./logger";
+
+const log = createLogger("db");
 
 if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL must be set for policy-intel service");
@@ -24,7 +27,7 @@ export async function ensureDatabaseConnection(): Promise<void> {
     try {
       await queryClient`select 1`;
       if (attempt > 1) {
-        console.log(`[policy-intel] database connection established on attempt ${attempt}`);
+        log.info({ attempt }, "database connection established");
       }
       return;
     } catch (error) {
@@ -33,8 +36,9 @@ export async function ensureDatabaseConnection(): Promise<void> {
         throw new Error(`[policy-intel] database connection failed after ${attempt} attempts: ${message}`);
       }
 
-      console.warn(
-        `[policy-intel] database connection attempt ${attempt}/${CONNECT_RETRY_ATTEMPTS} failed: ${message}`,
+      log.warn(
+        { attempt, total: CONNECT_RETRY_ATTEMPTS, err: message },
+        "database connection attempt failed",
       );
       await sleep(CONNECT_RETRY_DELAY_MS);
     }

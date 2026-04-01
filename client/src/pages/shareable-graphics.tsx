@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { sanitizeHtml } from "@/lib/sanitize";
 import {
   Select,
   SelectContent,
@@ -507,7 +508,7 @@ export default function ShareableGraphicsPage() {
                               <div 
                                 className="w-full h-full"
                                 dangerouslySetInnerHTML={{ 
-                                  __html: generatedGraphics[0]?.svgContent || ''
+                                  __html: sanitizeHtml(generatedGraphics[0]?.svgContent || '')
                                 }}
                               />
                             </div>

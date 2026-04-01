@@ -1,4 +1,4 @@
-import { Helmet } from "react-helmet";
+import { Helmet } from "react-helmet-async";
 import LegislativeUpdates from "../components/legislation/LegislativeUpdates";
 
 export default function LegislativeUpdatesPage() {

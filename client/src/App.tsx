@@ -2,6 +2,7 @@
 
 import { Route, Switch } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { HelmetProvider } from "react-helmet-async";
 import { Toaster } from "@/components/ui/toaster";
 import { UserProvider } from "./context/UserContext";
 
@@ -115,6 +116,7 @@ const queryClient = new QueryClient({
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <HelmetProvider>
       <UserProvider>
         <div className="min-h-screen flex flex-col">
           <ModernNavigation />
@@ -221,6 +223,7 @@ function App() {
           <Toaster />
         </div>
       </UserProvider>
+      </HelmetProvider>
     </QueryClientProvider>
   );
 }

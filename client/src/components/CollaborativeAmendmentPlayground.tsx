@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { sanitizeHtml } from "@/lib/sanitize";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Edit3, 
@@ -336,7 +337,7 @@ export function CollaborativeAmendmentPlayground({
                   {showDiff && originalText && proposedText ? (
                     <div 
                       className="bg-white/5 border border-white/20 rounded-lg p-4 min-h-[300px] text-white overflow-auto"
-                      dangerouslySetInnerHTML={{ __html: generateDiff(originalText, proposedText) }}
+                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(generateDiff(originalText, proposedText)) }}
                     />
                   ) : (
                     <Textarea

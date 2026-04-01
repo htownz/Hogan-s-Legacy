@@ -33,6 +33,11 @@ const ENVIRONMENT_VARIABLES: EnvironmentVariableDefinition[] = [
     description: "Bearer token for API protection",
   },
   {
+    key: "CORS_ORIGINS",
+    required: false,
+    description: "Comma-separated allowed CORS origins",
+  },
+  {
     key: "LEGISCAN_API_KEY",
     required: false,
     description: "LegiScan ingestion and legislator import",
@@ -56,6 +61,21 @@ const ENVIRONMENT_VARIABLES: EnvironmentVariableDefinition[] = [
     key: "SLACK_WEBHOOK_URL",
     required: false,
     description: "Slack alert notifications",
+  },
+  {
+    key: "SCHEDULER_ENABLED",
+    required: false,
+    description: "Enable/disable scheduled jobs (default: true)",
+  },
+  {
+    key: "NODE_ENV",
+    required: false,
+    description: "Runtime environment (development/production)",
+  },
+  {
+    key: "LOG_LEVEL",
+    required: false,
+    description: "Pino log level (debug/info/warn/error)",
   },
 ];
 

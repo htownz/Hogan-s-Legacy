@@ -5,6 +5,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { sanitizeHtml } from '@/lib/sanitize';
 import { 
   Card, 
   CardContent, 
@@ -664,7 +665,7 @@ export default function BillAnnotator({
         className="bill-text font-mono text-sm whitespace-pre-wrap p-4"
         onMouseUp={handleTextSelection}
         onTouchEnd={handleTextSelection}
-        dangerouslySetInnerHTML={{ __html: result }}
+        dangerouslySetInnerHTML={{ __html: sanitizeHtml(result) }}
         onClick={(e) => {
           // Handle clicking on annotations
           const target = e.target as HTMLElement;

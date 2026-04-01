@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { ShareIcon, DownloadIcon, ThumbsUpIcon } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { sanitizeHtml } from "@/lib/sanitize";
 
 interface InfographicViewerProps {
   id: number;
@@ -83,7 +84,7 @@ export const InfographicViewer: React.FC<InfographicViewerProps> = ({
         </CardHeader>
         <CardContent className="cursor-pointer" onClick={() => setFullscreenOpen(true)}>
           <div className="relative overflow-hidden rounded-md border border-gray-200" 
-               dangerouslySetInnerHTML={{ __html: svgContent }} />
+               dangerouslySetInnerHTML={{ __html: sanitizeHtml(svgContent) }} />
         </CardContent>
         <CardFooter className="flex justify-between pt-3">
           <div className="text-sm text-muted-foreground">
@@ -119,7 +120,7 @@ export const InfographicViewer: React.FC<InfographicViewerProps> = ({
             </TabsList>
             <TabsContent value="view" className="mt-0">
               <div className="overflow-auto max-h-[70vh]"
-                   dangerouslySetInnerHTML={{ __html: svgContent }} />
+                   dangerouslySetInnerHTML={{ __html: sanitizeHtml(svgContent) }} />
             </TabsContent>
             <TabsContent value="source" className="mt-0">
               <pre className="overflow-auto max-h-[70vh] bg-muted p-4 rounded-md text-xs">

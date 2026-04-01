@@ -14,6 +14,9 @@ import { buildScorecard } from "../engine/evaluators";
 import { buildAgentScorecard, detectRegime } from "../engine/agent-pipeline";
 import { metrics } from "../metrics";
 import { notifyHighPriorityAlert } from "../notify";
+import { createLogger } from "../logger";
+
+const log = createLogger("alert-service");
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -183,7 +186,7 @@ export async function processDocumentAlerts(
         relevanceScore: scorecard.totalScore,
         whyItMatters: `${whyItMatters}\n\nScorecard: ${scorecard.summary}`,
         watchlistName: match.watchlist.name,
-      }).catch((err) => console.error("[alert-service] Slack notification failed:", err?.message ?? err)); // fire-and-forget
+      }).catch((err) => log.error({ err: err?.message ?? err }, "Slack notification failed")); // fire-and-forget
     }
   }
 

@@ -6,6 +6,9 @@
  */
 
 import { safeErrorMessage } from "./security";
+import { createLogger } from "./logger";
+
+const log = createLogger("notify");
 
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL ?? "";
 
@@ -37,12 +40,12 @@ export async function notifySlack(
 
     if (!resp.ok) {
       const body = await resp.text();
-      console.error(`[notify] Slack webhook returned ${resp.status}: ${safeErrorMessage(body, "Webhook call failed")}`);
+      log.error({ status: resp.status }, "Slack webhook returned error");
       return false;
     }
     return true;
   } catch (err) {
-    console.error(`[notify] Slack webhook failed: ${safeErrorMessage(err, "Webhook call failed")}`);
+    log.error({ err: safeErrorMessage(err, "Webhook call failed") }, "Slack webhook failed");
     return false;
   }
 }

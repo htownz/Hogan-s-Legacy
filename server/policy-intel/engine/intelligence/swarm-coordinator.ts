@@ -23,6 +23,9 @@ import { analyzeLegislatorProfiles, type LegislatorProfileReport } from "./legis
 import { analyzeInfluenceMaps, type InfluenceMapReport } from "./influence-map";
 import { analyzeNetworkPower, type PowerNetworkReport } from "./power-network-analyzer";
 import { predictLegislation, type LegislationPredictorReport } from "./legislation-predictor";
+import { createLogger } from "../../logger";
+
+const log = createLogger("intelligence");
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -85,7 +88,7 @@ function withAnalyzerFallback<T>(
   onFailure?: () => void,
 ): Promise<T> {
   return runner().catch((error) => {
-    console.error(`[intelligence] ${name} failed:`, error);
+    log.error({ analyzer: name, err: error }, "analyzer failed");
     onFailure?.();
     return fallback();
   });

@@ -1,6 +1,6 @@
 import React from 'react';
 import { VoiceSearch } from '../components/voice/VoiceSearch';
-import { Helmet } from 'react-helmet';
+import { Helmet } from 'react-helmet-async';
 
 export default function VoiceSearchPage() {
   return (

@@ -18,6 +18,9 @@ import {
 } from "@shared/schema-policy-intel";
 import { powerCenters, leadershipPriorities, votingBlocs as votingBlocsTable, votingBlocMembers } from "@shared/schema-power-network";
 import { eq, sql, desc, and, count, ilike } from "drizzle-orm";
+import { createLogger } from "../../logger";
+
+const log = createLogger("power-network");
 
 // ── Config ─────────────────────────────────────────────────────────────────
 
@@ -277,10 +280,10 @@ export async function analyzeNetworkPower(force = false): Promise<PowerNetworkRe
 
   // Persist power centers and voting blocs to database (fire-and-forget)
   seedPowerCenters(bigThree).catch(err =>
-    console.error("[power-network] Failed to seed power centers:", err.message)
+    log.error({ err: err.message }, "failed to seed power centers")
   );
   seedVotingBlocs(votingBlocs).catch(err =>
-    console.error("[power-network] Failed to seed voting blocs:", err.message)
+    log.error({ err: err.message }, "failed to seed voting blocs")
   );
 
   cachedReport = report;
@@ -934,7 +937,7 @@ async function seedPowerCenters(bigThree: PowerCenterProfile[]) {
       await Promise.all(updatePriorities);
     }
   }
-  console.log(`[power-network] Seeded ${bigThree.length} power centers with priorities`);
+  log.info({ count: bigThree.length }, "seeded power centers with priorities");
 }
 
 /** Persist voting blocs and their members to the database */
@@ -980,5 +983,5 @@ async function seedVotingBlocs(blocs: VotingBlocResult[]) {
       );
     }
   }
-  console.log(`[power-network] Seeded ${blocs.length} committee cohorts with ${blocs.reduce((s, b) => s + b.members.length, 0)} members`);
+  log.info({ blocs: blocs.length, members: blocs.reduce((s, b) => s + b.members.length, 0) }, "seeded committee cohorts");
 }
