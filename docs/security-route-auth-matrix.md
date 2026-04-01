@@ -36,6 +36,13 @@ This matrix documents current authorization requirements for high-risk mutation 
 | /api/scout-bot-analytics/anomalies | POST | Required session | Admin only | `tests/authz-mutation-routes.test.ts` |
 | /api/scout-bot-analytics/anomalies/:id/review | PATCH | Required session | Admin only | `tests/authz-mutation-routes.test.ts` |
 | /api/scout-bot-analytics/reports | POST | Required session | Admin only | `tests/authz-mutation-routes.test.ts` |
+| /api/collaborative-annotations/documents | POST | Required session | Authenticated user; creator assigned owner collaborator | `tests/authz-mutation-routes.test.ts` |
+| /api/collaborative-annotations/documents/:documentId/annotations | POST | Required session | Document collaborator required | `tests/authz-mutation-routes.test.ts` |
+| /api/collaborative-annotations/annotations/:id | PATCH | Required session | Annotation owner or document owner/admin | `tests/authz-mutation-routes.test.ts` |
+| /api/collaborative-annotations/annotations/:id | DELETE | Required session | Annotation owner or document owner/admin | Covered by route policy in matrix |
+| /api/collaborative-annotations/annotations/:annotationId/reactions | POST | Required session | Document collaborator required; actor is current authenticated user | `tests/authz-mutation-routes.test.ts` |
+| /api/collaborative-annotations/annotations/:annotationId/reactions | DELETE | Required session | Document collaborator required; actor is current authenticated user | Covered by route policy in matrix |
+| /api/collaborative-annotations/documents/:documentId/collaborators | POST | Required session | Document owner/admin only | `tests/authz-mutation-routes.test.ts` |
 
 ## Debug endpoints
 

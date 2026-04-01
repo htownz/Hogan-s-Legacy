@@ -177,6 +177,7 @@ import { registerFeedbackRoutes } from "../server/routes-feedback";
 import { registerInfographicsRoutes } from "../server/routes-infographics";
 import { registerVerificationRoutes } from "../server/routes/verification-routes";
 import { registerScoutBotAnalyticsRoutes } from "../server/routes-scout-bot-analytics";
+import { registerCollaborativeAnnotationsRoutes } from "../server/routes-collaborative-annotations";
 
 function buildApp() {
   const app = express();
@@ -199,6 +200,7 @@ function buildApp() {
   registerInfographicsRoutes(app);
   registerVerificationRoutes(app);
   registerScoutBotAnalyticsRoutes(app);
+  registerCollaborativeAnnotationsRoutes(app);
   registerDebugRoutes(app);
 
   return app;
@@ -274,6 +276,11 @@ describe("Mutation endpoint authorization", () => {
       { method: "post", path: "/api/scout-bot-analytics/anomalies", body: {} },
       { method: "patch", path: "/api/scout-bot-analytics/anomalies/1/review", body: { reviewed: true } },
       { method: "post", path: "/api/scout-bot-analytics/reports", body: {} },
+      { method: "post", path: "/api/collaborative-annotations/documents", body: { title: "Doc", content: "text", documentType: "bill" } },
+      { method: "post", path: "/api/collaborative-annotations/documents/1/annotations", body: { content: "note", startOffset: 0, endOffset: 2, selectionText: "ab" } },
+      { method: "patch", path: "/api/collaborative-annotations/annotations/1", body: { content: "updated" } },
+      { method: "post", path: "/api/collaborative-annotations/annotations/1/reactions", body: { reaction: "like" } },
+      { method: "post", path: "/api/collaborative-annotations/documents/1/collaborators", body: { userId: 2, role: "viewer" } },
     ];
 
     for (const testCase of cases) {
