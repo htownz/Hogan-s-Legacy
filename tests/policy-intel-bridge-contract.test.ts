@@ -258,6 +258,62 @@ describe("policy-intel bridge contract", () => {
     expect(forced.record?.jobName).toBe("intel-briefing");
   });
 
+  it("supports triggering non-briefing automation jobs", async () => {
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/api/intel/scheduler/status")) {
+        return jsonResponse({
+          enabled: true,
+          jobs: [
+            {
+              name: "local-feeds",
+              enabled: true,
+              running: false,
+              runningSince: null,
+              lastRun: {
+                status: "success",
+                finishedAt: "2026-03-30T23:00:00.000Z",
+                durationMs: 2000,
+              },
+              runCounts: { total: 3, success: 3, error: 0, skippedWhileRunning: 0 },
+              consecutiveFailures: 0,
+              lastSuccessAt: "2026-03-30T23:00:00.000Z",
+              lastErrorAt: null,
+            },
+          ],
+        });
+      }
+      if (url.endsWith("/api/intel/scheduler/trigger/local-feeds") && init?.method === "POST") {
+        return jsonResponse({
+          jobName: "local-feeds",
+          startedAt: "2026-03-31T00:05:00.000Z",
+          finishedAt: "2026-03-31T00:05:04.000Z",
+          durationMs: 4000,
+          status: "success",
+          summary: { inserted: 12 },
+        });
+      }
+      return jsonResponse({ message: "not found" }, 404);
+    });
+
+    const bridge = createPolicyIntelBridgeClient(
+      {
+        baseUrl: "http://policy-intel.local",
+        requestTimeoutMs: 10_000,
+        statusCacheTtlMs: 30_000,
+        briefingCacheTtlMs: 60_000,
+        automationCacheTtlMs: 15_000,
+        automationEventsCacheTtlMs: 15_000,
+        automationTriggerCooldownMs: 120_000,
+      },
+      { fetchImpl: fetchImpl as any, now: () => Date.parse("2026-03-31T00:06:00.000Z") },
+    );
+
+    const result = await bridge.triggerAutomationJob("local-feeds");
+    expect(result.triggered).toBe(true);
+    expect(result.record?.jobName).toBe("local-feeds");
+    expect(result.record?.summary).toEqual({ inserted: 12 });
+  });
+
   it("returns filtered automation events and caches by options", async () => {
     const fetchImpl = vi.fn(async (url: string) => {
       if (url.endsWith("/api/intel/scheduler/history")) {

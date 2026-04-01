@@ -1,8 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 import { RefreshCw, Clock3, Bot } from "lucide-react";
 
 interface PolicyIntelAutomationEventsResponse {
@@ -18,6 +19,16 @@ interface PolicyIntelAutomationEventsResponse {
     summary: Record<string, unknown>;
     error?: string;
   }>;
+}
+
+interface PolicyIntelAutomationTriggerResult {
+  triggered: boolean;
+  message?: string;
+  record?: {
+    jobName: string;
+    status: "success" | "error";
+    durationMs: number;
+  };
 }
 
 interface PolicyIntelAutomationActivityCardProps {
@@ -41,6 +52,8 @@ export function PolicyIntelAutomationActivityCard({
   dark = false,
   limit = 5,
 }: PolicyIntelAutomationActivityCardProps) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [statusFilter, setStatusFilter] = useState<"all" | "success" | "error">("all");
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
 
@@ -71,6 +84,47 @@ export function PolicyIntelAutomationActivityCard({
     [data, selectedEventId],
   );
 
+  const rerunMutation = useMutation({
+    mutationFn: async (jobName: string) => {
+      const res = await fetch(`/api/integrations/policy-intel/automation/jobs/${encodeURIComponent(jobName)}/run`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({}),
+      });
+
+      const body = (await res.json()) as PolicyIntelAutomationTriggerResult;
+      if (!res.ok && res.status !== 429) {
+        throw new Error(body.message || `Automation run failed (${res.status})`);
+      }
+      return body;
+    },
+    onSuccess: (result) => {
+      if (!result.triggered) {
+        toast({
+          title: "Automation run skipped",
+          description: result.message || "The selected automation job did not run.",
+        });
+      } else {
+        toast({
+          title: "Automation run started",
+          description: `${result.record?.jobName || "Selected job"} triggered successfully.`,
+        });
+      }
+      void queryClient.invalidateQueries({ queryKey: ["/api/integrations/policy-intel/automation/events"] });
+      void queryClient.invalidateQueries({ queryKey: ["/api/integrations/policy-intel/automation/status"] });
+      void queryClient.invalidateQueries({ queryKey: ["/api/integrations/policy-intel/status"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Automation run failed",
+        description: error?.message || "Unable to trigger selected automation job.",
+      });
+    },
+  });
+
   return (
     <Card className={`${cardClass} ${className}`}>
       <CardHeader className="pb-3">
@@ -95,7 +149,7 @@ export function PolicyIntelAutomationActivityCard({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="mb-3 flex gap-2">
+        <div className="mb-3 flex gap-2 flex-wrap">
           {(["all", "success", "error"] as const).map((filter) => (
             <Button
               key={filter}
@@ -116,6 +170,19 @@ export function PolicyIntelAutomationActivityCard({
               {filter}
             </Button>
           ))}
+          <Button
+            size="sm"
+            variant="outline"
+            className={dark ? "border-gray-600 hover:bg-gray-700" : ""}
+            onClick={() => {
+              if (selectedEvent?.jobName) {
+                rerunMutation.mutate(selectedEvent.jobName);
+              }
+            }}
+            disabled={!selectedEvent?.jobName || rerunMutation.isPending}
+          >
+            {rerunMutation.isPending ? "Running..." : "Run selected"}
+          </Button>
         </div>
 
         {isLoading ? (

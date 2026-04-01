@@ -64,6 +64,7 @@ The legacy main app now exposes integration bridge endpoints that proxy key poli
 - `GET /api/integrations/policy-intel/automation/status`
 - `GET /api/integrations/policy-intel/automation/events`
 - `POST /api/integrations/policy-intel/automation/intel-briefing/run`
+- `POST /api/integrations/policy-intel/automation/jobs/:jobName/run`
 
 Automation events endpoint query params:
 

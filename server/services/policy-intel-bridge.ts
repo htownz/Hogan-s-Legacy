@@ -179,6 +179,15 @@ interface SchedulerHistoryRecordResponse {
 
 type IntelBriefingAutomationState = PolicyIntelBridgeAutomationStatusResult["automation"]["intelBriefing"];
 
+const SUPPORTED_AUTOMATION_JOBS = new Set([
+  "legiscan-recent",
+  "tlo-rss",
+  "local-feeds",
+  "tec-sweep",
+  "intel-briefing",
+  "committee-intel-sync",
+]);
+
 export function createPolicyIntelBridgeClient(
   config: PolicyIntelBridgeConfig,
   deps: { fetchImpl?: FetchLike; now?: () => number } = {},
@@ -570,20 +579,42 @@ export function createPolicyIntelBridgeClient(
   async function triggerIntelBriefingAutomation(
     options: { force?: boolean } = {},
   ): Promise<PolicyIntelBridgeAutomationTriggerResult> {
+    return triggerAutomationJob("intel-briefing", options);
+  }
+
+  async function triggerAutomationJob(
+    jobName: string,
+    options: { force?: boolean } = {},
+  ): Promise<PolicyIntelBridgeAutomationTriggerResult> {
+    const normalizedJobName = String(jobName || "").trim();
+    if (!SUPPORTED_AUTOMATION_JOBS.has(normalizedJobName)) {
+      throw new Error(
+        `Unsupported automation job \"${normalizedJobName}\". Allowed: ${Array.from(SUPPORTED_AUTOMATION_JOBS).join(", ")}`,
+      );
+    }
+
     const force = options.force === true;
     const triggerAcceptedAt = new Date(now()).toISOString();
 
     if (!force && config.automationTriggerCooldownMs > 0) {
-      const status = await getAutomationStatus({ force: true });
-      const lastRun = status.automation.intelBriefing.lastRun;
-      if (status.automation.intelBriefing.running) {
+      const schedulerStatus = (await fetchJson("/api/intel/scheduler/status", config.requestTimeoutMs)) as SchedulerStatusResponse;
+      const jobs = Array.isArray(schedulerStatus.jobs) ? schedulerStatus.jobs : [];
+      const job = jobs.find((entry) => entry.name === normalizedJobName);
+      const lastRun =
+        job?.lastRun && typeof job.lastRun.finishedAt === "string"
+          ? {
+              finishedAt: job.lastRun.finishedAt,
+            }
+          : null;
+
+      if (job?.running === true) {
         return {
           source: "policy-intel",
           triggered: false,
           triggerAcceptedAt,
           cooldownMs: config.automationTriggerCooldownMs,
           nextEligibleAt: null,
-          message: "intel-briefing is already running",
+          message: `${normalizedJobName} is already running`,
         };
       }
       if (lastRun?.finishedAt) {
@@ -598,13 +629,13 @@ export function createPolicyIntelBridgeClient(
             triggerAcceptedAt,
             cooldownMs: config.automationTriggerCooldownMs,
             nextEligibleAt,
-            message: "intel-briefing trigger skipped due to cooldown",
+            message: `${normalizedJobName} trigger skipped due to cooldown`,
           };
         }
       }
     }
 
-    const record = (await requestJson("/api/intel/scheduler/trigger/intel-briefing", {
+    const record = (await requestJson(`/api/intel/scheduler/trigger/${encodeURIComponent(normalizedJobName)}`, {
       method: "POST",
       timeoutMs: Math.max(config.requestTimeoutMs, 30_000),
     })) as SchedulerTriggerResponse;
@@ -623,7 +654,7 @@ export function createPolicyIntelBridgeClient(
         ? new Date(now() + config.automationTriggerCooldownMs).toISOString()
         : null,
       record: {
-        jobName: String(record.jobName ?? "intel-briefing"),
+        jobName: String(record.jobName ?? normalizedJobName),
         startedAt: String(record.startedAt ?? triggerAcceptedAt),
         finishedAt: String(record.finishedAt ?? triggerAcceptedAt),
         durationMs: Number(record.durationMs ?? 0),
@@ -640,6 +671,7 @@ export function createPolicyIntelBridgeClient(
     getAutomationStatus,
     getAutomationEvents,
     triggerIntelBriefingAutomation,
+    triggerAutomationJob,
     clearCache() {
       statusCache = null;
       briefingCache = null;

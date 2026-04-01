@@ -901,6 +901,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
+
+  app.post("/api/integrations/policy-intel/automation/jobs/:jobName/run", isAuthenticated, async (req, res) => {
+    try {
+      const payload = await policyIntelBridge.triggerAutomationJob(req.params.jobName, {
+        force: req.query.force === "true" || req.body?.force === true,
+      });
+      if (!payload.triggered) {
+        return res.status(429).json(payload);
+      }
+      res.json(payload);
+    } catch (error: any) {
+      res.status(502).json({
+        source: "policy-intel",
+        message: "Failed to trigger policy-intel automation job",
+        error: error?.message || String(error),
+      });
+    }
+  });
   
   // Register AWS-related routes
   registerAwsRoutes(app);
