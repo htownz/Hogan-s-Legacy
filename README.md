@@ -62,9 +62,14 @@ The legacy main app now exposes integration bridge endpoints that proxy key poli
 - `GET /api/integrations/policy-intel/status`
 - `GET /api/integrations/policy-intel/briefing`
 - `GET /api/integrations/policy-intel/automation/status`
+- `GET /api/integrations/policy-intel/automation/jobs`
 - `GET /api/integrations/policy-intel/automation/events`
 - `POST /api/integrations/policy-intel/automation/intel-briefing/run`
 - `POST /api/integrations/policy-intel/automation/jobs/:jobName/run`
+
+Automation trigger options:
+
+- `force=true` in JSON body or query string bypasses cooldown checks for the selected job.
 
 Automation events endpoint query params:
 

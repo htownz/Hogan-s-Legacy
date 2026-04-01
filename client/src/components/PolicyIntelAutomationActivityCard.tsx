@@ -21,6 +21,14 @@ interface PolicyIntelAutomationEventsResponse {
   }>;
 }
 
+interface PolicyIntelAutomationJobsResponse {
+  jobs: Array<{
+    name: string;
+    enabled: boolean;
+    running: boolean;
+  }>;
+}
+
 interface PolicyIntelAutomationTriggerResult {
   triggered: boolean;
   message?: string;
@@ -29,6 +37,11 @@ interface PolicyIntelAutomationTriggerResult {
     status: "success" | "error";
     durationMs: number;
   };
+}
+
+interface TriggerJobRequest {
+  jobName: string;
+  force?: boolean;
 }
 
 interface PolicyIntelAutomationActivityCardProps {
@@ -56,12 +69,29 @@ export function PolicyIntelAutomationActivityCard({
   const { toast } = useToast();
   const [statusFilter, setStatusFilter] = useState<"all" | "success" | "error">("all");
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [selectedJob, setSelectedJob] = useState<string>("all");
+
+  const { data: jobsData } = useQuery<PolicyIntelAutomationJobsResponse>({
+    queryKey: ["/api/integrations/policy-intel/automation/jobs"],
+    queryFn: async () => {
+      const res = await fetch("/api/integrations/policy-intel/automation/jobs", {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        throw new Error(`Automation jobs request failed (${res.status})`);
+      }
+      return res.json();
+    },
+    retry: 0,
+    refetchInterval: 60_000,
+  });
 
   const { data, isLoading, isError, isFetching, refetch } = useQuery<PolicyIntelAutomationEventsResponse>({
-    queryKey: ["/api/integrations/policy-intel/automation/events", limit, statusFilter],
+    queryKey: ["/api/integrations/policy-intel/automation/events", limit, statusFilter, selectedJob],
     queryFn: async () => {
+      const jobsQuery = selectedJob !== "all" ? `&jobs=${encodeURIComponent(selectedJob)}` : "";
       const res = await fetch(
-        `/api/integrations/policy-intel/automation/events?limit=${limit}&status=${statusFilter}`,
+        `/api/integrations/policy-intel/automation/events?limit=${limit}&status=${statusFilter}${jobsQuery}`,
         {
         credentials: "include",
         },
@@ -84,15 +114,17 @@ export function PolicyIntelAutomationActivityCard({
     [data, selectedEventId],
   );
 
+  const availableJobs = jobsData?.jobs?.filter((job) => job.enabled !== false) ?? [];
+
   const rerunMutation = useMutation({
-    mutationFn: async (jobName: string) => {
+    mutationFn: async ({ jobName, force = false }: TriggerJobRequest) => {
       const res = await fetch(`/api/integrations/policy-intel/automation/jobs/${encodeURIComponent(jobName)}/run`, {
         method: "POST",
         credentials: "include",
         headers: {
           "content-type": "application/json",
         },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ force }),
       });
 
       const body = (await res.json()) as PolicyIntelAutomationTriggerResult;
@@ -150,6 +182,44 @@ export function PolicyIntelAutomationActivityCard({
       </CardHeader>
       <CardContent>
         <div className="mb-3 flex gap-2 flex-wrap">
+          <Button
+            size="sm"
+            variant="outline"
+            className={
+              selectedJob === "all"
+                ? "bg-cyan-600 text-white border-cyan-600 hover:bg-cyan-500"
+                : dark
+                  ? "border-gray-600 hover:bg-gray-700"
+                  : ""
+            }
+            onClick={() => {
+              setSelectedJob("all");
+              setSelectedEventId(null);
+            }}
+          >
+            jobs: all
+          </Button>
+          {availableJobs.slice(0, 4).map((job) => (
+            <Button
+              key={job.name}
+              size="sm"
+              variant="outline"
+              className={
+                selectedJob === job.name
+                  ? "bg-cyan-600 text-white border-cyan-600 hover:bg-cyan-500"
+                  : dark
+                    ? "border-gray-600 hover:bg-gray-700"
+                    : ""
+              }
+              onClick={() => {
+                setSelectedJob(job.name);
+                setSelectedEventId(null);
+              }}
+            >
+              {job.name}
+            </Button>
+          ))}
+
           {(["all", "success", "error"] as const).map((filter) => (
             <Button
               key={filter}
@@ -167,7 +237,7 @@ export function PolicyIntelAutomationActivityCard({
                 setSelectedEventId(null);
               }}
             >
-              {filter}
+              status: {filter}
             </Button>
           ))}
           <Button
@@ -176,12 +246,25 @@ export function PolicyIntelAutomationActivityCard({
             className={dark ? "border-gray-600 hover:bg-gray-700" : ""}
             onClick={() => {
               if (selectedEvent?.jobName) {
-                rerunMutation.mutate(selectedEvent.jobName);
+                rerunMutation.mutate({ jobName: selectedEvent.jobName, force: false });
               }
             }}
             disabled={!selectedEvent?.jobName || rerunMutation.isPending}
           >
             {rerunMutation.isPending ? "Running..." : "Run selected"}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className={dark ? "border-gray-600 hover:bg-gray-700" : ""}
+            onClick={() => {
+              if (selectedEvent?.jobName) {
+                rerunMutation.mutate({ jobName: selectedEvent.jobName, force: true });
+              }
+            }}
+            disabled={!selectedEvent?.jobName || rerunMutation.isPending}
+          >
+            {rerunMutation.isPending ? "Forcing..." : "Force run"}
           </Button>
         </div>
 

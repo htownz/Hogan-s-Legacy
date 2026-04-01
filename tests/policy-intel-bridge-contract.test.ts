@@ -196,6 +196,54 @@ describe("policy-intel bridge contract", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
+  it("returns automation jobs with scheduler metadata", async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url.endsWith("/api/intel/scheduler/status")) {
+        return jsonResponse({
+          enabled: true,
+          jobs: [
+            {
+              name: "intel-briefing",
+              enabled: true,
+              cronExpression: "30 */6 * * *",
+              running: false,
+              runningSince: null,
+              lastRun: {
+                status: "success",
+                finishedAt: "2026-03-31T00:00:00.000Z",
+                durationMs: 2200,
+              },
+              runCounts: { total: 8, success: 7, error: 1, skippedWhileRunning: 0 },
+              consecutiveFailures: 0,
+              lastSuccessAt: "2026-03-31T00:00:00.000Z",
+              lastErrorAt: "2026-03-30T18:00:00.000Z",
+            },
+          ],
+        });
+      }
+      return jsonResponse({ message: "not found" }, 404);
+    });
+
+    const bridge = createPolicyIntelBridgeClient(
+      {
+        baseUrl: "http://policy-intel.local",
+        requestTimeoutMs: 10_000,
+        statusCacheTtlMs: 30_000,
+        briefingCacheTtlMs: 60_000,
+        automationCacheTtlMs: 15_000,
+        automationEventsCacheTtlMs: 15_000,
+        automationTriggerCooldownMs: 120_000,
+      },
+      { fetchImpl: fetchImpl as any, now: () => 10_000 },
+    );
+
+    const jobs = await bridge.getAutomationJobs();
+    expect(jobs.schedulerEnabled).toBe(true);
+    expect(jobs.jobs).toHaveLength(1);
+    expect(jobs.jobs[0].name).toBe("intel-briefing");
+    expect(jobs.jobs[0].runCounts.total).toBe(8);
+  });
+
   it("enforces cooldown for automation trigger and allows force", async () => {
     let now = Date.parse("2026-03-31T00:02:00.000Z");
     const recentRun = new Date(now - 30_000).toISOString();
@@ -312,6 +360,69 @@ describe("policy-intel bridge contract", () => {
     expect(result.triggered).toBe(true);
     expect(result.record?.jobName).toBe("local-feeds");
     expect(result.record?.summary).toEqual({ inserted: 12 });
+  });
+
+  it("skips generic job during cooldown and allows force", async () => {
+    let now = Date.parse("2026-03-31T00:06:00.000Z");
+    const recentRun = new Date(now - 20_000).toISOString();
+
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/api/intel/scheduler/status")) {
+        return jsonResponse({
+          enabled: true,
+          jobs: [
+            {
+              name: "local-feeds",
+              enabled: true,
+              running: false,
+              runningSince: null,
+              lastRun: {
+                status: "success",
+                finishedAt: recentRun,
+                durationMs: 2000,
+              },
+              runCounts: { total: 2, success: 2, error: 0, skippedWhileRunning: 0 },
+              consecutiveFailures: 0,
+              lastSuccessAt: recentRun,
+              lastErrorAt: null,
+            },
+          ],
+        });
+      }
+      if (url.endsWith("/api/intel/scheduler/trigger/local-feeds") && init?.method === "POST") {
+        return jsonResponse({
+          jobName: "local-feeds",
+          startedAt: "2026-03-31T00:06:00.000Z",
+          finishedAt: "2026-03-31T00:06:03.000Z",
+          durationMs: 3000,
+          status: "success",
+          summary: { inserted: 3 },
+        });
+      }
+      return jsonResponse({ message: "not found" }, 404);
+    });
+
+    const bridge = createPolicyIntelBridgeClient(
+      {
+        baseUrl: "http://policy-intel.local",
+        requestTimeoutMs: 10_000,
+        statusCacheTtlMs: 30_000,
+        briefingCacheTtlMs: 60_000,
+        automationCacheTtlMs: 15_000,
+        automationEventsCacheTtlMs: 15_000,
+        automationTriggerCooldownMs: 120_000,
+      },
+      { fetchImpl: fetchImpl as any, now: () => now },
+    );
+
+    const skipped = await bridge.triggerAutomationJob("local-feeds");
+    expect(skipped.triggered).toBe(false);
+    expect(skipped.message).toContain("cooldown");
+
+    now += 1_000;
+    const forced = await bridge.triggerAutomationJob("local-feeds", { force: true });
+    expect(forced.triggered).toBe(true);
+    expect(forced.record?.jobName).toBe("local-feeds");
   });
 
   it("returns filtered automation events and caches by options", async () => {

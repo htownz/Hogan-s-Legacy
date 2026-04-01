@@ -856,6 +856,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/integrations/policy-intel/automation/jobs", isAuthenticated, async (req, res) => {
+    try {
+      const payload = await policyIntelBridge.getAutomationJobs({
+        force: req.query.force === "true",
+      });
+      res.json(payload);
+    } catch (error: any) {
+      res.status(502).json({
+        source: "policy-intel",
+        message: "Failed to fetch policy-intel automation jobs",
+        error: error?.message || String(error),
+      });
+    }
+  });
+
   app.get("/api/integrations/policy-intel/automation/events", isAuthenticated, async (req, res) => {
     try {
       const limitRaw = Number(req.query.limit);
