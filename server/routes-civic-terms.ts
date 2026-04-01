@@ -2,6 +2,7 @@ import { Request, Response, Express } from "express";
 import { civicTermsStorage } from "./storage-civic-terms";
 import { insertCivicTermSchema, insertCivicTermAppearanceSchema } from "@shared/schema-civic-terms";
 import { isAuthenticated } from "./auth";
+import { isAdmin } from "./middleware/auth-middleware";
 import { CustomRequest } from "./types";
 import { z } from "zod";
 
@@ -93,13 +94,8 @@ export function registerCivicTermsRoutes(app: Express): void {
   /**
    * Create a new civic term (admin only)
    */
-  app.post("/api/civic-terms", isAuthenticated, async (req: CustomRequest, res: Response) => {
+  app.post("/api/civic-terms", isAuthenticated, isAdmin, async (req: CustomRequest, res: Response) => {
     try {
-      // Validate that the user is an admin (to be implemented)
-      // if (!req.user.isAdmin) {
-      //   return res.status(403).json({ error: "Unauthorized" });
-      // }
-
       const validatedData = insertCivicTermSchema.parse(req.body);
       const newTerm = await civicTermsStorage.createCivicTerm(validatedData);
       res.status(201).json(newTerm);
@@ -115,13 +111,8 @@ export function registerCivicTermsRoutes(app: Express): void {
   /**
    * Update a civic term (admin only)
    */
-  app.patch("/api/civic-terms/:id", isAuthenticated, async (req: CustomRequest, res: Response) => {
+  app.patch("/api/civic-terms/:id", isAuthenticated, isAdmin, async (req: CustomRequest, res: Response) => {
     try {
-      // Validate that the user is an admin (to be implemented)
-      // if (!req.user.isAdmin) {
-      //   return res.status(403).json({ error: "Unauthorized" });
-      // }
-
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid ID" });
@@ -147,13 +138,8 @@ export function registerCivicTermsRoutes(app: Express): void {
   /**
    * Delete a civic term (admin only)
    */
-  app.delete("/api/civic-terms/:id", isAuthenticated, async (req: CustomRequest, res: Response) => {
+  app.delete("/api/civic-terms/:id", isAuthenticated, isAdmin, async (req: CustomRequest, res: Response) => {
     try {
-      // Validate that the user is an admin (to be implemented)
-      // if (!req.user.isAdmin) {
-      //   return res.status(403).json({ error: "Unauthorized" });
-      // }
-
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid ID" });

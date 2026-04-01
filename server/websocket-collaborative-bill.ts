@@ -2,13 +2,13 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { v4 as uuidv4 } from 'uuid';
 import { Server } from 'http';
 import { collaborativeStorage } from './storage-collaborative';
-import { db } from './db';
+import { getAuthenticatedUserFromRequest } from './auth';
 
 // Define message types
 interface WebSocketMessage {
   type: string;
   sessionId: number;
-  userId: number;
+  userId?: number;
   username?: string;
   displayName?: string;
   [key: string]: any;
@@ -78,7 +78,8 @@ async function handleJoin(
   sessionParticipants: Map<number, Set<string>>, 
   connectedClients: Map<string, CollaborativeBillClient>
 ) {
-  const { sessionId, userId, username, displayName, color } = message;
+  const { sessionId, color } = message;
+  const userId = client.userId;
   
   if (!sessionId || !userId) {
     return sendError(client, 'Session ID and user ID are required');
@@ -93,9 +94,6 @@ async function handleJoin(
     
     // Update client info
     client.sessionId = sessionId;
-    client.userId = userId;
-    client.username = username || null;
-    client.displayName = displayName || null;
     client.color = color || generateRandomColor();
     
     // Add client to session participants
@@ -130,8 +128,8 @@ async function handleJoin(
     // Notify other participants about the new joiner
     const user = {
       id: userId,
-      username: username || `User-${userId}`,
-      displayName: displayName,
+      username: client.username || `User-${userId}`,
+      displayName: client.displayName,
       color: client.color,
       isActive: true
     };
@@ -491,8 +489,14 @@ export function initializeCollaborativeBillWebSockets(httpServer: Server) {
     const sessionParticipants = new Map<number, Set<string>>();
     
     // Handle connections
-    wss.on('connection', (ws: WebSocket) => {
+    wss.on('connection', async (ws: WebSocket, req) => {
       console.log('New WebSocket connection established for collaborative bill editing');
+
+      const authenticatedUser = await getAuthenticatedUserFromRequest(req);
+      if (!authenticatedUser) {
+        ws.close(1008, 'Authentication required');
+        return;
+      }
       
       // Generate unique ID for this client
       const clientId = uuidv4();
@@ -502,9 +506,9 @@ export function initializeCollaborativeBillWebSockets(httpServer: Server) {
         id: clientId,
         ws,
         sessionId: null,
-        userId: null,
-        username: null,
-        displayName: null,
+        userId: authenticatedUser.id,
+        username: authenticatedUser.username,
+        displayName: authenticatedUser.displayName || authenticatedUser.name || null,
         color: null
       };
       

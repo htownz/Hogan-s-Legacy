@@ -32,6 +32,7 @@ export interface CommunityStorageInterface {
   
   // Category methods
   getAllCategories(): Promise<{ name: string; count: number }[]>;
+  getCategoryById(id: number): Promise<BillSuggestionCategory | undefined>;
   getSuggestionCategories(suggestionId: number): Promise<BillSuggestionCategory[]>;
   addCategory(data: InsertBillSuggestionCategory): Promise<BillSuggestionCategory>;
   removeCategory(id: number): Promise<void>;
@@ -41,6 +42,7 @@ export interface CommunityStorageInterface {
   hasUserUpvoted(userId: number, suggestionId: number): Promise<boolean>;
   
   // Comment methods
+  getCommentById(id: number): Promise<BillSuggestionComment | undefined>;
   getSuggestionComments(suggestionId: number): Promise<(BillSuggestionComment & { user: { username: string, displayName: string | null } })[]>;
   addComment(data: InsertBillSuggestionComment): Promise<BillSuggestionComment>;
   updateComment(id: number, content: string): Promise<BillSuggestionComment | undefined>;
@@ -188,6 +190,17 @@ export class DatabaseCommunityStorage implements CommunityStorageInterface {
     return result;
   }
 
+  async getCategoryById(id: number): Promise<BillSuggestionCategory | undefined> {
+    const [category] = await db
+      .select()
+      .from(billSuggestionCategories)
+      .$dynamic()
+      .where(eq(billSuggestionCategories.id, id))
+      .limit(1);
+
+    return category;
+  }
+
   async getSuggestionCategories(suggestionId: number): Promise<BillSuggestionCategory[]> {
     return db
       .select()
@@ -289,6 +302,17 @@ export class DatabaseCommunityStorage implements CommunityStorageInterface {
   }
 
   // Comment methods
+  async getCommentById(id: number): Promise<BillSuggestionComment | undefined> {
+    const [comment] = await db
+      .select()
+      .from(billSuggestionComments)
+      .$dynamic()
+      .where(eq(billSuggestionComments.id, id))
+      .limit(1);
+
+    return comment;
+  }
+
   async getSuggestionComments(
     suggestionId: number
   ): Promise<(BillSuggestionComment & { user: { username: string, displayName: string | null } })[]> {

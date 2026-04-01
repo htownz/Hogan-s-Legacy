@@ -1,7 +1,7 @@
-// @ts-nocheck
 import { Server as HttpServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { collaborativeAnnotationsStorage } from './storage-collaborative-annotations';
+import { getAuthenticatedUserFromRequest } from './auth';
 
 // Define message types
 type MessageType = 
@@ -18,14 +18,20 @@ interface WsMessage {
   type: MessageType;
   payload: any;
   documentId: number;
+  userId?: number;
+}
+
+interface AuthenticatedSocket extends WebSocket {
   userId: number;
+  username: string;
+  displayName: string | null;
 }
 
 // Store active connections by document ID
-const documentConnections: Record<number, Set<WebSocket>> = {};
+const documentConnections: Record<number, Set<AuthenticatedSocket>> = {};
 
 // Helper function to broadcast to all clients viewing a document
-const broadcastToDocument = (documentId: number, message: WsMessage, excludeSocket?: WebSocket) => {
+const broadcastToDocument = (documentId: number, message: WsMessage, excludeSocket?: AuthenticatedSocket) => {
   const connections = documentConnections[documentId];
   if (!connections) return;
 
@@ -43,22 +49,34 @@ export const setupWebsocketServer = (httpServer: HttpServer) => {
 
   console.log('WebSocket server for annotations initialized');
 
-  wss.on('connection', (ws) => {
+  wss.on('connection', async (ws, req) => {
     console.log('Client connected to annotation WebSocket');
+
+    const authenticatedUser = await getAuthenticatedUserFromRequest(req);
+    if (!authenticatedUser) {
+      ws.close(1008, 'Authentication required');
+      return;
+    }
+
+    const authedSocket = ws as AuthenticatedSocket;
+    authedSocket.userId = authenticatedUser.id;
+    authedSocket.username = authenticatedUser.username;
+    authedSocket.displayName = authenticatedUser.displayName || authenticatedUser.name || null;
     
     // Store document IDs this socket is connected to
     const clientDocuments = new Set<number>();
     
-    ws.on('message', async (message) => {
+    authedSocket.on('message', async (message) => {
       try {
         const data = JSON.parse(message.toString()) as WsMessage;
         
-        if (!data.type || !data.documentId || data.userId === undefined) {
+        if (!data.type || !data.documentId) {
           console.error('Invalid message format:', data);
           return;
         }
         
-        const { type, payload, documentId, userId } = data;
+        const { type, payload, documentId } = data;
+        const userId = authedSocket.userId;
         
         switch (type) {
           case 'join_document':
@@ -66,7 +84,7 @@ export const setupWebsocketServer = (httpServer: HttpServer) => {
             if (!documentConnections[documentId]) {
               documentConnections[documentId] = new Set();
             }
-            documentConnections[documentId].add(ws);
+            documentConnections[documentId].add(authedSocket);
             clientDocuments.add(documentId);
             
             // Check user permissions
@@ -83,16 +101,16 @@ export const setupWebsocketServer = (httpServer: HttpServer) => {
             // Notify others that someone joined
             broadcastToDocument(documentId, {
               type: 'user_activity',
-              payload: { action: 'joined', userId },
+              payload: { action: 'joined', userId, username: authedSocket.username, displayName: authedSocket.displayName },
               documentId,
               userId
-            }, ws);
+            }, authedSocket);
             break;
             
           case 'leave_document':
             // Remove client from document's connection pool
             if (documentConnections[documentId]) {
-              documentConnections[documentId].delete(ws);
+              documentConnections[documentId].delete(authedSocket);
               clientDocuments.delete(documentId);
               
               // Clean up empty document connections
@@ -104,7 +122,7 @@ export const setupWebsocketServer = (httpServer: HttpServer) => {
             // Notify others that someone left
             broadcastToDocument(documentId, {
               type: 'user_activity',
-              payload: { action: 'left', userId },
+              payload: { action: 'left', userId, username: authedSocket.username, displayName: authedSocket.displayName },
               documentId,
               userId
             });
@@ -261,13 +279,13 @@ export const setupWebsocketServer = (httpServer: HttpServer) => {
       }
     });
     
-    ws.on('close', () => {
+    authedSocket.on('close', () => {
       console.log('Client disconnected from annotation WebSocket');
       
       // Clean up all document connections for this client
       clientDocuments.forEach(documentId => {
         if (documentConnections[documentId]) {
-          documentConnections[documentId].delete(ws);
+          documentConnections[documentId].delete(authedSocket);
           
           // Clean up empty document connections
           if (documentConnections[documentId].size === 0) {
@@ -277,7 +295,7 @@ export const setupWebsocketServer = (httpServer: HttpServer) => {
       });
     });
     
-    ws.on('error', (error) => {
+    authedSocket.on('error', (error) => {
       console.error('WebSocket error:', error);
     });
   });

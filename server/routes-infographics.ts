@@ -1,5 +1,6 @@
 import { Express, Request, Response } from "express";
 import { isAuthenticated } from "./auth";
+import { isAdmin } from "./middleware/auth-middleware";
 import { CustomRequest } from "./types";
 import { infographicsStorage } from "./storage-infographics";
 import { storage } from "./storage";
@@ -64,10 +65,8 @@ export function registerInfographicsRoutes(app: Express): void {
   /**
    * Create a new template (admin only in the future)
    */
-  app.post('/api/infographics/templates', isAuthenticated, async (req: CustomRequest, res: Response) => {
+  app.post('/api/infographics/templates', isAuthenticated, isAdmin, async (req: CustomRequest, res: Response) => {
     try {
-      // TODO: Add admin check
-
       const template = await infographicsStorage.createTemplate(req.body);
       res.status(201).json(template);
     } catch (error: any) {

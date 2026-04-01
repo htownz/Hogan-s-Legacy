@@ -6,6 +6,7 @@ import { isAuthenticated } from "./auth";
 import { CustomRequest } from "./types";
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
+import { isUserAdminById } from "./middleware/auth-middleware";
 
 // Create an instance of the feedback storage
 const feedbackStorage = new FeedbackStorage();
@@ -14,6 +15,16 @@ const feedbackStorage = new FeedbackStorage();
  * Register feedback API routes
  */
 export function registerFeedbackRoutes(app: Express): void {
+  const getCurrentUserId = (req: CustomRequest): number | null => {
+    if (req?.session?.userId && Number.isInteger(req.session.userId)) {
+      return Number(req.session.userId);
+    }
+    if (req?.user?.id && Number.isInteger(req.user.id)) {
+      return Number(req.user.id);
+    }
+    return null;
+  };
+
   /**
    * Create new feedback
    */
@@ -23,8 +34,9 @@ export function registerFeedbackRoutes(app: Express): void {
       const feedbackData = insertUserFeedbackSchema.parse(req.body);
       
       // If request is authenticated, add user ID
-      if ((req as CustomRequest).user?.id) {
-        feedbackData.userId = (req as CustomRequest).user?.id;
+      const currentUserId = getCurrentUserId(req as CustomRequest);
+      if (currentUserId) {
+        feedbackData.userId = currentUserId;
         feedbackData.isAnonymous = false;
       }
       
@@ -66,12 +78,11 @@ export function registerFeedbackRoutes(app: Express): void {
    */
   app.get("/api/feedback", isAuthenticated, async (req: CustomRequest, res: Response) => {
     try {
-      // TODO: Add admin check once we have roles
-      // For now, just require authentication
-      if (!req.user) {
+      const currentUserId = getCurrentUserId(req);
+      if (!currentUserId || !isUserAdminById(currentUserId)) {
         return res.status(403).json({
           success: false,
-          error: "Unauthorized"
+          error: "Admin privileges required"
         });
       }
       
@@ -100,12 +111,11 @@ export function registerFeedbackRoutes(app: Express): void {
    */
   app.get("/api/feedback/stats", isAuthenticated, async (req: CustomRequest, res: Response) => {
     try {
-      // TODO: Add admin check once we have roles
-      // For now, just require authentication
-      if (!req.user) {
+      const currentUserId = getCurrentUserId(req);
+      if (!currentUserId || !isUserAdminById(currentUserId)) {
         return res.status(403).json({
           success: false,
-          error: "Unauthorized"
+          error: "Admin privileges required"
         });
       }
       
@@ -130,12 +140,11 @@ export function registerFeedbackRoutes(app: Express): void {
    */
   app.patch("/api/feedback/:id/status", isAuthenticated, async (req: CustomRequest, res: Response) => {
     try {
-      // TODO: Add admin check once we have roles
-      // For now, just require authentication
-      if (!req.user) {
+      const currentUserId = getCurrentUserId(req);
+      if (!currentUserId || !isUserAdminById(currentUserId)) {
         return res.status(403).json({
           success: false,
-          error: "Unauthorized"
+          error: "Admin privileges required"
         });
       }
       

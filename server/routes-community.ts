@@ -7,6 +7,7 @@ import {
   insertBillSuggestionCommentSchema,
 } from "../shared/schema-community";
 import { CustomRequest } from "./types";
+import { isUserAdminById } from "./middleware/auth-middleware";
 
 // Define extended schemas with additional validation
 const createBillSuggestionSchema = insertBillSuggestionSchema.extend({
@@ -246,10 +247,7 @@ export const registerCommunityRoutes = (router: Router): void => {
         return res.status(401).json({ error: "You must be logged in" });
       }
 
-      // TODO: Add proper admin check
-      // For now, we'll assume all users can feature suggestions
-      const isAdmin = true; 
-      if (!isAdmin) {
+      if (!isUserAdminById(req.session.userId)) {
         return res.status(403).json({ error: "Only admins can feature suggestions" });
       }
 
@@ -354,7 +352,21 @@ export const registerCommunityRoutes = (router: Router): void => {
         return res.status(400).json({ error: "Invalid ID format" });
       }
 
-      // TODO: Add check to verify user owns the suggestion with this category
+      const category = await communityStorage.getCategoryById(categoryId);
+      if (!category) {
+        return res.status(404).json({ error: "Category not found" });
+      }
+
+      const suggestion = await communityStorage.getBillSuggestionById(category.suggestionId);
+      if (!suggestion) {
+        return res.status(404).json({ error: "Associated suggestion not found" });
+      }
+
+      const isOwner = suggestion.userId === req.session.userId;
+      const isAdmin = isUserAdminById(req.session.userId);
+      if (!isOwner && !isAdmin) {
+        return res.status(403).json({ error: "You can only remove categories from your own suggestions" });
+      }
 
       await communityStorage.removeCategory(categoryId);
       res.status(200).json({ message: "Category removed successfully" });
@@ -479,8 +491,16 @@ export const registerCommunityRoutes = (router: Router): void => {
         return res.status(400).json({ error: "Invalid ID format" });
       }
 
-      // TODO: Add check to verify user owns the comment
-      // For now, we're allowing any logged-in user to update any comment for simplicity
+      const existingComment = await communityStorage.getCommentById(commentId);
+      if (!existingComment) {
+        return res.status(404).json({ error: "Comment not found" });
+      }
+
+      const isOwner = existingComment.userId === req.session.userId;
+      const isAdmin = isUserAdminById(req.session.userId);
+      if (!isOwner && !isAdmin) {
+        return res.status(403).json({ error: "You can only update your own comments" });
+      }
       
       const content = req.body.content;
       if (!content || typeof content !== 'string' || content.length < 3) {
@@ -511,8 +531,16 @@ export const registerCommunityRoutes = (router: Router): void => {
         return res.status(400).json({ error: "Invalid ID format" });
       }
 
-      // TODO: Add check to verify user owns the comment
-      // For now, we're allowing any logged-in user to delete any comment for simplicity
+      const existingComment = await communityStorage.getCommentById(commentId);
+      if (!existingComment) {
+        return res.status(404).json({ error: "Comment not found" });
+      }
+
+      const isOwner = existingComment.userId === req.session.userId;
+      const isAdmin = isUserAdminById(req.session.userId);
+      if (!isOwner && !isAdmin) {
+        return res.status(403).json({ error: "You can only delete your own comments" });
+      }
 
       await communityStorage.deleteComment(commentId);
       res.status(200).json({ message: "Comment deleted successfully" });

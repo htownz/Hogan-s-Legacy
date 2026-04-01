@@ -3,6 +3,7 @@ import { z } from "zod";
 import { CustomRequest } from "../types";
 import { storage } from "../storage-verification";
 import { isAuthenticated } from "../auth";
+import { isAdmin, isUserAdminById } from "../middleware/auth-middleware";
 import {
   insertLegislativeUpdateSchema,
   insertVerificationSchema,
@@ -12,6 +13,16 @@ import {
 } from "@shared/schema";
 
 export function registerVerificationRoutes(app: Express) {
+  const getCurrentUserId = (req: CustomRequest): number | null => {
+    if (req?.session?.userId && Number.isInteger(req.session.userId)) {
+      return Number(req.session.userId);
+    }
+    if (req?.user?.id && Number.isInteger(req.user.id)) {
+      return Number(req.user.id);
+    }
+    return null;
+  };
+
   // ---- LEGISLATIVE UPDATES ROUTES ----
   
   // Get all legislative updates for a bill
@@ -224,9 +235,8 @@ export function registerVerificationRoutes(app: Express) {
   });
 
   // Create a new verification rule (admin only)
-  app.post("/api/verification/rules", isAuthenticated, async (req: CustomRequest, res: Response) => {
+  app.post("/api/verification/rules", isAuthenticated, isAdmin, async (req: CustomRequest, res: Response) => {
     try {
-      // TODO: Add admin check here
       const ruleData = insertVerificationRuleSchema.parse(req.body);
       const newRule = await storage.createVerificationRule(ruleData);
       res.status(201).json(newRule);
@@ -267,7 +277,10 @@ export function registerVerificationRoutes(app: Express) {
   // Add a trusted verification source (requires authentication)
   app.post("/api/verification/sources", isAuthenticated, async (req: CustomRequest, res: Response) => {
     try {
-      const userId = req.user!.id;
+      const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
       const sourceData = insertVerificationSourceSchema.parse({
         ...req.body,
         addedBy: userId
@@ -301,7 +314,10 @@ export function registerVerificationRoutes(app: Express) {
   // Get current user's verification credentials (requires authentication)
   app.get("/api/verification/me/credentials", isAuthenticated, async (req: CustomRequest, res: Response) => {
     try {
-      const userId = req.user!.id;
+      const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
       const credentials = await storage.getUserVerificationCredentialsByUserId(userId);
       res.json(credentials);
     } catch (error: any) {
@@ -313,9 +329,18 @@ export function registerVerificationRoutes(app: Express) {
   // Update user verification credentials
   app.put("/api/verification/users/:userId/credentials/:credentialType", isAuthenticated, async (req: CustomRequest, res: Response) => {
     try {
-      // TODO: Add admin check or self-only check
       const userId = parseInt(req.params.userId);
       const { credentialType } = req.params;
+
+      const currentUserId = getCurrentUserId(req);
+      if (!currentUserId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const canEdit = currentUserId === userId || isUserAdminById(currentUserId);
+      if (!canEdit) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
       
       const data = req.body;
       const updatedCredential = await storage.updateUserVerificationCredential(userId, credentialType, data);

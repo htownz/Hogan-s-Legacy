@@ -1,4 +1,4 @@
-import { Express, Request, Response, NextFunction } from "express";
+import { Express, Request, Response } from "express";
 import { z } from "zod";
 import {
   analyzeFinancialNetworks,
@@ -22,17 +22,7 @@ import {
   insertScoutBotCrossDatasetAnomaliesSchema,
   insertScoutBotHistoricalTrendsSchema
 } from "../shared/schema-scout-bot-analytics";
-
-// Admin middleware - temporary implementation until proper admin system is implemented
-const isAdmin = (req: CustomRequest, res: Response, next: NextFunction) => {
-  if (req.session.userId) {
-    // For testing purposes, we're treating authenticated users as admins
-    // In a production environment, you would check if the user has admin privileges
-    next();
-  } else {
-    res.status(403).json({ message: "Admin privileges required" });
-  }
-};
+import { isAdmin } from "./middleware/auth-middleware";
 
 /**
  * Register Scout Bot Analytics API routes

@@ -5,12 +5,22 @@
 
 import { Express, Request, Response } from "express";
 import { pool } from "./db";
+import { isAuthenticated } from "./auth";
+import { isAdmin } from "./middleware/auth-middleware";
 
 export function registerDebugRoutes(app: Express): void {
+  const shouldEnableDebugRoutes =
+    process.env.NODE_ENV !== "production" || process.env.ENABLE_DEBUG_ROUTES === "true";
+
+  if (!shouldEnableDebugRoutes) {
+    console.log("Debug routes are disabled in production (set ENABLE_DEBUG_ROUTES=true to enable)");
+    return;
+  }
+
   /**
    * Get a count of all bills in the database
    */
-  app.get("/api/debug/bills/count", async (_req: Request, res: Response) => {
+  app.get("/api/debug/bills/count", isAuthenticated, isAdmin, async (_req: Request, res: Response) => {
     try {
       const result = await pool.query('SELECT COUNT(*) FROM bills');
       const count = parseInt(result.rows[0].count);
@@ -28,7 +38,7 @@ export function registerDebugRoutes(app: Express): void {
   /**
    * Get sample bills to inspect their structure
    */
-  app.get("/api/debug/bills/sample", async (req: Request, res: Response) => {
+  app.get("/api/debug/bills/sample", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
       
@@ -47,7 +57,7 @@ export function registerDebugRoutes(app: Express): void {
   /**
    * Get details about bill data validity
    */
-  app.get("/api/debug/bills/validity", async (_req: Request, res: Response) => {
+  app.get("/api/debug/bills/validity", isAuthenticated, isAdmin, async (_req: Request, res: Response) => {
     try {
       // Check for bills with empty titles
       const emptyTitleResult = await pool.query(

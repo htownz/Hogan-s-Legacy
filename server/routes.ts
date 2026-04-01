@@ -12,7 +12,7 @@ import { trendingStorage } from "./storage-trending";
 import { powerInfluencersStorage } from "./storage-power-influencers";
 import { z } from "zod";
 import { CustomRequest } from "./types";
-import { setupAuth, isAuthenticated } from "./auth";
+import { setupAuth, isAuthenticated, getAuthenticatedUserFromRequest } from "./auth";
 import { registerAwsRoutes } from "./routes/aws-routes";
 import { registerLegislationRoutes } from "./routes/legislation-routes";
 import { registerAdvocacyRoutes } from "./routes/advocacy-routes"; 
@@ -1613,12 +1613,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const connectedClients = new Map();
       
       // Handle WebSocket connections
-      wss.on('connection', (ws: WebSocket) => {
+      wss.on('connection', async (ws: WebSocket, req) => {
         console.log('New WebSocket connection established for collaborative annotations');
+
+        const authenticatedUser = await getAuthenticatedUserFromRequest(req);
+        if (!authenticatedUser) {
+          ws.close(1008, 'Authentication required');
+          return;
+        }
         
         const clientId = uuidv4();
         let documentId: number | null = null;
-        let userId: number | null = null;
+        const userId = authenticatedUser.id;
+        const username = authenticatedUser.displayName || authenticatedUser.username;
         
         // Client is now connected
         connectedClients.set(clientId, { ws, documentId, userId });
@@ -1639,8 +1646,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             switch (data.type) {
               case 'join_document':
                 // User joined a document
-                documentId = data.documentId;
-                userId = data.userId;
+                documentId = Number(data.documentId);
+                if (!Number.isInteger(documentId) || documentId <= 0) {
+                  break;
+                }
                 
                 // Update client info
                 connectedClients.set(clientId, { ws, documentId, userId });
@@ -1651,7 +1660,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   userId: userId,
                   payload: {
                     action: 'joined',
-                    username: data.payload?.username || `User ${userId}`
+                    username
                   }
                 }, clientId);
                 break;
@@ -1663,7 +1672,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   userId: userId,
                   payload: {
                     action: 'left',
-                    username: data.payload?.username || `User ${userId}`
+                    username
                   }
                 }, clientId);
                 
@@ -1676,7 +1685,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 // User cursor position update
                 broadcastToDocument(documentId, {
                   type: 'cursor_position',
-                  userId: data.userId,
+                  userId,
                   payload: data.payload
                 }, clientId);
                 break;
@@ -1685,7 +1694,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
               case 'update_annotation':
               case 'delete_annotation':
                 // Annotation actions - broadcast to others
-                broadcastToDocument(documentId, data, clientId);
+                broadcastToDocument(documentId, {
+                  ...data,
+                  userId,
+                  payload: data.payload ?? {}
+                }, clientId);
                 break;
                 
               default:
@@ -1707,7 +1720,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               userId: userId,
               payload: {
                 action: 'left',
-                username: `User ${userId}`
+                username
               }
             }, clientId);
           }

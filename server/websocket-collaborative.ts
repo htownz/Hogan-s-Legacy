@@ -1,9 +1,7 @@
-// @ts-nocheck
 import { WebSocketServer, WebSocket } from 'ws';
 import http from 'http';
 import { collaborativeStorage } from './storage-collaborative';
-import { verifyToken } from './auth';
-import { parseCookies } from './utils/cookies';
+import { getAuthenticatedUserFromRequest } from './auth';
 
 // Define message types
 type MessageType = 
@@ -49,20 +47,8 @@ export function initializeCollaborativeWebsockets(server: http.Server) {
     // Set initial connection state
     ws.isAlive = true;
 
-    // Extract cookies from request to get session token
-    const cookies = parseCookies(req);
-    const token = cookies['auth_token'];
-
-    // Authenticate user from token
-    if (!token) {
-      sendError(ws, 'Authentication required');
-      ws.close();
-      return;
-    }
-
     try {
-      // Verify token
-      const user = await verifyToken(token);
+      const user = await getAuthenticatedUserFromRequest(req);
       
       if (!user) {
         sendError(ws, 'Invalid authentication');

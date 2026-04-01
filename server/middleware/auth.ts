@@ -1,26 +1,61 @@
-// @ts-nocheck
 import { Request, Response, NextFunction } from "express";
 import { storage } from "../storage";
+import { isUserAdminById } from "./auth-middleware";
+
+type AuthenticatedRequest = Request & {
+  session?: {
+    userId?: number;
+    passport?: {
+      user?: number;
+    };
+  };
+  user?: {
+    id?: number;
+  };
+};
+
+function resolveUserId(req: AuthenticatedRequest): number | null {
+  if (req.session?.userId && Number.isInteger(req.session.userId)) {
+    return Number(req.session.userId);
+  }
+
+  if (req.user?.id && Number.isInteger(req.user.id)) {
+    return Number(req.user.id);
+  }
+
+  if (req.session?.passport?.user && Number.isInteger(req.session.passport.user)) {
+    return Number(req.session.passport.user);
+  }
+
+  return null;
+}
 
 // Middleware to check if the user is authenticated
-export const authenticateJWT = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.isAuthenticated()) {
+export const authenticateJWT = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  if (resolveUserId(req) !== null) {
+    return next();
+  }
+
+  if (typeof req.isAuthenticated === "function" && req.isAuthenticated()) {
+    return next();
+  }
+
+  if (resolveUserId(req) === null) {
     return res.status(401).json({ message: "Unauthorized: Authentication required" });
   }
+
   next();
 };
 
 // Middleware to check if the user has admin role
-export const requireAdmin = async (req: Request, res: Response, next: NextFunction) => {
-  if (!req.isAuthenticated()) {
+export const requireAdmin = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  if (resolveUserId(req) === null) {
     return res.status(401).json({ message: "Unauthorized: Authentication required" });
   }
   
   try {
-    // We can check for admin role in a different way since the User type doesn't have a role property
-    // For example, we could have a separate admin table or check a specific user ID
-    // This is a simplified implementation that you can customize based on your needs
-    if (!req.user || req.user.id !== 1) { // Assuming user with ID 1 is the admin
+    const userId = resolveUserId(req);
+    if (!userId || !isUserAdminById(userId)) {
       return res.status(403).json({ message: "Forbidden: Admin access required" });
     }
     
@@ -32,13 +67,14 @@ export const requireAdmin = async (req: Request, res: Response, next: NextFuncti
 };
 
 // Middleware to check if the user has super user role
-export const requireSuperUser = async (req: Request, res: Response, next: NextFunction) => {
-  if (!req.isAuthenticated()) {
+export const requireSuperUser = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  const userId = resolveUserId(req);
+  if (!userId) {
     return res.status(401).json({ message: "Unauthorized: Authentication required" });
   }
   
   try {
-    const superUserRole = await storage.getSuperUserRoleByUserId(req.user!.id);
+    const superUserRole = await storage.getSuperUserRoleByUserId(userId);
     
     if (!superUserRole) {
       return res.status(403).json({ message: "Forbidden: Super User access required" });
