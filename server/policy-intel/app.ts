@@ -1,5 +1,6 @@
 import express, { NextFunction, Request, Response } from "express";
 import cors from "cors";
+import rateLimit from "express-rate-limit";
 import { createPolicyIntelRouter } from "./routes";
 import { metrics } from "./metrics";
 import { authMiddleware } from "./auth";
@@ -15,6 +16,31 @@ export function createPolicyIntelApp() {
   app.use(cors({ origin: allowedOrigins, credentials: true }));
   app.use(express.json({ limit: "2mb" }));
   app.use(express.urlencoded({ extended: true }));
+
+  // ── Rate limiting ──
+  const apiLimiter = rateLimit({
+    windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS) || 60_000,
+    max: Number(process.env.RATE_LIMIT_MAX) || 120,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: "Too many requests, please try again later" },
+  });
+
+  const mutationLimiter = rateLimit({
+    windowMs: Number(process.env.RATE_LIMIT_MUTATION_WINDOW_MS) || 60_000,
+    max: Number(process.env.RATE_LIMIT_MUTATION_MAX) || 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: "Too many write requests, please try again later" },
+  });
+
+  app.use("/api/intel", apiLimiter);
+  app.use("/api/intel", (req, _res, next) => {
+    if (req.method === "POST" || req.method === "PATCH" || req.method === "DELETE") {
+      return mutationLimiter(req, _res, next);
+    }
+    next();
+  });
 
   // ── HTTP metrics middleware ──
   app.use((req, res, next) => {

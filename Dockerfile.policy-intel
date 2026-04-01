@@ -16,15 +16,19 @@ FROM alpine:3.23 AS runtime
 RUN apk upgrade --no-cache \
 	&& apk add --no-cache nodejs npm ca-certificates ffmpeg
 
+RUN addgroup -g 1001 appgroup && adduser -S -u 1001 -G appgroup appuser
+
 WORKDIR /app
 
 ENV NODE_ENV=production
 ENV POLICY_INTEL_PORT=5050
 
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev && chown -R appuser:appgroup /app
 
-COPY --from=build /app/dist-policy-intel ./dist-policy-intel
+COPY --from=build --chown=appuser:appgroup /app/dist-policy-intel ./dist-policy-intel
+
+USER appuser
 
 EXPOSE 5050
 CMD ["npm", "run", "start:policy-intel"]

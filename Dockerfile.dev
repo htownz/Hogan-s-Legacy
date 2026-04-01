@@ -8,6 +8,8 @@ RUN apk upgrade --no-cache \
     ffmpeg \
     postgresql-client
 
+RUN addgroup -g 1001 appgroup && adduser -S -u 1001 -G appgroup appuser
+
 WORKDIR /workspace
 
 COPY package*.json ./
@@ -16,7 +18,9 @@ RUN npm ci
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-COPY . .
+COPY --chown=appuser:appgroup . .
+
+USER appuser
 
 EXPOSE 5050
 ENTRYPOINT ["docker-entrypoint.sh"]

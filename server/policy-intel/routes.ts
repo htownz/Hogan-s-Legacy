@@ -5,6 +5,43 @@ import { activities, alerts, briefs, deliverables, issueRoomSourceDocuments, iss
 import { seedGraceMcEwan } from "./seed/grace-mcewan";
 import { runTloRssJob } from "./jobs/run-tlo-rss";
 import { runLegiscanJob } from "./jobs/run-legiscan";
+import {
+  validateBody,
+  createWorkspaceSchema,
+  createWatchlistSchema,
+  patchWatchlistSchema,
+  createSourceDocumentSchema,
+  createAlertSchema,
+  patchAlertSchema,
+  bulkTriageSchema,
+  createIssueRoomSchema,
+  createIssueRoomFromAlertSchema,
+  patchIssueRoomSchema,
+  createIssueRoomUpdateSchema,
+  createStrategyOptionSchema,
+  createTaskSchema,
+  patchTaskSchema,
+  createIssueRoomStakeholderSchema,
+  createMatterSchema,
+  createStakeholderSchema,
+  createObservationSchema,
+  createMeetingNoteSchema,
+  createActivitySchema,
+  generateBriefSchema,
+  generateClientAlertSchema,
+  generateWeeklyReportSchema,
+  generateHearingMemoSchema,
+  pipelineTestSchema,
+  runLegiscanSchema,
+  fetchTecSchema,
+  runTecImportSchema,
+  createCommitteeIntelFromHearingSchema,
+  addSegmentSchema,
+  focusedBriefSchema,
+  createReplayRunSchema,
+  importLegislatorsSchema,
+  linkWatchlistToMatterSchema,
+} from "./validation";
 import { processDocumentAlerts } from "./services/alert-service";
 import { generateBrief } from "./services/brief-service";
 import { upsertStakeholder, addObservation, getStakeholderWithObservations, getStakeholdersForMatter } from "./services/stakeholder-service";
@@ -335,12 +372,9 @@ export function createPolicyIntelRouter() {
     }
   });
 
-  router.post("/workspaces", async (req, res, next) => {
+  router.post("/workspaces", validateBody(createWorkspaceSchema), async (req, res, next) => {
     try {
-      const { slug, name } = req.body ?? {};
-      if (!slug || !name) {
-        return res.status(400).json({ message: "slug and name are required" });
-      }
+      const { slug, name } = req.body;
 
       const [created] = await policyIntelDb
         .insert(workspaces)
@@ -368,12 +402,9 @@ export function createPolicyIntelRouter() {
     }
   });
 
-  router.post("/watchlists", async (req, res, next) => {
+  router.post("/watchlists", validateBody(createWatchlistSchema), async (req, res, next) => {
     try {
-      const { workspaceId, name, topic, description, rulesJson } = req.body ?? {};
-      if (!workspaceId || !name) {
-        return res.status(400).json({ message: "workspaceId and name are required" });
-      }
+      const { workspaceId, name, topic, description, rulesJson } = req.body;
 
       const [created] = await policyIntelDb
         .insert(watchlists)
@@ -409,11 +440,11 @@ export function createPolicyIntelRouter() {
   /**
    * PATCH /watchlists/:id — update watchlist name, description, rules, or active status.
    */
-  router.patch("/watchlists/:id", async (req, res, next) => {
+  router.patch("/watchlists/:id", validateBody(patchWatchlistSchema), async (req, res, next) => {
     try {
       const id = parseId(req.params.id);
       if (!id) return res.status(400).json({ message: "invalid id" });
-      const { name, topic, description, rulesJson, isActive } = req.body ?? {};
+      const { name, topic, description, rulesJson, isActive } = req.body;
 
       const updates: Record<string, unknown> = {};
       if (name !== undefined) updates.name = name;
@@ -422,10 +453,6 @@ export function createPolicyIntelRouter() {
       if (rulesJson !== undefined) updates.rulesJson = rulesJson;
       if (isActive !== undefined) updates.isActive = Boolean(isActive);
       updates.updatedAt = new Date();
-
-      if (Object.keys(updates).length <= 1) {
-        return res.status(400).json({ message: "Provide at least one field to update" });
-      }
 
       const [updated] = await policyIntelDb
         .update(watchlists)
@@ -467,7 +494,7 @@ export function createPolicyIntelRouter() {
     }
   });
 
-  router.post("/source-documents", async (req, res, next) => {
+  router.post("/source-documents", validateBody(createSourceDocumentSchema), async (req, res, next) => {
     try {
       const {
         sourceType,
@@ -481,13 +508,7 @@ export function createPolicyIntelRouter() {
         rawPayload,
         normalizedText,
         tagsJson,
-      } = req.body ?? {};
-
-      if (!sourceType || !publisher || !sourceUrl || !title) {
-        return res.status(400).json({
-          message: "sourceType, publisher, sourceUrl, and title are required",
-        });
-      }
+      } = req.body;
 
       const [created] = await policyIntelDb
         .insert(sourceDocuments)
@@ -580,7 +601,7 @@ export function createPolicyIntelRouter() {
     }
   });
 
-  router.post("/alerts", async (req, res, next) => {
+  router.post("/alerts", validateBody(createAlertSchema), async (req, res, next) => {
     try {
       const {
         workspaceId,
@@ -588,18 +609,11 @@ export function createPolicyIntelRouter() {
         sourceDocumentId,
         title,
         summary,
-        // Accept friendly input names; map to actual schema columns below
-        severity = "info",
-        status = "pending_review",
+        severity,
+        status,
         alertReason,
         metadataJson,
-      } = req.body ?? {};
-
-      if (!workspaceId || !watchlistId || !sourceDocumentId || !title) {
-        return res.status(400).json({
-          message: "workspaceId, watchlistId, sourceDocumentId, and title are required",
-        });
-      }
+      } = req.body;
 
       // Map severity string → relevanceScore integer
       const severityScoreMap: Record<string, number> = {
@@ -682,11 +696,11 @@ export function createPolicyIntelRouter() {
 
   // ── Phase 7: Reviewer feedback ────────────────────────────────────────────
 
-  router.patch("/alerts/:id", async (req, res, next) => {
+  router.patch("/alerts/:id", validateBody(patchAlertSchema), async (req, res, next) => {
     try {
       const id = parseId(req.params.id);
       if (!id) return res.status(400).json({ message: "invalid id" });
-      const { status, reviewerNote } = req.body ?? {};
+      const { status, reviewerNote } = req.body;
 
       const validStatuses = ["pending_review", "ready", "sent", "suppressed"] as const;
       type AlertStatus = typeof validStatuses[number];
@@ -699,10 +713,6 @@ export function createPolicyIntelRouter() {
         updates.reviewerNote = reviewerNote;
       }
       updates.reviewedAt = new Date();
-
-      if (Object.keys(updates).length <= 1) {
-        return res.status(400).json({ message: "Provide status and/or reviewerNote" });
-      }
 
       const [updated] = await policyIntelDb
         .update(alerts)
@@ -798,12 +808,12 @@ export function createPolicyIntelRouter() {
    * POST /alerts/bulk-triage — auto-suppress low-scoring alerts and auto-promote bill-ID matches.
    * Body: { suppressBelow?: number, promoteAbove?: number, dryRun?: boolean }
    */
-  router.post("/alerts/bulk-triage", async (req, res, next) => {
+  router.post("/alerts/bulk-triage", validateBody(bulkTriageSchema), async (req, res, next) => {
     try {
-      const suppressBelow = Math.max(0, Math.min(100, Number(req.body?.suppressBelow) || 20));
-      const promoteAbove = Math.max(0, Math.min(100, Number(req.body?.promoteAbove) || 70));
-      const dryRun = Boolean(req.body?.dryRun);
-      const approvalToken = typeof req.body?.approvalToken === "string" ? req.body.approvalToken.trim() : "";
+      const suppressBelow = req.body.suppressBelow;
+      const promoteAbove = req.body.promoteAbove;
+      const dryRun = req.body.dryRun;
+      const approvalToken = req.body.approvalToken;
       const requireApproval = process.env.BULK_TRIAGE_REQUIRE_APPROVAL !== "false";
       const approvalThreshold = Math.max(1, Number(process.env.BULK_TRIAGE_APPROVAL_THRESHOLD || 100));
       const approvalPhrase = process.env.BULK_TRIAGE_APPROVAL_TOKEN || "APPROVE_BULK_TRIAGE";
@@ -1034,12 +1044,9 @@ export function createPolicyIntelRouter() {
     }
   });
 
-  router.post("/briefs/generate", async (req, res, next) => {
+  router.post("/briefs/generate", validateBody(generateBriefSchema), async (req, res, next) => {
     try {
-      const { workspaceId, watchlistId, matterId, sourceDocumentIds, title } = req.body ?? {};
-      if (!workspaceId || !sourceDocumentIds || !Array.isArray(sourceDocumentIds) || sourceDocumentIds.length === 0) {
-        return res.status(400).json({ message: "workspaceId and non-empty sourceDocumentIds[] are required — no sources, no brief" });
-      }
+      const { workspaceId, watchlistId, matterId, sourceDocumentIds, title } = req.body;
       const result = await generateBrief({
         workspaceId: Number(workspaceId),
         watchlistId: watchlistId ? Number(watchlistId) : undefined,
@@ -1122,12 +1129,9 @@ export function createPolicyIntelRouter() {
     }
   });
 
-  router.post("/issue-rooms", async (req, res, next) => {
+  router.post("/issue-rooms", validateBody(createIssueRoomSchema), async (req, res, next) => {
     try {
-      const { workspaceId, matterId, slug, title, issueType, jurisdiction, status, summary, recommendedPath, ownerUserId, relatedBillIds, sourceDocumentIds } = req.body ?? {};
-      if (!workspaceId || !title) {
-        return res.status(400).json({ message: "workspaceId and title are required" });
-      }
+      const { workspaceId, matterId, slug, title, issueType, jurisdiction, status, summary, recommendedPath, ownerUserId, relatedBillIds, sourceDocumentIds } = req.body;
 
       const resolvedSlug = slugifyIssueRoom(slug ?? title);
       const [created] = await policyIntelDb
@@ -1206,13 +1210,13 @@ export function createPolicyIntelRouter() {
     }
   });
 
-  router.post("/alerts/:id/create-issue-room", async (req, res, next) => {
+  router.post("/alerts/:id/create-issue-room", validateBody(createIssueRoomFromAlertSchema), async (req, res, next) => {
     try {
       const alertId = Number(req.params.id);
       const [alert] = await policyIntelDb.select().from(alerts).where(eq(alerts.id, alertId));
       if (!alert) return res.status(404).json({ message: "alert not found" });
 
-      const { matterId, slug, title, issueType, jurisdiction, summary, recommendedPath, ownerUserId, relatedBillIds } = req.body ?? {};
+      const { matterId, slug, title, issueType, jurisdiction, summary, recommendedPath, ownerUserId, relatedBillIds } = req.body;
       const resolvedTitle = title ?? alert.title;
       const [created] = await policyIntelDb
         .insert(issueRooms)
@@ -1280,11 +1284,11 @@ export function createPolicyIntelRouter() {
   });
 
   // ── PATCH issue room fields ──────────────────────────────────────────────
-  router.patch("/issue-rooms/:id", async (req, res, next) => {
+  router.patch("/issue-rooms/:id", validateBody(patchIssueRoomSchema), async (req, res, next) => {
     try {
       const id = parseId(req.params.id);
       if (!id) return res.status(400).json({ message: "invalid id" });
-      const { title, summary, status, recommendedPath, issueType, jurisdiction } = req.body ?? {};
+      const { title, summary, status, recommendedPath, issueType, jurisdiction } = req.body;
       const patch: Record<string, unknown> = {};
       if (title !== undefined) patch.title = title;
       if (summary !== undefined) patch.summary = summary;
@@ -1343,13 +1347,10 @@ export function createPolicyIntelRouter() {
     }
   });
 
-  router.post("/issue-rooms/:id/updates", async (req, res, next) => {
+  router.post("/issue-rooms/:id/updates", validateBody(createIssueRoomUpdateSchema), async (req, res, next) => {
     try {
       const issueRoomId = Number(req.params.id);
-      const { title, body, updateType, sourcePackJson } = req.body ?? {};
-      if (!title || !body) {
-        return res.status(400).json({ message: "title and body are required" });
-      }
+      const { title, body, updateType, sourcePackJson } = req.body;
 
       const [created] = await policyIntelDb
         .insert(issueRoomUpdates)
@@ -1380,13 +1381,10 @@ export function createPolicyIntelRouter() {
     }
   });
 
-  router.post("/issue-rooms/:id/strategy-options", async (req, res, next) => {
+  router.post("/issue-rooms/:id/strategy-options", validateBody(createStrategyOptionSchema), async (req, res, next) => {
     try {
       const issueRoomId = Number(req.params.id);
-      const { label, description, prosJson, consJson, politicalFeasibility, legalDurability, implementationComplexity, recommendationRank } = req.body ?? {};
-      if (!label) {
-        return res.status(400).json({ message: "label is required" });
-      }
+      const { label, description, prosJson, consJson, politicalFeasibility, legalDurability, implementationComplexity, recommendationRank } = req.body;
 
       const [created] = await policyIntelDb
         .insert(issueRoomStrategyOptions)
@@ -1409,13 +1407,10 @@ export function createPolicyIntelRouter() {
     }
   });
 
-  router.post("/issue-rooms/:id/tasks", async (req, res, next) => {
+  router.post("/issue-rooms/:id/tasks", validateBody(createTaskSchema), async (req, res, next) => {
     try {
       const issueRoomId = Number(req.params.id);
-      const { title, description, status, priority, assignee, dueDate } = req.body ?? {};
-      if (!title) {
-        return res.status(400).json({ message: "title is required" });
-      }
+      const { title, description, status, priority, assignee, dueDate } = req.body;
 
       const [created] = await policyIntelDb
         .insert(issueRoomTasks)
@@ -1436,11 +1431,11 @@ export function createPolicyIntelRouter() {
     }
   });
 
-  router.patch("/issue-rooms/:issueRoomId/tasks/:taskId", async (req, res, next) => {
+  router.patch("/issue-rooms/:issueRoomId/tasks/:taskId", validateBody(patchTaskSchema), async (req, res, next) => {
     try {
       const issueRoomId = Number(req.params.issueRoomId);
       const taskId = Number(req.params.taskId);
-      const { status, priority, assignee, dueDate, completedAt } = req.body ?? {};
+      const { status, priority, assignee, dueDate, completedAt } = req.body;
 
       const [existing] = await policyIntelDb
         .select()
@@ -1462,10 +1457,6 @@ export function createPolicyIntelRouter() {
         updateValues.completedAt = completedAt ? new Date(completedAt) : null;
       } else if (status !== undefined) {
         updateValues.completedAt = status === "done" ? new Date() : null;
-      }
-
-      if (Object.keys(updateValues).length === 0) {
-        return res.status(400).json({ message: "at least one field is required" });
       }
 
       const [updated] = await policyIntelDb
@@ -1492,16 +1483,13 @@ export function createPolicyIntelRouter() {
     }
   });
 
-  router.post("/issue-rooms/:id/stakeholders", async (req, res, next) => {
+  router.post("/issue-rooms/:id/stakeholders", validateBody(createIssueRoomStakeholderSchema), async (req, res, next) => {
     try {
       const issueRoomId = Number(req.params.id);
       const [issueRoom] = await policyIntelDb.select().from(issueRooms).where(eq(issueRooms.id, issueRoomId));
       if (!issueRoom) return res.status(404).json({ message: "issue room not found" });
 
-      const { type, name, title, organization, jurisdiction, tagsJson, sourceSummary } = req.body ?? {};
-      if (!type || !name) {
-        return res.status(400).json({ message: "type and name are required" });
-      }
+      const { type, name, title, organization, jurisdiction, tagsJson, sourceSummary } = req.body;
 
       const [created] = await policyIntelDb
         .insert(stakeholders)
@@ -1535,12 +1523,9 @@ export function createPolicyIntelRouter() {
     }
   });
 
-  router.post("/matters", async (req, res, next) => {
+  router.post("/matters", validateBody(createMatterSchema), async (req, res, next) => {
     try {
-      const { workspaceId, slug, name, clientName, practiceArea, jurisdictionScope, status, ownerUserId, description, tagsJson } = req.body ?? {};
-      if (!workspaceId || !slug || !name) {
-        return res.status(400).json({ message: "workspaceId, slug, and name are required" });
-      }
+      const { workspaceId, slug, name, clientName, practiceArea, jurisdictionScope, status, ownerUserId, description, tagsJson } = req.body;
       const [created] = await policyIntelDb
         .insert(matters)
         .values({
@@ -1575,13 +1560,10 @@ export function createPolicyIntelRouter() {
   });
 
   // Link a watchlist to a matter
-  router.post("/matters/:id/watchlists", async (req, res, next) => {
+  router.post("/matters/:id/watchlists", validateBody(linkWatchlistToMatterSchema), async (req, res, next) => {
     try {
       const matterId = Number(req.params.id);
-      const { watchlistId } = req.body ?? {};
-      if (!watchlistId) {
-        return res.status(400).json({ message: "watchlistId is required" });
-      }
+      const { watchlistId } = req.body;
       const [created] = await policyIntelDb
         .insert(matterWatchlists)
         .values({ matterId, watchlistId: Number(watchlistId) })
@@ -1626,13 +1608,10 @@ export function createPolicyIntelRouter() {
 
   // ── Activities ────────────────────────────────────────────────────────────
 
-  router.post("/matters/:id/activities", async (req, res, next) => {
+  router.post("/matters/:id/activities", validateBody(createActivitySchema), async (req, res, next) => {
     try {
       const matterId = Number(req.params.id);
-      const { workspaceId, alertId, type, ownerUserId, summary, detailText, dueAt } = req.body ?? {};
-      if (!workspaceId || !type || !summary) {
-        return res.status(400).json({ message: "workspaceId, type, and summary are required" });
-      }
+      const { workspaceId, alertId, type, ownerUserId, summary, detailText, dueAt } = req.body;
       const [created] = await policyIntelDb
         .insert(activities)
         .values({
@@ -1767,12 +1746,9 @@ export function createPolicyIntelRouter() {
     }
   });
 
-  router.post("/stakeholders", async (req, res, next) => {
+  router.post("/stakeholders", validateBody(createStakeholderSchema), async (req, res, next) => {
     try {
-      const { workspaceId, type, name, title, organization, jurisdiction, tagsJson, sourceSummary } = req.body ?? {};
-      if (!workspaceId || !type || !name) {
-        return res.status(400).json({ message: "workspaceId, type, and name are required" });
-      }
+      const { workspaceId, type, name, title, organization, jurisdiction, tagsJson, sourceSummary } = req.body;
       const result = await upsertStakeholder({
         workspaceId: Number(workspaceId),
         type,
@@ -1801,13 +1777,10 @@ export function createPolicyIntelRouter() {
     }
   });
 
-  router.post("/stakeholders/:id/observations", async (req, res, next) => {
+  router.post("/stakeholders/:id/observations", validateBody(createObservationSchema), async (req, res, next) => {
     try {
       const stakeholderId = Number(req.params.id);
-      const { sourceDocumentId, matterId, observationText, confidence } = req.body ?? {};
-      if (!observationText) {
-        return res.status(400).json({ message: "observationText is required" });
-      }
+      const { sourceDocumentId, matterId, observationText, confidence } = req.body;
       const obs = await addObservation({
         stakeholderId,
         sourceDocumentId: sourceDocumentId ? Number(sourceDocumentId) : undefined,
@@ -1833,12 +1806,9 @@ export function createPolicyIntelRouter() {
 
   // ── TEC Connector ─────────────────────────────────────────────────────────
 
-  router.post("/jobs/fetch-tec", async (req, res, next) => {
+  router.post("/jobs/fetch-tec", validateBody(fetchTecSchema), async (req, res, next) => {
     try {
-      const { searchTerm } = req.body ?? {};
-      if (!searchTerm) {
-        return res.status(400).json({ message: "searchTerm is required" });
-      }
+      const { searchTerm } = req.body;
       const result = await fetchTecData(searchTerm);
       res.json(result);
     } catch (err: any) {
@@ -1846,15 +1816,9 @@ export function createPolicyIntelRouter() {
     }
   });
 
-  router.post("/jobs/run-tec-import", async (req, res, next) => {
+  router.post("/jobs/run-tec-import", validateBody(runTecImportSchema), async (req, res, next) => {
     try {
-      const { searchTerm, workspaceId, matterId, mode } = req.body ?? {};
-      if (!workspaceId) {
-        return res.status(400).json({ message: "workspaceId is required" });
-      }
-      if (mode !== "sweep" && !searchTerm) {
-        return res.status(400).json({ message: "searchTerm is required for search mode" });
-      }
+      const { searchTerm, workspaceId, matterId, mode } = req.body;
       const result = await runTecImportJob({
         mode: mode === "sweep" ? "sweep" : "search",
         searchTerm,
@@ -1907,9 +1871,9 @@ export function createPolicyIntelRouter() {
     }
   });
 
-  router.post("/jobs/run-legiscan", async (req, res, next) => {
+  router.post("/jobs/run-legiscan", validateBody(runLegiscanSchema), async (req, res, next) => {
     try {
-      const { mode, sinceDays, limit, offset, orderBy, sessionId, detailConcurrency } = req.body ?? {};
+      const { mode, sinceDays, limit, offset, orderBy, sessionId, detailConcurrency } = req.body;
       const parsedOrderBy = typeof orderBy === "string" ? orderBy.trim() : undefined;
       const result = await runLegiscanJob({
         mode: mode === "full" || mode === "backfill" ? mode : "recent",
@@ -1934,12 +1898,9 @@ export function createPolicyIntelRouter() {
 
   // ── Replay Orchestrator ─────────────────────────────────────────────────
 
-  router.post("/replay/legiscan/runs", async (req, res, next) => {
+  router.post("/replay/legiscan/runs", validateBody(createReplayRunSchema), async (req, res, next) => {
     try {
-      const { sessionId, mode, chunkSize, orderBy, requestedBy, sinceDays, detailConcurrency, startNow, maxChunks } = req.body ?? {};
-      if (!Number.isFinite(Number(sessionId)) || Number(sessionId) <= 0) {
-        return res.status(400).json({ message: "sessionId is required" });
-      }
+      const { sessionId, mode, chunkSize, orderBy, requestedBy, sinceDays, detailConcurrency, startNow, maxChunks } = req.body;
 
       const created = await createLegiscanReplayRun({
         sessionId: Number(sessionId),
@@ -2113,12 +2074,9 @@ export function createPolicyIntelRouter() {
    * POST /metrics/pipeline/test — test the agent pipeline with custom input
    * Body: { title: string, summary?: string, reasons?: MatchReason[] }
    */
-  router.post("/metrics/pipeline/test", async (req, res, next) => {
+  router.post("/metrics/pipeline/test", validateBody(pipelineTestSchema), async (req, res, next) => {
     try {
       const { title, summary, reasons } = req.body;
-      if (!title || typeof title !== "string") {
-        return res.status(400).json({ error: "title is required" });
-      }
       const signal = await runAgentPipeline(
         title,
         summary ?? null,
@@ -2355,13 +2313,10 @@ export function createPolicyIntelRouter() {
     }
   });
 
-  router.post("/committee-intel/sessions/from-hearing", async (req, res, next) => {
+  router.post("/committee-intel/sessions/from-hearing", validateBody(createCommitteeIntelFromHearingSchema), async (req, res, next) => {
     try {
-      const workspaceId = parseId(String(req.body?.workspaceId ?? ""));
-      const hearingId = parseId(String(req.body?.hearingId ?? ""));
-      if (!workspaceId || !hearingId) {
-        return res.status(400).json({ message: "workspaceId and hearingId are required" });
-      }
+      const workspaceId = req.body.workspaceId;
+      const hearingId = req.body.hearingId;
 
       const detail = await createCommitteeIntelSessionFromHearing({
         workspaceId,
@@ -2462,13 +2417,10 @@ export function createPolicyIntelRouter() {
     }
   });
 
-  router.post("/committee-intel/sessions/:id/segments", async (req, res, next) => {
+  router.post("/committee-intel/sessions/:id/segments", validateBody(addSegmentSchema), async (req, res, next) => {
     try {
       const id = parseId(req.params.id);
       if (!id) return res.status(400).json({ message: "invalid id" });
-      if (typeof req.body?.transcriptText !== "string" || !req.body.transcriptText.trim()) {
-        return res.status(400).json({ message: "transcriptText is required" });
-      }
 
       const detail = await addCommitteeIntelSegment(id, {
         capturedAt: typeof req.body?.capturedAt === "string" ? req.body.capturedAt : undefined,
@@ -2512,13 +2464,10 @@ export function createPolicyIntelRouter() {
     }
   });
 
-  router.post("/committee-intel/sessions/:id/focused-brief", async (req, res, next) => {
+  router.post("/committee-intel/sessions/:id/focused-brief", validateBody(focusedBriefSchema), async (req, res, next) => {
     try {
       const id = parseId(req.params.id);
       if (!id) return res.status(400).json({ message: "invalid id" });
-      if (typeof req.body?.issue !== "string" || !req.body.issue.trim()) {
-        return res.status(400).json({ message: "issue is required" });
-      }
 
       const brief = await generateCommitteeIntelFocusedBrief(id, req.body.issue);
       res.json(brief);
@@ -2724,11 +2673,10 @@ export function createPolicyIntelRouter() {
   /**
    * POST /stakeholders/:id/meeting-notes — add a meeting note.
    */
-  router.post("/stakeholders/:id/meeting-notes", async (req, res, next) => {
+  router.post("/stakeholders/:id/meeting-notes", validateBody(createMeetingNoteSchema), async (req, res, next) => {
     try {
       const stakeholderId = Number(req.params.id);
-      const { noteText, meetingDate, contactMethod, matterId } = req.body ?? {};
-      if (!noteText?.trim()) return res.status(400).json({ message: "noteText required" });
+      const { noteText, meetingDate, contactMethod, matterId } = req.body;
 
       const [row] = await policyIntelDb
         .insert(meetingNotes)
@@ -2788,10 +2736,9 @@ export function createPolicyIntelRouter() {
    * POST /stakeholders/import-legislators — import legislator directory from LegiScan API.
    * Body: { workspaceId: number }
    */
-  router.post("/stakeholders/import-legislators", async (req, res, next) => {
+  router.post("/stakeholders/import-legislators", validateBody(importLegislatorsSchema), async (req, res, next) => {
     try {
-      const workspaceId = Number(req.body?.workspaceId);
-      if (!workspaceId) return res.status(400).json({ message: "workspaceId required" });
+      const workspaceId = req.body.workspaceId;
 
       const apiKey = process.env.LEGISCAN_API_KEY;
       if (!apiKey) return res.status(500).json({ message: "LEGISCAN_API_KEY not configured" });
@@ -2902,12 +2849,9 @@ export function createPolicyIntelRouter() {
   /**
    * POST /deliverables/generate-client-alert — generate a client alert from an issue room.
    */
-  router.post("/deliverables/generate-client-alert", async (req, res, next) => {
+  router.post("/deliverables/generate-client-alert", validateBody(generateClientAlertSchema), async (req, res, next) => {
     try {
       const { issueRoomId, workspaceId, matterId, recipientName, firmName } = req.body;
-      if (!issueRoomId || !workspaceId) {
-        return res.status(400).json({ error: "issueRoomId and workspaceId are required" });
-      }
       const result = await generateClientAlert({
         issueRoomId: Number(issueRoomId),
         workspaceId: Number(workspaceId),
@@ -2924,12 +2868,9 @@ export function createPolicyIntelRouter() {
   /**
    * POST /deliverables/generate-weekly-report — generate a weekly client report from digest data.
    */
-  router.post("/deliverables/generate-weekly-report", async (req, res, next) => {
+  router.post("/deliverables/generate-weekly-report", validateBody(generateWeeklyReportSchema), async (req, res, next) => {
     try {
       const { workspaceId, matterId, week, recipientName, firmName } = req.body;
-      if (!workspaceId) {
-        return res.status(400).json({ error: "workspaceId is required" });
-      }
       const result = await generateWeeklyReport({
         workspaceId: Number(workspaceId),
         matterId: matterId ? Number(matterId) : undefined,
@@ -2946,12 +2887,9 @@ export function createPolicyIntelRouter() {
   /**
    * POST /deliverables/generate-hearing-memo — generate a hearing memo for a committee session.
    */
-  router.post("/deliverables/generate-hearing-memo", async (req, res, next) => {
+  router.post("/deliverables/generate-hearing-memo", validateBody(generateHearingMemoSchema), async (req, res, next) => {
     try {
       const { hearingId, workspaceId, matterId, recipientName, firmName } = req.body;
-      if (!hearingId || !workspaceId) {
-        return res.status(400).json({ error: "hearingId and workspaceId are required" });
-      }
       const result = await generateHearingMemo({
         hearingId: Number(hearingId),
         workspaceId: Number(workspaceId),
