@@ -55,6 +55,19 @@ Apply policy-intel schema updates using explicit migrations:
 npm run db:migrate:policy-intel
 ```
 
+## Main App to Policy Intel Bridge
+
+The legacy main app now exposes integration bridge endpoints that proxy key policy-intel signals:
+
+- `GET /api/integrations/policy-intel/status`
+- `GET /api/integrations/policy-intel/briefing`
+
+Set these environment variables in the main app runtime when connecting to a separate policy-intel service:
+
+- `POLICY_INTEL_INTERNAL_URL` (default: `http://localhost:5050`)
+- `POLICY_INTEL_REQUEST_TIMEOUT_MS` (optional, default: `12000`)
+- `POLICY_INTEL_API_TOKEN` (required when policy-intel auth is enabled)
+
 ## Production-style local run
 
 1. Copy `.env.policy-intel.prod.example` to `.env.policy-intel.prod`

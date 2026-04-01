@@ -47,6 +47,13 @@ export const AWS_CONFIG = {
   REGION: process.env.AWS_REGION || "us-east-1",
 };
 
+// Policy Intel integration configuration (main app -> policy-intel service bridge)
+export const POLICY_INTEL_CONFIG = {
+  BASE_URL: (process.env.POLICY_INTEL_INTERNAL_URL || "http://localhost:5050").replace(/\/$/, ""),
+  REQUEST_TIMEOUT_MS: Math.max(1000, Number(process.env.POLICY_INTEL_REQUEST_TIMEOUT_MS) || 12000),
+  API_TOKEN: process.env.POLICY_INTEL_API_TOKEN || "",
+};
+
 // Feature toggles
 export const FEATURES = {
   ENABLE_VERIFICATION: true,

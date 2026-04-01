@@ -59,6 +59,27 @@ interface Legislator {
   phone?: string;
 }
 
+interface PolicyIntelBridgeStatus {
+  connected: boolean;
+  checkedAt: string;
+  latencyMs: number;
+  baseUrl: string;
+  tokenConfigured: boolean;
+  forecastDrift?: {
+    trend?: string;
+    driftAlert?: boolean;
+    latestAccuracy?: number | null;
+    latestRankingAccuracy?: number | null;
+  } | null;
+  replay?: {
+    runId?: number;
+    status?: string;
+    completionRatio?: number;
+    hasMore?: boolean;
+  } | null;
+  failures?: Array<{ call: string; error: string }>;
+}
+
 export default function LegislativeIntelligenceDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedLegislator, setSelectedLegislator] = useState<string | null>(null);
@@ -77,6 +98,19 @@ export default function LegislativeIntelligenceDashboard() {
   const { data: legislatorsData, isLoading: legislatorsLoading } = useQuery<any>({
     queryKey: ['/api/legislators/texas-authentic'],
     enabled: true
+  });
+
+  // Bridge status between main app and policy-intel bounded context
+  const {
+    data: policyIntelStatus,
+    isLoading: policyIntelLoading,
+    isError: policyIntelError,
+    refetch: refetchPolicyIntelStatus,
+  } = useQuery<PolicyIntelBridgeStatus>({
+    queryKey: ['/api/integrations/policy-intel/status'],
+    enabled: true,
+    retry: 0,
+    refetchInterval: 60_000,
   });
 
   const bills: Bill[] = Array.isArray(billsData) ? billsData : [];
@@ -196,7 +230,12 @@ export default function LegislativeIntelligenceDashboard() {
               </p>
             </div>
             <div className="flex gap-4">
-              <Button className="bg-emerald-600 hover:bg-emerald-700">
+              <Button
+                className="bg-emerald-600 hover:bg-emerald-700"
+                onClick={() => {
+                  refetchPolicyIntelStatus();
+                }}
+              >
                 <RefreshCw className="w-5 h-5 mr-2" />
                 Refresh Data
               </Button>
@@ -334,6 +373,52 @@ export default function LegislativeIntelligenceDashboard() {
                 </CardContent>
               </Card>
             </div>
+
+            <Card className="border-0 shadow-2xl" style={{
+              background: 'rgba(0, 0, 0, 0.3)',
+              backdropFilter: 'blur(10px)'
+            }}>
+              <CardHeader>
+                <CardTitle className="text-xl text-white flex items-center gap-2">
+                  <Link2 className="w-5 h-5 text-cyan-400" />
+                  Policy Intel Bridge
+                </CardTitle>
+                <CardDescription className="text-slate-300">
+                  Main app integration status for policy-intel signals and strategic briefings
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {policyIntelLoading ? (
+                  <div className="text-slate-300">Checking connection...</div>
+                ) : policyIntelError ? (
+                  <div className="flex items-center gap-2 text-red-300">
+                    <AlertCircle className="w-4 h-4" />
+                    Unable to reach integration bridge endpoint
+                  </div>
+                ) : (
+                  <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="p-3 rounded-lg bg-white/5">
+                      <div className="text-slate-300 text-sm mb-1">Connection</div>
+                      <Badge className={policyIntelStatus?.connected ? "bg-emerald-600" : "bg-rose-600"}>
+                        {policyIntelStatus?.connected ? "Connected" : "Disconnected"}
+                      </Badge>
+                    </div>
+                    <div className="p-3 rounded-lg bg-white/5">
+                      <div className="text-slate-300 text-sm mb-1">Latency</div>
+                      <div className="text-white font-bold">{policyIntelStatus?.latencyMs ?? "-"} ms</div>
+                    </div>
+                    <div className="p-3 rounded-lg bg-white/5">
+                      <div className="text-slate-300 text-sm mb-1">Forecast Trend</div>
+                      <div className="text-white font-bold uppercase">{policyIntelStatus?.forecastDrift?.trend || "unknown"}</div>
+                    </div>
+                    <div className="p-3 rounded-lg bg-white/5">
+                      <div className="text-slate-300 text-sm mb-1">Replay Run</div>
+                      <div className="text-white font-bold">{policyIntelStatus?.replay?.status || "none"}</div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             {/* Quick Insights */}
             <Card className="border-0 shadow-2xl" style={{
