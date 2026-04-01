@@ -1,4 +1,16 @@
 services:
+  policy-intel-migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: npm run db:migrate:policy-intel
+    env_file:
+      - ./.env.policy-intel
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   policy-intel:
     build:
       context: .
@@ -12,6 +24,8 @@ services:
       - .:/workspace
       - /workspace/node_modules
     depends_on:
+      policy-intel-migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
     healthcheck:

@@ -1,7 +1,7 @@
 import { defineConfig } from "drizzle-kit";
 
 if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL must be set for policy-intel schema push");
+  throw new Error("DATABASE_URL must be set for policy-intel migrations");
 }
 
 export default defineConfig({

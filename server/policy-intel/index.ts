@@ -1,5 +1,6 @@
 import type { Server } from "node:http";
 import { createPolicyIntelApp } from "./app";
+import { validatePolicyIntelAuthConfiguration } from "./auth";
 import { ensureDatabaseConnection, queryClient } from "./db";
 import { startScheduler, stopScheduler } from "./scheduler";
 import { safeErrorMessage } from "./security";
@@ -17,6 +18,7 @@ process.on("unhandledRejection", (reason) => {
 const port = Number(process.env.POLICY_INTEL_PORT || 5050);
 const host = process.env.HOST || "0.0.0.0";
 
+validatePolicyIntelAuthConfiguration();
 const app = createPolicyIntelApp();
 
 let server: Server | null = null;

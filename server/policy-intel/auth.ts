@@ -10,7 +10,20 @@
  */
 import type { Request, Response, NextFunction } from "express";
 
-const API_TOKEN = process.env.POLICY_INTEL_API_TOKEN ?? "";
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
+
+function resolveApiToken(): string {
+  const token = process.env.POLICY_INTEL_API_TOKEN;
+  return typeof token === "string" ? token.trim() : "";
+}
+
+const API_TOKEN = resolveApiToken();
+
+export function validatePolicyIntelAuthConfiguration(): void {
+  if (IS_PRODUCTION && !API_TOKEN) {
+    throw new Error("POLICY_INTEL_API_TOKEN must be set in production");
+  }
+}
 
 /** Paths that never require auth */
 const PUBLIC_PATHS = new Set(["/health", "/", "/metrics"]);

@@ -47,7 +47,13 @@ docker compose -f docker-compose.policy-intel.yml up --build
 - API root: `http://localhost:5050/api/intel`
 - Adminer: `http://localhost:8080`
 
-The backend container waits for Postgres and pushes the policy-intel schema automatically during startup.
+The backend container waits for Postgres before service startup.
+
+Apply policy-intel schema updates using explicit migrations:
+
+```bash
+npm run db:migrate:policy-intel
+```
 
 ## Production-style local run
 
@@ -67,6 +73,11 @@ npm run policy-intel:prod:logs
 npm run policy-intel:prod:migrate
 npm run policy-intel:prod:down
 ```
+
+Production migration runs are guarded and require:
+
+- `POLICY_INTEL_MIGRATION_APPROVED=yes`
+- `POLICY_INTEL_BACKUP_ID=<verified-backup-or-snapshot-id>`
 
 ## Validation commands
 

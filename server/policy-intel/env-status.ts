@@ -60,13 +60,16 @@ const ENVIRONMENT_VARIABLES: EnvironmentVariableDefinition[] = [
 ];
 
 export function getEnvironmentStatusReport(): EnvironmentStatusReport {
+  const isProduction = process.env.NODE_ENV === "production";
+
   const variables = ENVIRONMENT_VARIABLES.map((entry) => {
     const raw = process.env[entry.key];
     const configured = typeof raw === "string" && raw.trim().length > 0;
+    const required = entry.required || (isProduction && entry.key === "POLICY_INTEL_API_TOKEN");
     return {
       key: entry.key,
       configured,
-      required: entry.required,
+      required,
       description: entry.description,
     } satisfies EnvironmentVariableStatus;
   });

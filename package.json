@@ -13,6 +13,7 @@
     "dev:policy-intel:container": "tsx server/policy-intel/index.ts",
     "start:policy-intel": "node --enable-source-maps dist-policy-intel/index.js",
     "build:policy-intel": "esbuild server/policy-intel/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist-policy-intel",
+    "db:migrate:policy-intel": "drizzle-kit migrate --config=drizzle.policy-intel.config.ts",
     "db:push:policy-intel": "drizzle-kit push --config=drizzle.policy-intel.config.ts",
     "policy-intel:prod:up": "docker compose --env-file .env.policy-intel.prod -p hoganlegacy-prod -f docker-compose.policy-intel.prod.yml up --build -d",
     "policy-intel:prod:down": "docker compose --env-file .env.policy-intel.prod -p hoganlegacy-prod -f docker-compose.policy-intel.prod.yml down",

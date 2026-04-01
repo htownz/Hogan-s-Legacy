@@ -33,7 +33,18 @@ cp .env.policy-intel.example .env.policy-intel
 docker compose -f docker-compose.policy-intel.yml up --build
 ```
 
-The backend container now waits for Postgres and pushes the policy-intel schema automatically during startup.
+The backend container now waits for Postgres before service startup.
+
+Schema changes should be applied via explicit migration jobs:
+
+```bash
+npm run db:migrate:policy-intel
+```
+
+Production-style migrations are guarded and require both:
+
+- `POLICY_INTEL_MIGRATION_APPROVED=yes`
+- `POLICY_INTEL_BACKUP_ID=<backup-or-snapshot-id>`
 
 ## First URLs
 
