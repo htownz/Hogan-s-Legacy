@@ -8,6 +8,9 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { storage } from '../storage';
+import { createLogger } from "../logger";
+const log = createLogger("expanded-data-collector");
+
 
 interface CommitteeData {
   id: string;
@@ -77,14 +80,14 @@ export class ExpandedDataCollector {
   };
 
   constructor() {
-    console.log('🔍 Expanded Data Collector initialized for comprehensive Texas government data');
+    log.info('🔍 Expanded Data Collector initialized for comprehensive Texas government data');
   }
 
   /**
    * Collect comprehensive committee data from both chambers
    */
   async collectCommitteeData(): Promise<CommitteeData[]> {
-    console.log('📋 Starting comprehensive committee data collection...');
+    log.info('📋 Starting comprehensive committee data collection...');
     
     const committees: CommitteeData[] = [];
     
@@ -97,7 +100,7 @@ export class ExpandedDataCollector {
       const senateCommittees = await this.collectSenateCommittees();
       committees.push(...senateCommittees);
       
-      console.log(`✅ Collected ${committees.length} committees with comprehensive data`);
+      log.info(`✅ Collected ${committees.length} committees with comprehensive data`);
       
       // Store in database
       for (const committee of committees) {
@@ -106,7 +109,7 @@ export class ExpandedDataCollector {
       
       return committees;
     } catch (error: any) {
-      console.error('❌ Error collecting committee data:', error);
+      log.error({ err: error }, '❌ Error collecting committee data');
       return [];
     }
   }
@@ -141,9 +144,9 @@ export class ExpandedDataCollector {
         }
       });
       
-      console.log(`📋 Collected ${committees.length} House committees`);
+      log.info(`📋 Collected ${committees.length} House committees`);
     } catch (error: any) {
-      console.warn('⚠️ Error collecting House committees:', error);
+      log.warn({ detail: error }, '⚠️ Error collecting House committees');
     }
     
     return committees;
@@ -178,9 +181,9 @@ export class ExpandedDataCollector {
         }
       });
       
-      console.log(`📋 Collected ${committees.length} Senate committees`);
+      log.info(`📋 Collected ${committees.length} Senate committees`);
     } catch (error: any) {
-      console.warn('⚠️ Error collecting Senate committees:', error);
+      log.warn({ detail: error }, '⚠️ Error collecting Senate committees');
     }
     
     return committees;
@@ -190,7 +193,7 @@ export class ExpandedDataCollector {
    * Collect committee hearing data
    */
   async collectCommitteeHearings(committeeId: string): Promise<HearingData[]> {
-    console.log(`🎤 Collecting hearing data for committee: ${committeeId}`);
+    log.info(`🎤 Collecting hearing data for committee: ${committeeId}`);
     
     const hearings: HearingData[] = [];
     
@@ -207,9 +210,9 @@ export class ExpandedDataCollector {
         }
       }
       
-      console.log(`✅ Collected ${hearings.length} hearings for committee ${committeeId}`);
+      log.info(`✅ Collected ${hearings.length} hearings for committee ${committeeId}`);
     } catch (error: any) {
-      console.warn(`⚠️ Error collecting hearings for committee ${committeeId}:`, error);
+      log.warn({ detail: error }, `⚠️ Error collecting hearings for committee ${committeeId}`);
     }
     
     return hearings;
@@ -235,7 +238,7 @@ export class ExpandedDataCollector {
         }
       });
     } catch (error: any) {
-      console.warn(`⚠️ Error getting hearing URLs for ${committeeId}:`, error);
+      log.warn({ detail: error }, `⚠️ Error getting hearing URLs for ${committeeId}`);
     }
     
     return urls;
@@ -293,7 +296,7 @@ export class ExpandedDataCollector {
         transcript: $('.transcript-link').attr('href')
       };
     } catch (error: any) {
-      console.warn(`⚠️ Error collecting hearing from ${url}:`, error);
+      log.warn({ detail: error }, `⚠️ Error collecting hearing from ${url}`);
       return null;
     }
   }
@@ -302,7 +305,7 @@ export class ExpandedDataCollector {
    * Collect comprehensive voting records
    */
   async collectVotingRecords(sessionId?: string): Promise<VotingRecord[]> {
-    console.log('🗳️ Collecting comprehensive voting records...');
+    log.info('🗳️ Collecting comprehensive voting records...');
     
     const votingRecords: VotingRecord[] = [];
     
@@ -315,7 +318,7 @@ export class ExpandedDataCollector {
       const senateVotes = await this.collectSenateVotingRecords(sessionId);
       votingRecords.push(...senateVotes);
       
-      console.log(`✅ Collected ${votingRecords.length} voting records`);
+      log.info(`✅ Collected ${votingRecords.length} voting records`);
       
       // Store in database
       for (const vote of votingRecords) {
@@ -324,7 +327,7 @@ export class ExpandedDataCollector {
       
       return votingRecords;
     } catch (error: any) {
-      console.error('❌ Error collecting voting records:', error);
+      log.error({ err: error }, '❌ Error collecting voting records');
       return [];
     }
   }
@@ -367,9 +370,9 @@ export class ExpandedDataCollector {
         });
       });
       
-      console.log(`🗳️ Collected ${votes.length} House voting records`);
+      log.info(`🗳️ Collected ${votes.length} House voting records`);
     } catch (error: any) {
-      console.warn('⚠️ Error collecting House voting records:', error);
+      log.warn({ detail: error }, '⚠️ Error collecting House voting records');
     }
     
     return votes;
@@ -411,9 +414,9 @@ export class ExpandedDataCollector {
         });
       });
       
-      console.log(`🗳️ Collected ${votes.length} Senate voting records`);
+      log.info(`🗳️ Collected ${votes.length} Senate voting records`);
     } catch (error: any) {
-      console.warn('⚠️ Error collecting Senate voting records:', error);
+      log.warn({ detail: error }, '⚠️ Error collecting Senate voting records');
     }
     
     return votes;
@@ -423,7 +426,7 @@ export class ExpandedDataCollector {
    * Collect historical legislative session data
    */
   async collectHistoricalSessions(): Promise<HistoricalSession[]> {
-    console.log('📚 Collecting historical legislative session data...');
+    log.info('📚 Collecting historical legislative session data...');
     
     const sessions: HistoricalSession[] = [];
     
@@ -454,7 +457,7 @@ export class ExpandedDataCollector {
         }
       });
       
-      console.log(`✅ Collected ${sessions.length} historical sessions`);
+      log.info(`✅ Collected ${sessions.length} historical sessions`);
       
       // Store historical sessions
       for (const session of sessions) {
@@ -463,7 +466,7 @@ export class ExpandedDataCollector {
       
       return sessions;
     } catch (error: any) {
-      console.error('❌ Error collecting historical sessions:', error);
+      log.error({ err: error }, '❌ Error collecting historical sessions');
       return [];
     }
   }
@@ -472,7 +475,7 @@ export class ExpandedDataCollector {
    * Collect Texas Ethics Commission data
    */
   async collectEthicsData(): Promise<void> {
-    console.log('⚖️ Collecting Texas Ethics Commission data...');
+    log.info('⚖️ Collecting Texas Ethics Commission data...');
     
     try {
       // Personal Financial Statements
@@ -484,9 +487,9 @@ export class ExpandedDataCollector {
       // Campaign finance reports
       await this.collectCampaignFinanceReports();
       
-      console.log('✅ Ethics Commission data collection completed');
+      log.info('✅ Ethics Commission data collection completed');
     } catch (error: any) {
-      console.error('❌ Error collecting ethics data:', error);
+      log.error({ err: error }, '❌ Error collecting ethics data');
     }
   }
 
@@ -505,10 +508,10 @@ export class ExpandedDataCollector {
         const filingDate = $filing.find('.filing-date').text().trim();
         
         // Store PFS data
-        console.log(`📋 PFS found: ${filerName} - ${year}`);
+        log.info(`📋 PFS found: ${filerName} - ${year}`);
       });
     } catch (error: any) {
-      console.warn('⚠️ Error collecting PFS data:', error);
+      log.warn({ detail: error }, '⚠️ Error collecting PFS data');
     }
   }
 
@@ -526,10 +529,10 @@ export class ExpandedDataCollector {
         const clientName = $reg.find('.client-name').text().trim();
         const registrationDate = $reg.find('.reg-date').text().trim();
         
-        console.log(`🏛️ Lobby registration: ${lobbyistName} for ${clientName}`);
+        log.info(`🏛️ Lobby registration: ${lobbyistName} for ${clientName}`);
       });
     } catch (error: any) {
-      console.warn('⚠️ Error collecting lobby registrations:', error);
+      log.warn({ detail: error }, '⚠️ Error collecting lobby registrations');
     }
   }
 
@@ -547,10 +550,10 @@ export class ExpandedDataCollector {
         const reportType = $report.find('.report-type').text().trim();
         const period = $report.find('.period').text().trim();
         
-        console.log(`💰 Campaign report: ${candidateName} - ${reportType} (${period})`);
+        log.info(`💰 Campaign report: ${candidateName} - ${reportType} (${period})`);
       });
     } catch (error: any) {
-      console.warn('⚠️ Error collecting campaign finance reports:', error);
+      log.warn({ detail: error }, '⚠️ Error collecting campaign finance reports');
     }
   }
 
@@ -560,9 +563,9 @@ export class ExpandedDataCollector {
   private async storeCommitteeData(committee: CommitteeData): Promise<void> {
     try {
       await storage.createCommittee?.(committee);
-      console.log(`💾 Stored committee: ${committee.name}`);
+      log.info(`💾 Stored committee: ${committee.name}`);
     } catch (error: any) {
-      console.warn(`⚠️ Error storing committee ${committee.name}:`, error);
+      log.warn({ detail: error }, `⚠️ Error storing committee ${committee.name}`);
     }
   }
 
@@ -573,7 +576,7 @@ export class ExpandedDataCollector {
     try {
       await storage.createVotingRecord?.(vote);
     } catch (error: any) {
-      console.warn(`⚠️ Error storing voting record ${vote.voteId}:`, error);
+      log.warn({ detail: error }, `⚠️ Error storing voting record ${vote.voteId}`);
     }
   }
 
@@ -583,9 +586,9 @@ export class ExpandedDataCollector {
   private async storeHistoricalSession(session: HistoricalSession): Promise<void> {
     try {
       await storage.createHistoricalSession?.(session);
-      console.log(`💾 Stored historical session: ${session.year} ${session.type}`);
+      log.info(`💾 Stored historical session: ${session.year} ${session.type}`);
     } catch (error: any) {
-      console.warn(`⚠️ Error storing session ${session.sessionId}:`, error);
+      log.warn({ detail: error }, `⚠️ Error storing session ${session.sessionId}`);
     }
   }
 
@@ -593,7 +596,7 @@ export class ExpandedDataCollector {
    * Run comprehensive data expansion
    */
   async runComprehensiveDataExpansion(): Promise<void> {
-    console.log('🚀 Starting comprehensive data expansion...');
+    log.info('🚀 Starting comprehensive data expansion...');
     
     try {
       // Collect committee data
@@ -608,9 +611,9 @@ export class ExpandedDataCollector {
       // Collect ethics data
       await this.collectEthicsData();
       
-      console.log('🎉 Comprehensive data expansion completed successfully!');
+      log.info('🎉 Comprehensive data expansion completed successfully!');
     } catch (error: any) {
-      console.error('❌ Error in comprehensive data expansion:', error);
+      log.error({ err: error }, '❌ Error in comprehensive data expansion');
     }
   }
 }

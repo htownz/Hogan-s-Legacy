@@ -3,6 +3,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { Server } from 'http';
 import { collaborativeStorage } from './storage-collaborative';
 import { getAuthenticatedUserFromRequest } from './auth';
+import { createLogger } from "./logger";
+const log = createLogger("websocket-collaborative-bill");
+
 
 // Define message types
 interface WebSocketMessage {
@@ -110,7 +113,7 @@ async function handleJoin(
         currentCursorPosition: null // Will be updated with cursor moves
       });
     } catch (error: any) {
-      console.error(`Error adding participant to database: ${error}`);
+      log.error(`Error adding participant to database: ${error}`);
       // Continue even if database update fails
     }
     
@@ -146,9 +149,9 @@ async function handleJoin(
       client.id
     );
     
-    console.log(`Client ${client.id} joined session ${sessionId} as user ${userId}`);
+    log.info(`Client ${client.id} joined session ${sessionId} as user ${userId}`);
   } catch (error: any) {
-    console.error(`Error handling join: ${error}`);
+    log.error(`Error handling join: ${error}`);
     sendError(client, 'Failed to join session');
   }
 }
@@ -208,9 +211,9 @@ async function handleLeave(
       message: 'Successfully left session'
     }));
     
-    console.log(`Client ${client.id} left session ${sessionId}`);
+    log.info(`Client ${client.id} left session ${sessionId}`);
   } catch (error: any) {
-    console.error(`Error handling leave: ${error}`);
+    log.error(`Error handling leave: ${error}`);
     sendError(client, 'Failed to leave session');
   }
 }
@@ -267,9 +270,9 @@ async function handleContentChange(
       client.id
     );
     
-    console.log(`Content updated in session ${client.sessionId} by user ${client.userId}`);
+    log.info(`Content updated in session ${client.sessionId} by user ${client.userId}`);
   } catch (error: any) {
-    console.error(`Error handling content change: ${error}`);
+    log.error(`Error handling content change: ${error}`);
     sendError(client, 'Failed to update content');
   }
 }
@@ -318,7 +321,7 @@ async function handleCursorMove(
       client.id
     );
   } catch (error: any) {
-    console.error(`Error handling cursor move: ${error}`);
+    log.error(`Error handling cursor move: ${error}`);
     // Don't send error to client to avoid spamming for frequent cursor updates
   }
 }
@@ -356,7 +359,7 @@ async function handleSelectionChange(
       client.id
     );
   } catch (error: any) {
-    console.error(`Error handling selection change: ${error}`);
+    log.error(`Error handling selection change: ${error}`);
     // Don't send error to client for selection updates
   }
 }
@@ -394,7 +397,7 @@ async function handleCommentAdded(
       client.id
     );
   } catch (error: any) {
-    console.error(`Error handling comment added: ${error}`);
+    log.error(`Error handling comment added: ${error}`);
     sendError(client, 'Failed to broadcast comment');
   }
 }
@@ -432,7 +435,7 @@ async function handleCommentDeleted(
       client.id
     );
   } catch (error: any) {
-    console.error(`Error handling comment deleted: ${error}`);
+    log.error(`Error handling comment deleted: ${error}`);
     sendError(client, 'Failed to broadcast comment deletion');
   }
 }
@@ -470,7 +473,7 @@ async function handleUserSectionChange(
       client.id
     );
   } catch (error: any) {
-    console.error(`Error handling user section change: ${error}`);
+    log.error(`Error handling user section change: ${error}`);
     // Don't send error to client for section updates
   }
 }
@@ -480,7 +483,7 @@ export function initializeCollaborativeBillWebSockets(httpServer: Server) {
     // Create a new WebSocket server for collaborative bill editing
     // Use a different path from other WebSocket servers to avoid conflicts
     const wss = new WebSocketServer({ server: httpServer, path: '/ws/bill-editing' });
-    console.log("WebSocket server created for collaborative bill editing");
+    log.info("WebSocket server created for collaborative bill editing");
     
     // Keep track of connected clients
     const connectedClients = new Map<string, CollaborativeBillClient>();
@@ -490,7 +493,7 @@ export function initializeCollaborativeBillWebSockets(httpServer: Server) {
     
     // Handle connections
     wss.on('connection', async (ws: WebSocket, req) => {
-      console.log('New WebSocket connection established for collaborative bill editing');
+      log.info('New WebSocket connection established for collaborative bill editing');
 
       const authenticatedUser = await getAuthenticatedUserFromRequest(req);
       if (!authenticatedUser) {
@@ -525,7 +528,7 @@ export function initializeCollaborativeBillWebSockets(httpServer: Server) {
       ws.on('message', async (message: string | Buffer | ArrayBuffer | Buffer[]) => {
         try {
           const data = JSON.parse(message.toString()) as WebSocketMessage;
-          console.log(`Received message: ${data.type} from client ${clientId}`);
+          log.info(`Received message: ${data.type} from client ${clientId}`);
           
           // Process different message types
           switch (data.type) {
@@ -565,14 +568,14 @@ export function initializeCollaborativeBillWebSockets(httpServer: Server) {
               sendError(client, `Unknown message type: ${data.type}`);
           }
         } catch (error: any) {
-          console.error('Error processing message:', error);
+          log.error({ err: error }, 'Error processing message');
           sendError(client, 'Failed to process message');
         }
       });
       
       // Handle disconnection
       ws.on('close', () => {
-        console.log(`Client ${clientId} disconnected`);
+        log.info(`Client ${clientId} disconnected`);
         
         // If client was in a session, remove them
         if (client.sessionId !== null) {
@@ -601,9 +604,9 @@ export function initializeCollaborativeBillWebSockets(httpServer: Server) {
           if (client.userId) {
             try {
               collaborativeStorage.removeParticipant(client.sessionId, client.userId)
-                .catch(error => console.error(`Error removing participant ${client.userId} from session ${client.sessionId}:`, error));
+                .catch(error => log.error({ err: error }, `Error removing participant ${client.userId} from session ${client.sessionId}`));
             } catch (error: any) {
-              console.error(`Error removing participant ${client.userId} from session ${client.sessionId}:`, error);
+              log.error({ err: error }, `Error removing participant ${client.userId} from session ${client.sessionId}`);
             }
           }
         }
@@ -614,13 +617,13 @@ export function initializeCollaborativeBillWebSockets(httpServer: Server) {
       
       // Handle connection errors
       ws.on('error', (error) => {
-        console.error(`WebSocket error for client ${clientId}:`, error);
+        log.error({ err: error }, `WebSocket error for client ${clientId}`);
       });
     });
     
     return wss;
   } catch (error: any) {
-    console.error("Failed to initialize collaborative bill WebSocket server:", error);
+    log.error({ err: error }, "Failed to initialize collaborative bill WebSocket server");
     return null;
   }
 }

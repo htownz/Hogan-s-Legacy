@@ -1,5 +1,8 @@
 import OpenAI from 'openai';
 import { legiscanService } from './legiscan-service';
+import { createLogger } from "../logger";
+const log = createLogger("real-time-timeline-service");
+
 
 // Initialize OpenAI client
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -57,7 +60,7 @@ export async function generateRealTimeTimeline(
   billId: number
 ): Promise<{ success: boolean; data?: RealTimeTimeline; error?: string }> {
   try {
-    console.log(`Generating real-time timeline for bill ${billId}`);
+    log.info(`Generating real-time timeline for bill ${billId}`);
 
     // Get bill details from LegiScan
     const billDetails = await legiscanService.getBill(billId);
@@ -202,7 +205,7 @@ Create a detailed timeline with stage progression, importance levels, and predic
         keyMilestones: analysisData.keyMilestones
       };
 
-      console.log(`Real-time timeline generated successfully for bill ${billId}`);
+      log.info(`Real-time timeline generated successfully for bill ${billId}`);
       return {
         success: true,
         data: timeline
@@ -215,7 +218,7 @@ Create a detailed timeline with stage progression, importance levels, and predic
     };
 
   } catch (error: any) {
-    console.error('Error generating real-time timeline:', error);
+    log.error({ err: error }, 'Error generating real-time timeline');
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -230,7 +233,7 @@ export async function getBatchTimelineUpdates(
   billIds: number[]
 ): Promise<{ success: boolean; data?: RealTimeTimeline[]; error?: string }> {
   try {
-    console.log(`Generating batch timeline updates for ${billIds.length} bills`);
+    log.info(`Generating batch timeline updates for ${billIds.length} bills`);
     
     const timelinePromises = billIds.map(billId => generateRealTimeTimeline(billId));
     const results = await Promise.all(timelinePromises);
@@ -244,7 +247,7 @@ export async function getBatchTimelineUpdates(
       data: successfulTimelines
     };
   } catch (error: any) {
-    console.error('Error generating batch timeline updates:', error);
+    log.error({ err: error }, 'Error generating batch timeline updates');
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'

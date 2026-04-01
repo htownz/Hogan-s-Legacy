@@ -5,6 +5,9 @@ import { db } from '../db';
 import { bills, userBillTracking, billHistoryEvents, billMovementNotifications } from '@shared/schema';
 import { eq, and, desc, lt, gte } from 'drizzle-orm';
 import { SERVER_CONFIG, FEATURES } from '../config';
+import { createLogger } from "../logger";
+const log = createLogger("bill-tracking-service");
+
 
 class BillTrackingService {
   private billUpdateJob: nodeCron.ScheduledTask;
@@ -16,7 +19,7 @@ class BillTrackingService {
   
   constructor() {
     // Log when the service is created
-    console.log('Bill tracking service created');
+    log.info('Bill tracking service created');
     
     // Add bill update job - runs every 30 minutes
     this.billUpdateJob = nodeCron.schedule('*/30 * * * *', this.updateActiveBills.bind(this), { scheduled: false });
@@ -30,18 +33,18 @@ class BillTrackingService {
    */
   public initialize(): void {
     if (this.isInitialized) {
-      console.log('Bill tracking service already initialized');
+      log.info('Bill tracking service already initialized');
       return;
     }
     
-    console.log('Bill tracking service temporarily disabled to fix server issues');
+    log.info('Bill tracking service temporarily disabled to fix server issues');
     
     try {
       // Disable cron jobs until server issues are fixed
       // this.billUpdateJob.start();
       // this.trackingUpdateJob.start();
       
-      console.log('Bill tracking service initialization skipped');
+      log.info('Bill tracking service initialization skipped');
       this.isInitialized = true;
       
       // Disable initial update on startup 
@@ -49,7 +52,7 @@ class BillTrackingService {
       //   this.updateActiveBills();
       // }
     } catch (error: any) {
-      console.error('Failed to initialize bill tracking service:', error);
+      log.error({ err: error }, 'Failed to initialize bill tracking service');
     }
   }
   
@@ -57,7 +60,7 @@ class BillTrackingService {
    * Stop all bill tracking jobs
    */
   public shutdown(): void {
-    console.log('Shutting down bill tracking service');
+    log.info('Shutting down bill tracking service');
     this.billUpdateJob.stop();
     this.trackingUpdateJob.stop();
     this.isInitialized = false;
@@ -68,11 +71,11 @@ class BillTrackingService {
    */
   private async updateActiveBills(): Promise<void> {
     if (!FEATURES.BILL_SCRAPING_ENABLED) {
-      console.log('Bill scraping is disabled in configuration');
+      log.info('Bill scraping is disabled in configuration');
       return;
     }
     
-    console.log('Starting scheduled update of all active bills');
+    log.info('Starting scheduled update of all active bills');
     
     try {
       // Get all bills from the database
@@ -85,7 +88,7 @@ class BillTrackingService {
         .sort((a, b) => new Date(a.updatedAt || 0).getTime() - new Date(b.updatedAt || 0).getTime())
         .slice(0, 50);
       
-      console.log(`Updating ${billsToUpdate.length} bills with oldest update timestamp`);
+      log.info(`Updating ${billsToUpdate.length} bills with oldest update timestamp`);
       
       let updatedCount = 0;
       for (const bill of billsToUpdate) {
@@ -96,9 +99,9 @@ class BillTrackingService {
         await new Promise(resolve => setTimeout(resolve, 500));
       }
       
-      console.log(`Completed scheduled bill update. Updated ${updatedCount} bills with new information.`);
+      log.info(`Completed scheduled bill update. Updated ${updatedCount} bills with new information.`);
     } catch (error: any) {
-      console.error('Error during scheduled bill update:', error);
+      log.error({ err: error }, 'Error during scheduled bill update');
     }
   }
   
@@ -121,7 +124,7 @@ class BillTrackingService {
         return; // No tracked bills
       }
       
-      console.log(`Updating ${trackedBillRecords.length} tracked bills`);
+      log.info(`Updating ${trackedBillRecords.length} tracked bills`);
       
       let updatedCount = 0;
       for (const record of trackedBillRecords) {
@@ -133,10 +136,10 @@ class BillTrackingService {
       }
       
       if (updatedCount > 0) {
-        console.log(`Updated ${updatedCount} tracked bills with new information`);
+        log.info(`Updated ${updatedCount} tracked bills with new information`);
       }
     } catch (error: any) {
-      console.error('Error updating tracked bills:', error);
+      log.error({ err: error }, 'Error updating tracked bills');
     }
   }
   
@@ -148,7 +151,7 @@ class BillTrackingService {
       // Extract chamber and number
       const [chamber, number] = this.extractBillComponents(billId);
       if (!chamber || !number) {
-        console.error(`Invalid bill ID format: ${billId}`);
+        log.error(`Invalid bill ID format: ${billId}`);
         return false;
       }
       
@@ -158,7 +161,7 @@ class BillTrackingService {
       // Fetch the bill page from TLO
       const response = await axios.get(url);
       if (response.status !== 200) {
-        console.error(`Failed to fetch bill ${billId}, status: ${response.status}`);
+        log.error(`Failed to fetch bill ${billId}, status: ${response.status}`);
         return false;
       }
       
@@ -218,13 +221,13 @@ class BillTrackingService {
           await this.createMovementNotifications(billId, updateData);
         }
         
-        console.log(`Updated bill ${billId} with new information`);
+        log.info(`Updated bill ${billId} with new information`);
         return true;
       }
       
       return false;
     } catch (error: any) {
-      console.error(`Error updating bill ${billId}:`, error);
+      log.error({ err: error }, `Error updating bill ${billId}`);
       return false;
     }
   }
@@ -263,9 +266,9 @@ class BillTrackingService {
         });
       }
       
-      console.log(`Created movement notifications for ${trackingUsers.length} users tracking bill ${billId}`);
+      log.info(`Created movement notifications for ${trackingUsers.length} users tracking bill ${billId}`);
     } catch (error: any) {
-      console.error(`Error creating movement notifications for bill ${billId}:`, error);
+      log.error({ err: error }, `Error creating movement notifications for bill ${billId}`);
     }
   }
   
@@ -442,7 +445,7 @@ class BillTrackingService {
       }));
       
       await db.insert(billHistoryEvents).values(eventsToInsert);
-      console.log(`Stored ${historyEvents.length} new history events for bill ${billId}`);
+      log.info(`Stored ${historyEvents.length} new history events for bill ${billId}`);
     }
     
     return historyEvents;

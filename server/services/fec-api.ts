@@ -8,6 +8,9 @@
  */
 
 import axios from 'axios';
+import { createLogger } from "../logger";
+const log = createLogger("fec-api");
+
 
 export class FECAPIService {
   private baseUrl = 'https://api.open.fec.gov/v1';
@@ -22,7 +25,7 @@ export class FECAPIService {
    */
   async getTexasCandidateFinances(candidateName?: string) {
     try {
-      console.log('💰 Fetching authentic Texas campaign finance data from FEC...');
+      log.info('💰 Fetching authentic Texas campaign finance data from FEC...');
       
       const response = await axios.get(
         `${this.baseUrl}/candidates/`,
@@ -38,11 +41,11 @@ export class FECAPIService {
         }
       );
 
-      console.log(`✅ Retrieved ${response.data.results.length} Texas candidates with FEC data`);
+      log.info(`✅ Retrieved ${response.data.results.length} Texas candidates with FEC data`);
       return this.normalizeCandidateData(response.data.results);
 
     } catch (error: any) {
-      console.error('❌ Error fetching FEC data:', error.message);
+      log.error({ err: error.message }, '❌ Error fetching FEC data');
       if (error.response?.status === 403) {
         throw new Error('FEC API key is invalid or missing');
       }
@@ -55,7 +58,7 @@ export class FECAPIService {
    */
   async getTexasCommitteeFinances() {
     try {
-      console.log('🏛️ Fetching Texas committee finance data from FEC...');
+      log.info('🏛️ Fetching Texas committee finance data from FEC...');
       
       const response = await axios.get(
         `${this.baseUrl}/committees/`,
@@ -70,11 +73,11 @@ export class FECAPIService {
         }
       );
 
-      console.log(`✅ Retrieved ${response.data.results.length} Texas committees with FEC data`);
+      log.info(`✅ Retrieved ${response.data.results.length} Texas committees with FEC data`);
       return this.normalizeCommitteeData(response.data.results);
 
     } catch (error: any) {
-      console.error('❌ Error fetching committee data:', error.message);
+      log.error({ err: error.message }, '❌ Error fetching committee data');
       return [];
     }
   }
@@ -99,7 +102,7 @@ export class FECAPIService {
 
       return this.normalizeContributionData(response.data.results);
     } catch (error: any) {
-      console.error(`❌ Error fetching contributions for ${candidateId}:`, error.message);
+      log.error({ err: error.message }, `❌ Error fetching contributions for ${candidateId}`);
       return [];
     }
   }

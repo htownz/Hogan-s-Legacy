@@ -6,6 +6,9 @@ import multer from "multer";
 import fs from "fs";
 import { z } from "zod";
 import path from "path";
+import { createLogger } from "./logger";
+const log = createLogger("routes-multimodal-assistant");
+
 
 // Setup multer for file uploads
 const upload = multer({
@@ -47,7 +50,7 @@ const fileToBase64 = (filePath: string): Promise<string> => {
 const cleanupFiles = (files: Express.Multer.File[]) => {
   files.forEach((file) => {
     fs.unlink(file.path, (err) => {
-      if (err) console.error(`Failed to delete temp file ${file.path}:`, err);
+      if (err) log.error({ err: err }, `Failed to delete temp file ${file.path}`);
     });
   });
 };
@@ -80,12 +83,12 @@ export function registerMultimodalAssistantRoutes(app: Express): void {
 
         // Clean up the temporary file
         fs.unlink(req.file.path, (err) => {
-          if (err) console.error(`Failed to delete temp file ${req.file!.path}:`, err);
+          if (err) log.error({ err: err }, `Failed to delete temp file ${req.file!.path}`);
         });
 
         res.status(200).json(analysis);
       } catch (error: any) {
-        console.error("Error analyzing image:", error);
+        log.error({ err: error }, "Error analyzing image");
         
         // Clean up temp file if it exists
         if (req.file) {
@@ -138,7 +141,7 @@ export function registerMultimodalAssistantRoutes(app: Express): void {
 
       res.status(200).json(result);
     } catch (error: any) {
-      console.error("Error generating image:", error);
+      log.error({ err: error }, "Error generating image");
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       res.status(500).json({ message: "Failed to generate image", error: errorMessage });
     }
@@ -158,7 +161,7 @@ export function registerMultimodalAssistantRoutes(app: Express): void {
       const analysis = await multimodalService.analyzeSentiment(text);
       res.status(200).json(analysis);
     } catch (error: any) {
-      console.error("Error analyzing sentiment:", error);
+      log.error({ err: error }, "Error analyzing sentiment");
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       res.status(500).json({ message: "Failed to analyze sentiment", error: errorMessage });
     }
@@ -197,12 +200,12 @@ export function registerMultimodalAssistantRoutes(app: Express): void {
 
         // Clean up the temporary file
         fs.unlink(req.file.path, (err) => {
-          if (err) console.error(`Failed to delete temp file ${req.file!.path}:`, err);
+          if (err) log.error({ err: err }, `Failed to delete temp file ${req.file!.path}`);
         });
 
         res.status(200).json(extractionResult);
       } catch (error: any) {
-        console.error("Error extracting document information:", error);
+        log.error({ err: error }, "Error extracting document information");
         
         // Clean up temp file if it exists
         if (req.file) {
@@ -252,7 +255,7 @@ export function registerMultimodalAssistantRoutes(app: Express): void {
 
         res.status(200).json(comparisonResult);
       } catch (error: any) {
-        console.error("Error comparing items:", error);
+        log.error({ err: error }, "Error comparing items");
         
         // Clean up temp files if they exist
         if (req.files) {
@@ -296,12 +299,12 @@ export function registerMultimodalAssistantRoutes(app: Express): void {
 
         // Clean up the temporary file
         fs.unlink(req.file.path, (err) => {
-          if (err) console.error(`Failed to delete temp file ${req.file!.path}:`, err);
+          if (err) log.error({ err: err }, `Failed to delete temp file ${req.file!.path}`);
         });
 
         res.status(200).json(transcription);
       } catch (error: any) {
-        console.error("Error transcribing audio:", error);
+        log.error({ err: error }, "Error transcribing audio");
         
         // Clean up temp file if it exists
         if (req.file) {
@@ -338,7 +341,7 @@ export function registerMultimodalAssistantRoutes(app: Express): void {
         }
       });
     } catch (error: any) {
-      console.error("OpenAI API status check failed:", error);
+      log.error({ err: error }, "OpenAI API status check failed");
       const errorMessage = error instanceof Error ? error.message : 'API connection failed';
       res.status(200).json({ 
         status: "degraded",

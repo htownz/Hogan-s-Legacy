@@ -9,13 +9,16 @@ import {
   insertUserNotificationPreferenceSchema
 } from '../shared/schema-notifications';
 import { CustomRequest } from './types';
+import { createLogger } from "./logger";
+const log = createLogger("routes-notifications");
+
 
 /**
  * Register notification API routes
  */
 export function registerNotificationRoutes(app: Express): void {
   // Notification service is ready to use
-  console.log("📧 Enhanced notification system registered successfully!");
+  log.info("📧 Enhanced notification system registered successfully!");
   
   /**
    * Get user notification preferences
@@ -30,7 +33,7 @@ export function registerNotificationRoutes(app: Express): void {
       const preferences = await notificationService.getUserPreferences(userId);
       return res.json(preferences);
     } catch (error: any) {
-      console.error('Error fetching notification preferences:', error);
+      log.error({ err: error }, 'Error fetching notification preferences');
       return res.status(500).json({ error: 'Failed to fetch notification preferences' });
     }
   });
@@ -77,7 +80,7 @@ export function registerNotificationRoutes(app: Express): void {
       
       return res.json(updatedPreference);
     } catch (error: any) {
-      console.error('Error updating notification preference:', error);
+      log.error({ err: error }, 'Error updating notification preference');
       return res.status(500).json({ error: 'Failed to update notification preference' });
     }
   });
@@ -90,7 +93,7 @@ export function registerNotificationRoutes(app: Express): void {
       const types = await notificationService.getNotificationTypes();
       return res.json(types);
     } catch (error: any) {
-      console.error('Error fetching notification types:', error);
+      log.error({ err: error }, 'Error fetching notification types');
       return res.status(500).json({ error: 'Failed to fetch notification types' });
     }
   });
@@ -123,7 +126,7 @@ export function registerNotificationRoutes(app: Express): void {
       
       return res.json(notifications);
     } catch (error: any) {
-      console.error('Error fetching notifications:', error);
+      log.error({ err: error }, 'Error fetching notifications');
       return res.status(500).json({ error: 'Failed to fetch notifications' });
     }
   });
@@ -155,7 +158,7 @@ export function registerNotificationRoutes(app: Express): void {
       
       return res.json(notification);
     } catch (error: any) {
-      console.error('Error fetching notification:', error);
+      log.error({ err: error }, 'Error fetching notification');
       return res.status(500).json({ error: 'Failed to fetch notification' });
     }
   });
@@ -191,7 +194,7 @@ export function registerNotificationRoutes(app: Express): void {
       const notification = await notificationService.createNotification(validationResult.data);
       return res.status(201).json(notification);
     } catch (error: any) {
-      console.error('Error creating notification:', error);
+      log.error({ err: error }, 'Error creating notification');
       return res.status(500).json({ error: 'Failed to create notification' });
     }
   });
@@ -246,7 +249,7 @@ export function registerNotificationRoutes(app: Express): void {
       
       return res.status(200).json({ success: true });
     } catch (error: any) {
-      console.error('Error recording notification action:', error);
+      log.error({ err: error }, 'Error recording notification action');
       return res.status(500).json({ error: 'Failed to record notification action' });
     }
   });
@@ -288,7 +291,7 @@ export function registerNotificationRoutes(app: Express): void {
         return res.status(200).json({ success: true });
       }
     } catch (error: any) {
-      console.error('Error marking notifications as read:', error);
+      log.error({ err: error }, 'Error marking notifications as read');
       return res.status(500).json({ error: 'Failed to mark notifications as read' });
     }
   });
@@ -306,7 +309,7 @@ export function registerNotificationRoutes(app: Express): void {
       const stats = await notificationService.getNotificationStats(userId);
       return res.json(stats);
     } catch (error: any) {
-      console.error('Error fetching notification stats:', error);
+      log.error({ err: error }, 'Error fetching notification stats');
       return res.status(500).json({ error: 'Failed to fetch notification statistics' });
     }
   });
@@ -324,7 +327,7 @@ export function registerNotificationRoutes(app: Express): void {
       const distribution = await notificationService.getNotificationTypeDistribution(userId);
       return res.json(distribution);
     } catch (error: any) {
-      console.error('Error fetching notification distribution:', error);
+      log.error({ err: error }, 'Error fetching notification distribution');
       return res.status(500).json({ error: 'Failed to fetch notification distribution' });
     }
   });

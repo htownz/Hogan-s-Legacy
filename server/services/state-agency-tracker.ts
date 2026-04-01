@@ -12,6 +12,9 @@ import { bills, stateAgencies, agencyBillReports } from '@shared/schema';
 import { eq, and, desc, sql } from 'drizzle-orm';
 import nodeCron from 'node-cron';
 import { createHash } from 'crypto';
+import { createLogger } from "../logger";
+const log = createLogger("state-agency-tracker");
+
 
 // List of Texas state agencies to monitor 
 // (focusing on those most likely to publish bill analyses and legislative reports)
@@ -115,18 +118,18 @@ interface AgencyReport {
  * Scan all configured state agencies for legislative updates
  */
 export async function scanStateAgencyWebsites(): Promise<void> {
-  console.log("Starting scan of Texas state agency websites...");
+  log.info("Starting scan of Texas state agency websites...");
   
   // Track total new findings for logging
   let totalNewFindings = 0;
   
   for (const agency of STATE_AGENCIES) {
-    console.log(`Scanning ${agency.name} website for legislative updates...`);
+    log.info(`Scanning ${agency.name} website for legislative updates...`);
     
     for (const path of agency.legislativePaths) {
       try {
         const url = `${agency.url}${path}`;
-        console.log(`Checking ${url}`);
+        log.info(`Checking ${url}`);
         
         const response = await axios.get(url, {
           headers: {
@@ -148,12 +151,12 @@ export async function scanStateAgencyWebsites(): Promise<void> {
         // Small delay to prevent overwhelming agency websites
         await new Promise(resolve => setTimeout(resolve, 2000));
       } catch (error: any) {
-        console.error(`Error scanning ${agency.name} at path ${path}:`, error);
+        log.error({ err: error }, `Error scanning ${agency.name} at path ${path}`);
       }
     }
   }
   
-  console.log(`State agency scan complete. Found ${totalNewFindings} new legislative updates.`);
+  log.info(`State agency scan complete. Found ${totalNewFindings} new legislative updates.`);
 }
 
 /**
@@ -317,7 +320,7 @@ async function processAgencyReport(report: AgencyReport): Promise<boolean> {
           })
           .where(eq(agencyBillReports.id, existingReport.id));
         
-        console.log(`Updated agency report: ${report.title}`);
+        log.info(`Updated agency report: ${report.title}`);
         return true;
       }
       return false;
@@ -339,7 +342,7 @@ async function processAgencyReport(report: AgencyReport): Promise<boolean> {
       lastUpdated: new Date()
     });
     
-    console.log(`New agency report found: ${detailedReport.title}`);
+    log.info(`New agency report found: ${detailedReport.title}`);
     
     // Create association with bills if bill IDs were found
     if (detailedReport.billIds.length > 0) {
@@ -349,7 +352,7 @@ async function processAgencyReport(report: AgencyReport): Promise<boolean> {
         });
         
         if (bill) {
-          console.log(`Linking agency report to bill ${billId}`);
+          log.info(`Linking agency report to bill ${billId}`);
           // The association will be done through the agencyBillReports table itself
           // which already has billIds as an array field
         }
@@ -358,7 +361,7 @@ async function processAgencyReport(report: AgencyReport): Promise<boolean> {
     
     return true;
   } catch (error: any) {
-    console.error(`Error processing agency report ${report.title}:`, error);
+    log.error({ err: error }, `Error processing agency report ${report.title}`);
     return false;
   }
 }
@@ -415,7 +418,7 @@ async function enrichReportDetails(report: AgencyReport): Promise<AgencyReport> 
       summary: betterSummary
     };
   } catch (error: any) {
-    console.warn(`Could not enrich report details for ${report.url}:`, error);
+    log.warn({ detail: error }, `Could not enrich report details for ${report.url}`);
     return report;
   }
 }
@@ -482,27 +485,27 @@ function extractPublishDate($: cheerio.CheerioAPI): Date | null {
  * Initialize scheduled scans of state agency websites
  */
 export function initStateAgencyTracker(): void {
-  console.log('State agency website scans temporarily disabled to fix server issues');
+  log.info('State agency website scans temporarily disabled to fix server issues');
   
   // Initial scan disabled
   // setTimeout(() => {
   //   scanStateAgencyWebsites().catch(error => {
-  //     console.error("Error in initial state agency scan:", error);
+  //     log.error({ err: error }, "Error in initial state agency scan");
   //   });
   // }, 10000); // Delay initial scan to allow server to fully start
   
   // Schedule regular scans (daily) - disabled
   // nodeCron.schedule('0 4 * * *', async () => {
-  //   console.log('Running scheduled scan of state agency websites...');
+  //   log.info('Running scheduled scan of state agency websites...');
   //   try {
   //     await scanStateAgencyWebsites();
-  //     console.log('Completed scheduled scan of state agency websites');
+  //     log.info('Completed scheduled scan of state agency websites');
   //   } catch (error: any) {
-  //     console.error('Error in scheduled state agency scan:', error);
+  //     log.error({ err: error }, 'Error in scheduled state agency scan');
   //   }
   // });
   
-  console.log('State agency tracker initialization skipped');
+  log.info('State agency tracker initialization skipped');
 }
 
 export default {

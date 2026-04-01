@@ -1,6 +1,9 @@
 import { Request, Response, NextFunction } from "express";
 import { storage } from "../storage";
 import { isUserAdminById } from "./auth-middleware";
+import { createLogger } from "../logger";
+
+const log = createLogger("auth");
 
 type AuthenticatedRequest = Request & {
   session?: {
@@ -61,7 +64,7 @@ export const requireAdmin = async (req: AuthenticatedRequest, res: Response, nex
     
     next();
   } catch (error: any) {
-    console.error("Error in requireAdmin middleware:", error);
+    log.error({ err: error }, 'Error in requireAdmin middleware');
     res.status(500).json({ message: "Server error while checking admin role" });
   }
 };
@@ -84,7 +87,7 @@ export const requireSuperUser = async (req: AuthenticatedRequest, res: Response,
     req.superUserRole = superUserRole;
     next();
   } catch (error: any) {
-    console.error("Error in requireSuperUser middleware:", error);
+    log.error({ err: error }, 'Error in requireSuperUser middleware');
     res.status(500).json({ message: "Server error while checking super user role" });
   }
 };

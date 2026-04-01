@@ -1,5 +1,8 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import { createLogger } from "../logger";
+const log = createLogger("enhanced-texas-scraper");
+
 
 /**
  * Enhanced Texas Legislature Scraper
@@ -59,36 +62,36 @@ class EnhancedTexasScraper {
     };
 
     try {
-      console.log('🚀 Starting enhanced Texas legislative data collection...');
+      log.info('🚀 Starting enhanced Texas legislative data collection...');
 
       // 1. Collect bills using proven TLO directory structure
       try {
-        console.log('📋 Collecting bills from TLO directories...');
+        log.info('📋 Collecting bills from TLO directories...');
         const bills = await this.collectBillsFromTLO();
         results.data.bills = bills;
         results.billsCollected = bills.length;
-        console.log(`✅ Successfully collected ${bills.length} bills`);
+        log.info(`✅ Successfully collected ${bills.length} bills`);
       } catch (error: any) {
-        console.error('❌ Error collecting bills:', error.message);
+        log.error({ err: error.message }, '❌ Error collecting bills');
         results.errors.push(`Bills: ${error.message}`);
       }
 
       // 2. Collect legislator information
       try {
-        console.log('👥 Collecting legislator information...');
+        log.info('👥 Collecting legislator information...');
         const legislators = await this.collectLegislators();
         results.data.legislators = legislators;
         results.legislatorsCollected = legislators.length;
-        console.log(`✅ Successfully collected ${legislators.length} legislators`);
+        log.info(`✅ Successfully collected ${legislators.length} legislators`);
       } catch (error: any) {
-        console.error('❌ Error collecting legislators:', error.message);
+        log.error({ err: error.message }, '❌ Error collecting legislators');
         results.errors.push(`Legislators: ${error.message}`);
       }
 
-      console.log(`🎉 Enhanced collection completed: ${results.billsCollected} bills, ${results.legislatorsCollected} legislators`);
+      log.info(`🎉 Enhanced collection completed: ${results.billsCollected} bills, ${results.legislatorsCollected} legislators`);
 
     } catch (error: any) {
-      console.error('❌ Enhanced collection failed:', error.message);
+      log.error({ err: error.message }, '❌ Enhanced collection failed');
       results.success = false;
       results.errors.push(error.message);
     }
@@ -115,7 +118,7 @@ class EnhancedTexasScraper {
 
       for (const path of billPaths) {
         try {
-          console.log(`📋 Checking TLO path: ${path}`);
+          log.info(`📋 Checking TLO path: ${path}`);
           const pathBills = await this.scrapeBillsFromPath(path);
           bills.push(...pathBills);
           
@@ -127,12 +130,12 @@ class EnhancedTexasScraper {
           await new Promise(resolve => setTimeout(resolve, this.delay));
           
         } catch (error: any) {
-          console.warn(`⚠️ Could not access path ${path}: ${error.message}`);
+          log.warn(`⚠️ Could not access path ${path}: ${error.message}`);
         }
       }
 
     } catch (error: any) {
-      console.error('❌ Error in TLO bill collection:', error.message);
+      log.error({ err: error.message }, '❌ Error in TLO bill collection');
       throw error;
     }
 
@@ -175,7 +178,7 @@ class EnhancedTexasScraper {
         }
       });
 
-      console.log(`📋 Found ${billLinks.length} potential bill links in ${path}`);
+      log.info(`📋 Found ${billLinks.length} potential bill links in ${path}`);
 
       // Process bill links (limit to first 10 per path)
       for (let i = 0; i < Math.min(billLinks.length, 10); i++) {
@@ -189,15 +192,15 @@ class EnhancedTexasScraper {
           await new Promise(resolve => setTimeout(resolve, this.delay));
           
         } catch (error: any) {
-          console.warn(`⚠️ Could not process bill ${billLinks[i]}: ${error.message}`);
+          log.warn(`⚠️ Could not process bill ${billLinks[i]}: ${error.message}`);
         }
       }
 
     } catch (error: any) {
       if (error.response?.status === 404) {
-        console.log(`📋 Path ${path} not found (404) - trying next path`);
+        log.info(`📋 Path ${path} not found (404) - trying next path`);
       } else {
-        console.warn(`⚠️ Error accessing ${path}: ${error.message}`);
+        log.warn(`⚠️ Error accessing ${path}: ${error.message}`);
       }
     }
 
@@ -267,7 +270,7 @@ class EnhancedTexasScraper {
       return bill;
 
     } catch (error: any) {
-      console.warn(`⚠️ Error extracting bill from ${billUrl}: ${error.message}`);
+      log.warn(`⚠️ Error extracting bill from ${billUrl}: ${error.message}`);
       return null;
     }
   }
@@ -289,7 +292,7 @@ class EnhancedTexasScraper {
 
       for (const path of legislatorPaths) {
         try {
-          console.log(`👥 Checking legislator path: ${path}`);
+          log.info(`👥 Checking legislator path: ${path}`);
           const pathLegislators = await this.scrapeLegislatorsFromPath(path);
           legislators.push(...pathLegislators);
           
@@ -301,12 +304,12 @@ class EnhancedTexasScraper {
           await new Promise(resolve => setTimeout(resolve, this.delay));
           
         } catch (error: any) {
-          console.warn(`⚠️ Could not access legislator path ${path}: ${error.message}`);
+          log.warn(`⚠️ Could not access legislator path ${path}: ${error.message}`);
         }
       }
 
     } catch (error: any) {
-      console.error('❌ Error collecting legislators:', error.message);
+      log.error({ err: error.message }, '❌ Error collecting legislators');
       throw error;
     }
 
@@ -366,7 +369,7 @@ class EnhancedTexasScraper {
 
     } catch (error: any) {
       if (error.response?.status !== 404) {
-        console.warn(`⚠️ Error accessing ${path}: ${error.message}`);
+        log.warn(`⚠️ Error accessing ${path}: ${error.message}`);
       }
     }
 
@@ -400,4 +403,4 @@ class EnhancedTexasScraper {
 
 export const enhancedTexasScraper = new EnhancedTexasScraper();
 
-console.log('🏛️ Enhanced Texas Legislature scraper initialized');
+log.info('🏛️ Enhanced Texas Legislature scraper initialized');

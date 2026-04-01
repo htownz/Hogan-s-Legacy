@@ -1,5 +1,8 @@
 import { Router } from 'express';
 import { generateRealTimeTimeline, getBatchTimelineUpdates, calculateStageProgression, getPriorityEvents } from './services/real-time-timeline-service';
+import { createLogger } from "./logger";
+const log = createLogger("routes-real-time-timeline");
+
 
 const router = Router();
 
@@ -21,7 +24,7 @@ router.get('/bill/:billId', async (req, res) => {
     const result = await generateRealTimeTimeline(billId);
     return res.json(result);
   } catch (error: any) {
-    console.error('Error in timeline generation endpoint:', error);
+    log.error({ err: error }, 'Error in timeline generation endpoint');
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -58,7 +61,7 @@ router.post('/batch', async (req, res) => {
     const result = await getBatchTimelineUpdates(validBillIds);
     return res.json(result);
   } catch (error: any) {
-    console.error('Error in batch timeline endpoint:', error);
+    log.error({ err: error }, 'Error in batch timeline endpoint');
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -80,7 +83,7 @@ router.get('/stage/:stage', async (req, res) => {
       data: progression
     });
   } catch (error: any) {
-    console.error('Error in stage progression endpoint:', error);
+    log.error({ err: error }, 'Error in stage progression endpoint');
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -111,7 +114,7 @@ router.post('/priority-events', async (req, res) => {
       data: priorityEvents
     });
   } catch (error: any) {
-    console.error('Error in priority events endpoint:', error);
+    log.error({ err: error }, 'Error in priority events endpoint');
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -160,7 +163,7 @@ router.get('/live/:billId', async (req, res) => {
     
     return res.json(result);
   } catch (error: any) {
-    console.error('Error in live timeline endpoint:', error);
+    log.error({ err: error }, 'Error in live timeline endpoint');
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -170,7 +173,7 @@ router.get('/live/:billId', async (req, res) => {
 
 export function registerRealTimeTimelineRoutes(app: any) {
   app.use('/api/timeline', router);
-  console.log('Real-time timeline routes registered');
+  log.info('Real-time timeline routes registered');
 }
 
 export default router;

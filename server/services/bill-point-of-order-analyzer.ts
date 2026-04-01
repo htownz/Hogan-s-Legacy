@@ -4,6 +4,9 @@ import { eq, desc, and, or } from "drizzle-orm";
 import OpenAI from "openai";
 import { SERVER_CONFIG } from "../config";
 import { createId } from "@paralleldrive/cuid2";
+import { createLogger } from "../logger";
+const log = createLogger("bill-point-of-order-analyzer");
+
 
 // Create OpenAI client
 const openai = new OpenAI({
@@ -18,7 +21,7 @@ export class BillPointOfOrderAnalyzer {
    * Initialize the analyzer
    */
   constructor() {
-    console.log("Bill Point of Order Analyzer initialized");
+    log.info("Bill Point of Order Analyzer initialized");
   }
 
   /**
@@ -35,7 +38,7 @@ export class BillPointOfOrderAnalyzer {
 
       return historicalPOOs;
     } catch (error: any) {
-      console.error("Error fetching historical points of order data:", error);
+      log.error({ err: error }, "Error fetching historical points of order data");
       return [];
     }
   }
@@ -53,7 +56,7 @@ export class BillPointOfOrderAnalyzer {
 
       return rules;
     } catch (error: any) {
-      console.error("Error fetching legislative rules:", error);
+      log.error({ err: error }, "Error fetching legislative rules");
       return [];
     }
   }
@@ -167,7 +170,7 @@ If no potential points of order are identified, return an empty array.
           analysis: analysisResults.points || analysisResults // Handle different response formats
         };
       } catch (error: any) {
-        console.error("Error parsing OpenAI response:", error);
+        log.error({ err: error }, "Error parsing OpenAI response");
         return {
           billId,
           analysis: [{
@@ -176,7 +179,7 @@ If no potential points of order are identified, return an empty array.
         };
       }
     } catch (error: any) {
-      console.error(`Error analyzing bill ${billId} for points of order:`, error);
+      log.error({ err: error }, `Error analyzing bill ${billId} for points of order`);
       return {
         billId,
         analysis: [{
@@ -227,7 +230,7 @@ If no potential points of order are identified, return an empty array.
 
       return { success: true, message: `Stored ${analysis.length} potential points of order` };
     } catch (error: any) {
-      console.error("Error storing points of order results:", error);
+      log.error({ err: error }, "Error storing points of order results");
       return { success: false, message: "Failed to store analysis results" };
     }
   }
@@ -243,7 +246,7 @@ If no potential points of order are identified, return an empty array.
 
       // Analyze each bill sequentially to avoid rate limits
       for (const billId of billIds) {
-        console.log(`Analyzing bill ${billId} for points of order...`);
+        log.info(`Analyzing bill ${billId} for points of order...`);
         
         const analysis = await this.analyzeBill(billId);
         
@@ -262,7 +265,7 @@ If no potential points of order are identified, return an empty array.
 
       return results;
     } catch (error: any) {
-      console.error("Error in batch analysis:", error);
+      log.error({ err: error }, "Error in batch analysis");
       return billIds.map(id => ({ 
         billId: id, 
         analysis: [{ error: "Batch analysis failed" }] 
@@ -348,13 +351,13 @@ If no potential points of order are identified, return an empty array.
 
         return analysisResults.points || analysisResults;
       } catch (error: any) {
-        console.error("Error parsing OpenAI response for amendment analysis:", error);
+        log.error({ err: error }, "Error parsing OpenAI response for amendment analysis");
         return [{
           error: "Failed to parse analysis results"
         }];
       }
     } catch (error: any) {
-      console.error(`Error analyzing amendment for bill ${billId}:`, error);
+      log.error({ err: error }, `Error analyzing amendment for bill ${billId}`);
       return [{
         error: "Analysis failed due to an internal error"
       }];

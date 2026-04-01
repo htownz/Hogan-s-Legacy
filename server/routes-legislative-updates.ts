@@ -5,6 +5,9 @@ import { legislativeUpdateQuerySchema } from "@shared/schema-legislative-updates
 import { createId } from "@paralleldrive/cuid2";
 import axios from "axios";
 import { parseStringPromise } from "xml2js";
+import { createLogger } from "./logger";
+const log = createLogger("routes-legislative-updates");
+
 
 // RSS Feed URLs
 const RSS_FEEDS = [
@@ -99,7 +102,7 @@ async function fetchRssFeed(url: string, category: string, sourceName: string) {
     const parsedXml = await parseStringPromise(response.data);
     
     if (!parsedXml.rss || !parsedXml.rss.channel || !parsedXml.rss.channel[0].item) {
-      console.log(`No items found in RSS feed: ${url}`);
+      log.info(`No items found in RSS feed: ${url}`);
       return [];
     }
     
@@ -127,7 +130,7 @@ async function fetchRssFeed(url: string, category: string, sourceName: string) {
     
     return updates;
   } catch (error: any) {
-    console.error(`Error fetching RSS feed from ${url}:`, error);
+    log.error({ err: error }, `Error fetching RSS feed from ${url}`);
     return [];
   }
 }
@@ -153,7 +156,7 @@ export function registerLegislativeUpdatesRoutes(app: Express) {
       const result = await legislativeUpdatesStorage.getLegislativeUpdates(validatedQuery);
       res.json(result);
     } catch (error: any) {
-      console.error("Error getting legislative updates:", error);
+      log.error({ err: error }, "Error getting legislative updates");
       res.status(500).json({ error: "Failed to get legislative updates" });
     }
   });
@@ -164,7 +167,7 @@ export function registerLegislativeUpdatesRoutes(app: Express) {
       const stats = await legislativeUpdatesStorage.getStats();
       res.json(stats);
     } catch (error: any) {
-      console.error("Error getting legislative update stats:", error);
+      log.error({ err: error }, "Error getting legislative update stats");
       res.status(500).json({ error: "Failed to get legislative update statistics" });
     }
   });
@@ -181,7 +184,7 @@ export function registerLegislativeUpdatesRoutes(app: Express) {
       
       res.json(update);
     } catch (error: any) {
-      console.error("Error getting legislative update:", error);
+      log.error({ err: error }, "Error getting legislative update");
       res.status(500).json({ error: "Failed to get legislative update" });
     }
   });
@@ -198,7 +201,7 @@ export function registerLegislativeUpdatesRoutes(app: Express) {
       
       res.json({ success: true });
     } catch (error: any) {
-      console.error("Error marking legislative update as read:", error);
+      log.error({ err: error }, "Error marking legislative update as read");
       res.status(500).json({ error: "Failed to mark legislative update as read" });
     }
   });
@@ -211,7 +214,7 @@ export function registerLegislativeUpdatesRoutes(app: Express) {
       
       res.json({ success: true, count });
     } catch (error: any) {
-      console.error("Error marking all legislative updates as read:", error);
+      log.error({ err: error }, "Error marking all legislative updates as read");
       res.status(500).json({ error: "Failed to mark all legislative updates as read" });
     }
   });
@@ -221,12 +224,12 @@ export function registerLegislativeUpdatesRoutes(app: Express) {
     try {
       // Run the refresh in the background
       refreshRssFeeds().catch(error => {
-        console.error("Error in background RSS refresh:", error);
+        log.error({ err: error }, "Error in background RSS refresh");
       });
       
       res.json({ success: true, message: "RSS feed refresh started" });
     } catch (error: any) {
-      console.error("Error starting RSS feed refresh:", error);
+      log.error({ err: error }, "Error starting RSS feed refresh");
       res.status(500).json({ error: "Failed to start RSS feed refresh" });
     }
   });
@@ -234,7 +237,7 @@ export function registerLegislativeUpdatesRoutes(app: Express) {
 
 // Function to refresh RSS feeds
 export async function refreshRssFeeds() {
-  console.log("Starting RSS feed update");
+  log.info("Starting RSS feed update");
   
   try {
     let totalUpdates = 0;
@@ -261,15 +264,15 @@ export async function refreshRssFeeds() {
             totalUpdates++;
           }
         } catch (error: any) {
-          console.error("Error saving update:", error);
+          log.error({ err: error }, "Error saving update");
         }
       }
     }
     
-    console.log(`RSS feed update completed. Added ${totalUpdates} new updates`);
+    log.info(`RSS feed update completed. Added ${totalUpdates} new updates`);
     return totalUpdates;
   } catch (error: any) {
-    console.error("Error refreshing RSS feeds:", error);
+    log.error({ err: error }, "Error refreshing RSS feeds");
     throw error;
   }
 }

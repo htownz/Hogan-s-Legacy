@@ -8,6 +8,9 @@
  */
 
 import axios from 'axios';
+import { createLogger } from "../logger";
+const log = createLogger("texas-legislature-api");
+
 
 export class TexasLegislatureAPI {
   private baseUrl = 'https://capitol.state.tx.us';
@@ -18,7 +21,7 @@ export class TexasLegislatureAPI {
    */
   async getCurrentLegislators() {
     try {
-      console.log('👥 Fetching current Texas legislators from Texas Legislature Online...');
+      log.info('👥 Fetching current Texas legislators from Texas Legislature Online...');
       
       // Get legislators using the public search interface
       const response = await axios.get(
@@ -33,15 +36,15 @@ export class TexasLegislatureAPI {
       );
 
       const legislators = this.normalizeLegislators(response.data, 'All');
-      console.log(`✅ Retrieved ${legislators.length} current Texas legislators`);
+      log.info(`✅ Retrieved ${legislators.length} current Texas legislators`);
       return legislators;
 
     } catch (error: any) {
-      console.error('❌ Error fetching Texas legislators:', error.message);
+      log.error({ err: error.message }, '❌ Error fetching Texas legislators');
       
       // Try alternative endpoint for member listings
       try {
-        console.log('🔄 Trying alternative member endpoint...');
+        log.info('🔄 Trying alternative member endpoint...');
         const altResponse = await axios.get(
           `${this.baseUrl}/Members/api/members`,
           {
@@ -54,11 +57,11 @@ export class TexasLegislatureAPI {
         );
         
         const legislators = this.normalizeLegislators(altResponse.data, 'All');
-        console.log(`✅ Retrieved ${legislators.length} Texas legislators from alternative endpoint`);
+        log.info(`✅ Retrieved ${legislators.length} Texas legislators from alternative endpoint`);
         return legislators;
         
       } catch (altError: any) {
-        console.error('❌ Alternative endpoint also failed:', altError.message);
+        log.error({ err: altError.message }, '❌ Alternative endpoint also failed');
         return [];
       }
     }
@@ -69,7 +72,7 @@ export class TexasLegislatureAPI {
    */
   async getCurrentBills() {
     try {
-      console.log('📋 Fetching current Texas bills from official API...');
+      log.info('📋 Fetching current Texas bills from official API...');
       
       const response = await axios.get(
         `${this.baseUrl}/BillLookup/api/bill/list/${this.currentSession}`,
@@ -83,11 +86,11 @@ export class TexasLegislatureAPI {
       );
 
       const bills = this.normalizeBills(response.data);
-      console.log(`✅ Retrieved ${bills.length} current Texas bills`);
+      log.info(`✅ Retrieved ${bills.length} current Texas bills`);
       return bills;
 
     } catch (error: any) {
-      console.error('❌ Error fetching Texas bills:', error.message);
+      log.error({ err: error.message }, '❌ Error fetching Texas bills');
       return [];
     }
   }
@@ -97,7 +100,7 @@ export class TexasLegislatureAPI {
    */
   async getBillDetails(billNumber: string) {
     try {
-      console.log(`📄 Fetching details for bill ${billNumber}...`);
+      log.info(`📄 Fetching details for bill ${billNumber}...`);
       
       const response = await axios.get(
         `${this.baseUrl}/BillLookup/api/bill/${this.currentSession}/${billNumber}`,
@@ -113,7 +116,7 @@ export class TexasLegislatureAPI {
       return this.normalizeBillDetails(response.data);
 
     } catch (error: any) {
-      console.error(`❌ Error fetching bill ${billNumber}:`, error.message);
+      log.error({ err: error.message }, `❌ Error fetching bill ${billNumber}`);
       return null;
     }
   }
@@ -123,7 +126,7 @@ export class TexasLegislatureAPI {
    */
   async getLegislatorVotes(memberId: string) {
     try {
-      console.log(`🗳️ Fetching voting record for legislator ${memberId}...`);
+      log.info(`🗳️ Fetching voting record for legislator ${memberId}...`);
       
       const response = await axios.get(
         `${this.baseUrl}/BillLookup/api/member/${this.currentSession}/${memberId}/votes`,
@@ -139,7 +142,7 @@ export class TexasLegislatureAPI {
       return this.normalizeVotingRecord(response.data);
 
     } catch (error: any) {
-      console.error(`❌ Error fetching votes for ${memberId}:`, error.message);
+      log.error({ err: error.message }, `❌ Error fetching votes for ${memberId}`);
       return [];
     }
   }
@@ -231,7 +234,7 @@ export class TexasLegislatureAPI {
    * Get comprehensive Texas legislative data
    */
   async getComprehensiveData() {
-    console.log('🏛️ Fetching comprehensive Texas legislative data...');
+    log.info('🏛️ Fetching comprehensive Texas legislative data...');
     
     const [legislators, bills] = await Promise.all([
       this.getCurrentLegislators(),

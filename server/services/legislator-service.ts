@@ -11,6 +11,9 @@ import {
 import { eq, inArray, and, or, sql } from "drizzle-orm";
 import axios from "axios";
 import { SERVER_CONFIG } from "../config";
+import { createLogger } from "../logger";
+const log = createLogger("legislator-service");
+
 
 export class LegislatorService {
   async getAllLegislators(): Promise<Legislator[]> {
@@ -72,7 +75,7 @@ export class LegislatorService {
     try {
       // In production, this would connect to the Texas Tribune API, Ballotpedia, OpenStates, etc.
       // For demonstration purposes, we're simulating this with a placeholder response
-      console.log(`[LegislatorService] Fetching legislator data for ID: ${texasId} from external APIs`);
+      log.info(`[LegislatorService] Fetching legislator data for ID: ${texasId} from external APIs`);
       
       // Mockup of data we might receive from an API
       const legislatorData = {
@@ -91,7 +94,7 @@ export class LegislatorService {
       
       return legislatorData;
     } catch (error: any) {
-      console.error("[LegislatorService] Error fetching legislator data:", error);
+      log.error({ err: error }, "[LegislatorService] Error fetching legislator data");
       return null;
     }
   }

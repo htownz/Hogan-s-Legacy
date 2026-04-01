@@ -35,6 +35,9 @@ import {
   insertScoutBotInfluencePatternSchema,
   insertScoutBotTemporalInfluenceSchema
 } from "../shared/schema-scout-bot-network";
+import { createLogger } from "./logger";
+const log = createLogger("routes-scout-bot-network");
+
 
 /**
  * Register Scout Bot Network Analysis API routes
@@ -61,7 +64,7 @@ export function registerScoutBotNetworkRoutes(app: Express) {
       
       res.json(connections);
     } catch (error: any) {
-      console.error("Error fetching network connections:", error);
+      log.error({ err: error }, "Error fetching network connections");
       res.status(500).json({ error: "Failed to fetch network connections" });
     }
   });
@@ -83,7 +86,7 @@ export function registerScoutBotNetworkRoutes(app: Express) {
       const connection = await addNetworkConnection(validatedData);
       res.status(201).json(connection);
     } catch (error: any) {
-      console.error("Error adding network connection:", error);
+      log.error({ err: error }, "Error adding network connection");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -107,7 +110,7 @@ export function registerScoutBotNetworkRoutes(app: Express) {
       
       res.json(updatedConnection);
     } catch (error: any) {
-      console.error("Error updating network connection:", error);
+      log.error({ err: error }, "Error updating network connection");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -126,7 +129,7 @@ export function registerScoutBotNetworkRoutes(app: Express) {
         res.status(404).json({ error: "Network connection not found" });
       }
     } catch (error: any) {
-      console.error("Error deleting network connection:", error);
+      log.error({ err: error }, "Error deleting network connection");
       res.status(500).json({ error: "Failed to delete network connection" });
     }
   });
@@ -154,7 +157,7 @@ export function registerScoutBotNetworkRoutes(app: Express) {
       
       res.json(networks);
     } catch (error: any) {
-      console.error("Error fetching influence networks:", error);
+      log.error({ err: error }, "Error fetching influence networks");
       res.status(500).json({ error: "Failed to fetch influence networks" });
     }
   });
@@ -173,7 +176,7 @@ export function registerScoutBotNetworkRoutes(app: Express) {
       
       res.json({ network, members });
     } catch (error: any) {
-      console.error("Error fetching influence network:", error);
+      log.error({ err: error }, "Error fetching influence network");
       res.status(500).json({ error: "Failed to fetch influence network" });
     }
   });
@@ -186,7 +189,7 @@ export function registerScoutBotNetworkRoutes(app: Express) {
       const network = await createInfluenceNetwork(validatedData);
       res.status(201).json(network);
     } catch (error: any) {
-      console.error("Error creating influence network:", error);
+      log.error({ err: error }, "Error creating influence network");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -210,7 +213,7 @@ export function registerScoutBotNetworkRoutes(app: Express) {
       
       res.json(updatedNetwork);
     } catch (error: any) {
-      console.error("Error updating influence network:", error);
+      log.error({ err: error }, "Error updating influence network");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -229,7 +232,7 @@ export function registerScoutBotNetworkRoutes(app: Express) {
         res.status(404).json({ error: "Influence network not found" });
       }
     } catch (error: any) {
-      console.error("Error deleting influence network:", error);
+      log.error({ err: error }, "Error deleting influence network");
       res.status(500).json({ error: "Failed to delete influence network" });
     }
   });
@@ -250,7 +253,7 @@ export function registerScoutBotNetworkRoutes(app: Express) {
       const networks = await getProfileNetworks(id);
       res.json(networks);
     } catch (error: any) {
-      console.error("Error fetching profile networks:", error);
+      log.error({ err: error }, "Error fetching profile networks");
       res.status(500).json({ error: "Failed to fetch profile networks" });
     }
   });
@@ -278,7 +281,7 @@ export function registerScoutBotNetworkRoutes(app: Express) {
       const member = await updateNetworkMember(networkId, validatedData);
       res.status(201).json(member);
     } catch (error: any) {
-      console.error("Error adding network member:", error);
+      log.error({ err: error }, "Error adding network member");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -297,7 +300,7 @@ export function registerScoutBotNetworkRoutes(app: Express) {
         res.status(404).json({ error: "Network member not found" });
       }
     } catch (error: any) {
-      console.error("Error removing network member:", error);
+      log.error({ err: error }, "Error removing network member");
       res.status(500).json({ error: "Failed to remove network member" });
     }
   });
@@ -329,7 +332,7 @@ export function registerScoutBotNetworkRoutes(app: Express) {
       
       res.json(patterns);
     } catch (error: any) {
-      console.error("Error fetching influence patterns:", error);
+      log.error({ err: error }, "Error fetching influence patterns");
       res.status(500).json({ error: "Failed to fetch influence patterns" });
     }
   });
@@ -347,7 +350,7 @@ export function registerScoutBotNetworkRoutes(app: Express) {
       const patterns = await getInfluencePatternsInvolvingProfile(id);
       res.json(patterns);
     } catch (error: any) {
-      console.error("Error fetching profile influence patterns:", error);
+      log.error({ err: error }, "Error fetching profile influence patterns");
       res.status(500).json({ error: "Failed to fetch profile influence patterns" });
     }
   });
@@ -363,7 +366,7 @@ export function registerScoutBotNetworkRoutes(app: Express) {
       
       res.json(pattern);
     } catch (error: any) {
-      console.error("Error fetching influence pattern:", error);
+      log.error({ err: error }, "Error fetching influence pattern");
       res.status(500).json({ error: "Failed to fetch influence pattern" });
     }
   });
@@ -376,7 +379,7 @@ export function registerScoutBotNetworkRoutes(app: Express) {
       const pattern = await createInfluencePattern(validatedData);
       res.status(201).json(pattern);
     } catch (error: any) {
-      console.error("Error creating influence pattern:", error);
+      log.error({ err: error }, "Error creating influence pattern");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -400,7 +403,7 @@ export function registerScoutBotNetworkRoutes(app: Express) {
       
       res.json(updatedPattern);
     } catch (error: any) {
-      console.error("Error updating influence pattern:", error);
+      log.error({ err: error }, "Error updating influence pattern");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -419,7 +422,7 @@ export function registerScoutBotNetworkRoutes(app: Express) {
         res.status(404).json({ error: "Influence pattern not found" });
       }
     } catch (error: any) {
-      console.error("Error deleting influence pattern:", error);
+      log.error({ err: error }, "Error deleting influence pattern");
       res.status(500).json({ error: "Failed to delete influence pattern" });
     }
   });
@@ -446,7 +449,7 @@ export function registerScoutBotNetworkRoutes(app: Express) {
       
       res.json(timelineData);
     } catch (error: any) {
-      console.error("Error fetching temporal influence:", error);
+      log.error({ err: error }, "Error fetching temporal influence");
       res.status(500).json({ error: "Failed to fetch temporal influence data" });
     }
   });
@@ -470,7 +473,7 @@ export function registerScoutBotNetworkRoutes(app: Express) {
       
       res.status(201).json(data);
     } catch (error: any) {
-      console.error("Error generating temporal influence data:", error);
+      log.error({ err: error }, "Error generating temporal influence data");
       res.status(500).json({ error: "Failed to generate temporal influence data" });
     }
   });
@@ -486,7 +489,7 @@ export function registerScoutBotNetworkRoutes(app: Express) {
         res.status(404).json({ error: "Temporal influence record not found" });
       }
     } catch (error: any) {
-      console.error("Error deleting temporal influence record:", error);
+      log.error({ err: error }, "Error deleting temporal influence record");
       res.status(500).json({ error: "Failed to delete temporal influence record" });
     }
   });
@@ -514,7 +517,7 @@ export function registerScoutBotNetworkRoutes(app: Express) {
         message: "Network analysis completed successfully"
       });
     } catch (error: any) {
-      console.error("Error performing network analysis:", error);
+      log.error({ err: error }, "Error performing network analysis");
       res.status(500).json({ error: "Failed to perform network analysis" });
     }
   });

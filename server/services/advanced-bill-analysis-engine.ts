@@ -1,6 +1,9 @@
 // @ts-nocheck
 import Anthropic from '@anthropic-ai/sdk';
 import { Pinecone } from '@pinecone-database/pinecone';
+import { createLogger } from "../logger";
+const log = createLogger("advanced-bill-analysis-engine");
+
 
 // the newest Anthropic model is "claude-3-7-sonnet-20250219" which was released February 24, 2025
 const anthropic = new Anthropic({
@@ -152,7 +155,7 @@ export class AdvancedBillAnalysisEngine {
 
       return comprehensiveAnalysis;
     } catch (error: any) {
-      console.error('Comprehensive analysis failed:', error);
+      log.error({ err: error }, 'Comprehensive analysis failed');
       throw new Error('Failed to perform comprehensive bill analysis');
     }
   }
@@ -371,7 +374,7 @@ Provide extraction results in this exact JSON format:
         .map(match => match.metadata?.title as string)
         .filter(Boolean) || [];
     } catch (error: any) {
-      console.error('Error finding similar bills:', error);
+      log.error({ err: error }, 'Error finding similar bills');
       return [];
     }
   }
@@ -415,7 +418,7 @@ Provide extraction results in this exact JSON format:
 
       return matches.sort((a, b) => b.similarityScore - a.similarityScore);
     } catch (error: any) {
-      console.error('Semantic matching failed:', error);
+      log.error({ err: error }, 'Semantic matching failed');
       return [];
     }
   }

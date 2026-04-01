@@ -19,6 +19,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Import moderator services
 import queueModeratorPath from './services/scout-bot/queueModerator.js';
 import cardPublisherPath from './services/scout-bot/cardPublisher.js';
+import { createLogger } from "./logger";
+const log = createLogger("routes-moderator");
+
 
 // Define paths to CommonJS modules
 const queueModeratorJsPath = path.join(__dirname, 'services/scout-bot/queueModerator.js');
@@ -51,7 +54,7 @@ function getPendingProfiles() {
     const raw = fs.readFileSync(PENDING_FILE);
     return JSON.parse(raw.toString());
   } catch (error: any) {
-    console.error('Error loading pending profiles:', error);
+    log.error({ err: error }, 'Error loading pending profiles');
     return [];
   }
 }
@@ -68,7 +71,7 @@ function getApprovedProfiles() {
     const raw = fs.readFileSync(APPROVED_FILE);
     return JSON.parse(raw.toString());
   } catch (error: any) {
-    console.error('Error loading approved profiles:', error);
+    log.error({ err: error }, 'Error loading approved profiles');
     return [];
   }
 }
@@ -85,7 +88,7 @@ function getRejectedProfiles() {
     const raw = fs.readFileSync(REJECTED_FILE);
     return JSON.parse(raw.toString());
   } catch (error: any) {
-    console.error('Error loading rejected profiles:', error);
+    log.error({ err: error }, 'Error loading rejected profiles');
     return [];
   }
 }
@@ -102,7 +105,7 @@ function getLiveProfiles() {
     const raw = fs.readFileSync(LIVE_PROFILES_FILE);
     return JSON.parse(raw.toString());
   } catch (error: any) {
-    console.error('Error loading live profiles:', error);
+    log.error({ err: error }, 'Error loading live profiles');
     return [];
   }
 }
@@ -139,7 +142,7 @@ function approveProfile(id: string) {
     fs.writeFileSync(APPROVED_FILE, JSON.stringify(approvedProfiles, null, 2));
     return { success: true, profile };
   } catch (error: any) {
-    console.error('Error saving profile changes:', error);
+    log.error({ err: error }, 'Error saving profile changes');
     return { error: "Error saving changes" };
   }
 }
@@ -176,7 +179,7 @@ function rejectProfile(id: string) {
     fs.writeFileSync(REJECTED_FILE, JSON.stringify(rejectedProfiles, null, 2));
     return { success: true, profile };
   } catch (error: any) {
-    console.error('Error saving profile changes:', error);
+    log.error({ err: error }, 'Error saving profile changes');
     return { error: "Error saving changes" };
   }
 }
@@ -224,7 +227,7 @@ function publishProfile(id: string) {
     fs.writeFileSync(LIVE_PROFILES_FILE, JSON.stringify(liveProfiles, null, 2));
     return { success: true, profile };
   } catch (error: any) {
-    console.error('Error publishing profile:', error);
+    log.error({ err: error }, 'Error publishing profile');
     return { error: "Error saving changes" };
   }
 }
@@ -276,7 +279,7 @@ function publishAllProfiles() {
       published: profilesToPublish
     };
   } catch (error: any) {
-    console.error('Error publishing profiles:', error);
+    log.error({ err: error }, 'Error publishing profiles');
     return { error: "Error saving changes" };
   }
 }
@@ -315,7 +318,7 @@ export function registerModeratorRoutes(app: Express) {
         rejectedProfiles
       });
     } catch (error: any) {
-      console.error("Error fetching moderation queue:", error);
+      log.error({ err: error }, "Error fetching moderation queue");
       res.status(500).json({ error: "Failed to fetch moderation queue" });
     }
   });
@@ -334,7 +337,7 @@ export function registerModeratorRoutes(app: Express) {
       
       res.json(result);
     } catch (error: any) {
-      console.error("Error approving profile:", error);
+      log.error({ err: error }, "Error approving profile");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -356,7 +359,7 @@ export function registerModeratorRoutes(app: Express) {
       
       res.json(result);
     } catch (error: any) {
-      console.error("Error rejecting profile:", error);
+      log.error({ err: error }, "Error rejecting profile");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -387,7 +390,7 @@ export function registerModeratorRoutes(app: Express) {
       
       res.json(result);
     } catch (error: any) {
-      console.error("Error publishing profile(s):", error);
+      log.error({ err: error }, "Error publishing profile(s)");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -403,7 +406,7 @@ export function registerModeratorRoutes(app: Express) {
       const liveProfiles = getLiveProfiles();
       res.json(liveProfiles);
     } catch (error: any) {
-      console.error("Error fetching live profiles:", error);
+      log.error({ err: error }, "Error fetching live profiles");
       res.status(500).json({ error: "Failed to fetch live profiles" });
     }
   });

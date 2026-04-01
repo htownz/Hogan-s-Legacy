@@ -13,6 +13,9 @@ import {
 } from '../shared/schema-discussions';
 import { actionCircleStorage } from './storage-action-circle';
 import { superUserStorage } from './storage-super-user';
+import { createLogger } from "./logger";
+const log = createLogger("routes-discussions");
+
 
 /**
  * Register discussion API routes
@@ -55,7 +58,7 @@ export function registerDiscussionRoutes(app: Express): void {
       const forums = await discussionStorage.getForums(options);
       res.json(forums);
     } catch (error: any) {
-      console.error('Error getting forums:', error);
+      log.error({ err: error }, 'Error getting forums');
       res.status(500).json({ error: 'Failed to retrieve forums' });
     }
   });
@@ -101,7 +104,7 @@ export function registerDiscussionRoutes(app: Express): void {
       
       res.json(forum);
     } catch (error: any) {
-      console.error('Error getting forum:', error);
+      log.error({ err: error }, 'Error getting forum');
       res.status(500).json({ error: 'Failed to retrieve forum' });
     }
   });
@@ -144,7 +147,7 @@ export function registerDiscussionRoutes(app: Express): void {
       const forum = await discussionStorage.createForum(data);
       res.status(201).json(forum);
     } catch (error: any) {
-      console.error('Error creating forum:', error);
+      log.error({ err: error }, 'Error creating forum');
       res.status(500).json({ error: 'Failed to create forum' });
     }
   });
@@ -202,7 +205,7 @@ export function registerDiscussionRoutes(app: Express): void {
       
       res.json(updatedForum);
     } catch (error: any) {
-      console.error('Error updating forum:', error);
+      log.error({ err: error }, 'Error updating forum');
       res.status(500).json({ error: 'Failed to update forum' });
     }
   });
@@ -232,7 +235,7 @@ export function registerDiscussionRoutes(app: Express): void {
       await discussionStorage.deleteForum(Number(id));
       res.json({ message: 'Forum deleted successfully' });
     } catch (error: any) {
-      console.error('Error deleting forum:', error);
+      log.error({ err: error }, 'Error deleting forum');
       res.status(500).json({ error: 'Failed to delete forum' });
     }
   });
@@ -306,7 +309,7 @@ export function registerDiscussionRoutes(app: Express): void {
       const threads = await discussionStorage.getThreads(options);
       res.json(threads);
     } catch (error: any) {
-      console.error('Error getting threads:', error);
+      log.error({ err: error }, 'Error getting threads');
       res.status(500).json({ error: 'Failed to retrieve threads' });
     }
   });
@@ -376,7 +379,7 @@ export function registerDiscussionRoutes(app: Express): void {
       
       res.json(thread);
     } catch (error: any) {
-      console.error('Error getting thread:', error);
+      log.error({ err: error }, 'Error getting thread');
       res.status(500).json({ error: 'Failed to retrieve thread' });
     }
   });
@@ -441,7 +444,7 @@ export function registerDiscussionRoutes(app: Express): void {
       const thread = await discussionStorage.createThread(data);
       res.status(201).json(thread);
     } catch (error: any) {
-      console.error('Error creating thread:', error);
+      log.error({ err: error }, 'Error creating thread');
       res.status(500).json({ error: 'Failed to create thread' });
     }
   });
@@ -494,7 +497,7 @@ export function registerDiscussionRoutes(app: Express): void {
       
       res.json(updatedThread);
     } catch (error: any) {
-      console.error('Error updating thread:', error);
+      log.error({ err: error }, 'Error updating thread');
       res.status(500).json({ error: 'Failed to update thread' });
     }
   });
@@ -524,7 +527,7 @@ export function registerDiscussionRoutes(app: Express): void {
       await discussionStorage.deleteThread(Number(id));
       res.json({ message: 'Thread deleted successfully' });
     } catch (error: any) {
-      console.error('Error deleting thread:', error);
+      log.error({ err: error }, 'Error deleting thread');
       res.status(500).json({ error: 'Failed to delete thread' });
     }
   });
@@ -565,7 +568,7 @@ export function registerDiscussionRoutes(app: Express): void {
       
       res.json(updatedThread);
     } catch (error: any) {
-      console.error('Error moderating thread:', error);
+      log.error({ err: error }, 'Error moderating thread');
       res.status(500).json({ error: 'Failed to moderate thread' });
     }
   });
@@ -646,7 +649,7 @@ export function registerDiscussionRoutes(app: Express): void {
       const posts = await discussionStorage.getPosts(options);
       res.json(posts);
     } catch (error: any) {
-      console.error('Error getting posts:', error);
+      log.error({ err: error }, 'Error getting posts');
       res.status(500).json({ error: 'Failed to retrieve posts' });
     }
   });
@@ -731,7 +734,7 @@ export function registerDiscussionRoutes(app: Express): void {
       const post = await discussionStorage.createPost(data);
       res.status(201).json(post);
     } catch (error: any) {
-      console.error('Error creating post:', error);
+      log.error({ err: error }, 'Error creating post');
       res.status(500).json({ error: 'Failed to create post' });
     }
   });
@@ -789,7 +792,7 @@ export function registerDiscussionRoutes(app: Express): void {
       
       res.json(updatedPost);
     } catch (error: any) {
-      console.error('Error updating post:', error);
+      log.error({ err: error }, 'Error updating post');
       res.status(500).json({ error: 'Failed to update post' });
     }
   });
@@ -826,7 +829,7 @@ export function registerDiscussionRoutes(app: Express): void {
       await discussionStorage.deletePost(Number(id));
       res.json({ message: 'Post deleted successfully' });
     } catch (error: any) {
-      console.error('Error deleting post:', error);
+      log.error({ err: error }, 'Error deleting post');
       res.status(500).json({ error: 'Failed to delete post' });
     }
   });
@@ -874,7 +877,7 @@ export function registerDiscussionRoutes(app: Express): void {
       
       res.json(updatedPost);
     } catch (error: any) {
-      console.error('Error moderating post:', error);
+      log.error({ err: error }, 'Error moderating post');
       res.status(500).json({ error: 'Failed to moderate post' });
     }
   });
@@ -896,7 +899,7 @@ export function registerDiscussionRoutes(app: Express): void {
       const reactions = await discussionStorage.getReactions(options);
       res.json(reactions);
     } catch (error: any) {
-      console.error('Error getting reactions:', error);
+      log.error({ err: error }, 'Error getting reactions');
       res.status(500).json({ error: 'Failed to retrieve reactions' });
     }
   });
@@ -999,7 +1002,7 @@ export function registerDiscussionRoutes(app: Express): void {
       const reaction = await discussionStorage.createReaction(data);
       res.status(201).json(reaction);
     } catch (error: any) {
-      console.error('Error creating reaction:', error);
+      log.error({ err: error }, 'Error creating reaction');
       res.status(500).json({ error: 'Failed to create reaction' });
     }
   });
@@ -1025,7 +1028,7 @@ export function registerDiscussionRoutes(app: Express): void {
       await discussionStorage.deleteReaction(Number(id));
       res.json({ message: 'Reaction deleted successfully' });
     } catch (error: any) {
-      console.error('Error deleting reaction:', error);
+      log.error({ err: error }, 'Error deleting reaction');
       res.status(500).json({ error: 'Failed to delete reaction' });
     }
   });
@@ -1049,7 +1052,7 @@ export function registerDiscussionRoutes(app: Express): void {
       const moderators = await discussionStorage.getModerators(options);
       res.json(moderators);
     } catch (error: any) {
-      console.error('Error getting moderators:', error);
+      log.error({ err: error }, 'Error getting moderators');
       res.status(500).json({ error: 'Failed to retrieve moderators' });
     }
   });
@@ -1105,7 +1108,7 @@ export function registerDiscussionRoutes(app: Express): void {
       const moderator = await discussionStorage.addModerator(data);
       res.status(201).json(moderator);
     } catch (error: any) {
-      console.error('Error adding moderator:', error);
+      log.error({ err: error }, 'Error adding moderator');
       res.status(500).json({ error: 'Failed to add moderator' });
     }
   });
@@ -1156,7 +1159,7 @@ export function registerDiscussionRoutes(app: Express): void {
       await discussionStorage.removeModerator(Number(id));
       res.json({ message: 'Moderator removed successfully' });
     } catch (error: any) {
-      console.error('Error removing moderator:', error);
+      log.error({ err: error }, 'Error removing moderator');
       res.status(500).json({ error: 'Failed to remove moderator' });
     }
   });
@@ -1189,7 +1192,7 @@ export function registerDiscussionRoutes(app: Express): void {
       const reports = await discussionStorage.getReports(options);
       res.json(reports);
     } catch (error: any) {
-      console.error('Error getting reports:', error);
+      log.error({ err: error }, 'Error getting reports');
       res.status(500).json({ error: 'Failed to retrieve reports' });
     }
   });
@@ -1235,7 +1238,7 @@ export function registerDiscussionRoutes(app: Express): void {
       const report = await discussionStorage.createReport(data);
       res.status(201).json(report);
     } catch (error: any) {
-      console.error('Error creating report:', error);
+      log.error({ err: error }, 'Error creating report');
       res.status(500).json({ error: 'Failed to create report' });
     }
   });
@@ -1269,7 +1272,7 @@ export function registerDiscussionRoutes(app: Express): void {
       
       res.json(updatedReport);
     } catch (error: any) {
-      console.error('Error updating report status:', error);
+      log.error({ err: error }, 'Error updating report status');
       res.status(500).json({ error: 'Failed to update report status' });
     }
   });
@@ -1316,7 +1319,7 @@ export function registerDiscussionRoutes(app: Express): void {
       const stats = await discussionStorage.getForumStats(Number(id));
       res.json(stats);
     } catch (error: any) {
-      console.error('Error getting forum stats:', error);
+      log.error({ err: error }, 'Error getting forum stats');
       res.status(500).json({ error: 'Failed to retrieve forum statistics' });
     }
   });
@@ -1346,7 +1349,7 @@ export function registerDiscussionRoutes(app: Express): void {
       const stats = await discussionStorage.getUserActivityStats(Number(userId));
       res.json(stats);
     } catch (error: any) {
-      console.error('Error getting user activity stats:', error);
+      log.error({ err: error }, 'Error getting user activity stats');
       res.status(500).json({ error: 'Failed to retrieve user activity statistics' });
     }
   });

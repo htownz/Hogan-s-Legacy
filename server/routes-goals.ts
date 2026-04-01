@@ -18,6 +18,9 @@ import {
   insertLobbyingActivitySchema
 } from "@shared/schema-goals";
 import { z } from "zod";
+import { createLogger } from "./logger";
+const log = createLogger("routes-goals");
+
 
 /**
  * Register goals API routes
@@ -35,7 +38,7 @@ export function registerGoalsRoutes(app: Express): void {
       const goals = await goalsStorage.getUserGoals(userId);
       res.json(goals);
     } catch (error: any) {
-      console.error("Error fetching user goals:", error);
+      log.error({ err: error }, "Error fetching user goals");
       res.status(500).json({ error: "Failed to fetch user goals" });
     }
   });
@@ -60,7 +63,7 @@ export function registerGoalsRoutes(app: Express): void {
       
       res.json(goal);
     } catch (error: any) {
-      console.error("Error fetching goal:", error);
+      log.error({ err: error }, "Error fetching goal");
       res.status(500).json({ error: "Failed to fetch goal" });
     }
   });
@@ -84,7 +87,7 @@ export function registerGoalsRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
-      console.error("Error creating goal:", error);
+      log.error({ err: error }, "Error creating goal");
       res.status(500).json({ error: "Failed to create goal" });
     }
   });
@@ -117,7 +120,7 @@ export function registerGoalsRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
-      console.error("Error updating goal:", error);
+      log.error({ err: error }, "Error updating goal");
       res.status(500).json({ error: "Failed to update goal" });
     }
   });
@@ -144,7 +147,7 @@ export function registerGoalsRoutes(app: Express): void {
       await goalsStorage.deleteUserGoal(goalId, userId);
       res.status(204).send();
     } catch (error: any) {
-      console.error("Error deleting goal:", error);
+      log.error({ err: error }, "Error deleting goal");
       res.status(500).json({ error: "Failed to delete goal" });
     }
   });
@@ -158,7 +161,7 @@ export function registerGoalsRoutes(app: Express): void {
       const publicGoals = await goalsStorage.getPublicGoals(limit);
       res.json(publicGoals);
     } catch (error: any) {
-      console.error("Error fetching public goals:", error);
+      log.error({ err: error }, "Error fetching public goals");
       res.status(500).json({ error: "Failed to fetch public goals" });
     }
   });
@@ -172,7 +175,7 @@ export function registerGoalsRoutes(app: Express): void {
       const stats = await goalsStorage.getGoalStatsByUserId(userId);
       res.json(stats);
     } catch (error: any) {
-      console.error("Error fetching goal stats:", error);
+      log.error({ err: error }, "Error fetching goal stats");
       res.status(500).json({ error: "Failed to fetch goal statistics" });
     }
   });
@@ -201,7 +204,7 @@ export function registerGoalsRoutes(app: Express): void {
       const milestones = await goalsStorage.getGoalMilestones(goalId);
       res.json(milestones);
     } catch (error: any) {
-      console.error("Error fetching goal milestones:", error);
+      log.error({ err: error }, "Error fetching goal milestones");
       res.status(500).json({ error: "Failed to fetch goal milestones" });
     }
   });
@@ -245,7 +248,7 @@ export function registerGoalsRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
-      console.error("Error creating milestone:", error);
+      log.error({ err: error }, "Error creating milestone");
       res.status(500).json({ error: "Failed to create milestone" });
     }
   });
@@ -295,7 +298,7 @@ export function registerGoalsRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
-      console.error("Error updating milestone:", error);
+      log.error({ err: error }, "Error updating milestone");
       res.status(500).json({ error: "Failed to update milestone" });
     }
   });
@@ -329,7 +332,7 @@ export function registerGoalsRoutes(app: Express): void {
       const completedMilestone = await goalsStorage.completeGoalMilestone(milestoneId);
       res.json(completedMilestone);
     } catch (error: any) {
-      console.error("Error completing milestone:", error);
+      log.error({ err: error }, "Error completing milestone");
       res.status(500).json({ error: "Failed to complete milestone" });
     }
   });
@@ -371,7 +374,7 @@ export function registerGoalsRoutes(app: Express): void {
       
       res.status(204).send();
     } catch (error: any) {
-      console.error("Error deleting milestone:", error);
+      log.error({ err: error }, "Error deleting milestone");
       res.status(500).json({ error: "Failed to delete milestone" });
     }
   });
@@ -400,7 +403,7 @@ export function registerGoalsRoutes(app: Express): void {
       const goalBills = await goalsStorage.getGoalBills(goalId);
       res.json(goalBills);
     } catch (error: any) {
-      console.error("Error fetching goal bills:", error);
+      log.error({ err: error }, "Error fetching goal bills");
       res.status(500).json({ error: "Failed to fetch goal bills" });
     }
   });
@@ -443,7 +446,7 @@ export function registerGoalsRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
-      console.error("Error adding bill to goal:", error);
+      log.error({ err: error }, "Error adding bill to goal");
       res.status(500).json({ error: "Failed to add bill to goal" });
     }
   });
@@ -475,7 +478,7 @@ export function registerGoalsRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
-      console.error("Error updating goal-bill relationship:", error);
+      log.error({ err: error }, "Error updating goal-bill relationship");
       res.status(500).json({ error: "Failed to update goal-bill relationship" });
     }
   });
@@ -495,7 +498,7 @@ export function registerGoalsRoutes(app: Express): void {
       await goalsStorage.deleteGoalBill(goalBillId);
       res.status(204).send();
     } catch (error: any) {
-      console.error("Error removing bill from goal:", error);
+      log.error({ err: error }, "Error removing bill from goal");
       res.status(500).json({ error: "Failed to remove bill from goal" });
     }
   });
@@ -524,7 +527,7 @@ export function registerGoalsRoutes(app: Express): void {
       const teamGoals = await goalsStorage.getTeamGoalsByCircleId(circleId);
       res.json(teamGoals);
     } catch (error: any) {
-      console.error("Error fetching team goals:", error);
+      log.error({ err: error }, "Error fetching team goals");
       res.status(500).json({ error: "Failed to fetch team goals" });
     }
   });
@@ -556,7 +559,7 @@ export function registerGoalsRoutes(app: Express): void {
       
       res.json(teamGoal);
     } catch (error: any) {
-      console.error("Error fetching team goal:", error);
+      log.error({ err: error }, "Error fetching team goal");
       res.status(500).json({ error: "Failed to fetch team goal" });
     }
   });
@@ -599,7 +602,7 @@ export function registerGoalsRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
-      console.error("Error creating team goal:", error);
+      log.error({ err: error }, "Error creating team goal");
       res.status(500).json({ error: "Failed to create team goal" });
     }
   });
@@ -639,7 +642,7 @@ export function registerGoalsRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
-      console.error("Error updating team goal:", error);
+      log.error({ err: error }, "Error updating team goal");
       res.status(500).json({ error: "Failed to update team goal" });
     }
   });
@@ -678,7 +681,7 @@ export function registerGoalsRoutes(app: Express): void {
       await goalsStorage.deleteTeamGoal(goalId, teamGoal.circleId);
       res.status(204).send();
     } catch (error: any) {
-      console.error("Error deleting team goal:", error);
+      log.error({ err: error }, "Error deleting team goal");
       res.status(500).json({ error: "Failed to delete team goal" });
     }
   });
@@ -705,7 +708,7 @@ export function registerGoalsRoutes(app: Express): void {
       const stats = await goalsStorage.getTeamGoalStatsByCircleId(circleId);
       res.json(stats);
     } catch (error: any) {
-      console.error("Error fetching team goal stats:", error);
+      log.error({ err: error }, "Error fetching team goal stats");
       res.status(500).json({ error: "Failed to fetch team goal statistics" });
     }
   });
@@ -741,7 +744,7 @@ export function registerGoalsRoutes(app: Express): void {
       const milestones = await goalsStorage.getTeamGoalMilestones(goalId);
       res.json(milestones);
     } catch (error: any) {
-      console.error("Error fetching team goal milestones:", error);
+      log.error({ err: error }, "Error fetching team goal milestones");
       res.status(500).json({ error: "Failed to fetch team goal milestones" });
     }
   });
@@ -784,7 +787,7 @@ export function registerGoalsRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
-      console.error("Error creating team goal milestone:", error);
+      log.error({ err: error }, "Error creating team goal milestone");
       res.status(500).json({ error: "Failed to create team goal milestone" });
     }
   });
@@ -816,7 +819,7 @@ export function registerGoalsRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
-      console.error("Error updating team goal milestone:", error);
+      log.error({ err: error }, "Error updating team goal milestone");
       res.status(500).json({ error: "Failed to update team goal milestone" });
     }
   });
@@ -836,7 +839,7 @@ export function registerGoalsRoutes(app: Express): void {
       await goalsStorage.deleteTeamGoalMilestone(milestoneId);
       res.status(204).send();
     } catch (error: any) {
-      console.error("Error deleting team goal milestone:", error);
+      log.error({ err: error }, "Error deleting team goal milestone");
       res.status(500).json({ error: "Failed to delete team goal milestone" });
     }
   });
@@ -872,7 +875,7 @@ export function registerGoalsRoutes(app: Express): void {
       const assignments = await goalsStorage.getTeamGoalAssignments(goalId);
       res.json(assignments);
     } catch (error: any) {
-      console.error("Error fetching team goal assignments:", error);
+      log.error({ err: error }, "Error fetching team goal assignments");
       res.status(500).json({ error: "Failed to fetch team goal assignments" });
     }
   });
@@ -886,7 +889,7 @@ export function registerGoalsRoutes(app: Express): void {
       const assignments = await goalsStorage.getUserAssignments(userId);
       res.json(assignments);
     } catch (error: any) {
-      console.error("Error fetching user assignments:", error);
+      log.error({ err: error }, "Error fetching user assignments");
       res.status(500).json({ error: "Failed to fetch user assignments" });
     }
   });
@@ -941,7 +944,7 @@ export function registerGoalsRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
-      console.error("Error creating team goal assignment:", error);
+      log.error({ err: error }, "Error creating team goal assignment");
       res.status(500).json({ error: "Failed to create team goal assignment" });
     }
   });
@@ -973,7 +976,7 @@ export function registerGoalsRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
-      console.error("Error updating team goal assignment:", error);
+      log.error({ err: error }, "Error updating team goal assignment");
       res.status(500).json({ error: "Failed to update team goal assignment" });
     }
   });
@@ -993,7 +996,7 @@ export function registerGoalsRoutes(app: Express): void {
       await goalsStorage.deleteTeamGoalAssignment(assignmentId);
       res.status(204).send();
     } catch (error: any) {
-      console.error("Error deleting team goal assignment:", error);
+      log.error({ err: error }, "Error deleting team goal assignment");
       res.status(500).json({ error: "Failed to delete team goal assignment" });
     }
   });
@@ -1030,7 +1033,7 @@ export function registerGoalsRoutes(app: Express): void {
       const activities = await goalsStorage.getLobbyingActivities(teamGoalId, req.query.all ? undefined : userId);
       res.json(activities);
     } catch (error: any) {
-      console.error("Error fetching lobbying activities:", error);
+      log.error({ err: error }, "Error fetching lobbying activities");
       res.status(500).json({ error: "Failed to fetch lobbying activities" });
     }
   });
@@ -1054,7 +1057,7 @@ export function registerGoalsRoutes(app: Express): void {
       
       res.json(activity);
     } catch (error: any) {
-      console.error("Error fetching lobbying activity:", error);
+      log.error({ err: error }, "Error fetching lobbying activity");
       res.status(500).json({ error: "Failed to fetch lobbying activity" });
     }
   });
@@ -1102,7 +1105,7 @@ export function registerGoalsRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
-      console.error("Error creating lobbying activity:", error);
+      log.error({ err: error }, "Error creating lobbying activity");
       res.status(500).json({ error: "Failed to create lobbying activity" });
     }
   });
@@ -1140,7 +1143,7 @@ export function registerGoalsRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
-      console.error("Error updating lobbying activity:", error);
+      log.error({ err: error }, "Error updating lobbying activity");
       res.status(500).json({ error: "Failed to update lobbying activity" });
     }
   });
@@ -1160,7 +1163,7 @@ export function registerGoalsRoutes(app: Express): void {
       await goalsStorage.deleteLobbyingActivity(activityId, userId);
       res.status(204).send();
     } catch (error: any) {
-      console.error("Error deleting lobbying activity:", error);
+      log.error({ err: error }, "Error deleting lobbying activity");
       res.status(500).json({ error: "Failed to delete lobbying activity" });
     }
   });
@@ -1174,7 +1177,7 @@ export function registerGoalsRoutes(app: Express): void {
       const stats = await goalsStorage.getLobbyingStatsByUserId(userId);
       res.json(stats);
     } catch (error: any) {
-      console.error("Error fetching lobbying stats:", error);
+      log.error({ err: error }, "Error fetching lobbying stats");
       res.status(500).json({ error: "Failed to fetch lobbying statistics" });
     }
   });

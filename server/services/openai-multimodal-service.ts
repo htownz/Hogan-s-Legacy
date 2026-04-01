@@ -1,5 +1,8 @@
 // @ts-nocheck
 import OpenAI from "openai";
+import { createLogger } from "../logger";
+const log = createLogger("openai-multimodal-service");
+
 
 // Initialize OpenAI client
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -47,7 +50,7 @@ export class OpenAIMultimodalService {
         explanation: result.explanation || "No explanation provided"
       };
     } catch (error: any) {
-      console.error("Error in sentiment analysis:", error);
+      log.error({ err: error }, "Error in sentiment analysis");
       throw new Error(`Failed to analyze sentiment: ${error.message}`);
     }
   }
@@ -84,7 +87,7 @@ export class OpenAIMultimodalService {
 
       return visionResponse.choices[0].message.content || "No analysis generated";
     } catch (error: any) {
-      console.error("Error in image analysis:", error);
+      log.error({ err: error }, "Error in image analysis");
       throw new Error(`Failed to analyze image: ${error.message}`);
     }
   }
@@ -106,7 +109,7 @@ export class OpenAIMultimodalService {
 
       return { url: response.data[0].url || "" };
     } catch (error: any) {
-      console.error("Error in image generation:", error);
+      log.error({ err: error }, "Error in image generation");
       throw new Error(`Failed to generate image: ${error.message}`);
     }
   }
@@ -158,7 +161,7 @@ export class OpenAIMultimodalService {
       const content = response.choices[0].message.content || "{}";
       return JSON.parse(content);
     } catch (error: any) {
-      console.error("Error in document content analysis:", error);
+      log.error({ err: error }, "Error in document content analysis");
       throw new Error(`Failed to analyze document content: ${error.message}`);
     }
   }
@@ -209,7 +212,7 @@ export class OpenAIMultimodalService {
       const content = response.choices[0].message.content || "{}";
       return JSON.parse(content);
     } catch (error: any) {
-      console.error("Error in political bias analysis:", error);
+      log.error({ err: error }, "Error in political bias analysis");
       throw new Error(`Failed to analyze political bias: ${error.message}`);
     }
   }

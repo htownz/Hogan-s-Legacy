@@ -7,6 +7,9 @@ import { Router } from 'express';
 import { db } from './db';
 import { bills, legislators } from '@shared/schema';
 import { eq, sql, desc, asc, and, gte, lte, count, avg, sum } from 'drizzle-orm';
+import { createLogger } from "./logger";
+const log = createLogger("routes-analytics-enhanced");
+
 
 const router = Router();
 
@@ -63,7 +66,7 @@ router.get('/analytics/live-metrics', async (req, res) => {
     res.json(metrics);
 
   } catch (error: any) {
-    console.error('Error fetching live metrics:', error);
+    log.error({ err: error }, 'Error fetching live metrics');
     res.status(500).json({ 
       message: 'Failed to fetch live metrics',
       error: 'LIVE_METRICS_ERROR'
@@ -112,7 +115,7 @@ router.get('/analytics/activity-feed', async (req, res) => {
     res.json(activityFeed);
 
   } catch (error: any) {
-    console.error('Error fetching activity feed:', error);
+    log.error({ err: error }, 'Error fetching activity feed');
     res.status(500).json({ 
       message: 'Failed to fetch activity feed',
       error: 'ACTIVITY_FEED_ERROR'
@@ -169,7 +172,7 @@ router.get('/analytics/bill-trends', async (req, res) => {
     res.json(monthlyTrends);
 
   } catch (error: any) {
-    console.error('Error fetching bill trends:', error);
+    log.error({ err: error }, 'Error fetching bill trends');
     res.status(500).json({ 
       message: 'Failed to fetch bill trends',
       error: 'BILL_TRENDS_ERROR'
@@ -232,7 +235,7 @@ router.get('/analytics/party-comparison', async (req, res) => {
     res.json(partyComparison);
 
   } catch (error: any) {
-    console.error('Error fetching party comparison:', error);
+    log.error({ err: error }, 'Error fetching party comparison');
     res.status(500).json({ 
       message: 'Failed to fetch party comparison',
       error: 'PARTY_COMPARISON_ERROR'
@@ -314,7 +317,7 @@ router.get('/analytics/topic-distribution', async (req, res) => {
     res.json(topicDistribution);
 
   } catch (error: any) {
-    console.error('Error fetching topic distribution:', error);
+    log.error({ err: error }, 'Error fetching topic distribution');
     res.status(500).json({ 
       message: 'Failed to fetch topic distribution',
       error: 'TOPIC_DISTRIBUTION_ERROR'
@@ -397,7 +400,7 @@ router.get('/analytics/legislator-effectiveness', async (req, res) => {
     res.json(effectiveness);
 
   } catch (error: any) {
-    console.error('Error fetching legislator effectiveness:', error);
+    log.error({ err: error }, 'Error fetching legislator effectiveness');
     res.status(500).json({ 
       message: 'Failed to fetch legislator effectiveness',
       error: 'LEGISLATOR_EFFECTIVENESS_ERROR'
@@ -442,7 +445,7 @@ router.get('/analytics/activity-heatmap', async (req, res) => {
     res.json(heatmapData);
 
   } catch (error: any) {
-    console.error('Error fetching activity heatmap:', error);
+    log.error({ err: error }, 'Error fetching activity heatmap');
     res.status(500).json({ 
       message: 'Failed to fetch activity heatmap',
       error: 'ACTIVITY_HEATMAP_ERROR'

@@ -7,6 +7,9 @@ import { CustomRequest } from "../types";
 import { db } from "../db";
 import { billHistoryEvents } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import { createLogger } from "../logger";
+const log = createLogger("legislation-routes");
+
 
 export function registerLegislationRoutes(app: Express) {
   // Get all bills
@@ -15,7 +18,7 @@ export function registerLegislationRoutes(app: Express) {
       const bills = await storage.getAllBills();
       res.status(200).json(bills);
     } catch (error: any) {
-      console.error("Error fetching all bills:", error);
+      log.error({ err: error }, "Error fetching all bills");
       res.status(500).json({ message: "Failed to fetch bills" });
     }
   });
@@ -29,7 +32,7 @@ export function registerLegislationRoutes(app: Express) {
       }
       res.status(200).json(bill);
     } catch (error: any) {
-      console.error(`Error fetching bill ${req.params.id}:`, error);
+      log.error({ err: error }, `Error fetching bill ${req.params.id}`);
       res.status(500).json({ message: "Failed to fetch bill details" });
     }
   });
@@ -45,7 +48,7 @@ export function registerLegislationRoutes(app: Express) {
       const bills = await storage.searchBills(query);
       res.status(200).json(bills);
     } catch (error: any) {
-      console.error("Error searching bills:", error);
+      log.error({ err: error }, "Error searching bills");
       res.status(500).json({ message: "Failed to search bills" });
     }
   });
@@ -57,7 +60,7 @@ export function registerLegislationRoutes(app: Express) {
       const bills = await storage.getBillsByStatus(status);
       res.status(200).json(bills);
     } catch (error: any) {
-      console.error(`Error filtering bills by status ${req.params.status}:`, error);
+      log.error({ err: error }, `Error filtering bills by status ${req.params.status}`);
       res.status(500).json({ message: "Failed to filter bills by status" });
     }
   });
@@ -69,7 +72,7 @@ export function registerLegislationRoutes(app: Express) {
       const bills = await storage.getBillsByChamber(chamber);
       res.status(200).json(bills);
     } catch (error: any) {
-      console.error(`Error filtering bills by chamber ${req.params.chamber}:`, error);
+      log.error({ err: error }, `Error filtering bills by chamber ${req.params.chamber}`);
       res.status(500).json({ message: "Failed to filter bills by chamber" });
     }
   });
@@ -84,7 +87,7 @@ export function registerLegislationRoutes(app: Express) {
       const bills = await storage.getUserTrackedBills(req.session.userId);
       res.status(200).json(bills);
     } catch (error: any) {
-      console.error("Error fetching tracked bills:", error);
+      log.error({ err: error }, "Error fetching tracked bills");
       res.status(500).json({ message: "Failed to fetch tracked bills" });
     }
   });
@@ -117,7 +120,7 @@ export function registerLegislationRoutes(app: Express) {
       const tracking = await storage.trackBill(req.session.userId, billId);
       res.status(201).json(tracking);
     } catch (error: any) {
-      console.error("Error tracking bill:", error);
+      log.error({ err: error }, "Error tracking bill");
       res.status(500).json({ message: "Failed to track bill" });
     }
   });
@@ -146,7 +149,7 @@ export function registerLegislationRoutes(app: Express) {
       await storage.untrackBill(req.session.userId, billId);
       res.status(200).json({ message: "Bill untracked successfully" });
     } catch (error: any) {
-      console.error(`Error untracking bill ${req.params.billId}:`, error);
+      log.error({ err: error }, `Error untracking bill ${req.params.billId}`);
       res.status(500).json({ message: "Failed to untrack bill" });
     }
   });
@@ -158,7 +161,7 @@ export function registerLegislationRoutes(app: Express) {
       const newBill = await storage.createBill(billData);
       res.status(201).json(newBill);
     } catch (error: any) {
-      console.error("Error creating bill:", error);
+      log.error({ err: error }, "Error creating bill");
       res.status(500).json({ message: "Failed to create bill" });
     }
   });
@@ -182,7 +185,7 @@ export function registerLegislationRoutes(app: Express) {
       
       res.status(200).json(events);
     } catch (error: any) {
-      console.error(`Error fetching history for bill ${req.params.billId}:`, error);
+      log.error({ err: error }, `Error fetching history for bill ${req.params.billId}`);
       res.status(500).json({ message: "Failed to fetch bill history" });
     }
   });

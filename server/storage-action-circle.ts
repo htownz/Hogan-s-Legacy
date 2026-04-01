@@ -18,6 +18,9 @@ import {
   type InsertUserCircleAction,
 } from "@shared/schema";
 import { IActionCircleStorage } from "./storage-interface";
+import { createLogger } from "./logger";
+const log = createLogger("storage-action-circle");
+
 
 export class ActionCircleStorage implements IActionCircleStorage {
   // Action Circle methods
@@ -383,7 +386,7 @@ export class ActionCircleStorage implements IActionCircleStorage {
         author: r.user,
       }));
     } catch (error: any) {
-      console.error("Error in getCircleAnnotations:", error);
+      log.error({ err: error }, "Error in getCircleAnnotations");
       return [];
     }
   }

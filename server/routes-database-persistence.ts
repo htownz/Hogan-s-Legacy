@@ -2,6 +2,9 @@ import { Router } from "express";
 import { z } from "zod";
 import { smartAlertsStorage } from "./storage-smart-alerts";
 import { insertSmartBillAlertSchema } from "@shared/schema";
+import { createLogger } from "./logger";
+const log = createLogger("routes-database-persistence");
+
 
 const router = Router();
 
@@ -36,7 +39,7 @@ router.post("/api/persistence/test-alert", async (req, res) => {
       alert: createdAlert
     });
   } catch (error: any) {
-    console.error("Database persistence test failed:", error);
+    log.error({ err: error }, "Database persistence test failed");
     res.status(500).json({
       success: false,
       error: "Failed to test database persistence",
@@ -59,7 +62,7 @@ router.get("/api/persistence/alerts/:userId", async (req, res) => {
       alerts
     });
   } catch (error: any) {
-    console.error("Failed to retrieve alerts:", error);
+    log.error({ err: error }, "Failed to retrieve alerts");
     res.status(500).json({
       success: false,
       error: "Failed to retrieve alerts",
@@ -80,7 +83,7 @@ router.post("/api/persistence/track-bill", async (req, res) => {
       message: `User ${userId} is now tracking bill ${billId}`
     });
   } catch (error: any) {
-    console.error("Failed to track bill:", error);
+    log.error({ err: error }, "Failed to track bill");
     res.status(500).json({
       success: false,
       error: "Failed to track bill",
@@ -102,7 +105,7 @@ router.get("/api/persistence/tracked-bills/:userId", async (req, res) => {
       count: trackedBills.length
     });
   } catch (error: any) {
-    console.error("Failed to get tracked bills:", error);
+    log.error({ err: error }, "Failed to get tracked bills");
     res.status(500).json({
       success: false,
       error: "Failed to get tracked bills",

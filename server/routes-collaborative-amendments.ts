@@ -3,6 +3,9 @@ import express from 'express';
 import { z } from 'zod';
 import { db } from './db';
 import { v4 as uuidv4 } from 'uuid';
+import { createLogger } from "./logger";
+const log = createLogger("routes-collaborative-amendments");
+
 
 declare global {
   // eslint-disable-next-line no-var
@@ -73,7 +76,7 @@ router.post('/api/amendments/suggest', async (req, res) => {
     }
     global.amendments.push(amendment);
 
-    console.log(`✅ New amendment suggestion created for bill ${amendmentData.billId}`);
+    log.info(`✅ New amendment suggestion created for bill ${amendmentData.billId}`);
 
     res.json({
       success: true,
@@ -82,7 +85,7 @@ router.post('/api/amendments/suggest', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Error creating amendment suggestion:', error.message);
+    log.error({ err: error.message }, '❌ Error creating amendment suggestion');
     res.status(400).json({
       success: false,
       message: error.message
@@ -131,7 +134,7 @@ router.get('/api/amendments/bill/:billId', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Error fetching amendments:', error.message);
+    log.error({ err: error.message }, '❌ Error fetching amendments');
     res.status(500).json({
       success: false,
       message: error.message
@@ -171,7 +174,7 @@ router.get('/api/amendments/:amendmentId', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Error fetching amendment:', error.message);
+    log.error({ err: error.message }, '❌ Error fetching amendment');
     res.status(500).json({
       success: false,
       message: error.message
@@ -229,7 +232,7 @@ router.post('/api/amendments/:amendmentId/vote', async (req, res) => {
 
     global.amendments[amendmentIndex] = amendment;
 
-    console.log(`✅ Vote recorded: ${voteData.vote} for amendment ${amendmentId}`);
+    log.info(`✅ Vote recorded: ${voteData.vote} for amendment ${amendmentId}`);
 
     res.json({
       success: true,
@@ -244,7 +247,7 @@ router.post('/api/amendments/:amendmentId/vote', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Error recording vote:', error.message);
+    log.error({ err: error.message }, '❌ Error recording vote');
     res.status(400).json({
       success: false,
       message: error.message
@@ -286,7 +289,7 @@ router.post('/api/amendments/:amendmentId/comments', async (req, res) => {
     global.amendments[amendmentIndex].comments.push(comment);
     global.amendments[amendmentIndex].updatedAt = new Date().toISOString();
 
-    console.log(`✅ Comment added to amendment ${amendmentId}`);
+    log.info(`✅ Comment added to amendment ${amendmentId}`);
 
     res.json({
       success: true,
@@ -295,7 +298,7 @@ router.post('/api/amendments/:amendmentId/comments', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Error adding comment:', error.message);
+    log.error({ err: error.message }, '❌ Error adding comment');
     res.status(400).json({
       success: false,
       message: error.message
@@ -375,7 +378,7 @@ router.get('/api/amendments/stats', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Error fetching amendment stats:', error.message);
+    log.error({ err: error.message }, '❌ Error fetching amendment stats');
     res.status(500).json({
       success: false,
       message: error.message
@@ -438,7 +441,7 @@ router.get('/api/amendments/search', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Error searching amendments:', error.message);
+    log.error({ err: error.message }, '❌ Error searching amendments');
     res.status(500).json({
       success: false,
       message: error.message

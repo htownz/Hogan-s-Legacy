@@ -2,6 +2,9 @@ import { WebSocketServer, WebSocket } from 'ws';
 import http from 'http';
 import { collaborativeStorage } from './storage-collaborative';
 import { getAuthenticatedUserFromRequest } from './auth';
+import { createLogger } from "./logger";
+const log = createLogger("websocket-collaborative");
+
 
 // Define message types
 type MessageType = 
@@ -120,7 +123,7 @@ export function initializeCollaborativeWebsockets(server: http.Server) {
               sendError(ws, 'Unknown message type');
           }
         } catch (error: any) {
-          console.error('Error handling WebSocket message:', error);
+          log.error({ err: error }, 'Error handling WebSocket message');
           sendError(ws, 'Failed to process message');
         }
       });
@@ -156,7 +159,7 @@ export function initializeCollaborativeWebsockets(server: http.Server) {
       });
 
     } catch (error: any) {
-      console.error('WebSocket authentication error:', error);
+      log.error({ err: error }, 'WebSocket authentication error');
       sendError(ws, 'Authentication failed');
       ws.close();
     }
@@ -179,7 +182,7 @@ export function initializeCollaborativeWebsockets(server: http.Server) {
     clearInterval(interval);
   });
 
-  console.log('Collaborative WebSocket server initialized');
+  log.info('Collaborative WebSocket server initialized');
 }
 
 // Helper function to send error messages
@@ -270,7 +273,7 @@ async function handleJoin(ws: CollaborativeClient, message: WebSocketMessage) {
     }, userId);
     
   } catch (error: any) {
-    console.error('Error handling join:', error);
+    log.error({ err: error }, 'Error handling join');
     sendError(ws, 'Failed to join session');
   }
 }
@@ -324,7 +327,7 @@ async function handleLeave(ws: CollaborativeClient, message: WebSocketMessage) {
     }));
     
   } catch (error: any) {
-    console.error('Error handling leave:', error);
+    log.error({ err: error }, 'Error handling leave');
     sendError(ws, 'Failed to leave session');
   }
 }
@@ -355,7 +358,7 @@ async function handleCursorPosition(ws: CollaborativeClient, message: WebSocketM
     }, userId);
     
   } catch (error: any) {
-    console.error('Error handling cursor position:', error);
+    log.error({ err: error }, 'Error handling cursor position');
     sendError(ws, 'Failed to update cursor position');
   }
 }
@@ -394,7 +397,7 @@ async function handleTextChange(ws: CollaborativeClient, message: WebSocketMessa
     }, userId);
     
   } catch (error: any) {
-    console.error('Error handling text change:', error);
+    log.error({ err: error }, 'Error handling text change');
     sendError(ws, 'Failed to process text change');
   }
 }
@@ -437,7 +440,7 @@ async function handleUserActivity(ws: CollaborativeClient, message: WebSocketMes
     
     // No need to broadcast this message as it's just a heartbeat
   } catch (error: any) {
-    console.error('Error handling user activity:', error);
+    log.error({ err: error }, 'Error handling user activity');
     // Don't send error for activity updates to avoid noise
   }
 }
@@ -485,7 +488,7 @@ async function handleCommentAdd(ws: CollaborativeClient, message: WebSocketMessa
     }));
     
   } catch (error: any) {
-    console.error('Error handling comment add:', error);
+    log.error({ err: error }, 'Error handling comment add');
     sendError(ws, 'Failed to add comment');
   }
 }
@@ -521,7 +524,7 @@ async function handleCommentUpdate(ws: CollaborativeClient, message: WebSocketMe
     });
     
   } catch (error: any) {
-    console.error('Error handling comment update:', error);
+    log.error({ err: error }, 'Error handling comment update');
     sendError(ws, 'Failed to update comment');
   }
 }
@@ -557,7 +560,7 @@ async function handleCommentResolve(ws: CollaborativeClient, message: WebSocketM
     });
     
   } catch (error: any) {
-    console.error('Error handling comment resolve:', error);
+    log.error({ err: error }, 'Error handling comment resolve');
     sendError(ws, 'Failed to resolve comment');
   }
 }
@@ -616,7 +619,7 @@ async function handleVersionCreate(ws: CollaborativeClient, message: WebSocketMe
     }));
     
   } catch (error: any) {
-    console.error('Error handling version create:', error);
+    log.error({ err: error }, 'Error handling version create');
     sendError(ws, 'Failed to create version');
   }
 }

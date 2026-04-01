@@ -4,6 +4,9 @@ import { db } from '../db';
 import { billMovementNotifications, bills } from '@shared/schema-additions';
 import { eq, and, desc } from 'drizzle-orm';
 import { isAuthenticated, CustomRequest } from '../auth';
+import { createLogger } from "../logger";
+const log = createLogger("bill-updates-routes");
+
 
 export async function registerBillUpdateRoutes(app: Express): Promise<void> {
   // Get notification for the logged-in user
@@ -28,7 +31,7 @@ export async function registerBillUpdateRoutes(app: Express): Promise<void> {
       
       return res.status(200).json(notifications);
     } catch (error: any) {
-      console.error('Error fetching notifications:', error);
+      log.error({ err: error }, 'Error fetching notifications');
       return res.status(500).json({ message: 'Failed to fetch notifications' });
     }
   });
@@ -55,7 +58,7 @@ export async function registerBillUpdateRoutes(app: Express): Promise<void> {
       
       return res.status(200).json({ message: 'Notification marked as read' });
     } catch (error: any) {
-      console.error('Error marking notification as read:', error);
+      log.error({ err: error }, 'Error marking notification as read');
       return res.status(500).json({ message: 'Failed to update notification' });
     }
   });
@@ -77,7 +80,7 @@ export async function registerBillUpdateRoutes(app: Express): Promise<void> {
       
       return res.status(200).json({ message: 'All notifications marked as read' });
     } catch (error: any) {
-      console.error('Error marking all notifications as read:', error);
+      log.error({ err: error }, 'Error marking all notifications as read');
       return res.status(500).json({ message: 'Failed to update notifications' });
     }
   });
@@ -103,7 +106,7 @@ export async function registerBillUpdateRoutes(app: Express): Promise<void> {
       
       return res.status(200).json({ unreadCount });
     } catch (error: any) {
-      console.error('Error counting unread notifications:', error);
+      log.error({ err: error }, 'Error counting unread notifications');
       return res.status(500).json({ message: 'Failed to count unread notifications' });
     }
   });

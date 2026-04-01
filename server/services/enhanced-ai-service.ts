@@ -1,6 +1,9 @@
 // @ts-nocheck
 import Anthropic from '@anthropic-ai/sdk';
 import { Pinecone } from '@pinecone-database/pinecone';
+import { createLogger } from "../logger";
+const log = createLogger("enhanced-ai-service");
+
 
 // the newest Anthropic model is "claude-3-7-sonnet-20250219" which was released February 24, 2025
 const anthropic = new Anthropic({
@@ -79,7 +82,7 @@ Please provide a JSON response with:
       };
 
     } catch (error: any) {
-      console.error('Claude analysis failed:', error);
+      log.error({ err: error }, 'Claude analysis failed');
       
       // Fallback analysis structure
       return {
@@ -117,7 +120,7 @@ Please provide a JSON response with:
       })) || [];
 
     } catch (error: any) {
-      console.error('Pinecone search failed:', error);
+      log.error({ err: error }, 'Pinecone search failed');
       return [];
     }
   }
@@ -132,7 +135,7 @@ Please provide a JSON response with:
       // Filter out the current bill
       return results.filter(result => result.id !== billId);
     } catch (error: any) {
-      console.error('Similar bills search failed:', error);
+      log.error({ err: error }, 'Similar bills search failed');
       return [];
     }
   }
@@ -156,7 +159,7 @@ Make it clear and practical - what does this actually mean for regular people?`
       return (response.content[0] as any).text || "Explanation unavailable at this time.";
 
     } catch (error: any) {
-      console.error('Simple explanation failed:', error);
+      log.error({ err: error }, 'Simple explanation failed');
       return "Text simplification is temporarily unavailable. Please refer to the original document or contact your representatives for clarification.";
     }
   }
@@ -184,7 +187,7 @@ Please provide a JSON array of actionable steps.`
       return Array.isArray(result.actions) ? result.actions : [];
 
     } catch (error: any) {
-      console.error('Action insights failed:', error);
+      log.error({ err: error }, 'Action insights failed');
       return [
         "Contact your state representatives",
         "Follow bill progress on legislature.texas.gov",
@@ -218,7 +221,7 @@ Please provide a JSON array of actionable steps.`
       // Filter out bills user has already seen
       return results.filter(result => !previousBills.includes(result.id));
     } catch (error: any) {
-      console.error('Recommendations failed:', error);
+      log.error({ err: error }, 'Recommendations failed');
       return [];
     }
   }

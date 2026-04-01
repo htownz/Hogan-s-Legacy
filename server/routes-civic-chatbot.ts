@@ -6,6 +6,9 @@
 
 import { Router } from 'express';
 import { storage } from './storage';
+import { createLogger } from "./logger";
+const log = createLogger("routes-civic-chatbot");
+
 
 const router = Router();
 
@@ -46,7 +49,7 @@ router.post('/chat', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('Civic chatbot error:', error);
+    log.error({ err: error }, 'Civic chatbot error');
     res.status(500).json({
       success: false,
       message: 'Failed to process civic learning request',
@@ -64,7 +67,7 @@ router.post('/feedback', async (req, res) => {
     const { messageId, rating, timestamp } = req.body;
     
     // In a real implementation, store feedback for improving the chatbot
-    console.log('Civic chatbot feedback:', { messageId, rating, timestamp });
+    log.info({ messageId, rating, timestamp }, 'Civic chatbot feedback');
     
     res.json({
       success: true,
@@ -73,7 +76,7 @@ router.post('/feedback', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('Feedback error:', error);
+    log.error({ err: error }, 'Feedback error');
     res.status(500).json({
       success: false,
       message: 'Failed to record feedback',
@@ -134,7 +137,7 @@ router.get('/topics', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('Topics error:', error);
+    log.error({ err: error }, 'Topics error');
     res.status(500).json({
       success: false,
       message: 'Failed to fetch learning topics',

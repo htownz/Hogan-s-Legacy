@@ -6,6 +6,9 @@ import { db } from '../db';
 import { eq, isNull, and, or, sql } from 'drizzle-orm';
 import { stateOfficials } from '@shared/schema-officials';
 import type { StateOfficial } from '@shared/schema-officials';
+import { createLogger } from "../logger";
+const log = createLogger("avatar-service");
+
 
 /**
  * Service to generate and manage cartoon avatars for state officials
@@ -49,7 +52,7 @@ export class AvatarService {
       
       return imageUrl;
     } catch (error: any) {
-      console.error('Error generating cartoon avatar:', error);
+      log.error({ err: error }, 'Error generating cartoon avatar');
       return null;
     }
   }
@@ -155,11 +158,11 @@ export class AvatarService {
         .where(isNull(stateOfficials.cartoonAvatarUrl));
       
       if (!officialsWithoutAvatars.length) {
-        console.log('No officials found without avatars');
+        log.info('No officials found without avatars');
         return 0;
       }
       
-      console.log(`Found ${officialsWithoutAvatars.length} officials without avatars. Starting generation...`);
+      log.info(`Found ${officialsWithoutAvatars.length} officials without avatars. Starting generation...`);
       
       let successCount = 0;
       
@@ -169,21 +172,21 @@ export class AvatarService {
           const avatarUrl = await this.generateCartoonAvatar(official);
           if (avatarUrl) {
             successCount++;
-            console.log(`Generated avatar for ${official.name} (${successCount}/${officialsWithoutAvatars.length})`);
+            log.info(`Generated avatar for ${official.name} (${successCount}/${officialsWithoutAvatars.length})`);
           } else {
-            console.error(`Failed to generate avatar for ${official.name}`);
+            log.error(`Failed to generate avatar for ${official.name}`);
           }
           
           // Add a delay to avoid rate limits (1.5 seconds)
           await new Promise(resolve => setTimeout(resolve, 1500));
         } catch (officialError: any) {
-          console.error(`Error generating avatar for ${official.name}:`, officialError);
+          log.error({ err: officialError }, `Error generating avatar for ${official.name}`);
         }
       }
       
       return successCount;
     } catch (error: any) {
-      console.error('Error generating missing avatars:', error);
+      log.error({ err: error }, 'Error generating missing avatars');
       return 0;
     }
   }
@@ -220,11 +223,11 @@ export class AvatarService {
       const officials = await query;
       
       if (!officials.length) {
-        console.log('No officials found matching the filter criteria');
+        log.info('No officials found matching the filter criteria');
         return 0;
       }
       
-      console.log(`Found ${officials.length} officials matching the filter criteria. Starting regeneration...`);
+      log.info(`Found ${officials.length} officials matching the filter criteria. Starting regeneration...`);
       
       let successCount = 0;
       
@@ -234,21 +237,21 @@ export class AvatarService {
           const avatarUrl = await this.generateCartoonAvatar(official);
           if (avatarUrl) {
             successCount++;
-            console.log(`Regenerated avatar for ${official.name} (${successCount}/${officials.length})`);
+            log.info(`Regenerated avatar for ${official.name} (${successCount}/${officials.length})`);
           } else {
-            console.error(`Failed to regenerate avatar for ${official.name}`);
+            log.error(`Failed to regenerate avatar for ${official.name}`);
           }
           
           // Add a delay to avoid rate limits (1.5 seconds)
           await new Promise(resolve => setTimeout(resolve, 1500));
         } catch (officialError: any) {
-          console.error(`Error regenerating avatar for ${official.name}:`, officialError);
+          log.error({ err: officialError }, `Error regenerating avatar for ${official.name}`);
         }
       }
       
       return successCount;
     } catch (error: any) {
-      console.error('Error regenerating avatars by filter:', error);
+      log.error({ err: error }, 'Error regenerating avatars by filter');
       return 0;
     }
   }

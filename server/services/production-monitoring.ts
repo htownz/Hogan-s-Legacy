@@ -1,6 +1,9 @@
 import { dataIntegrity } from './data-integrity-service';
 import { productionCache } from './production-cache';
 import { productionDataSync } from './production-data-sync';
+import { createLogger } from "../logger";
+const log = createLogger("production-monitoring");
+
 
 export class ProductionMonitoringService {
   private alerts: Array<{ 
@@ -175,7 +178,7 @@ export class ProductionMonitoringService {
 
   // Send critical alert (in production, integrate with your alerting system)
   private sendCriticalAlert(alert: any) {
-    console.error('🚨 CRITICAL ALERT:', alert);
+    log.error({ err: alert }, '🚨 CRITICAL ALERT');
     
     // In production, you would integrate with:
     // - Slack notifications
@@ -252,7 +255,7 @@ export class ProductionMonitoringService {
       await this.checkGovernmentApiHealth();
     }, 300000); // Check every 5 minutes
 
-    console.log('✅ Performance monitoring started');
+    log.info('✅ Performance monitoring started');
   }
 
   // Clear old alerts

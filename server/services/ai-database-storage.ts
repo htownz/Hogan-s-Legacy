@@ -10,6 +10,9 @@ import {
   aiModelPerformance
 } from "@shared/schema";
 import { eq, desc, and, gte, lte } from "drizzle-orm";
+import { createLogger } from "../logger";
+const log = createLogger("ai-database-storage");
+
 
 /**
  * AI Database Storage Service
@@ -20,7 +23,7 @@ export class AIDatabaseStorage {
 
   // AI Alert Enhancement Operations
   async saveAlertEnhancement(alertData: any) {
-    console.log("💾 Saving AI alert enhancement to database...");
+    log.info("💾 Saving AI alert enhancement to database...");
     
     try {
       const [enhancement] = await db
@@ -39,7 +42,7 @@ export class AIDatabaseStorage {
       
       return enhancement;
     } catch (error: any) {
-      console.error('Error saving alert enhancement:', error);
+      log.error({ err: error }, 'Error saving alert enhancement');
       throw error;
     }
   }
@@ -54,14 +57,14 @@ export class AIDatabaseStorage {
       
       return enhancement;
     } catch (error: any) {
-      console.error('Error retrieving alert enhancement:', error);
+      log.error({ err: error }, 'Error retrieving alert enhancement');
       return null;
     }
   }
 
   // Sentiment Analysis Operations
   async saveSentimentAnalysis(sentimentData: any) {
-    console.log("😊 Saving sentiment analysis to database...");
+    log.info("😊 Saving sentiment analysis to database...");
     
     try {
       const [sentiment] = await db
@@ -81,7 +84,7 @@ export class AIDatabaseStorage {
       
       return sentiment;
     } catch (error: any) {
-      console.error('Error saving sentiment analysis:', error);
+      log.error({ err: error }, 'Error saving sentiment analysis');
       throw error;
     }
   }
@@ -96,14 +99,14 @@ export class AIDatabaseStorage {
       
       return sentiment;
     } catch (error: any) {
-      console.error('Error retrieving sentiment analysis:', error);
+      log.error({ err: error }, 'Error retrieving sentiment analysis');
       return null;
     }
   }
 
   // Predictive Analysis Operations
   async savePredictiveAnalysis(predictionData: any) {
-    console.log("🔮 Saving predictive analysis to database...");
+    log.info("🔮 Saving predictive analysis to database...");
     
     try {
       const [prediction] = await db
@@ -122,7 +125,7 @@ export class AIDatabaseStorage {
       
       return prediction;
     } catch (error: any) {
-      console.error('Error saving predictive analysis:', error);
+      log.error({ err: error }, 'Error saving predictive analysis');
       throw error;
     }
   }
@@ -137,14 +140,14 @@ export class AIDatabaseStorage {
       
       return prediction;
     } catch (error: any) {
-      console.error('Error retrieving predictions:', error);
+      log.error({ err: error }, 'Error retrieving predictions');
       return null;
     }
   }
 
   // Alert Clustering Operations
   async saveAlertClusters(clusterData: any) {
-    console.log("🧩 Saving alert clusters to database...");
+    log.info("🧩 Saving alert clusters to database...");
     
     try {
       const clusters = [];
@@ -168,14 +171,14 @@ export class AIDatabaseStorage {
       
       return clusters;
     } catch (error: any) {
-      console.error('Error saving alert clusters:', error);
+      log.error({ err: error }, 'Error saving alert clusters');
       throw error;
     }
   }
 
   // Activity Metrics Operations
   async saveActivityMetrics(metricsData: any) {
-    console.log("📊 Saving legislative activity metrics...");
+    log.info("📊 Saving legislative activity metrics...");
     
     try {
       const [metrics] = await db
@@ -195,14 +198,14 @@ export class AIDatabaseStorage {
       
       return metrics;
     } catch (error: any) {
-      console.error('Error saving activity metrics:', error);
+      log.error({ err: error }, 'Error saving activity metrics');
       throw error;
     }
   }
 
   // User Preferences Operations
   async saveUserPreferences(userId: string, preferences: any) {
-    console.log("🎯 Saving user alert preferences...");
+    log.info("🎯 Saving user alert preferences...");
     
     try {
       const [userPrefs] = await db
@@ -230,7 +233,7 @@ export class AIDatabaseStorage {
       
       return userPrefs;
     } catch (error: any) {
-      console.error('Error saving user preferences:', error);
+      log.error({ err: error }, 'Error saving user preferences');
       throw error;
     }
   }
@@ -245,14 +248,14 @@ export class AIDatabaseStorage {
       
       return preferences;
     } catch (error: any) {
-      console.error('Error retrieving user preferences:', error);
+      log.error({ err: error }, 'Error retrieving user preferences');
       return null;
     }
   }
 
   // AI Model Performance Tracking
   async trackModelPerformance(modelType: string, performanceData: any) {
-    console.log(`🧠 Tracking AI model performance for ${modelType}...`);
+    log.info(`🧠 Tracking AI model performance for ${modelType}...`);
     
     try {
       const [performance] = await db
@@ -271,14 +274,14 @@ export class AIDatabaseStorage {
       
       return performance;
     } catch (error: any) {
-      console.error('Error tracking model performance:', error);
+      log.error({ err: error }, 'Error tracking model performance');
       throw error;
     }
   }
 
   // Analytics and Insights
   async getAIDashboardSummary() {
-    console.log("📈 Generating AI dashboard summary...");
+    log.info("📈 Generating AI dashboard summary...");
     
     try {
       // Get recent activity metrics
@@ -303,7 +306,7 @@ export class AIDatabaseStorage {
 
       return summary;
     } catch (error: any) {
-      console.error('Error generating dashboard summary:', error);
+      log.error({ err: error }, 'Error generating dashboard summary');
       return {
         alertsLastWeek: 0,
         averageImpactScore: 0,

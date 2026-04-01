@@ -1,4 +1,7 @@
 import axios from 'axios';
+import { createLogger } from "../logger";
+const log = createLogger("openstates-comprehensive-api");
+
 
 /**
  * OpenStates Comprehensive API Service
@@ -160,7 +163,7 @@ class OpenStatesComprehensiveAPI {
   constructor() {
     this.apiKey = process.env.OPENSTATES_API_KEY || '';
     if (!this.apiKey) {
-      console.warn('⚠️ OPENSTATES_API_KEY not found - comprehensive legislative data will be limited');
+      log.warn('⚠️ OPENSTATES_API_KEY not found - comprehensive legislative data will be limited');
     }
   }
 
@@ -172,7 +175,7 @@ class OpenStatesComprehensiveAPI {
     pagination: any;
   }> {
     try {
-      console.log(`🏛️ Fetching Texas committees page ${page}...`);
+      log.info(`🏛️ Fetching Texas committees page ${page}...`);
 
       const response = await axios.get(`${this.baseUrl}/organizations`, {
         headers: {
@@ -194,7 +197,7 @@ class OpenStatesComprehensiveAPI {
       };
 
     } catch (error: any) {
-      console.error('❌ Error fetching Texas committees:', error.message);
+      log.error({ err: error.message }, '❌ Error fetching Texas committees');
       throw new Error(`Failed to fetch Texas committees: ${error.message}`);
     }
   }
@@ -204,7 +207,7 @@ class OpenStatesComprehensiveAPI {
    */
   async fetchCommitteeDetails(committeeId: string): Promise<OpenStatesCommittee | null> {
     try {
-      console.log(`🏛️ Fetching committee details for: ${committeeId}`);
+      log.info(`🏛️ Fetching committee details for: ${committeeId}`);
 
       const response = await axios.get(`${this.baseUrl}/organizations/${committeeId}`, {
         headers: {
@@ -219,7 +222,7 @@ class OpenStatesComprehensiveAPI {
       return response.data;
 
     } catch (error: any) {
-      console.error(`❌ Error fetching committee ${committeeId}:`, error.message);
+      log.error({ err: error.message }, `❌ Error fetching committee ${committeeId}`);
       return null;
     }
   }
@@ -232,7 +235,7 @@ class OpenStatesComprehensiveAPI {
     pagination: any;
   }> {
     try {
-      console.log(`📅 Fetching Texas legislative events page ${page}...`);
+      log.info(`📅 Fetching Texas legislative events page ${page}...`);
 
       const response = await axios.get(`${this.baseUrl}/events`, {
         headers: {
@@ -253,7 +256,7 @@ class OpenStatesComprehensiveAPI {
       };
 
     } catch (error: any) {
-      console.error('❌ Error fetching Texas events:', error.message);
+      log.error({ err: error.message }, '❌ Error fetching Texas events');
       throw new Error(`Failed to fetch Texas events: ${error.message}`);
     }
   }
@@ -266,7 +269,7 @@ class OpenStatesComprehensiveAPI {
       const startDate = new Date().toISOString().split('T')[0];
       const endDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-      console.log(`📅 Fetching upcoming Texas events (${startDate} to ${endDate})...`);
+      log.info(`📅 Fetching upcoming Texas events (${startDate} to ${endDate})...`);
 
       const response = await axios.get(`${this.baseUrl}/events`, {
         headers: {
@@ -284,7 +287,7 @@ class OpenStatesComprehensiveAPI {
       return response.data.results || [];
 
     } catch (error: any) {
-      console.error('❌ Error fetching upcoming events:', error.message);
+      log.error({ err: error.message }, '❌ Error fetching upcoming events');
       throw new Error(`Failed to fetch upcoming events: ${error.message}`);
     }
   }
@@ -294,7 +297,7 @@ class OpenStatesComprehensiveAPI {
    */
   async fetchPersonDetails(personId: string): Promise<OpenStatesPerson | null> {
     try {
-      console.log(`👤 Fetching person details for: ${personId}`);
+      log.info(`👤 Fetching person details for: ${personId}`);
 
       const response = await axios.get(`${this.baseUrl}/people/${personId}`, {
         headers: {
@@ -306,7 +309,7 @@ class OpenStatesComprehensiveAPI {
       return response.data;
 
     } catch (error: any) {
-      console.error(`❌ Error fetching person ${personId}:`, error.message);
+      log.error({ err: error.message }, `❌ Error fetching person ${personId}`);
       return null;
     }
   }
@@ -319,7 +322,7 @@ class OpenStatesComprehensiveAPI {
     pagination: any;
   }> {
     try {
-      console.log(`🔍 Searching for people: "${query}"`);
+      log.info(`🔍 Searching for people: "${query}"`);
 
       const response = await axios.get(`${this.baseUrl}/people`, {
         headers: {
@@ -340,7 +343,7 @@ class OpenStatesComprehensiveAPI {
       };
 
     } catch (error: any) {
-      console.error('❌ Error searching people:', error.message);
+      log.error({ err: error.message }, '❌ Error searching people');
       throw new Error(`Failed to search people: ${error.message}`);
     }
   }
@@ -350,7 +353,7 @@ class OpenStatesComprehensiveAPI {
    */
   async fetchTexasJurisdiction(): Promise<OpenStatesJurisdiction | null> {
     try {
-      console.log('🗺️ Fetching Texas jurisdiction information...');
+      log.info('🗺️ Fetching Texas jurisdiction information...');
 
       const response = await axios.get(`${this.baseUrl}/jurisdictions/Texas`, {
         headers: {
@@ -362,7 +365,7 @@ class OpenStatesComprehensiveAPI {
       return response.data;
 
     } catch (error: any) {
-      console.error('❌ Error fetching Texas jurisdiction:', error.message);
+      log.error({ err: error.message }, '❌ Error fetching Texas jurisdiction');
       return null;
     }
   }
@@ -400,25 +403,25 @@ class OpenStatesComprehensiveAPI {
     };
 
     try {
-      console.log('🚀 Starting comprehensive Texas legislative infrastructure collection...');
+      log.info('🚀 Starting comprehensive Texas legislative infrastructure collection...');
 
       // 1. Collect jurisdiction information
       try {
-        console.log('🗺️ Collecting Texas jurisdiction data...');
+        log.info('🗺️ Collecting Texas jurisdiction data...');
         const jurisdiction = await this.fetchTexasJurisdiction();
         if (jurisdiction) {
           results.data.jurisdiction = this.normalizeJurisdictionData(jurisdiction);
           results.jurisdictionData = results.data.jurisdiction;
-          console.log('✅ Texas jurisdiction data collected');
+          log.info('✅ Texas jurisdiction data collected');
         }
       } catch (error: any) {
-        console.error('❌ Error collecting jurisdiction:', error.message);
+        log.error({ err: error.message }, '❌ Error collecting jurisdiction');
         results.errors.push(`Jurisdiction: ${error.message}`);
       }
 
       // 2. Collect committees data
       try {
-        console.log('🏛️ Collecting Texas committees...');
+        log.info('🏛️ Collecting Texas committees...');
         let page = 1;
         let hasMoreCommittees = true;
 
@@ -445,15 +448,15 @@ class OpenStatesComprehensiveAPI {
           await new Promise(resolve => setTimeout(resolve, 200));
         }
 
-        console.log(`✅ Collected ${results.committeesCollected} committees`);
+        log.info(`✅ Collected ${results.committeesCollected} committees`);
       } catch (error: any) {
-        console.error('❌ Error collecting committees:', error.message);
+        log.error({ err: error.message }, '❌ Error collecting committees');
         results.errors.push(`Committees: ${error.message}`);
       }
 
       // 3. Collect upcoming events
       try {
-        console.log('📅 Collecting upcoming Texas legislative events...');
+        log.info('📅 Collecting upcoming Texas legislative events...');
         const upcomingEvents = await this.fetchUpcomingEvents(60); // Next 60 days
         
         for (const event of upcomingEvents) {
@@ -462,16 +465,16 @@ class OpenStatesComprehensiveAPI {
           results.eventsCollected++;
         }
 
-        console.log(`✅ Collected ${results.eventsCollected} upcoming events`);
+        log.info(`✅ Collected ${results.eventsCollected} upcoming events`);
       } catch (error: any) {
-        console.error('❌ Error collecting events:', error.message);
+        log.error({ err: error.message }, '❌ Error collecting events');
         results.errors.push(`Events: ${error.message}`);
       }
 
-      console.log(`✅ Comprehensive collection completed: ${results.committeesCollected} committees, ${results.eventsCollected} events`);
+      log.info(`✅ Comprehensive collection completed: ${results.committeesCollected} committees, ${results.eventsCollected} events`);
 
     } catch (error: any) {
-      console.error('❌ Comprehensive data collection failed:', error.message);
+      log.error({ err: error.message }, '❌ Comprehensive data collection failed');
       results.success = false;
       results.errors.push(error.message);
     }
@@ -571,4 +574,4 @@ class OpenStatesComprehensiveAPI {
 
 export const openStatesComprehensiveAPI = new OpenStatesComprehensiveAPI();
 
-console.log('🏛️ OpenStates Comprehensive API initialized');
+log.info('🏛️ OpenStates Comprehensive API initialized');

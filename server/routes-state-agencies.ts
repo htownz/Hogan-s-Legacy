@@ -34,6 +34,9 @@ import {
   sql
 } from "drizzle-orm";
 import { z } from "zod";
+import { createLogger } from "./logger";
+const log = createLogger("routes-state-agencies");
+
 
 /**
  * Register state agency API routes
@@ -50,7 +53,7 @@ export function registerStateAgencyRoutes(app: Express): void {
       
       res.json(agencies);
     } catch (error: any) {
-      console.error("Error fetching state agencies:", error);
+      log.error({ err: error }, "Error fetching state agencies");
       res.status(500).json({ message: "Error fetching state agencies" });
     }
   });
@@ -72,7 +75,7 @@ export function registerStateAgencyRoutes(app: Express): void {
       
       res.json(agency);
     } catch (error: any) {
-      console.error(`Error fetching state agency ${req.params.id}:`, error);
+      log.error({ err: error }, `Error fetching state agency ${req.params.id}`);
       res.status(500).json({ message: "Error fetching state agency" });
     }
   });
@@ -162,7 +165,7 @@ export function registerStateAgencyRoutes(app: Express): void {
         }
       });
     } catch (error: any) {
-      console.error("Error fetching agency reports:", error);
+      log.error({ err: error }, "Error fetching agency reports");
       res.status(500).json({ message: "Error fetching agency reports" });
     }
   });
@@ -208,7 +211,7 @@ export function registerStateAgencyRoutes(app: Express): void {
         bills: billDetails
       });
     } catch (error: any) {
-      console.error(`Error fetching agency report ${req.params.id}:`, error);
+      log.error({ err: error }, `Error fetching agency report ${req.params.id}`);
       res.status(500).json({ message: "Error fetching agency report" });
     }
   });
@@ -251,7 +254,7 @@ export function registerStateAgencyRoutes(app: Express): void {
       
       res.json(reportsWithAgency);
     } catch (error: any) {
-      console.error(`Error fetching agency reports for bill ${req.params.billId}:`, error);
+      log.error({ err: error }, `Error fetching agency reports for bill ${req.params.billId}`);
       res.status(500).json({ message: "Error fetching agency reports for bill" });
     }
   });
@@ -292,7 +295,7 @@ export function registerStateAgencyRoutes(app: Express): void {
       
       res.json(reportsWithAgency);
     } catch (error: any) {
-      console.error(`Error searching agency reports:`, error);
+      log.error({ err: error }, `Error searching agency reports`);
       res.status(500).json({ message: "Error searching agency reports" });
     }
   });
@@ -330,7 +333,7 @@ export function registerStateAgencyRoutes(app: Express): void {
       
       res.json(contactsWithAgency);
     } catch (error: any) {
-      console.error("Error fetching agency contacts:", error);
+      log.error({ err: error }, "Error fetching agency contacts");
       res.status(500).json({ message: "Error fetching agency contacts" });
     }
   });
@@ -372,7 +375,7 @@ export function registerStateAgencyRoutes(app: Express): void {
       
       res.json(initiativesWithAgency);
     } catch (error: any) {
-      console.error("Error fetching agency initiatives:", error);
+      log.error({ err: error }, "Error fetching agency initiatives");
       res.status(500).json({ message: "Error fetching agency initiatives" });
     }
   });
@@ -429,7 +432,7 @@ export function registerStateAgencyRoutes(app: Express): void {
       
       res.json(agenciesWithReportCount);
     } catch (error: any) {
-      console.error(`Error fetching related agencies for bill ${req.params.billId}:`, error);
+      log.error({ err: error }, `Error fetching related agencies for bill ${req.params.billId}`);
       res.status(500).json({ message: "Error fetching related agencies for bill" });
     }
   });
@@ -468,7 +471,7 @@ export function registerStateAgencyRoutes(app: Express): void {
       // Return top 5
       res.json(agenciesWithActivity.slice(0, 5));
     } catch (error: any) {
-      console.error("Error fetching trending agencies:", error);
+      log.error({ err: error }, "Error fetching trending agencies");
       res.status(500).json({ message: "Error fetching trending agencies" });
     }
   });

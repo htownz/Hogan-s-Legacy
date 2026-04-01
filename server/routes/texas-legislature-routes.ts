@@ -27,6 +27,9 @@ import {
 //   fetchSenateRules
 // } from "../services/texas-legislature-api";
 import { eq, and, like, or, desc } from "drizzle-orm";
+import { createLogger } from "../logger";
+const log = createLogger("texas-legislature-routes");
+
 
 // Custom typing for auth requests
 interface CustomRequest extends Request {
@@ -52,7 +55,7 @@ export async function registerTexasLegislatureRoutes(app: Express): Promise<void
       
       res.json(currentSession);
     } catch (error: any) {
-      console.error("Error fetching session info:", error);
+      log.error({ err: error }, "Error fetching session info");
       res.status(500).json({ message: "Error fetching legislative session information" });
     }
   });
@@ -67,7 +70,7 @@ export async function registerTexasLegislatureRoutes(app: Express): Promise<void
       
       res.json(sessions);
     } catch (error: any) {
-      console.error("Error fetching sessions:", error);
+      log.error({ err: error }, "Error fetching sessions");
       res.status(500).json({ message: "Error fetching legislative sessions" });
     }
   });
@@ -120,7 +123,7 @@ export async function registerTexasLegislatureRoutes(app: Express): Promise<void
       
       res.json(statutes);
     } catch (error: any) {
-      console.error("Error fetching statutes:", error);
+      log.error({ err: error }, "Error fetching statutes");
       res.status(500).json({ message: "Error fetching Texas statutes" });
     }
   });
@@ -141,7 +144,7 @@ export async function registerTexasLegislatureRoutes(app: Express): Promise<void
       
       res.json(statute);
     } catch (error: any) {
-      console.error("Error fetching specific statute:", error);
+      log.error({ err: error }, "Error fetching specific statute");
       res.status(500).json({ message: "Error fetching statute details" });
     }
   });
@@ -166,7 +169,7 @@ export async function registerTexasLegislatureRoutes(app: Express): Promise<void
       
       res.json(rules);
     } catch (error: any) {
-      console.error("Error fetching rules:", error);
+      log.error({ err: error }, "Error fetching rules");
       res.status(500).json({ message: "Error fetching legislative rules" });
     }
   });
@@ -183,7 +186,7 @@ export async function registerTexasLegislatureRoutes(app: Express): Promise<void
       
       res.json(pointsOfOrderList);
     } catch (error: any) {
-      console.error("Error fetching points of order:", error);
+      log.error({ err: error }, "Error fetching points of order");
       res.status(500).json({ message: "Error fetching points of order" });
     }
   });
@@ -208,7 +211,7 @@ export async function registerTexasLegislatureRoutes(app: Express): Promise<void
       
       res.json(pointsOfOrderList);
     } catch (error: any) {
-      console.error("Error fetching points of order:", error);
+      log.error({ err: error }, "Error fetching points of order");
       res.status(500).json({ message: "Error fetching points of order" });
     }
   });
@@ -265,7 +268,7 @@ export async function registerTexasLegislatureRoutes(app: Express): Promise<void
         count: savedPointsOfOrder.length
       });
     } catch (error: any) {
-      console.error("Error analyzing bill:", error);
+      log.error({ err: error }, "Error analyzing bill");
       res.status(500).json({ message: "Error analyzing bill for points of order" });
     }
   });
@@ -283,7 +286,7 @@ export async function registerTexasLegislatureRoutes(app: Express): Promise<void
       
       res.json(events);
     } catch (error: any) {
-      console.error("Error fetching bill history:", error);
+      log.error({ err: error }, "Error fetching bill history");
       res.status(500).json({ message: "Error fetching bill history" });
     }
   });
@@ -336,10 +339,10 @@ export async function registerTexasLegislatureRoutes(app: Express): Promise<void
         bill: result
       });
     } catch (error: any) {
-      console.error("Error fetching bill from TLO:", error);
+      log.error({ err: error }, "Error fetching bill from TLO");
       res.status(500).json({ message: "Error fetching and updating bill data" });
     }
   });
 
-  console.log("Texas Legislature routes registered");
+  log.info("Texas Legislature routes registered");
 }

@@ -1,5 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyBillData, verifyEthicsData, VerificationResult } from '../services/data-verification-service';
+import { createLogger } from '../logger';
+
+const log = createLogger('safety-standards');
 
 // Safety standards configuration
 const SAFETY_CONFIG = {
@@ -67,7 +70,7 @@ export const verifyBillOperations = async (req: Request, res: Response, next: Ne
   }
 
   try {
-    console.log(`Performing safety verification for bill operation: ${req.method} ${req.path}`);
+    log.info({ method: req.method, path: req.path }, 'Performing safety verification for bill operation');
     
     const verification = await verifyBillData(parseInt(billId), billData);
     
@@ -91,12 +94,7 @@ export const verifyBillOperations = async (req: Request, res: Response, next: Ne
 
     // Block operation if safety standards not met
     if (!safetyResult.passed || !safetyResult.allowDatabaseUpdate) {
-      console.warn(`Database operation blocked due to safety standards violation:`, {
-        billId,
-        confidence: verification.confidence,
-        issues: verification.flaggedIssues,
-        path: req.path
-      });
+      log.warn({ billId, confidence: verification.confidence, issues: verification.flaggedIssues, path: req.path }, 'Database operation blocked due to safety standards violation');
 
       return res.status(422).json({
         success: false,
@@ -111,16 +109,12 @@ export const verifyBillOperations = async (req: Request, res: Response, next: Ne
       });
     }
 
-    console.log(`Safety verification passed for bill ${billId}:`, {
-      confidence: verification.confidence,
-      sources: verification.sources.length,
-      issues: verification.flaggedIssues.length
-    });
+    log.info({ billId, confidence: verification.confidence, sources: verification.sources.length, issues: verification.flaggedIssues.length }, 'Safety verification passed');
 
     next();
 
   } catch (error: any) {
-    console.error('Safety verification error:', error);
+    log.error({ err: error }, 'Safety verification error');
     
     // Block operation on verification failure
     return res.status(500).json({
@@ -180,7 +174,7 @@ export const auditSafetyOperations = (req: Request, res: Response, next: NextFun
         ip: req.ip
       };
 
-      console.log('SAFETY_AUDIT:', JSON.stringify(auditLog));
+      log.info({ safetyAudit: auditLog }, 'SAFETY_AUDIT');
     }
 
     return originalSend.call(this, data);
@@ -228,11 +222,7 @@ export const emergencySafetyOverride = (req: Request, res: Response, next: NextF
   const adminKey = req.headers['x-admin-key'];
 
   if (override === 'emergency' && adminKey) {
-    console.warn('EMERGENCY SAFETY OVERRIDE ACTIVATED:', {
-      path: req.path,
-      ip: req.ip,
-      timestamp: new Date().toISOString()
-    });
+    log.warn({ path: req.path, ip: req.ip, timestamp: new Date().toISOString() }, 'EMERGENCY SAFETY OVERRIDE ACTIVATED');
 
     // Skip safety verification but log the override
     (req as any).safetyOverride = true;
@@ -282,7 +272,7 @@ export const consistencyChecker = async (req: Request, res: Response, next: Next
     next();
 
   } catch (error: any) {
-    console.error('Consistency check error:', error);
+    log.error({ err: error }, 'Consistency check error');
     return res.status(500).json({
       success: false,
       error: 'Data consistency verification failed',

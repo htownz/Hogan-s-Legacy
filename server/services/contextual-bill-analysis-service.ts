@@ -6,6 +6,9 @@ import { addDocumentsToVectorStore, querySimilarDocuments, generateRAGResponse }
 import { analyzeImage } from './multimodal-analysis-service';
 import fs from 'fs';
 import path from 'path';
+import { createLogger } from "../logger";
+const log = createLogger("contextual-bill-analysis-service");
+
 
 // Initialize OpenAI client
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -118,7 +121,7 @@ export async function getWitnessTestimonyForBill(billId: number, sessionId?: num
       }
     ];
   } catch (error: any) {
-    console.error('Error fetching witness testimony:', error);
+    log.error({ err: error }, 'Error fetching witness testimony');
     throw error;
   }
 }
@@ -148,7 +151,7 @@ export async function getOfficialStatementsAboutTopic(query: string, limit: numb
       }
     ];
   } catch (error: any) {
-    console.error('Error fetching official statements:', error);
+    log.error({ err: error }, 'Error fetching official statements');
     throw error;
   }
 }
@@ -178,7 +181,7 @@ export async function getCampaignFinanceConnections(billId: number): Promise<Cam
       }
     ];
   } catch (error: any) {
-    console.error('Error fetching campaign finance connections:', error);
+    log.error({ err: error }, 'Error fetching campaign finance connections');
     throw error;
   }
 }
@@ -229,7 +232,7 @@ export async function analyzeNarrativeContext(billId: number): Promise<Narrative
       }
     };
   } catch (error: any) {
-    console.error('Error analyzing narrative context:', error);
+    log.error({ err: error }, 'Error analyzing narrative context');
     throw error;
   }
 }
@@ -318,7 +321,7 @@ export async function performComprehensiveBillAnalysis(
     
     return results;
   } catch (error: any) {
-    console.error('Error performing comprehensive bill analysis:', error);
+    log.error({ err: error }, 'Error performing comprehensive bill analysis');
     throw error;
   }
 }
@@ -424,7 +427,7 @@ async function generateAIAnalysis(billData: any): Promise<any> {
       };
     }
   } catch (error: any) {
-    console.error('Error generating AI analysis:', error);
+    log.error({ err: error }, 'Error generating AI analysis');
     return {
       keyInsights: ['Error generating analysis'],
       analysis: 'An error occurred while generating the AI analysis',
@@ -535,7 +538,7 @@ export async function analyzeBillContextualImage(billId: number, imageData: stri
     
     return analysisResult;
   } catch (error: any) {
-    console.error('Error analyzing image in bill context:', error);
+    log.error({ err: error }, 'Error analyzing image in bill context');
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -553,7 +556,7 @@ export async function indexBillForContextualAnalysis(billId: number): Promise<bo
     // Get bill details from LegiScan
     const billDetails = await legiscanService.getBill(billId);
     if (!billDetails) {
-      console.error(`Bill ID ${billId} not found in LegiScan`);
+      log.error(`Bill ID ${billId} not found in LegiScan`);
       return false;
     }
 
@@ -587,7 +590,7 @@ export async function indexBillForContextualAnalysis(billId: number): Promise<bo
 
     return result;
   } catch (error: any) {
-    console.error(`Error indexing bill ${billId}:`, error);
+    log.error({ err: error }, `Error indexing bill ${billId}`);
     return false;
   }
 }
@@ -602,7 +605,7 @@ export async function findRelatedBills(billId: number, limit: number = 5): Promi
     // Get bill details from LegiScan
     const billDetails = await legiscanService.getBill(billId);
     if (!billDetails) {
-      console.error(`Bill ID ${billId} not found in LegiScan`);
+      log.error(`Bill ID ${billId} not found in LegiScan`);
       return [];
     }
 
@@ -623,7 +626,7 @@ export async function findRelatedBills(billId: number, limit: number = 5): Promi
 
     return relatedBills;
   } catch (error: any) {
-    console.error(`Error finding related bills for ${billId}:`, error);
+    log.error({ err: error }, `Error finding related bills for ${billId}`);
     return [];
   }
 }
@@ -638,7 +641,7 @@ export async function generateEnhancedBillAnalysis(billId: number, query: string
     // Get bill details from LegiScan
     const billDetails = await legiscanService.getBill(billId);
     if (!billDetails) {
-      console.error(`Bill ID ${billId} not found in LegiScan`);
+      log.error(`Bill ID ${billId} not found in LegiScan`);
       return {
         success: false,
         error: `Bill ID ${billId} not found`
@@ -668,7 +671,7 @@ export async function generateEnhancedBillAnalysis(billId: number, query: string
       analysis: ragResponse
     };
   } catch (error: any) {
-    console.error(`Error generating enhanced analysis for bill ${billId}:`, error);
+    log.error({ err: error }, `Error generating enhanced analysis for bill ${billId}`);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'

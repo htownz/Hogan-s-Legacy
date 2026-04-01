@@ -2,6 +2,9 @@ import { Express, Response } from "express";
 import { db } from "../db";
 import { eq, sql, desc, count } from "drizzle-orm";
 import { bills, userBillTracking } from "@shared/schema";
+import { createLogger } from "../logger";
+const log = createLogger("trending-bills-routes");
+
 
 export async function registerTrendingBillsRoutes(app: Express): Promise<void> {
   // Get most watched bills (no authentication required)
@@ -21,7 +24,7 @@ export async function registerTrendingBillsRoutes(app: Express): Promise<void> {
       
       res.json(result);
     } catch (error: any) {
-      console.error('Error fetching most watched bills:', error);
+      log.error({ err: error }, 'Error fetching most watched bills');
       res.status(500).json({ message: 'Failed to fetch most watched bills' });
     }
   });
@@ -45,7 +48,7 @@ export async function registerTrendingBillsRoutes(app: Express): Promise<void> {
       
       res.json(result.rows);
     } catch (error: any) {
-      console.error('Error fetching most contentious bills:', error);
+      log.error({ err: error }, 'Error fetching most contentious bills');
       res.status(500).json({ message: 'Failed to fetch most contentious bills' });
     }
   });
@@ -61,7 +64,7 @@ export async function registerTrendingBillsRoutes(app: Express): Promise<void> {
       
       res.json(result);
     } catch (error: any) {
-      console.error('Error fetching recent activity bills:', error);
+      log.error({ err: error }, 'Error fetching recent activity bills');
       res.status(500).json({ message: 'Failed to fetch bills with recent activity' });
     }
   });

@@ -1,6 +1,9 @@
 // @ts-nocheck
 import { db } from "../db";
 import { committees, committeeMeetings } from "@shared/schema";
+import { createLogger } from "../logger";
+const log = createLogger("add-test-committees");
+
 
 /**
  * This script adds test committees and meetings for testing
@@ -8,7 +11,7 @@ import { committees, committeeMeetings } from "@shared/schema";
  */
 async function addTestCommittees() {
   try {
-    console.log("Adding test committees and meetings...");
+    log.info("Adding test committees and meetings...");
 
     // Check if the House Committee on Natural Resources already exists
     const existingCommittee = await db.query.committees.findFirst({
@@ -22,7 +25,7 @@ async function addTestCommittees() {
     let committeeId;
     
     if (existingCommittee) {
-      console.log("House Committee on Natural Resources already exists");
+      log.info("House Committee on Natural Resources already exists");
       committeeId = existingCommittee.id;
     } else {
       // Insert House Committee on Natural Resources
@@ -36,7 +39,7 @@ async function addTestCommittees() {
       }).returning({ insertedId: committees.id });
       
       committeeId = result[0].insertedId;
-      console.log(`Created committee with ID: ${committeeId}`);
+      log.info(`Created committee with ID: ${committeeId}`);
     }
 
     // Check if we already have a meeting for this committee
@@ -45,7 +48,7 @@ async function addTestCommittees() {
     });
 
     if (existingMeeting) {
-      console.log(`Meeting for this committee already exists with ID: ${existingMeeting.id}`);
+      log.info(`Meeting for this committee already exists with ID: ${existingMeeting.id}`);
     } else {
       // Create a meeting for this committee with a video URL that we can process
       const meetingResult = await db.insert(committeeMeetings).values({
@@ -67,13 +70,13 @@ async function addTestCommittees() {
       }).returning({ insertedId: committeeMeetings.id });
 
       const meetingId = meetingResult[0].insertedId;
-      console.log(`Created meeting with ID: ${meetingId}`);
+      log.info(`Created meeting with ID: ${meetingId}`);
     }
 
-    console.log("Test data setup complete!");
+    log.info("Test data setup complete!");
 
   } catch (error: any) {
-    console.error("Error setting up test data:", error);
+    log.error({ err: error }, "Error setting up test data");
   } finally {
     // Exit the process when done
     process.exit(0);

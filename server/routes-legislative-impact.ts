@@ -5,6 +5,9 @@ import { db } from "./db";
 import { bills } from "../shared/schema";
 import { insertLegislativeImpactAnalysisSchema, legislativeImpactAnalyses } from "../shared/schema-legislative-impact";
 import { generateLegislativeImpactAnalysis } from "./services/legislative-impact-analyzer";
+import { createLogger } from "./logger";
+const log = createLogger("routes-legislative-impact");
+
 
 // Define validation schema for personalized impact request
 const personalizedImpactRequestSchema = z.object({
@@ -76,7 +79,7 @@ export function registerLegislativeImpactRoutes(app: Express): void {
       // Return the analysis
       res.json(analysisResult);
     } catch (error: any) {
-      console.error("Error getting legislative impact analysis:", error);
+      log.error({ err: error }, "Error getting legislative impact analysis");
       res.status(500).json({ error: "Failed to get legislative impact analysis" });
     }
   });
@@ -169,7 +172,7 @@ export function registerLegislativeImpactRoutes(app: Express): void {
 
       res.json(mockComparison);
     } catch (error: any) {
-      console.error("Error comparing legislative impact:", error);
+      log.error({ err: error }, "Error comparing legislative impact");
       res.status(500).json({ error: "Failed to compare legislative impact" });
     }
   });
@@ -267,7 +270,7 @@ export function registerLegislativeImpactRoutes(app: Express): void {
 
       res.json(personalizedImpact);
     } catch (error: any) {
-      console.error("Error generating personalized impact:", error);
+      log.error({ err: error }, "Error generating personalized impact");
       res.status(500).json({ error: "Failed to generate personalized impact assessment" });
     }
   });
@@ -321,7 +324,7 @@ export function registerLegislativeImpactRoutes(app: Express): void {
 
       res.json(topBills);
     } catch (error: any) {
-      console.error("Error getting top bills:", error);
+      log.error({ err: error }, "Error getting top bills");
       res.status(500).json({ error: "Failed to get top bills by impact" });
     }
   });
@@ -408,7 +411,7 @@ export function registerLegislativeImpactRoutes(app: Express): void {
 
       res.json(categoryStats);
     } catch (error: any) {
-      console.error("Error getting category stats:", error);
+      log.error({ err: error }, "Error getting category stats");
       res.status(500).json({ error: "Failed to get impact statistics by category" });
     }
   });

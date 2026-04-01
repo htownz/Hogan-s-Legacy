@@ -8,6 +8,9 @@
 import { Router } from 'express';
 import { comprehensiveAnalyzer } from './services/comprehensive-data-analyzer';
 import { storage } from './storage';
+import { createLogger } from "./logger";
+const log = createLogger("routes-comprehensive-analysis");
+
 
 const router = Router();
 
@@ -18,7 +21,7 @@ const router = Router();
 router.get('/bill/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    console.log(`🔍 Starting comprehensive bill analysis for ID: ${id}`);
+    log.info(`🔍 Starting comprehensive bill analysis for ID: ${id}`);
     
     const analysis = await comprehensiveAnalyzer.analyzeBillComprehensively(id);
     
@@ -29,7 +32,7 @@ router.get('/bill/:id', async (req, res) => {
       message: 'Comprehensive bill analysis completed with full citations'
     });
   } catch (error: any) {
-    console.error('❌ Bill analysis error:', error);
+    log.error({ err: error }, '❌ Bill analysis error');
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to analyze bill',
@@ -55,7 +58,7 @@ router.get('/legislator/:id', async (req, res) => {
       });
     }
     
-    console.log(`🔍 Starting comprehensive legislator analysis for ID: ${legislatorId}`);
+    log.info(`🔍 Starting comprehensive legislator analysis for ID: ${legislatorId}`);
     
     const analysis = await comprehensiveAnalyzer.analyzeLegislatorComprehensively(legislatorId);
     
@@ -66,7 +69,7 @@ router.get('/legislator/:id', async (req, res) => {
       message: 'Comprehensive legislator analysis completed with full citations'
     });
   } catch (error: any) {
-    console.error('❌ Legislator analysis error:', error);
+    log.error({ err: error }, '❌ Legislator analysis error');
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to analyze legislator',
@@ -110,7 +113,7 @@ router.get('/bill/:id/language', async (req, res) => {
       message: 'Bill language analysis completed with source citations'
     });
   } catch (error: any) {
-    console.error('❌ Bill language analysis error:', error);
+    log.error({ err: error }, '❌ Bill language analysis error');
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to analyze bill language',
@@ -153,7 +156,7 @@ router.get('/bill/:id/amendments', async (req, res) => {
       message: 'Bill amendments analysis completed with full tracking'
     });
   } catch (error: any) {
-    console.error('❌ Bill amendments analysis error:', error);
+    log.error({ err: error }, '❌ Bill amendments analysis error');
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to analyze bill amendments',
@@ -197,7 +200,7 @@ router.get('/bill/:id/campaign-connections', async (req, res) => {
       message: 'Campaign finance connections analysis completed with citations'
     });
   } catch (error: any) {
-    console.error('❌ Campaign connections analysis error:', error);
+    log.error({ err: error }, '❌ Campaign connections analysis error');
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to analyze campaign connections',
@@ -251,7 +254,7 @@ router.get('/legislator/:id/campaign-finance', async (req, res) => {
       message: 'Campaign finance analysis completed with full citations'
     });
   } catch (error: any) {
-    console.error('❌ Legislator campaign finance analysis error:', error);
+    log.error({ err: error }, '❌ Legislator campaign finance analysis error');
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to analyze legislator campaign finance',
@@ -306,7 +309,7 @@ router.get('/legislator/:id/voting-patterns', async (req, res) => {
       message: 'Voting patterns analysis completed with citations'
     });
   } catch (error: any) {
-    console.error('❌ Voting patterns analysis error:', error);
+    log.error({ err: error }, '❌ Voting patterns analysis error');
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to analyze voting patterns',
@@ -361,7 +364,7 @@ router.get('/citations/:type/:id', async (req, res) => {
       message: 'Citations retrieved successfully'
     });
   } catch (error: any) {
-    console.error('❌ Citations retrieval error:', error);
+    log.error({ err: error }, '❌ Citations retrieval error');
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to retrieve citations',
@@ -394,7 +397,7 @@ router.post('/batch', async (req, res) => {
       });
     }
 
-    console.log(`🔍 Starting batch analysis for ${items.length} ${analysisType}s`);
+    log.info(`🔍 Starting batch analysis for ${items.length} ${analysisType}s`);
     
     const results = [];
     const errors = [];
@@ -434,7 +437,7 @@ router.post('/batch', async (req, res) => {
       message: `Batch analysis completed: ${results.length} successful, ${errors.length} errors`
     });
   } catch (error: any) {
-    console.error('❌ Batch analysis error:', error);
+    log.error({ err: error }, '❌ Batch analysis error');
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to complete batch analysis',
@@ -481,7 +484,7 @@ router.get('/summary', async (req, res) => {
       message: 'Analysis capabilities summary retrieved'
     });
   } catch (error: any) {
-    console.error('❌ Analysis summary error:', error);
+    log.error({ err: error }, '❌ Analysis summary error');
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to retrieve analysis summary',

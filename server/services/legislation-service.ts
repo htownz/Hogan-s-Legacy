@@ -1,5 +1,8 @@
 import { dynamoService } from '../aws/dynamoService';
 import { Bill } from '../../client/src/components/legislation/BillCard';
+import { createLogger } from "../logger";
+const log = createLogger("legislation-service");
+
 
 // Table name for legislation data
 const LEGISLATION_TABLE = 'act-up-legislation';
@@ -18,14 +21,14 @@ export class LegislationService {
       // Check if table exists, if not return mock data
       const tableExists = await dynamoService.tableExists(LEGISLATION_TABLE);
       if (!tableExists) {
-        console.log('Legislation table does not exist, returning mock data');
+        log.info('Legislation table does not exist, returning mock data');
         return this.getMockBills();
       }
       
       const bills = await dynamoService.scan<Bill>(LEGISLATION_TABLE);
       return bills;
     } catch (error: any) {
-      console.error('Error getting all bills:', error);
+      log.error({ err: error }, 'Error getting all bills');
       // Return mock data in case of error
       return this.getMockBills();
     }
@@ -41,7 +44,7 @@ export class LegislationService {
       // Check if table exists, if not return mock data
       const tableExists = await dynamoService.tableExists(USER_TRACKED_BILLS_TABLE);
       if (!tableExists) {
-        console.log('User tracked bills table does not exist, returning mock data');
+        log.info('User tracked bills table does not exist, returning mock data');
         return this.getMockBills().slice(0, 2);  // Return subset of mock bills as tracked
       }
       
@@ -64,7 +67,7 @@ export class LegislationService {
       const allBills = await this.getAllBills();
       return allBills.filter(bill => trackedBillIds.includes(bill.id));
     } catch (error: any) {
-      console.error('Error getting tracked bills:', error);
+      log.error({ err: error }, 'Error getting tracked bills');
       return this.getMockBills().slice(0, 2);  // Return subset of mock bills as tracked
     }
   }
@@ -80,7 +83,7 @@ export class LegislationService {
       // Check if table exists, create if it doesn't (in a real implementation)
       const tableExists = await dynamoService.tableExists(USER_TRACKED_BILLS_TABLE);
       if (!tableExists) {
-        console.log('User tracked bills table does not exist');
+        log.info('User tracked bills table does not exist');
         // In a real implementation, we would create the table here
         return;
       }
@@ -92,7 +95,7 @@ export class LegislationService {
         trackedAt: new Date().toISOString()
       });
     } catch (error: any) {
-      console.error('Error tracking bill:', error);
+      log.error({ err: error }, 'Error tracking bill');
       throw error;
     }
   }
@@ -108,7 +111,7 @@ export class LegislationService {
       // Check if table exists
       const tableExists = await dynamoService.tableExists(USER_TRACKED_BILLS_TABLE);
       if (!tableExists) {
-        console.log('User tracked bills table does not exist');
+        log.info('User tracked bills table does not exist');
         return;
       }
       
@@ -118,7 +121,7 @@ export class LegislationService {
         billId
       });
     } catch (error: any) {
-      console.error('Error untracking bill:', error);
+      log.error({ err: error }, 'Error untracking bill');
       throw error;
     }
   }
@@ -140,7 +143,7 @@ export class LegislationService {
         bill.topics.some(topic => topic.toLowerCase().includes(lowerQuery))
       );
     } catch (error: any) {
-      console.error('Error searching bills:', error);
+      log.error({ err: error }, 'Error searching bills');
       return [];
     }
   }
@@ -167,7 +170,7 @@ export class LegislationService {
       
       return !!item;
     } catch (error: any) {
-      console.error('Error checking if bill is tracked:', error);
+      log.error({ err: error }, 'Error checking if bill is tracked');
       return false;
     }
   }
@@ -182,7 +185,7 @@ export class LegislationService {
       // Check if table exists, if not return mock data
       const tableExists = await dynamoService.tableExists(LEGISLATION_TABLE);
       if (!tableExists) {
-        console.log('Legislation table does not exist, checking mock data');
+        log.info('Legislation table does not exist, checking mock data');
         return this.getMockBills().find(bill => bill.id === billId);
       }
       
@@ -190,7 +193,7 @@ export class LegislationService {
       const bill = await dynamoService.getItem<Bill>(LEGISLATION_TABLE, { id: billId });
       return bill;
     } catch (error: any) {
-      console.error('Error getting bill by ID:', error);
+      log.error({ err: error }, 'Error getting bill by ID');
       return this.getMockBills().find(bill => bill.id === billId);
     }
   }

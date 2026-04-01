@@ -9,12 +9,15 @@
 
 import { legiscanService } from './legiscan-service';
 import { db } from '../db';
+import { createLogger } from "../logger";
+const log = createLogger("texas-data-activator");
+
 
 export class TexasDataActivator {
   private currentTexasSessionId: number | null = null;
 
   async initialize() {
-    console.log('🏛️ Activating authentic Texas legislative data...');
+    log.info('🏛️ Activating authentic Texas legislative data...');
     
     try {
       // Get all available sessions to find current Texas session
@@ -25,7 +28,7 @@ export class TexasDataActivator {
         session.state_id === 48
       );
 
-      console.log(`Found ${texasSessions.length} Texas sessions in LegiScan`);
+      log.info(`Found ${texasSessions.length} Texas sessions in LegiScan`);
 
       if (texasSessions.length > 0) {
         // Sort by year and get the most recent
@@ -34,7 +37,7 @@ export class TexasDataActivator {
         )[0];
         
         this.currentTexasSessionId = currentSession.session_id;
-        console.log(`✅ Using Texas session: ${currentSession.session_name} (${currentSession.year_start}, ID: ${this.currentTexasSessionId})`);
+        log.info(`✅ Using Texas session: ${currentSession.session_name} (${currentSession.year_start}, ID: ${this.currentTexasSessionId})`);
         
         // Start loading bills and legislators from this session
         const [bills, legislators] = await Promise.all([
@@ -51,11 +54,11 @@ export class TexasDataActivator {
           legislatorCount: legislators ? legislators.length : 0
         };
       } else {
-        console.log('❌ No Texas sessions found in LegiScan');
+        log.info('❌ No Texas sessions found in LegiScan');
         return { success: false, error: 'No Texas sessions available in LegiScan' };
       }
     } catch (error: any) {
-      console.error('❌ Error activating Texas data:', error);
+      log.error({ err: error }, '❌ Error activating Texas data');
       return { success: false, error: error.message };
     }
   }
@@ -64,18 +67,18 @@ export class TexasDataActivator {
     if (!this.currentTexasSessionId) return;
 
     try {
-      console.log('📋 Loading current Texas bills...');
+      log.info('📋 Loading current Texas bills...');
       const billsList = await legiscanService.getMasterList(this.currentTexasSessionId.toString());
       
       if (billsList && billsList.bill) {
-        console.log(`✅ Loaded ${Object.keys(billsList.bill).length} Texas bills`);
+        log.info(`✅ Loaded ${Object.keys(billsList.bill).length} Texas bills`);
         return billsList.bill;
       } else {
-        console.log('📋 No bills found in current session');
+        log.info('📋 No bills found in current session');
         return {};
       }
     } catch (error: any) {
-      console.error('❌ Error loading bills:', error);
+      log.error({ err: error }, '❌ Error loading bills');
       return {};
     }
   }
@@ -84,20 +87,20 @@ export class TexasDataActivator {
     if (!this.currentTexasSessionId) return;
 
     try {
-      console.log('👥 Loading current Texas legislators...');
+      log.info('👥 Loading current Texas legislators...');
       // Get legislators from the current session
       const billsList = await legiscanService.getMasterList(this.currentTexasSessionId.toString());
       
       if (billsList && billsList.sponsors) {
         const legislators = Object.values(billsList.sponsors);
-        console.log(`✅ Loaded ${legislators.length} Texas legislators`);
+        log.info(`✅ Loaded ${legislators.length} Texas legislators`);
         return legislators;
       } else {
-        console.log('👥 No legislators found in current session');
+        log.info('👥 No legislators found in current session');
         return [];
       }
     } catch (error: any) {
-      console.error('❌ Error loading legislators:', error);
+      log.error({ err: error }, '❌ Error loading legislators');
       return [];
     }
   }

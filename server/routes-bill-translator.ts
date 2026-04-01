@@ -4,6 +4,9 @@ import {
   translateBillById, 
   compareBillVersions 
 } from './services/bill-translator-service';
+import { createLogger } from "./logger";
+const log = createLogger("routes-bill-translator");
+
 
 const router = Router();
 
@@ -39,7 +42,7 @@ router.post('/text', async (req, res) => {
     
     return res.json(result);
   } catch (error: any) {
-    console.error('Error in text translation endpoint:', error);
+    log.error({ err: error }, 'Error in text translation endpoint');
     return res.status(500).json({ 
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error occurred' 
@@ -81,7 +84,7 @@ router.post('/bill/:billId', async (req, res) => {
     
     return res.json(result);
   } catch (error: any) {
-    console.error('Error in bill translation endpoint:', error);
+    log.error({ err: error }, 'Error in bill translation endpoint');
     return res.status(500).json({ 
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error occurred' 
@@ -109,7 +112,7 @@ router.post('/compare', async (req, res) => {
     
     return res.json(result);
   } catch (error: any) {
-    console.error('Error in version comparison endpoint:', error);
+    log.error({ err: error }, 'Error in version comparison endpoint');
     return res.status(500).json({ 
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error occurred' 
@@ -119,7 +122,7 @@ router.post('/compare', async (req, res) => {
 
 export function registerBillTranslatorRoutes(app: any) {
   app.use('/api/translator', router);
-  console.log('Bill translator routes registered');
+  log.info('Bill translator routes registered');
 }
 
 export default router;

@@ -6,6 +6,9 @@ import {
 } from './enhanced-ai-service';
 import { addDocumentsToVectorStore } from './vector-database-service';
 import os from 'os';
+import { createLogger } from "../logger";
+const log = createLogger("batch-processing-service");
+
 
 // Calculate optimal batch size based on available CPU cores
 const MAX_CONCURRENT_OPERATIONS = Math.max(1, os.cpus().length - 1);
@@ -51,7 +54,7 @@ export async function batchProcessBillSummaries(
         const summary = await generateStructuredBillSummary(bill.billText, bill.billId);
         return { success: true, billId: bill.billId, data: summary };
       } catch (error: any) {
-        console.error(`Error processing bill ${bill.billId}:`, error);
+        log.error({ err: error }, `Error processing bill ${bill.billId}`);
         return { 
           success: false, 
           billId: bill.billId, 
@@ -130,7 +133,7 @@ export async function batchProcessBillComparisons(
           data: result 
         };
       } catch (error: any) {
-        console.error(`Error comparing bills ${comparison.bill1Id} and ${comparison.bill2Id}:`, error);
+        log.error({ err: error }, `Error comparing bills ${comparison.bill1Id} and ${comparison.bill2Id}`);
         return { 
           success: false, 
           bill1Id: comparison.bill1Id, 
@@ -199,7 +202,7 @@ export async function batchProcessLegislativeImpacts(
         const impact = await generateStructuredLegislativeImpact(bill.billText, bill.billId);
         return { success: true, billId: bill.billId, data: impact };
       } catch (error: any) {
-        console.error(`Error analyzing impact for bill ${bill.billId}:`, error);
+        log.error({ err: error }, `Error analyzing impact for bill ${bill.billId}`);
         return { 
           success: false, 
           billId: bill.billId, 
@@ -275,7 +278,7 @@ export async function batchProcessDocumentIngestion(
           count: chunk.length
         };
       } catch (error: any) {
-        console.error(`Error ingesting document chunk:`, error);
+        log.error({ err: error }, `Error ingesting document chunk`);
         return { 
           success: false, 
           documentIds: chunk.map(doc => doc.id),
@@ -401,7 +404,7 @@ async function processBatchWithConcurrencyLimit<T, R>(
       // Report progress after each item
       progressCallback(allResults);
     } catch (error: any) {
-      console.error(`Error in batch operation ${operationId}:`, error);
+      log.error({ err: error }, `Error in batch operation ${operationId}`);
       
       // Update batch operation with error
       const operation = activeBatchOperations[operationId];

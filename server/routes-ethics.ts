@@ -17,6 +17,9 @@ import { db } from "./db";
 import { z } from "zod";
 import { storage } from "./storage";
 import { Session } from "express-session";
+import { createLogger } from "./logger";
+const log = createLogger("routes-ethics");
+
 
 // Define Session interface for our purposes
 interface SessionData {
@@ -57,7 +60,7 @@ export function registerEthicsRoutes(app: Express): void {
       
       res.json(result.rows);
     } catch (error: any) {
-      console.error("Error fetching lobbyists:", error);
+      log.error({ err: error }, "Error fetching lobbyists");
       res.status(500).json({ error: "Failed to fetch lobbyists" });
     }
   });
@@ -88,7 +91,7 @@ export function registerEthicsRoutes(app: Express): void {
       
       res.json(result.rows[0]);
     } catch (error: any) {
-      console.error("Error fetching lobbyist:", error);
+      log.error({ err: error }, "Error fetching lobbyist");
       res.status(500).json({ error: "Failed to fetch lobbyist" });
     }
   });
@@ -120,7 +123,7 @@ export function registerEthicsRoutes(app: Express): void {
       
       res.json(result.rows);
     } catch (error: any) {
-      console.error("Error searching lobbyists:", error);
+      log.error({ err: error }, "Error searching lobbyists");
       res.status(500).json({ error: "Failed to search lobbyists" });
     }
   });
@@ -170,7 +173,7 @@ export function registerEthicsRoutes(app: Express): void {
         return res.status(400).json({ errors: error.errors });
       }
       
-      console.error("Error creating lobbyist:", error);
+      log.error({ err: error }, "Error creating lobbyist");
       res.status(500).json({ error: "Failed to create lobbyist" });
     }
   });
@@ -241,7 +244,7 @@ export function registerEthicsRoutes(app: Express): void {
       
       res.json(result.rows[0]);
     } catch (error: any) {
-      console.error("Error updating lobbyist:", error);
+      log.error({ err: error }, "Error updating lobbyist");
       res.status(500).json({ error: "Failed to update lobbyist" });
     }
   });
@@ -286,7 +289,7 @@ export function registerEthicsRoutes(app: Express): void {
       
       res.json(result.rows);
     } catch (error: any) {
-      console.error("Error fetching lobby firms:", error);
+      log.error({ err: error }, "Error fetching lobby firms");
       res.status(500).json({ error: "Failed to fetch lobby firms" });
     }
   });
@@ -319,7 +322,7 @@ export function registerEthicsRoutes(app: Express): void {
       
       res.json(result.rows[0]);
     } catch (error: any) {
-      console.error("Error fetching lobby firm:", error);
+      log.error({ err: error }, "Error fetching lobby firm");
       res.status(500).json({ error: "Failed to fetch lobby firm" });
     }
   });
@@ -364,7 +367,7 @@ export function registerEthicsRoutes(app: Express): void {
       
       res.json(result.rows);
     } catch (error: any) {
-      console.error("Error fetching firm lobbyists:", error);
+      log.error({ err: error }, "Error fetching firm lobbyists");
       res.status(500).json({ error: "Failed to fetch firm lobbyists" });
     }
   });
@@ -422,7 +425,7 @@ export function registerEthicsRoutes(app: Express): void {
         return res.status(400).json({ errors: error.errors });
       }
       
-      console.error("Error creating lobby firm:", error);
+      log.error({ err: error }, "Error creating lobby firm");
       res.status(500).json({ error: "Failed to create lobby firm" });
     }
   });
@@ -500,7 +503,7 @@ export function registerEthicsRoutes(app: Express): void {
       
       res.json(result.rows);
     } catch (error: any) {
-      console.error("Error fetching lobbying activities:", error);
+      log.error({ err: error }, "Error fetching lobbying activities");
       res.status(500).json({ error: "Failed to fetch lobbying activities" });
     }
   });
@@ -515,7 +518,7 @@ export function registerEthicsRoutes(app: Express): void {
       
       res.json(activities);
     } catch (error: any) {
-      console.error("Error fetching lobbying activities for bill:", error);
+      log.error({ err: error }, "Error fetching lobbying activities for bill");
       res.status(500).json({ error: "Failed to fetch lobbying activities for bill" });
     }
   });
@@ -530,7 +533,7 @@ export function registerEthicsRoutes(app: Express): void {
       
       res.json(activities);
     } catch (error: any) {
-      console.error("Error fetching lobbying activities for representative:", error);
+      log.error({ err: error }, "Error fetching lobbying activities for representative");
       res.status(500).json({ error: "Failed to fetch lobbying activities for representative" });
     }
   });
@@ -549,7 +552,7 @@ export function registerEthicsRoutes(app: Express): void {
         return res.status(400).json({ errors: error.errors });
       }
       
-      console.error("Error creating lobbying activity:", error);
+      log.error({ err: error }, "Error creating lobbying activity");
       res.status(500).json({ error: "Failed to create lobbying activity" });
     }
   });
@@ -564,7 +567,7 @@ export function registerEthicsRoutes(app: Express): void {
       
       res.json(records);
     } catch (error: any) {
-      console.error("Error fetching campaign finance records:", error);
+      log.error({ err: error }, "Error fetching campaign finance records");
       res.status(500).json({ error: "Failed to fetch campaign finance records" });
     }
   });
@@ -583,7 +586,7 @@ export function registerEthicsRoutes(app: Express): void {
       const records = await storage.getCampaignFinanceByDonorName(donorName);
       res.json(records);
     } catch (error: any) {
-      console.error("Error fetching campaign finance records by donor:", error);
+      log.error({ err: error }, "Error fetching campaign finance records by donor");
       res.status(500).json({ error: "Failed to fetch campaign finance records by donor" });
     }
   });
@@ -598,7 +601,7 @@ export function registerEthicsRoutes(app: Express): void {
       
       res.json(violations);
     } catch (error: any) {
-      console.error("Error fetching ethics violations:", error);
+      log.error({ err: error }, "Error fetching ethics violations");
       res.status(500).json({ error: "Failed to fetch ethics violations" });
     }
   });
@@ -617,7 +620,7 @@ export function registerEthicsRoutes(app: Express): void {
         return res.status(400).json({ errors: error.errors });
       }
       
-      console.error("Error creating ethics violation:", error);
+      log.error({ err: error }, "Error creating ethics violation");
       res.status(500).json({ error: "Failed to create ethics violation" });
     }
   });
@@ -632,7 +635,7 @@ export function registerEthicsRoutes(app: Express): void {
       
       res.json(newsFlags);
     } catch (error: any) {
-      console.error("Error fetching news flags:", error);
+      log.error({ err: error }, "Error fetching news flags");
       res.status(500).json({ error: "Failed to fetch news flags" });
     }
   });
@@ -651,7 +654,7 @@ export function registerEthicsRoutes(app: Express): void {
         return res.status(400).json({ errors: error.errors });
       }
       
-      console.error("Error creating news flag:", error);
+      log.error({ err: error }, "Error creating news flag");
       res.status(500).json({ error: "Failed to create news flag" });
     }
   });
@@ -670,7 +673,7 @@ export function registerEthicsRoutes(app: Express): void {
       
       res.json(honestyIndex);
     } catch (error: any) {
-      console.error("Error fetching honesty index:", error);
+      log.error({ err: error }, "Error fetching honesty index");
       res.status(500).json({ error: "Failed to fetch honesty index" });
     }
   });
@@ -726,7 +729,7 @@ export function registerEthicsRoutes(app: Express): void {
       
       res.json(summaryData);
     } catch (error: any) {
-      console.error("Error fetching ethics dashboard summary:", error);
+      log.error({ err: error }, "Error fetching ethics dashboard summary");
       res.status(500).json({ error: "Failed to fetch ethics dashboard summary" });
     }
   });

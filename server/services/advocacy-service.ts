@@ -1,5 +1,8 @@
 // @ts-nocheck
 import { dynamoService } from "../aws/dynamoService";
+import { createLogger } from "../logger";
+const log = createLogger("advocacy-service");
+
 
 // Table names in DynamoDB
 const ADVOCACY_MESSAGES_TABLE = "act_up_advocacy_messages";
@@ -35,7 +38,7 @@ export class AdvocacyService {
       await dynamoService.putItem(ADVOCACY_MESSAGES_TABLE, newMessage);
       return newMessage;
     } catch (error: any) {
-      console.error("Error submitting advocacy message:", error);
+      log.error({ err: error }, "Error submitting advocacy message");
       throw new Error("Failed to submit advocacy message");
     }
   }
@@ -47,7 +50,7 @@ export class AdvocacyService {
     try {
       return await dynamoService.getItem<AdvocacyMessage>(ADVOCACY_MESSAGES_TABLE, { id: messageId });
     } catch (error: any) {
-      console.error(`Error getting advocacy message ${messageId}:`, error);
+      log.error({ err: error }, `Error getting advocacy message ${messageId}`);
       throw new Error("Failed to get advocacy message");
     }
   }
@@ -91,7 +94,7 @@ export class AdvocacyService {
       await dynamoService.putItem(ADVOCACY_MESSAGES_TABLE, updatedMessage);
       return updatedMessage;
     } catch (error: any) {
-      console.error(`Error updating advocacy message ${messageId}:`, error);
+      log.error({ err: error }, `Error updating advocacy message ${messageId}`);
       throw new Error("Failed to update advocacy message");
     }
   }
@@ -107,7 +110,7 @@ export class AdvocacyService {
         { ":userId": userId }
       );
     } catch (error: any) {
-      console.error(`Error getting advocacy messages for user ${userId}:`, error);
+      log.error({ err: error }, `Error getting advocacy messages for user ${userId}`);
       throw new Error("Failed to get user advocacy messages");
     }
   }
@@ -123,7 +126,7 @@ export class AdvocacyService {
         { ":representativeId": representativeId }
       );
     } catch (error: any) {
-      console.error(`Error getting advocacy messages for representative ${representativeId}:`, error);
+      log.error({ err: error }, `Error getting advocacy messages for representative ${representativeId}`);
       throw new Error("Failed to get representative advocacy messages");
     }
   }

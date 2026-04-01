@@ -1,5 +1,8 @@
 import { Router } from 'express';
 import { generateImpactCard, generateShareableGraphic } from './services/impact-card-generator';
+import { createLogger } from "./logger";
+const log = createLogger("routes-shareable-graphics");
+
 
 const router = Router();
 
@@ -26,7 +29,7 @@ router.post('/impact-card', async (req, res) => {
     
     return res.json(result);
   } catch (error: any) {
-    console.error('Error generating impact card:', error);
+    log.error({ err: error }, 'Error generating impact card');
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -57,7 +60,7 @@ router.post('/shareable', async (req, res) => {
     
     return res.json(result);
   } catch (error: any) {
-    console.error('Error generating shareable graphic:', error);
+    log.error({ err: error }, 'Error generating shareable graphic');
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -99,7 +102,7 @@ router.post('/complete-package', async (req, res) => {
           graphics.push(graphicResult.data);
         }
       } catch (error: any) {
-        console.error(`Error generating ${format} graphic:`, error);
+        log.error({ err: error }, `Error generating ${format} graphic`);
       }
     }
 
@@ -113,7 +116,7 @@ router.post('/complete-package', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('Error generating complete package:', error);
+    log.error({ err: error }, 'Error generating complete package');
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -142,7 +145,7 @@ router.get('/download/:graphicId', async (req, res) => {
     
     return res.send(sampleSVG);
   } catch (error: any) {
-    console.error('Error downloading graphic:', error);
+    log.error({ err: error }, 'Error downloading graphic');
     return res.status(500).json({
       success: false,
       error: 'Failed to download graphic'
@@ -152,7 +155,7 @@ router.get('/download/:graphicId', async (req, res) => {
 
 export function registerShareableGraphicsRoutes(app: any) {
   app.use('/api/graphics', router);
-  console.log('Shareable graphics routes registered');
+  log.info('Shareable graphics routes registered');
 }
 
 export default router;

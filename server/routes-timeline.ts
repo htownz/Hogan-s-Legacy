@@ -3,6 +3,9 @@ import { timelineStorage } from './storage-timeline';
 import { isAuthenticated } from './auth';
 import { Express } from 'express';
 import { CustomRequest } from './types';
+import { createLogger } from "./logger";
+const log = createLogger("routes-timeline");
+
 
 export function registerTimelineRoutes(app: Express) {
   /**
@@ -18,7 +21,7 @@ export function registerTimelineRoutes(app: Express) {
       
       res.json(timeline);
     } catch (error: any) {
-      console.error('Error fetching timeline:', error);
+      log.error({ err: error }, 'Error fetching timeline');
       res.status(500).json({ error: 'Failed to fetch timeline' });
     }
   });
@@ -35,7 +38,7 @@ export function registerTimelineRoutes(app: Express) {
       
       res.status(201).json(newStage);
     } catch (error: any) {
-      console.error('Error creating timeline stage:', error);
+      log.error({ err: error }, 'Error creating timeline stage');
       res.status(500).json({ error: 'Failed to create timeline stage' });
     }
   });
@@ -56,7 +59,7 @@ export function registerTimelineRoutes(app: Express) {
       
       res.json(updatedStage);
     } catch (error: any) {
-      console.error('Error updating timeline stage:', error);
+      log.error({ err: error }, 'Error updating timeline stage');
       res.status(500).json({ error: 'Failed to update timeline stage' });
     }
   });
@@ -76,7 +79,7 @@ export function registerTimelineRoutes(app: Express) {
       
       res.status(204).end();
     } catch (error: any) {
-      console.error('Error deleting timeline stage:', error);
+      log.error({ err: error }, 'Error deleting timeline stage');
       res.status(500).json({ error: 'Failed to delete timeline stage' });
     }
   });
@@ -98,7 +101,7 @@ export function registerTimelineRoutes(app: Express) {
       
       res.status(201).json(newEvent);
     } catch (error: any) {
-      console.error('Error creating timeline event:', error);
+      log.error({ err: error }, 'Error creating timeline event');
       res.status(500).json({ error: 'Failed to create timeline event' });
     }
   });
@@ -128,7 +131,7 @@ export function registerTimelineRoutes(app: Express) {
       
       res.json(updatedEvent);
     } catch (error: any) {
-      console.error('Error updating timeline event:', error);
+      log.error({ err: error }, 'Error updating timeline event');
       res.status(500).json({ error: 'Failed to update timeline event' });
     }
   });
@@ -161,7 +164,7 @@ export function registerTimelineRoutes(app: Express) {
       
       res.status(204).end();
     } catch (error: any) {
-      console.error('Error deleting timeline event:', error);
+      log.error({ err: error }, 'Error deleting timeline event');
       res.status(500).json({ error: 'Failed to delete timeline event' });
     }
   });
@@ -181,7 +184,7 @@ export function registerTimelineRoutes(app: Express) {
       
       res.json(stage);
     } catch (error: any) {
-      console.error('Error fetching timeline stage:', error);
+      log.error({ err: error }, 'Error fetching timeline stage');
       res.status(500).json({ error: 'Failed to fetch timeline stage' });
     }
   });
@@ -207,7 +210,7 @@ export function registerTimelineRoutes(app: Express) {
       
       res.json(event);
     } catch (error: any) {
-      console.error('Error fetching timeline event:', error);
+      log.error({ err: error }, 'Error fetching timeline event');
       res.status(500).json({ error: 'Failed to fetch timeline event' });
     }
   });
@@ -269,7 +272,7 @@ export function registerTimelineRoutes(app: Express) {
         stages: createdStages
       });
     } catch (error: any) {
-      console.error('Error populating timeline stages:', error);
+      log.error({ err: error }, 'Error populating timeline stages');
       res.status(500).json({ error: 'Failed to populate timeline stages' });
     }
   });

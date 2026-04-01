@@ -1,6 +1,9 @@
 import express from 'express';
 import { Request, Response } from 'express';
 import { enhancedTexasScraper } from './services/enhanced-texas-scraper';
+import { createLogger } from "./logger";
+const log = createLogger("routes-enhanced-texas-scraper");
+
 
 const router = express.Router();
 
@@ -12,7 +15,7 @@ const router = express.Router();
 // Start enhanced legislative data collection
 router.post('/api/enhanced-texas-scraper/collect', async (req: Request, res: Response) => {
   try {
-    console.log('🚀 Starting enhanced Texas legislative data collection...');
+    log.info('🚀 Starting enhanced Texas legislative data collection...');
     
     const result = await enhancedTexasScraper.performEnhancedCollection();
     
@@ -45,7 +48,7 @@ router.post('/api/enhanced-texas-scraper/collect', async (req: Request, res: Res
     });
 
   } catch (error: any) {
-    console.error('❌ Error in enhanced collection:', error.message);
+    log.error({ err: error.message }, '❌ Error in enhanced collection');
     res.status(500).json({
       success: false,
       error: 'Failed to collect enhanced Texas legislative data',
@@ -58,7 +61,7 @@ router.post('/api/enhanced-texas-scraper/collect', async (req: Request, res: Res
 // Get enhanced scraper status
 router.get('/api/enhanced-texas-scraper/status', async (req: Request, res: Response) => {
   try {
-    console.log('📊 Checking enhanced Texas scraper status...');
+    log.info('📊 Checking enhanced Texas scraper status...');
     
     res.json({
       success: true,
@@ -97,7 +100,7 @@ router.get('/api/enhanced-texas-scraper/status', async (req: Request, res: Respo
     });
 
   } catch (error: any) {
-    console.error('❌ Error checking enhanced scraper status:', error.message);
+    log.error({ err: error.message }, '❌ Error checking enhanced scraper status');
     res.status(500).json({
       success: false,
       error: 'Failed to check enhanced scraper status',
@@ -108,5 +111,5 @@ router.get('/api/enhanced-texas-scraper/status', async (req: Request, res: Respo
 
 export function registerEnhancedTexasScraperRoutes(app: express.Application) {
   app.use(router);
-  console.log('🏛️ Enhanced Texas Legislature Scraper routes registered successfully!');
+  log.info('🏛️ Enhanced Texas Legislature Scraper routes registered successfully!');
 }

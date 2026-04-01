@@ -8,6 +8,9 @@ import {
 } from "../shared/schema-community";
 import { CustomRequest } from "./types";
 import { isUserAdminById } from "./middleware/auth-middleware";
+import { createLogger } from "./logger";
+const log = createLogger("routes-community");
+
 
 // Define extended schemas with additional validation
 const createBillSuggestionSchema = insertBillSuggestionSchema.extend({
@@ -30,7 +33,7 @@ export const registerCommunityRoutes = (router: Router): void => {
       const suggestions = await communityStorage.getAllBillSuggestions(page, limit);
       res.status(200).json(suggestions);
     } catch (error: any) {
-      console.error("Error fetching bill suggestions:", error);
+      log.error({ err: error }, "Error fetching bill suggestions");
       res.status(500).json({ error: "Failed to fetch bill suggestions" });
     }
   });
@@ -50,7 +53,7 @@ export const registerCommunityRoutes = (router: Router): void => {
 
       res.status(200).json(suggestion);
     } catch (error: any) {
-      console.error("Error fetching bill suggestion:", error);
+      log.error({ err: error }, "Error fetching bill suggestion");
       res.status(500).json({ error: "Failed to fetch bill suggestion" });
     }
   });
@@ -62,7 +65,7 @@ export const registerCommunityRoutes = (router: Router): void => {
       const suggestions = await communityStorage.getBillSuggestionsByBillId(billId);
       res.status(200).json(suggestions);
     } catch (error: any) {
-      console.error("Error fetching bill suggestions for bill:", error);
+      log.error({ err: error }, "Error fetching bill suggestions for bill");
       res.status(500).json({ error: "Failed to fetch bill suggestions" });
     }
   });
@@ -78,7 +81,7 @@ export const registerCommunityRoutes = (router: Router): void => {
       const suggestions = await communityStorage.getBillSuggestionsByUserId(userId);
       res.status(200).json(suggestions);
     } catch (error: any) {
-      console.error("Error fetching user's bill suggestions:", error);
+      log.error({ err: error }, "Error fetching user's bill suggestions");
       res.status(500).json({ error: "Failed to fetch user's bill suggestions" });
     }
   });
@@ -90,7 +93,7 @@ export const registerCommunityRoutes = (router: Router): void => {
       const suggestions = await communityStorage.getFeaturedBillSuggestions(limit);
       res.status(200).json(suggestions);
     } catch (error: any) {
-      console.error("Error fetching featured bill suggestions:", error);
+      log.error({ err: error }, "Error fetching featured bill suggestions");
       res.status(500).json({ error: "Failed to fetch featured bill suggestions" });
     }
   });
@@ -102,7 +105,7 @@ export const registerCommunityRoutes = (router: Router): void => {
       const suggestions = await communityStorage.getTrendingBillSuggestions(limit);
       res.status(200).json(suggestions);
     } catch (error: any) {
-      console.error("Error fetching trending bill suggestions:", error);
+      log.error({ err: error }, "Error fetching trending bill suggestions");
       res.status(500).json({ error: "Failed to fetch trending bill suggestions" });
     }
   });
@@ -118,7 +121,7 @@ export const registerCommunityRoutes = (router: Router): void => {
       const suggestions = await communityStorage.searchBillSuggestions(query);
       res.status(200).json(suggestions);
     } catch (error: any) {
-      console.error("Error searching bill suggestions:", error);
+      log.error({ err: error }, "Error searching bill suggestions");
       res.status(500).json({ error: "Failed to search bill suggestions" });
     }
   });
@@ -159,7 +162,7 @@ export const registerCommunityRoutes = (router: Router): void => {
 
       res.status(201).json(suggestion);
     } catch (error: any) {
-      console.error("Error creating bill suggestion:", error);
+      log.error({ err: error }, "Error creating bill suggestion");
       res.status(500).json({ error: "Failed to create bill suggestion" });
     }
   });
@@ -205,7 +208,7 @@ export const registerCommunityRoutes = (router: Router): void => {
       const updatedSuggestion = await communityStorage.updateBillSuggestion(id, updates);
       res.status(200).json(updatedSuggestion);
     } catch (error: any) {
-      console.error("Error updating bill suggestion:", error);
+      log.error({ err: error }, "Error updating bill suggestion");
       res.status(500).json({ error: "Failed to update bill suggestion" });
     }
   });
@@ -235,7 +238,7 @@ export const registerCommunityRoutes = (router: Router): void => {
       await communityStorage.deleteBillSuggestion(id);
       res.status(200).json({ message: "Bill suggestion deleted successfully" });
     } catch (error: any) {
-      console.error("Error deleting bill suggestion:", error);
+      log.error({ err: error }, "Error deleting bill suggestion");
       res.status(500).json({ error: "Failed to delete bill suggestion" });
     }
   });
@@ -266,7 +269,7 @@ export const registerCommunityRoutes = (router: Router): void => {
 
       res.status(200).json(updatedSuggestion);
     } catch (error: any) {
-      console.error("Error featuring bill suggestion:", error);
+      log.error({ err: error }, "Error featuring bill suggestion");
       res.status(500).json({ error: "Failed to update featured status" });
     }
   });
@@ -277,7 +280,7 @@ export const registerCommunityRoutes = (router: Router): void => {
       const categories = await communityStorage.getAllCategories();
       res.status(200).json(categories);
     } catch (error: any) {
-      console.error("Error fetching categories:", error);
+      log.error({ err: error }, "Error fetching categories");
       res.status(500).json({ error: "Failed to fetch categories" });
     }
   });
@@ -293,7 +296,7 @@ export const registerCommunityRoutes = (router: Router): void => {
       const categories = await communityStorage.getSuggestionCategories(id);
       res.status(200).json(categories);
     } catch (error: any) {
-      console.error("Error fetching suggestion categories:", error);
+      log.error({ err: error }, "Error fetching suggestion categories");
       res.status(500).json({ error: "Failed to fetch suggestion categories" });
     }
   });
@@ -335,7 +338,7 @@ export const registerCommunityRoutes = (router: Router): void => {
       const category = await communityStorage.addCategory(validationResult.data);
       res.status(201).json(category);
     } catch (error: any) {
-      console.error("Error adding category:", error);
+      log.error({ err: error }, "Error adding category");
       res.status(500).json({ error: "Failed to add category" });
     }
   });
@@ -371,7 +374,7 @@ export const registerCommunityRoutes = (router: Router): void => {
       await communityStorage.removeCategory(categoryId);
       res.status(200).json({ message: "Category removed successfully" });
     } catch (error: any) {
-      console.error("Error removing category:", error);
+      log.error({ err: error }, "Error removing category");
       res.status(500).json({ error: "Failed to remove category" });
     }
   });
@@ -400,7 +403,7 @@ export const registerCommunityRoutes = (router: Router): void => {
         added: result.added
       });
     } catch (error: any) {
-      console.error("Error toggling upvote:", error);
+      log.error({ err: error }, "Error toggling upvote");
       res.status(500).json({ error: "Failed to toggle upvote" });
     }
   });
@@ -420,7 +423,7 @@ export const registerCommunityRoutes = (router: Router): void => {
       const hasUpvoted = await communityStorage.hasUserUpvoted(req.session.userId, suggestionId);
       res.status(200).json({ hasUpvoted });
     } catch (error: any) {
-      console.error("Error checking upvote status:", error);
+      log.error({ err: error }, "Error checking upvote status");
       res.status(500).json({ error: "Failed to check upvote status" });
     }
   });
@@ -436,7 +439,7 @@ export const registerCommunityRoutes = (router: Router): void => {
       const comments = await communityStorage.getSuggestionComments(suggestionId);
       res.status(200).json(comments);
     } catch (error: any) {
-      console.error("Error fetching comments:", error);
+      log.error({ err: error }, "Error fetching comments");
       res.status(500).json({ error: "Failed to fetch comments" });
     }
   });
@@ -474,7 +477,7 @@ export const registerCommunityRoutes = (router: Router): void => {
       const comment = await communityStorage.addComment(validationResult.data);
       res.status(201).json(comment);
     } catch (error: any) {
-      console.error("Error adding comment:", error);
+      log.error({ err: error }, "Error adding comment");
       res.status(500).json({ error: "Failed to add comment" });
     }
   });
@@ -514,7 +517,7 @@ export const registerCommunityRoutes = (router: Router): void => {
 
       res.status(200).json(updatedComment);
     } catch (error: any) {
-      console.error("Error updating comment:", error);
+      log.error({ err: error }, "Error updating comment");
       res.status(500).json({ error: "Failed to update comment" });
     }
   });
@@ -545,7 +548,7 @@ export const registerCommunityRoutes = (router: Router): void => {
       await communityStorage.deleteComment(commentId);
       res.status(200).json({ message: "Comment deleted successfully" });
     } catch (error: any) {
-      console.error("Error deleting comment:", error);
+      log.error({ err: error }, "Error deleting comment");
       res.status(500).json({ error: "Failed to delete comment" });
     }
   });

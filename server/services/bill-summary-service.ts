@@ -3,6 +3,9 @@ import { billSummaries } from '../../shared/schema-bill-summaries';
 import { bills } from '../../shared/schema';
 import { eq } from 'drizzle-orm';
 import OpenAI from 'openai';
+import { createLogger } from "../logger";
+const log = createLogger("bill-summary-service");
+
 
 // Initialize OpenAI client
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -41,7 +44,7 @@ export async function getBillSummaryById(billId: string): Promise<any> {
     // Generate a new summary for the bill
     return await generateBillSummary(billData[0]);
   } catch (error: any) {
-    console.error('Error retrieving bill summary:', error);
+    log.error({ err: error }, 'Error retrieving bill summary');
     throw error;
   }
 }
@@ -105,7 +108,7 @@ async function generateBillSummary(bill: any): Promise<any> {
     
     return newSummary;
   } catch (error: any) {
-    console.error('Error generating bill summary:', error);
+    log.error({ err: error }, 'Error generating bill summary');
     throw error;
   }
 }
@@ -167,7 +170,7 @@ export async function generatePersonalizedBillSummary(billId: string, demographi
       demographics: demographics
     };
   } catch (error: any) {
-    console.error('Error generating personalized bill summary:', error);
+    log.error({ err: error }, 'Error generating personalized bill summary');
     throw error;
   }
 }

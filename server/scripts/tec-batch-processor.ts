@@ -15,6 +15,9 @@ import {
   campaignFinanceSourceEnum 
 } from '@shared/schema-campaign-finance';
 import { eq } from 'drizzle-orm';
+import { createLogger } from "../logger";
+const log = createLogger("tec-batch-processor");
+
 
 // Configure paths - use fileURLToPath for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -28,7 +31,7 @@ async function ensureDirectories() {
     await fs.mkdir(DATA_DIRECTORY, { recursive: true });
     await fs.mkdir(OUTPUT_DIRECTORY, { recursive: true });
   } catch (error: any) {
-    console.error('Error creating directories:', error);
+    log.error({ err: error }, 'Error creating directories');
   }
 }
 
@@ -38,7 +41,7 @@ async function loadFilingsFromFile(filePath: string) {
     const data = await fs.readFile(filePath, 'utf-8');
     return JSON.parse(data);
   } catch (error: any) {
-    console.error(`Error loading filings from ${filePath}:`, error);
+    log.error({ err: error }, `Error loading filings from ${filePath}`);
     return [];
   }
 }
@@ -51,9 +54,9 @@ async function saveEnrichedFilings(filings: any[], outputFilePath: string) {
       JSON.stringify(filings, null, 2),
       'utf-8'
     );
-    console.log(`Enriched filings saved to ${outputFilePath}`);
+    log.info(`Enriched filings saved to ${outputFilePath}`);
   } catch (error: any) {
-    console.error(`Error saving enriched filings to ${outputFilePath}:`, error);
+    log.error({ err: error }, `Error saving enriched filings to ${outputFilePath}`);
   }
 }
 
@@ -100,7 +103,7 @@ async function storeEnrichedFiling(enrichedFiling: any) {
         await storeCampaignFinanceData(entityId, filing, enrichment);
         break;
       default:
-        console.log(`No specific storage handler for category: ${category}`);
+        log.info(`No specific storage handler for category: ${category}`);
     }
     
     // If there are red flags, store as ethics violations
@@ -110,7 +113,7 @@ async function storeEnrichedFiling(enrichedFiling: any) {
     
     return entityId;
   } catch (error: any) {
-    console.error('Error storing enriched filing:', error);
+    log.error({ err: error }, 'Error storing enriched filing');
     return undefined;
   }
 }
@@ -169,7 +172,7 @@ async function storeLobbyistData(entityId: string, filing: any, enrichment: any)
         .where(eq(lobbyists.id, existingLobbyist.id));
     }
   } catch (error: any) {
-    console.error('Error storing lobbyist data:', error);
+    log.error({ err: error }, 'Error storing lobbyist data');
   }
 }
 
@@ -191,7 +194,7 @@ async function storeCampaignFinanceData(entityId: string, filing: any, enrichmen
       }
     });
   } catch (error: any) {
-    console.error('Error storing campaign finance data:', error);
+    log.error({ err: error }, 'Error storing campaign finance data');
   }
 }
 
@@ -216,7 +219,7 @@ async function storeEthicsViolations(entityId: string, filing: any, enrichment: 
       });
     }
   } catch (error: any) {
-    console.error('Error storing ethics violations:', error);
+    log.error({ err: error }, 'Error storing ethics violations');
   }
 }
 
@@ -228,11 +231,11 @@ async function processBatchOfFiles(fileNames: string[]) {
       const filings = await loadFilingsFromFile(filePath);
       
       if (!Array.isArray(filings) || filings.length === 0) {
-        console.log(`No filings found in ${fileName} or invalid format`);
+        log.info(`No filings found in ${fileName} or invalid format`);
         continue;
       }
       
-      console.log(`Processing ${filings.length} filings from ${fileName}...`);
+      log.info(`Processing ${filings.length} filings from ${fileName}...`);
       
       // Process each filing individually for categorization before batch AI
       const categorizedFilings = [];
@@ -274,13 +277,13 @@ async function processBatchOfFiles(fileNames: string[]) {
         if (enrichedFiling.enrichment.enrichmentSuccessful) {
           await storeEnrichedFiling(enrichedFiling);
         } else {
-          console.log(`Skipping storage for failed enrichment: ${enrichedFiling.filing.id}`);
+          log.info(`Skipping storage for failed enrichment: ${enrichedFiling.filing.id}`);
         }
       }
       
-      console.log(`Completed processing ${fileName}`);
+      log.info(`Completed processing ${fileName}`);
     } catch (error: any) {
-      console.error(`Error processing ${fileName}:`, error);
+      log.error({ err: error }, `Error processing ${fileName}`);
     }
   }
 }
@@ -303,7 +306,7 @@ function determineCategoryFromFiling(filing: any): string {
 // Main function
 async function main() {
   try {
-    console.log('Starting TEC filing batch processor...');
+    log.info('Starting TEC filing batch processor...');
     
     // Ensure required directories exist
     await ensureDirectories();
@@ -313,18 +316,18 @@ async function main() {
     const jsonFiles = files.filter(file => file.endsWith('.json'));
     
     if (jsonFiles.length === 0) {
-      console.log('No JSON files found to process');
+      log.info('No JSON files found to process');
       return;
     }
     
-    console.log(`Found ${jsonFiles.length} JSON files to process`);
+    log.info(`Found ${jsonFiles.length} JSON files to process`);
     
     // Process files in batches
     await processBatchOfFiles(jsonFiles);
     
-    console.log('Batch processing complete');
+    log.info('Batch processing complete');
   } catch (error: any) {
-    console.error('Error in batch processor:', error);
+    log.error({ err: error }, 'Error in batch processor');
   }
 }
 

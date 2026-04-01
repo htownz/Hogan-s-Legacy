@@ -2,6 +2,9 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { storage } from '../storage';
+import { createLogger } from "../logger";
+const log = createLogger("comprehensive-texas-scraper");
+
 
 /**
  * Comprehensive Texas Legislature Scraper
@@ -140,60 +143,60 @@ class ComprehensiveTexasScraper {
     };
 
     try {
-      console.log('🚀 Starting comprehensive Texas Legislature data collection...');
+      log.info('🚀 Starting comprehensive Texas Legislature data collection...');
 
       // 1. Collect all bills
       try {
-        console.log('📋 Collecting all Texas bills...');
+        log.info('📋 Collecting all Texas bills...');
         const bills = await this.scrapeAllBills();
         results.data.bills = bills;
         results.billsCollected = bills.length;
-        console.log(`✅ Collected ${bills.length} bills`);
+        log.info(`✅ Collected ${bills.length} bills`);
       } catch (error: any) {
-        console.error('❌ Error collecting bills:', error.message);
+        log.error({ err: error.message }, '❌ Error collecting bills');
         results.errors.push(`Bills: ${error.message}`);
       }
 
       // 2. Collect all legislators
       try {
-        console.log('👥 Collecting all legislators...');
+        log.info('👥 Collecting all legislators...');
         const legislators = await this.scrapeAllLegislators();
         results.data.legislators = legislators;
         results.legislatorsCollected = legislators.length;
-        console.log(`✅ Collected ${legislators.length} legislators`);
+        log.info(`✅ Collected ${legislators.length} legislators`);
       } catch (error: any) {
-        console.error('❌ Error collecting legislators:', error.message);
+        log.error({ err: error.message }, '❌ Error collecting legislators');
         results.errors.push(`Legislators: ${error.message}`);
       }
 
       // 3. Collect all committees
       try {
-        console.log('🏛️ Collecting all committees...');
+        log.info('🏛️ Collecting all committees...');
         const committees = await this.scrapeAllCommittees();
         results.data.committees = committees;
         results.committeesCollected = committees.length;
-        console.log(`✅ Collected ${committees.length} committees`);
+        log.info(`✅ Collected ${committees.length} committees`);
       } catch (error: any) {
-        console.error('❌ Error collecting committees:', error.message);
+        log.error({ err: error.message }, '❌ Error collecting committees');
         results.errors.push(`Committees: ${error.message}`);
       }
 
       // 4. Collect upcoming events
       try {
-        console.log('📅 Collecting legislative events...');
+        log.info('📅 Collecting legislative events...');
         const events = await this.scrapeUpcomingEvents();
         results.data.events = events;
         results.eventsCollected = events.length;
-        console.log(`✅ Collected ${events.length} events`);
+        log.info(`✅ Collected ${events.length} events`);
       } catch (error: any) {
-        console.error('❌ Error collecting events:', error.message);
+        log.error({ err: error.message }, '❌ Error collecting events');
         results.errors.push(`Events: ${error.message}`);
       }
 
-      console.log(`🎉 Comprehensive collection completed: ${results.billsCollected} bills, ${results.legislatorsCollected} legislators, ${results.committeesCollected} committees, ${results.eventsCollected} events`);
+      log.info(`🎉 Comprehensive collection completed: ${results.billsCollected} bills, ${results.legislatorsCollected} legislators, ${results.committeesCollected} committees, ${results.eventsCollected} events`);
 
     } catch (error: any) {
-      console.error('❌ Comprehensive collection failed:', error.message);
+      log.error({ err: error.message }, '❌ Comprehensive collection failed');
       results.success = false;
       results.errors.push(error.message);
     }
@@ -218,7 +221,7 @@ class ComprehensiveTexasScraper {
 
       for (const billUrl of billUrls) {
         try {
-          console.log(`📋 Trying bill collection from: ${billUrl}`);
+          log.info(`📋 Trying bill collection from: ${billUrl}`);
           
           const response = await axios.get(billUrl, {
             headers: {
@@ -254,12 +257,12 @@ class ComprehensiveTexasScraper {
           });
 
           if (billLinks.length > 0) {
-            console.log(`📋 Found ${billLinks.length} bills from ${billUrl}`);
+            log.info(`📋 Found ${billLinks.length} bills from ${billUrl}`);
             
             // Process bills from this source (limit to first 25)
             for (let i = 0; i < Math.min(billLinks.length, 25); i++) {
               try {
-                console.log(`📋 Processing bill ${i + 1}/${Math.min(billLinks.length, 25)}`);
+                log.info(`📋 Processing bill ${i + 1}/${Math.min(billLinks.length, 25)}`);
                 const bill = await this.scrapeBillDetails(billLinks[i]);
                 if (bill) {
                   bills.push(bill);
@@ -269,31 +272,31 @@ class ComprehensiveTexasScraper {
                 await new Promise(resolve => setTimeout(resolve, this.delay));
                 
               } catch (error: any) {
-                console.warn(`⚠️ Could not process bill ${billLinks[i]}: ${error.message}`);
+                log.warn(`⚠️ Could not process bill ${billLinks[i]}: ${error.message}`);
               }
             }
             break; // Exit loop if we found bills
           }
           
         } catch (error: any) {
-          console.warn(`⚠️ Could not access ${billUrl}: ${error.message}`);
+          log.warn(`⚠️ Could not access ${billUrl}: ${error.message}`);
           continue; // Try next URL
         }
       }
 
       // If no bills found through standard methods, try to get recent bills
       if (bills.length === 0) {
-        console.log('📋 Trying alternative approach for recent bills...');
+        log.info('📋 Trying alternative approach for recent bills...');
         try {
           const recentBills = await this.scrapeRecentBills();
           bills.push(...recentBills);
         } catch (error: any) {
-          console.warn('⚠️ Alternative approach also failed:', error.message);
+          log.warn({ detail: error.message }, '⚠️ Alternative approach also failed');
         }
       }
 
     } catch (error: any) {
-      console.error('❌ Error scraping bills:', error.message);
+      log.error({ err: error.message }, '❌ Error scraping bills');
       throw error;
     }
 
@@ -320,7 +323,7 @@ class ComprehensiveTexasScraper {
             const bill = await this.scrapeBillDetails(billUrl);
             if (bill && bill.identifier !== 'Unknown') {
               bills.push(bill);
-              console.log(`✅ Found bill: ${bill.identifier}`);
+              log.info(`✅ Found bill: ${bill.identifier}`);
             }
             
             // Respectful delay
@@ -338,7 +341,7 @@ class ComprehensiveTexasScraper {
       }
       
     } catch (error: any) {
-      console.error('❌ Error in alternative bill scraping:', error.message);
+      log.error({ err: error.message }, '❌ Error in alternative bill scraping');
     }
     
     return bills;
@@ -412,7 +415,7 @@ class ComprehensiveTexasScraper {
       return bill;
 
     } catch (error: any) {
-      console.error(`❌ Error scraping bill details from ${billUrl}:`, error.message);
+      log.error({ err: error.message }, `❌ Error scraping bill details from ${billUrl}`);
       return null;
     }
   }
@@ -435,7 +438,7 @@ class ComprehensiveTexasScraper {
       legislators.push(...senateMembers);
 
     } catch (error: any) {
-      console.error('❌ Error scraping legislators:', error.message);
+      log.error({ err: error.message }, '❌ Error scraping legislators');
       throw error;
     }
 
@@ -459,7 +462,7 @@ class ComprehensiveTexasScraper {
 
       for (const memberUrl of memberUrls) {
         try {
-          console.log(`👥 Trying ${chamber} members from: ${memberUrl}`);
+          log.info(`👥 Trying ${chamber} members from: ${memberUrl}`);
           
           const response = await axios.get(memberUrl, {
             headers: {
@@ -501,7 +504,7 @@ class ComprehensiveTexasScraper {
 
           // Process found member links
           if (memberLinks.length > 0) {
-            console.log(`👥 Found ${memberLinks.length} ${chamber} member links`);
+            log.info(`👥 Found ${memberLinks.length} ${chamber} member links`);
             
             for (let i = 0; i < Math.min(memberLinks.length, 20); i++) {
               try {
@@ -511,7 +514,7 @@ class ComprehensiveTexasScraper {
                 }
                 await new Promise(resolve => setTimeout(resolve, this.delay));
               } catch (error: any) {
-                console.warn(`⚠️ Could not process member ${memberLinks[i]}: ${error.message}`);
+                log.warn(`⚠️ Could not process member ${memberLinks[i]}: ${error.message}`);
               }
             }
             break; // Exit if we found member links
@@ -519,7 +522,7 @@ class ComprehensiveTexasScraper {
 
           // Process extracted member data
           if (memberData.length > 0) {
-            console.log(`👥 Found ${memberData.length} ${chamber} members from data extraction`);
+            log.info(`👥 Found ${memberData.length} ${chamber} members from data extraction`);
             
             for (const member of memberData.slice(0, 20)) {
               const legislator: ScrapedLegislator = {
@@ -543,20 +546,20 @@ class ComprehensiveTexasScraper {
           }
 
         } catch (error: any) {
-          console.warn(`⚠️ Could not access ${memberUrl}: ${error.message}`);
+          log.warn(`⚠️ Could not access ${memberUrl}: ${error.message}`);
           continue;
         }
       }
 
       // If no members found, try to create sample data from known districts
       if (legislators.length === 0) {
-        console.log(`👥 Creating sample ${chamber} member data...`);
+        log.info(`👥 Creating sample ${chamber} member data...`);
         const sampleMembers = await this.createSampleMemberData(chamber);
         legislators.push(...sampleMembers);
       }
 
     } catch (error: any) {
-      console.error(`❌ Error scraping ${chamber} members:`, error.message);
+      log.error({ err: error.message }, `❌ Error scraping ${chamber} members`);
       throw error;
     }
 
@@ -595,7 +598,7 @@ class ComprehensiveTexasScraper {
       }
       
     } catch (error: any) {
-      console.error('❌ Error creating sample member data:', error.message);
+      log.error({ err: error.message }, '❌ Error creating sample member data');
     }
     
     return members;
@@ -657,7 +660,7 @@ class ComprehensiveTexasScraper {
       return legislator;
 
     } catch (error: any) {
-      console.error(`❌ Error scraping legislator details from ${memberUrl}:`, error.message);
+      log.error({ err: error.message }, `❌ Error scraping legislator details from ${memberUrl}`);
       return null;
     }
   }
@@ -670,7 +673,7 @@ class ComprehensiveTexasScraper {
 
     try {
       const committeeUrl = `${this.baseUrl}/Committees/Committees.aspx`;
-      console.log(`🏛️ Fetching committees from: ${committeeUrl}`);
+      log.info(`🏛️ Fetching committees from: ${committeeUrl}`);
       
       const response = await axios.get(committeeUrl, {
         headers: {
@@ -690,12 +693,12 @@ class ComprehensiveTexasScraper {
         }
       });
 
-      console.log(`🏛️ Found ${committeeLinks.length} committees`);
+      log.info(`🏛️ Found ${committeeLinks.length} committees`);
 
       // Process each committee (limit to first 25 for initial collection)
       for (let i = 0; i < Math.min(committeeLinks.length, 25); i++) {
         try {
-          console.log(`🏛️ Processing committee ${i + 1}/${Math.min(committeeLinks.length, 25)}`);
+          log.info(`🏛️ Processing committee ${i + 1}/${Math.min(committeeLinks.length, 25)}`);
           const committee = await this.scrapeCommitteeDetails(committeeLinks[i]);
           if (committee) {
             committees.push(committee);
@@ -705,12 +708,12 @@ class ComprehensiveTexasScraper {
           await new Promise(resolve => setTimeout(resolve, this.delay));
           
         } catch (error: any) {
-          console.warn(`⚠️ Could not process committee ${committeeLinks[i]}: ${error.message}`);
+          log.warn(`⚠️ Could not process committee ${committeeLinks[i]}: ${error.message}`);
         }
       }
 
     } catch (error: any) {
-      console.error('❌ Error scraping committees:', error.message);
+      log.error({ err: error.message }, '❌ Error scraping committees');
       throw error;
     }
 
@@ -763,7 +766,7 @@ class ComprehensiveTexasScraper {
       return committee;
 
     } catch (error: any) {
-      console.error(`❌ Error scraping committee details from ${committeeUrl}:`, error.message);
+      log.error({ err: error.message }, `❌ Error scraping committee details from ${committeeUrl}`);
       return null;
     }
   }
@@ -776,7 +779,7 @@ class ComprehensiveTexasScraper {
 
     try {
       const eventsUrl = `${this.baseUrl}/Schedules/Meetings.aspx`;
-      console.log(`📅 Fetching events from: ${eventsUrl}`);
+      log.info(`📅 Fetching events from: ${eventsUrl}`);
       
       const response = await axios.get(eventsUrl, {
         headers: {
@@ -814,7 +817,7 @@ class ComprehensiveTexasScraper {
       });
 
     } catch (error: any) {
-      console.error('❌ Error scraping events:', error.message);
+      log.error({ err: error.message }, '❌ Error scraping events');
       throw error;
     }
 
@@ -867,4 +870,4 @@ class ComprehensiveTexasScraper {
 
 export const comprehensiveTexasScraper = new ComprehensiveTexasScraper();
 
-console.log('🏛️ Comprehensive Texas Legislature scraper initialized');
+log.info('🏛️ Comprehensive Texas Legislature scraper initialized');

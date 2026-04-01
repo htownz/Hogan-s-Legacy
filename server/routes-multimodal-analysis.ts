@@ -9,6 +9,9 @@ import {
   analyzeTestimony, 
   extractTextFromImage
 } from './services/multimodal-analysis-service';
+import { createLogger } from "./logger";
+const log = createLogger("routes-multimodal-analysis");
+
 
 const router = Router();
 
@@ -65,7 +68,7 @@ router.post('/analyze-image', upload.single('image'), async (req, res) => {
     
     return res.json(result);
   } catch (error: any) {
-    console.error('Error in image analysis endpoint:', error);
+    log.error({ err: error }, 'Error in image analysis endpoint');
     return res.status(500).json({ 
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error occurred' 
@@ -87,7 +90,7 @@ router.post('/analyze-image-url', async (req, res) => {
     
     return res.json(result);
   } catch (error: any) {
-    console.error('Error in image URL analysis endpoint:', error);
+    log.error({ err: error }, 'Error in image URL analysis endpoint');
     return res.status(500).json({ 
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error occurred' 
@@ -118,7 +121,7 @@ router.post('/analyze-chart', upload.single('image'), async (req, res) => {
     
     return res.json(result);
   } catch (error: any) {
-    console.error('Error in chart analysis endpoint:', error);
+    log.error({ err: error }, 'Error in chart analysis endpoint');
     return res.status(500).json({ 
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error occurred' 
@@ -149,7 +152,7 @@ router.post('/analyze-testimony', upload.single('image'), async (req, res) => {
     
     return res.json(result);
   } catch (error: any) {
-    console.error('Error in testimony analysis endpoint:', error);
+    log.error({ err: error }, 'Error in testimony analysis endpoint');
     return res.status(500).json({ 
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error occurred' 
@@ -177,7 +180,7 @@ router.post('/extract-text', upload.single('image'), async (req, res) => {
     
     return res.json({ success: true, data: { text } });
   } catch (error: any) {
-    console.error('Error in text extraction endpoint:', error);
+    log.error({ err: error }, 'Error in text extraction endpoint');
     return res.status(500).json({ 
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error occurred' 
@@ -199,7 +202,7 @@ router.post('/extract-text-url', async (req, res) => {
     
     return res.json({ success: true, data: { text } });
   } catch (error: any) {
-    console.error('Error in text extraction from URL endpoint:', error);
+    log.error({ err: error }, 'Error in text extraction from URL endpoint');
     return res.status(500).json({ 
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error occurred' 

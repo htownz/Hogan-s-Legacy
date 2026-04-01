@@ -5,6 +5,9 @@
 
 import { Router } from 'express';
 import { storage } from './storage';
+import { createLogger } from "./logger";
+const log = createLogger("routes-policy-impact");
+
 
 const router = Router();
 
@@ -87,7 +90,7 @@ router.post('/simulate', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('Policy impact simulation error:', error);
+    log.error({ err: error }, 'Policy impact simulation error');
     res.status(500).json({
       success: false,
       message: 'Failed to simulate policy impact',
@@ -160,7 +163,7 @@ router.get('/categories', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('Categories error:', error);
+    log.error({ err: error }, 'Categories error');
     res.status(500).json({
       success: false,
       message: 'Failed to fetch categories',
@@ -198,7 +201,7 @@ router.get('/trending', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('Trending bills error:', error);
+    log.error({ err: error }, 'Trending bills error');
     res.status(500).json({
       success: false,
       message: 'Failed to fetch trending bills',
@@ -251,7 +254,7 @@ router.post('/quick-analysis', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('Quick analysis error:', error);
+    log.error({ err: error }, 'Quick analysis error');
     res.status(500).json({
       success: false,
       message: 'Failed to perform quick analysis',

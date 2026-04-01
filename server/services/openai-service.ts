@@ -28,7 +28,7 @@ export class OpenAIService {
       if (existingSummary && 
           (existingSummary.processingStatus === 'completed' || 
            existingSummary.processingStatus === 'processing')) {
-        console.log(`Using existing summary for bill ${billId}`);
+        log.info(`Using existing summary for bill ${billId}`);
         return existingSummary;
       }
 
@@ -86,7 +86,7 @@ export class OpenAIService {
 
       return updatedSummary[0] || null;
     } catch (error: any) {
-      console.error(`Error generating bill summary for ${billId}:`, error);
+      log.error({ err: error }, `Error generating bill summary for ${billId}`);
 
       // Update the record to failed status
       if (billId) {
@@ -232,7 +232,7 @@ If you don't have information for a particular field, provide your best professi
         jsonResponse = JSON.parse(content);
 
       } catch (error: any) {
-        console.warn("Error with OpenAI API:", error);
+        log.warn({ detail: error }, "Error with OpenAI API");
         // We'll try a simpler summary approach with a more focused prompt
         try {
           const fallbackPrompt = `
@@ -308,7 +308,7 @@ Format your response as JSON:
           };
 
         } catch (secondError: any) {
-          console.error("Even fallback OpenAI call failed:", secondError);
+          log.error({ err: secondError }, "Even fallback OpenAI call failed");
           // If all OpenAI calls fail, use the mock data as an absolute last resort
           jsonResponse = this.generateMockSummaryData(billId, billText, billHistoryData);
         }
@@ -451,7 +451,7 @@ Format your response as JSON:
         processingStatus: "completed"
       };
     } catch (error: any) {
-      console.error("Error calling OpenAI for bill summary:", error);
+      log.error({ err: error }, "Error calling OpenAI for bill summary");
       const errorMessage = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to generate bill summary: ${errorMessage}`);
     }
@@ -462,7 +462,7 @@ Format your response as JSON:
    * This is used when the OpenAI API is unavailable or over quota
    */
   private generateMockSummaryData(billId: string, billText: string, billHistoryData: { historyText: string, events: any[] }): any {
-    console.log(`Generating mock summary data for bill ${billId}`);
+    log.info(`Generating mock summary data for bill ${billId}`);
 
     // Extract bill number and chamber
     const billMatch = billId.match(/TX-(HB|SB)(\d+)/);
@@ -612,7 +612,7 @@ Format your response as JSON:
         events: historyEvents
       };
     } catch (error: any) {
-      console.error(`Error fetching bill history for ${billId}:`, error);
+      log.error({ err: error }, `Error fetching bill history for ${billId}`);
       return {
         historyText: `Unable to fetch history for bill ${billId}`,
         events: []
@@ -632,7 +632,7 @@ Format your response as JSON:
         })
         .where(eq(billSummaries.id, summaryId));
     } catch (error: any) {
-      console.error(`Error tracking summary view for ${summaryId}:`, error);
+      log.error({ err: error }, `Error tracking summary view for ${summaryId}`);
     }
   }
 }
@@ -675,7 +675,7 @@ export async function generateImage(
 
       throw new Error("No image URL in the response");
     } catch (error: any) {
-      console.warn("Error generating image with DALL-E, using fallback image:", error);
+      log.warn({ detail: error }, "Error generating image with DALL-E, using fallback image");
 
       // Generate a placeholder image URL based on the prompt
       // This is a public placeholder image service
@@ -686,7 +686,7 @@ export async function generateImage(
       return `https://via.placeholder.com/${placeholderSize}.png?text=${encodedPrompt}`;
     }
   } catch (error: any) {
-    console.error("Error in image generation:", error);
+    log.error({ err: error }, "Error in image generation");
     return null;
   }
 }
@@ -700,6 +700,9 @@ export async function generateImage(
  * @returns Array of key takeaways
  */
 import { robustChatCompletion } from "./openai-wrapper";
+import { createLogger } from "../logger";
+const log = createLogger("openai-service");
+
 
 export async function generateKeyTakeaways(billText: string): Promise<string[]> {
   try {
@@ -755,7 +758,7 @@ Each takeaway should be:
         response_format: { type: "json_object" },
         temperature: 0.5 // Slightly lower temperature for more focused, precise takeaways
       }, {
-        logger: (msg) => console.log(`[Takeaways Generator] ${msg}`),
+        logger: (msg) => log.info(`[Takeaways Generator] ${msg}`),
         estimatedTokens: 2000 // Rough estimate of token usage
       });
 
@@ -781,11 +784,11 @@ Each takeaway should be:
         // Return up to 7 takeaways
         return cleanedTakeaways.slice(0, 7);
       } catch (error: any) {
-        console.error("Error parsing takeaways:", error);
+        log.error({ err: error }, "Error parsing takeaways");
         throw new Error("Failed to parse takeaways from analysis");
       }
     } catch (error: any) {
-      console.warn("Error calling OpenAI API for takeaways:", error);
+      log.warn({ detail: error }, "Error calling OpenAI API for takeaways");
 
       // Try a simpler approach with less advanced prompt
       try {
@@ -808,7 +811,7 @@ Respond with a JSON array of strings:
           response_format: { type: "json_object" },
           max_tokens: 500
         }, {
-          logger: (msg) => console.log(`[Takeaways Fallback] ${msg}`),
+          logger: (msg) => log.info(`[Takeaways Fallback] ${msg}`),
           estimatedTokens: 1000
         });
 
@@ -824,7 +827,7 @@ Respond with a JSON array of strings:
 
         return fallbackTakeaways.slice(0, 5).map((item: any) => String(item));
       } catch (secondError: any) {
-        console.error("Both OpenAI calls failed for takeaways:", secondError);
+        log.error({ err: secondError }, "Both OpenAI calls failed for takeaways");
 
         // Extract topics from bill text as a last resort to generate basic takeaways
         let topics: string[] = [];
@@ -852,7 +855,7 @@ Respond with a JSON array of strings:
       }
     }
   } catch (error: any) {
-    console.error("Error generating key takeaways:", error);
+    log.error({ err: error }, "Error generating key takeaways");
     return ["Unable to analyze bill text completely - please check the full bill"];
   }
 }
@@ -938,7 +941,7 @@ Focus only on the concrete, likely impacts. Be objective and factual.
         impactAreas: jsonResponse.impactAreas || []
       };
     } catch (error: any) {
-      console.warn("Error calling OpenAI API for impact assessment, using mock data:", error);
+      log.warn({ detail: error }, "Error calling OpenAI API for impact assessment, using mock data");
 
       // Generate mock impact assessment data for testing
       // Determine a mock relevance score based on demographic info
@@ -968,7 +971,7 @@ Focus only on the concrete, likely impacts. Be objective and factual.
       };
     }
   } catch (error: any) {
-    console.error("Error generating impact assessment:", error);
+    log.error({ err: error }, "Error generating impact assessment");
     const errorMessage = error instanceof Error ? error.message : String(error);
     throw new Error(`Failed to generate impact assessment: ${errorMessage}`);
   }

@@ -3,6 +3,9 @@ import { db } from '../db';
 import { eq, desc, count } from 'drizzle-orm';
 import { bills, billHistoryEvents } from '@shared/schema';
 import { InsertBillPassageProbability } from '@shared/schema-trending';
+import { createLogger } from "../logger";
+const log = createLogger("passage-probability-service");
+
 
 /**
  * Calculate passage probability for a bill based on various factors
@@ -19,7 +22,7 @@ export async function computePassageProbability(billId: string): Promise<InsertB
       .limit(1);
 
     if (!bill) {
-      console.error(`Bill ${billId} not found`);
+      log.error(`Bill ${billId} not found`);
       return null;
     }
 
@@ -92,7 +95,7 @@ export async function computePassageProbability(billId: string): Promise<InsertB
       similarBillsData: computeSimilarBillsData(bill)
     };
   } catch (error: any) {
-    console.error('Error computing passage probability:', error);
+    log.error({ err: error }, 'Error computing passage probability');
     return null;
   }
 }

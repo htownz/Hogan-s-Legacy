@@ -6,6 +6,9 @@
 
 import { Router } from "express";
 import { storage } from "./storage";
+import { createLogger } from "./logger";
+const log = createLogger("routes-legislative-map");
+
 
 const router = Router();
 
@@ -15,7 +18,7 @@ const router = Router();
  */
 router.get("/legislative-map-data", async (req, res) => {
   try {
-    console.log("Fetching legislative map data...");
+    log.info("Fetching legislative map data...");
 
     // Get all Texas legislators with geographic data
     const legislators = await storage.getAllLegislators();
@@ -66,11 +69,11 @@ router.get("/legislative-map-data", async (req, res) => {
       }
     };
 
-    console.log(`Map data prepared: ${mappableLegislators.length} legislators with coordinates`);
+    log.info(`Map data prepared: ${mappableLegislators.length} legislators with coordinates`);
     res.json(mapData);
 
   } catch (error: any) {
-    console.error("Error fetching legislative map data:", error);
+    log.error({ err: error }, "Error fetching legislative map data");
     res.status(500).json({ 
       error: "Failed to fetch legislative map data",
       message: error instanceof Error ? error.message : "Unknown error"
@@ -115,7 +118,7 @@ router.get("/legislative-map-data/district/:chamber/:number", async (req, res) =
     res.json(districtData);
 
   } catch (error: any) {
-    console.error("Error fetching district data:", error);
+    log.error({ err: error }, "Error fetching district data");
     res.status(500).json({ 
       error: "Failed to fetch district data",
       message: error instanceof Error ? error.message : "Unknown error"
@@ -166,7 +169,7 @@ router.get("/legislative-map-data/activity-heatmap", async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error("Error generating activity heatmap:", error);
+    log.error({ err: error }, "Error generating activity heatmap");
     res.status(500).json({ 
       error: "Failed to generate activity heatmap",
       message: error instanceof Error ? error.message : "Unknown error"

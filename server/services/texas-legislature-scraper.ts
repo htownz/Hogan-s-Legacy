@@ -2,6 +2,9 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { storage } from '../storage';
+import { createLogger } from "../logger";
+const log = createLogger("texas-legislature-scraper");
+
 
 interface TexasLegislativeBill {
   id: string;
@@ -28,7 +31,7 @@ export class TexasLegislatureScraper {
   private searchUrl = 'https://capitol.texas.gov/Search/BillSearch.aspx';
   
   constructor() {
-    console.log('🏛️ Texas Legislature Online scraper initialized');
+    log.info('🏛️ Texas Legislature Online scraper initialized');
   }
 
   /**
@@ -36,7 +39,7 @@ export class TexasLegislatureScraper {
    */
   async scrapeCurrentSessionBills(limit: number = 50): Promise<TexasLegislativeBill[]> {
     try {
-      console.log(`🔍 Scraping Texas Legislature Online for ${limit} current bills...`);
+      log.info(`🔍 Scraping Texas Legislature Online for ${limit} current bills...`);
       
       const bills: TexasLegislativeBill[] = [];
       
@@ -48,11 +51,11 @@ export class TexasLegislatureScraper {
       const senateBills = await this.scrapeBillsByType('S', Math.floor(limit / 2));
       bills.push(...senateBills);
       
-      console.log(`✅ Successfully scraped ${bills.length} Texas bills from TLO`);
+      log.info(`✅ Successfully scraped ${bills.length} Texas bills from TLO`);
       return bills.slice(0, limit);
       
     } catch (error: any) {
-      console.error('❌ Error scraping Texas Legislature Online:', error);
+      log.error({ err: error }, '❌ Error scraping Texas Legislature Online');
       throw new Error('Failed to scrape Texas legislative data');
     }
   }
@@ -63,7 +66,7 @@ export class TexasLegislatureScraper {
   private async scrapeBillsByType(chamber: 'H' | 'S', limit: number): Promise<TexasLegislativeBill[]> {
     try {
       const chamberName = chamber === 'H' ? 'House' : 'Senate';
-      console.log(`📜 Scraping ${chamberName} bills from TLO...`);
+      log.info(`📜 Scraping ${chamberName} bills from TLO...`);
       
       // Get the current session number (89th Legislature, etc.)
       const sessionNumber = await this.getCurrentSessionNumber();
@@ -78,7 +81,7 @@ export class TexasLegislatureScraper {
           
           if (bill) {
             bills.push(bill);
-            console.log(`📋 Scraped bill: ${bill.id} - ${bill.title}`);
+            log.info(`📋 Scraped bill: ${bill.id} - ${bill.title}`);
           }
           
           billNumber++;
@@ -87,7 +90,7 @@ export class TexasLegislatureScraper {
           await this.delay(200);
           
         } catch (error: any) {
-          console.log(`⚠️ Skipping bill ${chamber}B${String(billNumber).padStart(5, '0')}: ${error}`);
+          log.info(`⚠️ Skipping bill ${chamber}B${String(billNumber).padStart(5, '0')}: ${error}`);
           billNumber++;
         }
       }
@@ -95,7 +98,7 @@ export class TexasLegislatureScraper {
       return bills;
       
     } catch (error: any) {
-      console.error(`❌ Error scraping ${chamber} bills:`, error);
+      log.error({ err: error }, `❌ Error scraping ${chamber} bills`);
       return [];
     }
   }
@@ -125,7 +128,7 @@ export class TexasLegislatureScraper {
       return '89';
       
     } catch (error: any) {
-      console.log('⚠️ Could not determine session number, using default (89th)');
+      log.info('⚠️ Could not determine session number, using default (89th)');
       return '89';
     }
   }
@@ -181,7 +184,7 @@ export class TexasLegislatureScraper {
       };
       
     } catch (error: any) {
-      console.log(`⚠️ Could not scrape bill ${billId}:`, error.message);
+      log.info({ detail: error.message }, `⚠️ Could not scrape bill ${billId}`);
       return null;
     }
   }
@@ -324,7 +327,7 @@ export class TexasLegislatureScraper {
    */
   async storeScrapedBills(bills: TexasLegislativeBill[]): Promise<void> {
     try {
-      console.log(`💾 Storing ${bills.length} scraped Texas bills in database...`);
+      log.info(`💾 Storing ${bills.length} scraped Texas bills in database...`);
       
       for (const bill of bills) {
         try {
@@ -344,14 +347,14 @@ export class TexasLegislatureScraper {
           });
           
         } catch (error: any) {
-          console.error(`❌ Error storing bill ${bill.id}:`, error);
+          log.error({ err: error }, `❌ Error storing bill ${bill.id}`);
         }
       }
       
-      console.log(`✅ Successfully stored ${bills.length} Texas bills in database`);
+      log.info(`✅ Successfully stored ${bills.length} Texas bills in database`);
       
     } catch (error: any) {
-      console.error('❌ Error storing scraped bills:', error);
+      log.error({ err: error }, '❌ Error storing scraped bills');
       throw error;
     }
   }
@@ -361,7 +364,7 @@ export class TexasLegislatureScraper {
    */
   async performOneTimeDataCollection(limit: number = 100): Promise<TexasLegislativeBill[]> {
     try {
-      console.log('🚀 Starting one-time Texas Legislature Online data collection...');
+      log.info('🚀 Starting one-time Texas Legislature Online data collection...');
       
       const bills = await this.scrapeCurrentSessionBills(limit);
       
@@ -369,11 +372,11 @@ export class TexasLegislatureScraper {
         await this.storeScrapedBills(bills);
       }
       
-      console.log(`🎉 One-time data collection completed! Collected ${bills.length} Texas bills.`);
+      log.info(`🎉 One-time data collection completed! Collected ${bills.length} Texas bills.`);
       return bills;
       
     } catch (error: any) {
-      console.error('❌ One-time data collection failed:', error);
+      log.error({ err: error }, '❌ One-time data collection failed');
       throw error;
     }
   }

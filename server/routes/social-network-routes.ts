@@ -17,6 +17,9 @@ import { CustomRequest } from "../types";
 import { insertUserInvitationSchema, insertUserConnectionSchema, insertConnectionActivitySchema, insertNetworkShareSchema } from "@shared/schema";
 import { isAuthenticated } from "../auth";
 import crypto from "crypto";
+import { createLogger } from "../logger";
+const log = createLogger("social-network-routes");
+
 
 export function registerSocialNetworkRoutes(app: Express) {
   // ---- INVITATIONS ----
@@ -43,7 +46,7 @@ export function registerSocialNetworkRoutes(app: Express) {
       if (error instanceof z.ZodError) {
         res.status(400).json({ message: "Invalid input", errors: error.errors });
       } else {
-        console.error("Create invitation error:", error);
+        log.error({ err: error }, "Create invitation error");
         res.status(500).json({ message: "Error creating invitation" });
       }
     }
@@ -55,7 +58,7 @@ export function registerSocialNetworkRoutes(app: Express) {
       const invitations = await storage.getUserInvitationsByInviterId(req.session.userId);
       res.status(200).json(invitations);
     } catch (error: any) {
-      console.error("Get invitations error:", error);
+      log.error({ err: error }, "Get invitations error");
       res.status(500).json({ message: "Error retrieving invitations" });
     }
   });
@@ -96,7 +99,7 @@ export function registerSocialNetworkRoutes(app: Express) {
         message: "Invitation accepted. You can now register for an account."
       });
     } catch (error: any) {
-      console.error("Accept invitation error:", error);
+      log.error({ err: error }, "Accept invitation error");
       res.status(500).json({ message: "Error accepting invitation" });
     }
   });
@@ -148,7 +151,7 @@ export function registerSocialNetworkRoutes(app: Express) {
       
       res.status(200).json({ message: "Registration complete" });
     } catch (error: any) {
-      console.error("Register with invitation error:", error);
+      log.error({ err: error }, "Register with invitation error");
       res.status(500).json({ message: "Error registering with invitation" });
     }
   });
@@ -166,7 +169,7 @@ export function registerSocialNetworkRoutes(app: Express) {
       
       res.status(200).json(invitation);
     } catch (error: any) {
-      console.error("Get invitation error:", error);
+      log.error({ err: error }, "Get invitation error");
       res.status(500).json({ message: "Error retrieving invitation" });
     }
   });
@@ -200,7 +203,7 @@ export function registerSocialNetworkRoutes(app: Express) {
       
       res.status(200).json(updatedInvitation);
     } catch (error: any) {
-      console.error("Resend invitation error:", error);
+      log.error({ err: error }, "Resend invitation error");
       res.status(500).json({ message: "Error resending invitation" });
     }
   });
@@ -230,7 +233,7 @@ export function registerSocialNetworkRoutes(app: Express) {
       
       res.status(200).json({ message: "Invitation cancelled successfully" });
     } catch (error: any) {
-      console.error("Cancel invitation error:", error);
+      log.error({ err: error }, "Cancel invitation error");
       res.status(500).json({ message: "Error cancelling invitation" });
     }
   });
@@ -260,7 +263,7 @@ export function registerSocialNetworkRoutes(app: Express) {
       
       res.status(200).json(connectionDetails);
     } catch (error: any) {
-      console.error("Get connections error:", error);
+      log.error({ err: error }, "Get connections error");
       res.status(500).json({ message: "Error retrieving connections" });
     }
   });
@@ -303,7 +306,7 @@ export function registerSocialNetworkRoutes(app: Express) {
       
       res.status(201).json(connection);
     } catch (error: any) {
-      console.error("Create connection error:", error);
+      log.error({ err: error }, "Create connection error");
       res.status(500).json({ message: "Error creating connection" });
     }
   });
@@ -331,7 +334,7 @@ export function registerSocialNetworkRoutes(app: Express) {
       
       res.status(200).json({ message: "Connection removed successfully" });
     } catch (error: any) {
-      console.error("Remove connection error:", error);
+      log.error({ err: error }, "Remove connection error");
       res.status(500).json({ message: "Error removing connection" });
     }
   });
@@ -366,7 +369,7 @@ export function registerSocialNetworkRoutes(app: Express) {
       if (error instanceof z.ZodError) {
         res.status(400).json({ message: "Invalid input", errors: error.errors });
       } else {
-        console.error("Create activity error:", error);
+        log.error({ err: error }, "Create activity error");
         res.status(500).json({ message: "Error creating activity" });
       }
     }
@@ -395,7 +398,7 @@ export function registerSocialNetworkRoutes(app: Express) {
       
       res.status(200).json(activityDetails);
     } catch (error: any) {
-      console.error("Get activities error:", error);
+      log.error({ err: error }, "Get activities error");
       res.status(500).json({ message: "Error retrieving activities" });
     }
   });
@@ -418,7 +421,7 @@ export function registerSocialNetworkRoutes(app: Express) {
       if (error instanceof z.ZodError) {
         res.status(400).json({ message: "Invalid input", errors: error.errors });
       } else {
-        console.error("Create share error:", error);
+        log.error({ err: error }, "Create share error");
         res.status(500).json({ message: "Error creating share" });
       }
     }
@@ -430,7 +433,7 @@ export function registerSocialNetworkRoutes(app: Express) {
       const shares = await storage.getNetworkSharesByUserId(req.session.userId);
       res.status(200).json(shares);
     } catch (error: any) {
-      console.error("Get shares error:", error);
+      log.error({ err: error }, "Get shares error");
       res.status(500).json({ message: "Error retrieving shares" });
     }
   });
@@ -467,7 +470,7 @@ export function registerSocialNetworkRoutes(app: Express) {
       
       res.status(200).json({ message: "Click tracked successfully" });
     } catch (error: any) {
-      console.error("Track share click error:", error);
+      log.error({ err: error }, "Track share click error");
       res.status(500).json({ message: "Error tracking share click" });
     }
   });
@@ -508,7 +511,7 @@ export function registerSocialNetworkRoutes(app: Express) {
       
       res.status(200).json({ message: "Conversion recorded successfully" });
     } catch (error: any) {
-      console.error("Record share conversion error:", error);
+      log.error({ err: error }, "Record share conversion error");
       res.status(500).json({ message: "Error recording share conversion" });
     }
   });
@@ -541,7 +544,7 @@ export function registerSocialNetworkRoutes(app: Express) {
       
       res.status(200).json(impact);
     } catch (error: any) {
-      console.error("Get network impact error:", error);
+      log.error({ err: error }, "Get network impact error");
       res.status(500).json({ message: "Error retrieving network impact" });
     }
   });

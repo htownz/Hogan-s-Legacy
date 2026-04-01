@@ -39,6 +39,9 @@ import {
 } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 import { getScoutBotProfileById } from "./storage-scout-bot";
+import { createLogger } from "./logger";
+const log = createLogger("storage-scout-bot-analytics");
+
 
 // Advanced Analysis Operations
 export const createAdvancedAnalysis = async (
@@ -424,7 +427,7 @@ export const analyzeFinancialNetworks = async (
     // Create and return the analysis
     return await createAdvancedAnalysis(analysis);
   } catch (error: any) {
-    console.error("Error in analyzeFinancialNetworks:", error);
+    log.error({ err: error }, "Error in analyzeFinancialNetworks");
     return null;
   }
 };
@@ -552,7 +555,7 @@ export const detectCrossDatasetAnomalies = async (
     
     return null;
   } catch (error: any) {
-    console.error("Error in detectCrossDatasetAnomalies:", error);
+    log.error({ err: error }, "Error in detectCrossDatasetAnomalies");
     return null;
   }
 };
@@ -787,7 +790,7 @@ export const generateAutomatedReport = async (
     
     return await createAutomatedReport(report);
   } catch (error: any) {
-    console.error("Error in generateAutomatedReport:", error);
+    log.error({ err: error }, "Error in generateAutomatedReport");
     return null;
   }
 };

@@ -7,6 +7,9 @@ import { eq, like, or } from 'drizzle-orm';
 import { isAuthenticated } from './auth';
 import { getBillSummaryById } from '../server/services/bill-summary-service';
 import OpenAI from 'openai';
+import { createLogger } from "./logger";
+const log = createLogger("routes-voice-search");
+
 
 // Initialize OpenAI API
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -24,7 +27,7 @@ const activeConnections = new Set<WebSocket>();
 export function registerVoiceSearchRoutes(app: Express, server?: HttpServer): void {
   // Set up WebSocket server if HTTP server is provided
   if (server) {
-    console.log('Setting up voice search WebSocket server');
+    log.info('Setting up voice search WebSocket server');
     // Initialize WebSocket server on a distinct path to avoid conflict with Vite's HMR
     const wss = new WebSocketServer({ 
       server: server, 
@@ -33,7 +36,7 @@ export function registerVoiceSearchRoutes(app: Express, server?: HttpServer): vo
   
     // WebSocket connection handling
     wss.on('connection', (ws: WebSocket) => {
-      console.log('New WebSocket connection established for voice search');
+      log.info('New WebSocket connection established for voice search');
       
       // Add to active connections
       activeConnections.add(ws);
@@ -109,7 +112,7 @@ export function registerVoiceSearchRoutes(app: Express, server?: HttpServer): vo
             }
           }
         } catch (error: any) {
-          console.error('WebSocket message handling error:', error);
+          log.error({ err: error }, 'WebSocket message handling error');
           ws.send(JSON.stringify({
             type: 'error',
             message: 'Error processing voice search query'
@@ -119,18 +122,18 @@ export function registerVoiceSearchRoutes(app: Express, server?: HttpServer): vo
       
       // Handle connection close
       ws.on('close', () => {
-        console.log('WebSocket connection closed for voice search');
+        log.info('WebSocket connection closed for voice search');
         activeConnections.delete(ws);
       });
       
       // Handle errors
       ws.on('error', (error) => {
-        console.error('WebSocket error:', error);
+        log.error({ err: error }, 'WebSocket error');
         activeConnections.delete(ws);
       });
     });
   } else {
-    console.warn('Voice search WebSocket server not set up: HTTP server not provided');
+    log.warn('Voice search WebSocket server not set up: HTTP server not provided');
   }
   
   // REST API routes for voice search
@@ -177,7 +180,7 @@ export function registerVoiceSearchRoutes(app: Express, server?: HttpServer): vo
           return res.json({ action: 'search', results: defaultResults });
       }
     } catch (error: any) {
-      console.error('Voice search error:', error);
+      log.error({ err: error }, 'Voice search error');
       return res.status(500).json({ error: 'Error processing voice search query' });
     }
   });
@@ -286,7 +289,7 @@ async function analyzeQueryIntention(query: string): Promise<{
     return { action: 'search', topic: query };
     
   } catch (error: any) {
-    console.error('Error analyzing query with OpenAI:', error);
+    log.error({ err: error }, 'Error analyzing query with OpenAI');
     // Fallback to simple keyword matching if OpenAI fails
     return { action: 'search', topic: query };
   }
@@ -358,7 +361,7 @@ async function searchBillsByTopic(topic: string | undefined): Promise<any[]> {
     
     return results;
   } catch (error: any) {
-    console.error('Error searching bills by topic:', error);
+    log.error({ err: error }, 'Error searching bills by topic');
     return [];
   }
 }
@@ -369,12 +372,12 @@ async function searchBillsByTopic(topic: string | undefined): Promise<any[]> {
 async function getBillSummary(billId: string | undefined): Promise<any> {
   try {
     if (!billId) {
-      console.warn('No bill ID provided for summary');
+      log.warn('No bill ID provided for summary');
       return null;
     }
     return await getBillSummaryById(billId);
   } catch (error: any) {
-    console.error(`Error retrieving summary for bill ${billId}:`, error);
+    log.error({ err: error }, `Error retrieving summary for bill ${billId}`);
     return null;
   }
 }

@@ -2,6 +2,9 @@ import type { Express, Request, Response } from "express";
 import { storage } from "./storage";
 import { isAuthenticated } from "./auth";
 import { CustomRequest } from "./types";
+import { createLogger } from "./logger";
+const log = createLogger("routes-bill-status");
+
 
 /**
  * Register bill status API routes
@@ -48,7 +51,7 @@ export function registerBillStatusRoutes(app: Express): void {
         }
       });
     } catch (error: any) {
-      console.error(`Error retrieving bill status for ${req.params.billId}:`, error);
+      log.error({ err: error }, `Error retrieving bill status for ${req.params.billId}`);
       res.status(500).json({ message: "Error retrieving bill status" });
     }
   });
@@ -99,7 +102,7 @@ export function registerBillStatusRoutes(app: Express): void {
       
       res.status(200).json(statusUpdates);
     } catch (error: any) {
-      console.error("Error retrieving bulk bill status:", error);
+      log.error({ err: error }, "Error retrieving bulk bill status");
       res.status(500).json({ message: "Error retrieving bulk bill status" });
     }
   });
@@ -146,7 +149,7 @@ export function registerBillStatusRoutes(app: Express): void {
       
       res.status(200).json(statusChanges);
     } catch (error: any) {
-      console.error("Error retrieving bill status changes:", error);
+      log.error({ err: error }, "Error retrieving bill status changes");
       res.status(500).json({ message: "Error retrieving bill status changes" });
     }
   });

@@ -9,13 +9,16 @@
 
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import { createLogger } from "../logger";
+const log = createLogger("tlo-crawler");
+
 
 export class TLOCrawler {
   private baseUrl = 'https://capitol.texas.gov';
   private currentSession = '88'; // 88th Texas Legislature
 
   constructor() {
-    console.log('🏛️ Initializing Texas Legislature Online crawler...');
+    log.info('🏛️ Initializing Texas Legislature Online crawler...');
   }
 
   /**
@@ -23,7 +26,7 @@ export class TLOCrawler {
    */
   async getCurrentLegislators() {
     try {
-      console.log('👥 Crawling Texas legislators from TLO...');
+      log.info('👥 Crawling Texas legislators from TLO...');
       
       // Crawl House members
       const houseMembers = await this.crawlHouseMembers();
@@ -33,14 +36,14 @@ export class TLOCrawler {
       
       const allLegislators = [...houseMembers, ...senateMembers];
       
-      console.log(`✅ Successfully crawled ${allLegislators.length} Texas legislators from TLO`);
-      console.log(`   - House: ${houseMembers.length} members`);
-      console.log(`   - Senate: ${senateMembers.length} members`);
+      log.info(`✅ Successfully crawled ${allLegislators.length} Texas legislators from TLO`);
+      log.info(`   - House: ${houseMembers.length} members`);
+      log.info(`   - Senate: ${senateMembers.length} members`);
       
       return allLegislators;
 
     } catch (error: any) {
-      console.error('❌ Error crawling Texas legislators from TLO:', error.message);
+      log.error({ err: error.message }, '❌ Error crawling Texas legislators from TLO');
       return [];
     }
   }
@@ -51,7 +54,7 @@ export class TLOCrawler {
   private async crawlHouseMembers() {
     try {
       const url = `${this.baseUrl}/Members/en/house/MembersList.aspx`;
-      console.log('🏛️ Crawling House members from:', url);
+      log.info({ detail: url }, '🏛️ Crawling House members from');
       
       const response = await axios.get(url, {
         timeout: 30000,
@@ -100,7 +103,7 @@ export class TLOCrawler {
       return members.filter(member => member.name && member.name.length > 2);
 
     } catch (error: any) {
-      console.error('❌ Error crawling House members:', error.message);
+      log.error({ err: error.message }, '❌ Error crawling House members');
       return [];
     }
   }
@@ -111,7 +114,7 @@ export class TLOCrawler {
   private async crawlSenateMembers() {
     try {
       const url = `${this.baseUrl}/Members/en/senate/MembersList.aspx`;
-      console.log('🏛️ Crawling Senate members from:', url);
+      log.info({ detail: url }, '🏛️ Crawling Senate members from');
       
       const response = await axios.get(url, {
         timeout: 30000,
@@ -160,7 +163,7 @@ export class TLOCrawler {
       return members.filter(member => member.name && member.name.length > 2);
 
     } catch (error: any) {
-      console.error('❌ Error crawling Senate members:', error.message);
+      log.error({ err: error.message }, '❌ Error crawling Senate members');
       return [];
     }
   }
@@ -170,19 +173,19 @@ export class TLOCrawler {
    */
   async getCurrentBills(limit = 100) {
     try {
-      console.log('📋 Crawling Texas bills from TLO...');
+      log.info('📋 Crawling Texas bills from TLO...');
       
       const url = `${this.baseUrl}/BillLookup/BillNumber.aspx`;
-      console.log('🏛️ Crawling bills from:', url);
+      log.info({ detail: url }, '🏛️ Crawling bills from');
       
       // This would need to be implemented based on TLO's bill search structure
       const bills: any[] = [];
       
-      console.log(`✅ Successfully crawled ${bills.length} Texas bills from TLO`);
+      log.info(`✅ Successfully crawled ${bills.length} Texas bills from TLO`);
       return bills;
 
     } catch (error: any) {
-      console.error('❌ Error crawling Texas bills from TLO:', error.message);
+      log.error({ err: error.message }, '❌ Error crawling Texas bills from TLO');
       return [];
     }
   }
@@ -236,7 +239,7 @@ export class TLOCrawler {
    * Get comprehensive Texas legislative data
    */
   async getComprehensiveData() {
-    console.log('🏛️ Crawling comprehensive Texas legislative data from TLO...');
+    log.info('🏛️ Crawling comprehensive Texas legislative data from TLO...');
     
     const [legislators, bills] = await Promise.all([
       this.getCurrentLegislators(),

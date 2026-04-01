@@ -8,6 +8,9 @@
 import { legiscanService } from './legiscan-service';
 import { apiCache } from './enhanced-cache';
 import axios from 'axios';
+import { createLogger } from "../logger";
+const log = createLogger("api-integrator");
+
 
 /**
  * Service for combining and enhancing data from multiple API sources
@@ -35,7 +38,7 @@ class ApiIntegratorService {
       
       return enhancedBill;
     } catch (error: any) {
-      console.error('Error getting enhanced bill data:', error);
+      log.error({ err: error }, 'Error getting enhanced bill data');
       throw error;
     }
   }
@@ -86,7 +89,7 @@ class ApiIntegratorService {
       
       return uniqueBills.slice(0, 10); // Return top 10 unique related bills
     } catch (error: any) {
-      console.error('Error finding related bills:', error);
+      log.error({ err: error }, 'Error finding related bills');
       return [];
     }
   }
@@ -178,7 +181,7 @@ class ApiIntegratorService {
       
       return enhancedLegislator;
     } catch (error: any) {
-      console.error('Error getting enhanced legislator data:', error);
+      log.error({ err: error }, 'Error getting enhanced legislator data');
       throw error;
     }
   }

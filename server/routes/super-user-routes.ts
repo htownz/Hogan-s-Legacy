@@ -14,6 +14,9 @@ import {
   insertUserNetworkImpactSchema,
   insertUserActivitySchema
 } from "@shared/schema";
+import { createLogger } from "../logger";
+const log = createLogger("super-user-routes");
+
 
 // Schemas for request validation
 const roleSchema = z.object({
@@ -65,7 +68,7 @@ export function registerSuperUserRoutes(app: Express) {
       
       return res.status(200).json(roles);
     } catch (error: any) {
-      console.error("Error fetching super user roles:", error);
+      log.error({ err: error }, "Error fetching super user roles");
       return res.status(500).json({ message: "Failed to fetch super user roles" });
     }
   });
@@ -90,7 +93,7 @@ export function registerSuperUserRoutes(app: Express) {
       
       return res.status(200).json(role);
     } catch (error: any) {
-      console.error("Error fetching super user role:", error);
+      log.error({ err: error }, "Error fetching super user role");
       return res.status(500).json({ message: "Failed to fetch super user role" });
     }
   });
@@ -103,7 +106,7 @@ export function registerSuperUserRoutes(app: Express) {
       
       return res.status(200).json(milestones);
     } catch (error: any) {
-      console.error("Error fetching progression milestones:", error);
+      log.error({ err: error }, "Error fetching progression milestones");
       return res.status(500).json({ message: "Failed to fetch progression milestones" });
     }
   });
@@ -124,7 +127,7 @@ export function registerSuperUserRoutes(app: Express) {
       
       return res.status(200).json(milestones);
     } catch (error: any) {
-      console.error("Error fetching role progression milestones:", error);
+      log.error({ err: error }, "Error fetching role progression milestones");
       return res.status(500).json({ message: "Failed to fetch role progression milestones" });
     }
   });
@@ -146,7 +149,7 @@ export function registerSuperUserRoutes(app: Express) {
       
       return res.status(201).json(milestone);
     } catch (error: any) {
-      console.error("Error creating progression milestone:", error);
+      log.error({ err: error }, "Error creating progression milestone");
       return res.status(500).json({ message: "Failed to create progression milestone" });
     }
   });
@@ -194,7 +197,7 @@ export function registerSuperUserRoutes(app: Express) {
       
       return res.status(200).json(updatedMilestone);
     } catch (error: any) {
-      console.error("Error updating progression milestone:", error);
+      log.error({ err: error }, "Error updating progression milestone");
       return res.status(500).json({ message: "Failed to update progression milestone" });
     }
   });
@@ -219,7 +222,7 @@ export function registerSuperUserRoutes(app: Express) {
       
       return res.status(200).json(networkImpact);
     } catch (error: any) {
-      console.error("Error fetching network impact:", error);
+      log.error({ err: error }, "Error fetching network impact");
       return res.status(500).json({ message: "Failed to fetch network impact metrics" });
     }
   });
@@ -251,7 +254,7 @@ export function registerSuperUserRoutes(app: Express) {
       
       return res.status(200).json(networkImpact);
     } catch (error: any) {
-      console.error("Error updating network impact:", error);
+      log.error({ err: error }, "Error updating network impact");
       return res.status(500).json({ message: "Failed to update network impact metrics" });
     }
   });
@@ -264,7 +267,7 @@ export function registerSuperUserRoutes(app: Express) {
       
       return res.status(200).json(topInfluencers);
     } catch (error: any) {
-      console.error("Error fetching top influencers:", error);
+      log.error({ err: error }, "Error fetching top influencers");
       return res.status(500).json({ message: "Failed to fetch top influencers" });
     }
   });
@@ -284,7 +287,7 @@ export function registerSuperUserRoutes(app: Express) {
         userProgression
       });
     } catch (error: any) {
-      console.error("Error fetching super user analytics:", error);
+      log.error({ err: error }, "Error fetching super user analytics");
       return res.status(500).json({ message: "Failed to fetch analytics" });
     }
   });
@@ -324,7 +327,7 @@ export function registerSuperUserRoutes(app: Express) {
       
       return res.status(201).json(activity);
     } catch (error: any) {
-      console.error("Error creating user activity:", error);
+      log.error({ err: error }, "Error creating user activity");
       return res.status(500).json({ message: "Failed to log user activity" });
     }
   });
@@ -350,7 +353,7 @@ export function registerSuperUserRoutes(app: Express) {
       
       return res.status(200).json(activities);
     } catch (error: any) {
-      console.error("Error fetching user activities:", error);
+      log.error({ err: error }, "Error fetching user activities");
       return res.status(500).json({ message: "Failed to fetch user activities" });
     }
   });
@@ -375,7 +378,7 @@ export function registerSuperUserRoutes(app: Express) {
       
       return res.status(200).json(challenges);
     } catch (error: any) {
-      console.error("Error fetching challenges:", error);
+      log.error({ err: error }, "Error fetching challenges");
       return res.status(500).json({ message: "Failed to fetch challenges" });
     }
   });
@@ -397,7 +400,7 @@ export function registerSuperUserRoutes(app: Express) {
       
       return res.status(200).json(challenge);
     } catch (error: any) {
-      console.error("Error fetching challenge:", error);
+      log.error({ err: error }, "Error fetching challenge");
       return res.status(500).json({ message: "Failed to fetch challenge" });
     }
   });
@@ -444,7 +447,7 @@ export function registerSuperUserRoutes(app: Express) {
       
       return res.status(201).json(userChallenge);
     } catch (error: any) {
-      console.error("Error accepting challenge:", error);
+      log.error({ err: error }, "Error accepting challenge");
       return res.status(500).json({ message: "Failed to accept challenge" });
     }
   });
@@ -504,7 +507,7 @@ export function registerSuperUserRoutes(app: Express) {
       
       return res.status(200).json(updatedUserChallenge);
     } catch (error: any) {
-      console.error("Error updating challenge progress:", error);
+      log.error({ err: error }, "Error updating challenge progress");
       return res.status(500).json({ message: "Failed to update challenge progress" });
     }
   });

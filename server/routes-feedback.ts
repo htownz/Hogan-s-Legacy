@@ -7,6 +7,9 @@ import { CustomRequest } from "./types";
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { isUserAdminById } from "./middleware/auth-middleware";
+import { createLogger } from "./logger";
+const log = createLogger("routes-feedback");
+
 
 // Create an instance of the feedback storage
 const feedbackStorage = new FeedbackStorage();
@@ -56,7 +59,7 @@ export function registerFeedbackRoutes(app: Express): void {
         data: feedback
       });
     } catch (error: any) {
-      console.error("Error creating feedback:", error);
+      log.error({ err: error }, "Error creating feedback");
       
       // Handle validation errors
       if (error instanceof ZodError) {
@@ -98,7 +101,7 @@ export function registerFeedbackRoutes(app: Express): void {
         data: feedback
       });
     } catch (error: any) {
-      console.error("Error getting feedback:", error);
+      log.error({ err: error }, "Error getting feedback");
       res.status(500).json({
         success: false,
         error: "Failed to get feedback"
@@ -127,7 +130,7 @@ export function registerFeedbackRoutes(app: Express): void {
         data: stats
       });
     } catch (error: any) {
-      console.error("Error getting feedback stats:", error);
+      log.error({ err: error }, "Error getting feedback stats");
       res.status(500).json({
         success: false,
         error: "Failed to get feedback statistics"
@@ -174,7 +177,7 @@ export function registerFeedbackRoutes(app: Express): void {
         data: updatedFeedback
       });
     } catch (error: any) {
-      console.error("Error updating feedback status:", error);
+      log.error({ err: error }, "Error updating feedback status");
       res.status(500).json({
         success: false,
         error: "Failed to update feedback status"

@@ -161,6 +161,9 @@ import {
   insertTippingPointMetricSchema,
   insertUserNetworkImpactSchema
 } from "@shared/schema";
+import { createLogger } from "./logger";
+const log = createLogger("routes");
+
 
 const policyIntelBridge = createPolicyIntelBridgeClient({
   baseUrl: POLICY_INTEL_CONFIG.BASE_URL,
@@ -284,7 +287,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         role: userRole
       });
     } catch (error: any) {
-      console.error("Login error:", error);
+      log.error({ err: error }, "Login error");
       res.status(500).json({ message: "Error logging in" });
     }
   });
@@ -956,39 +959,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Start RSS feed service (using our scheduleRssFeedRefresh function)
   try {
     rssFeedService.scheduleRssFeedRefresh(30); // Refresh every 30 minutes
-    console.log("RSS feed scheduler initialized");
+    log.info("RSS feed scheduler initialized");
   } catch (error: any) {
-    console.error("Failed to initialize RSS feed scheduler:", error);
+    log.error({ err: error }, "Failed to initialize RSS feed scheduler");
   }
   
   // Direct data pull for current Texas state legislators from OpenStates API
   app.get('/api/legislators', async (req, res) => {
     try {
-      console.log('🏛️ EXECUTING DIRECT DATA PULL: Current Texas State Legislators from OpenStates API...');
+      log.info('🏛️ EXECUTING DIRECT DATA PULL: Current Texas State Legislators from OpenStates API...');
       
       // Import OpenStates API service
       const { openStatesAPI } = await import('./services/openstates-api');
       
       if (!openStatesAPI.isConfigured()) {
-        console.log('❌ OpenStates API key not configured');
+        log.info('❌ OpenStates API key not configured');
         return res.status(400).json({
           success: false,
           error: 'OpenStates API key not configured'
         });
       }
 
-      console.log('🔄 Calling OpenStates API for authentic Texas legislative data...');
+      log.info('🔄 Calling OpenStates API for authentic Texas legislative data...');
       const legislators = await openStatesAPI.getTexasLegislators();
       
-      console.log(`✅ DIRECT PULL SUCCESSFUL: ${legislators.length} current Texas legislators retrieved`);
-      console.log(`📋 Sample legislator: ${legislators[0]?.name} (${legislators[0]?.party}, District ${legislators[0]?.district})`);
-      console.log(`🏛️ Chambers represented: House, Senate, Governor`);
+      log.info(`✅ DIRECT PULL SUCCESSFUL: ${legislators.length} current Texas legislators retrieved`);
+      log.info(`📋 Sample legislator: ${legislators[0]?.name} (${legislators[0]?.party}, District ${legislators[0]?.district})`);
+      log.info(`🏛️ Chambers represented: House, Senate, Governor`);
       
       // Return the authentic Texas legislative data directly
       res.json(legislators);
       
     } catch (error: any) {
-      console.error('❌ ERROR in direct Texas legislator data pull:', error.message);
+      log.error({ err: error.message }, '❌ ERROR in direct Texas legislator data pull');
       res.status(500).json({
         success: false,
         error: 'Failed to retrieve current Texas legislators from OpenStates',
@@ -1000,23 +1003,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Texas-authentic legislators endpoint (alias for the main legislators endpoint)
   app.get('/api/legislators/texas-authentic', async (req, res) => {
     try {
-      console.log('🏛️ Fetching authentic Texas legislators data...');
+      log.info('🏛️ Fetching authentic Texas legislators data...');
       
       // Import OpenStates API service
       const { openStatesAPI } = await import('./services/openstates-api');
       
       if (!openStatesAPI.isConfigured()) {
-        console.log('❌ OpenStates API key not configured');
+        log.info('❌ OpenStates API key not configured');
         return res.status(400).json({
           success: false,
           error: 'OpenStates API key not configured'
         });
       }
 
-      console.log('🔄 Calling OpenStates API for authentic Texas legislative data...');
+      log.info('🔄 Calling OpenStates API for authentic Texas legislative data...');
       const legislators = await openStatesAPI.getTexasLegislators();
       
-      console.log(`✅ Serving ${legislators.length} authentic Texas legislators`);
+      log.info(`✅ Serving ${legislators.length} authentic Texas legislators`);
       
       // Return the authentic Texas legislative data
       res.json({
@@ -1028,7 +1031,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
     } catch (error: any) {
-      console.error('❌ Error fetching authentic Texas legislators:', error.message);
+      log.error({ err: error.message }, '❌ Error fetching authentic Texas legislators');
       res.status(500).json({
         success: false,
         error: 'Failed to retrieve authentic Texas legislators',
@@ -1059,7 +1062,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       });
     } catch (error: any) {
-      console.error("Error fetching all bills:", error);
+      log.error({ err: error }, "Error fetching all bills");
       res.status(500).json({ message: "Failed to fetch bills" });
     }
   });
@@ -1067,7 +1070,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get authentic Texas bills for Bill Complexity Translator
   app.get('/api/bills/texas-authentic', async (req, res) => {
     try {
-      console.log('🏛️ Fetching authentic Texas bills for complexity translator...');
+      log.info('🏛️ Fetching authentic Texas bills for complexity translator...');
       
       const bills = await storage.getAllBills();
       
@@ -1086,12 +1089,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         readingLevel: ['High School', 'College', 'Graduate'][Math.floor(Math.random() * 3)]
       }));
       
-      console.log(`✅ Serving ${formattedBills.length} authentic Texas bills for complexity analysis`);
+      log.info(`✅ Serving ${formattedBills.length} authentic Texas bills for complexity analysis`);
       
       res.json(formattedBills);
       
     } catch (error: any) {
-      console.error('Error fetching authentic Texas bills:', error);
+      log.error({ err: error }, 'Error fetching authentic Texas bills');
       res.status(500).json({
         error: 'Failed to fetch authentic Texas bills',
         details: error.message
@@ -1108,7 +1111,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.status(200).json(bill);
     } catch (error: any) {
-      console.error(`Error fetching bill ${req.params.id}:`, error);
+      log.error({ err: error }, `Error fetching bill ${req.params.id}`);
       res.status(500).json({ message: "Failed to fetch bill details" });
     }
   });
@@ -1189,7 +1192,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         total: results.length
       });
     } catch (error: any) {
-      console.error("Search error:", error);
+      log.error({ err: error }, "Search error");
       res.status(500).json({ error: "Search failed" });
     }
   });
@@ -1226,7 +1229,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         suggestions: suggestions.slice(0, 5)
       });
     } catch (error: any) {
-      console.error("Suggestions error:", error);
+      log.error({ err: error }, "Suggestions error");
       res.json({ suggestions: [] });
     }
   });
@@ -1247,7 +1250,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ trending });
     } catch (error: any) {
-      console.error("Trending error:", error);
+      log.error({ err: error }, "Trending error");
       res.json({ trending: [] });
     }
   });
@@ -1417,29 +1420,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerOpenAIStatusRoutes(app);
   
   // Register expanded data collection routes
-  console.log("🚀 Setting up expanded data collection routes...");
+  log.info("🚀 Setting up expanded data collection routes...");
   const expandedDataRoutes = (await import("./routes-expanded-data")).default;
   app.use("/api/expanded-data", expandedDataRoutes);
-  console.log("🚀 Expanded data collection routes registered successfully!");
+  log.info("🚀 Expanded data collection routes registered successfully!");
 
   // Register enhanced user authentication routes
-  console.log("👤 Setting up enhanced user authentication & customization routes...");
+  log.info("👤 Setting up enhanced user authentication & customization routes...");
   const userAuthRoutes = (await import("./routes-user-auth")).default;
   app.use("/api/auth", userAuthRoutes);
   app.use("/api/user", userAuthRoutes);
-  console.log("👤 Enhanced user authentication routes registered successfully!");
+  log.info("👤 Enhanced user authentication routes registered successfully!");
 
   // Register social authentication routes
-  console.log("🔐 Setting up streamlined social authentication routes...");
+  log.info("🔐 Setting up streamlined social authentication routes...");
   const socialAuthRoutes = (await import("./routes-social-auth")).default;
   app.use("/api/social-auth", socialAuthRoutes);
-  console.log("🔐 Social authentication routes registered successfully!");
+  log.info("🔐 Social authentication routes registered successfully!");
 
   // Register policy impact simulator routes
-  console.log("🧮 Setting up One-Click Policy Impact Simulator routes...");
+  log.info("🧮 Setting up One-Click Policy Impact Simulator routes...");
   const policyImpactRoutes = (await import("./routes-policy-impact")).default;
   app.use("/api/policy-impact", policyImpactRoutes);
-  console.log("🧮 Policy Impact Simulator routes registered successfully!");
+  log.info("🧮 Policy Impact Simulator routes registered successfully!");
 
   // Register multimodal AI assistant routes
   registerMultimodalAssistantRoutes(app);
@@ -1448,17 +1451,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Enhanced AI routes temporarily disabled for platform stability
   // app.use(enhancedAIRoutes);
   // app.use(enhancedAISuiteRoutes);
-  console.log("🤖 Enhanced AI routes registered with Anthropic and Pinecone!");
+  log.info("🤖 Enhanced AI routes registered with Anthropic and Pinecone!");
 
   // Register community bill suggestions routes
   // Note: routes-community-suggestions temporarily disabled due to schema conflicts
   // app.use("/api/community", communitySuggestionsRoutes);
-  console.log("🏛️ Community bill suggestions routes temporarily disabled");
+  log.info("🏛️ Community bill suggestions routes temporarily disabled");
 
   // Register advanced analysis routes with enhanced AI capabilities
   // Note: routes-advanced-analysis temporarily disabled to resolve require conflicts
   // app.use("/api/advanced-analysis", advancedAnalysisRoutes);
-  console.log("🧠 Advanced AI analysis routes temporarily disabled");
+  log.info("🧠 Advanced AI analysis routes temporarily disabled");
   
   // Register batch processing routes for parallel operations
   registerBatchProcessingRoutes(app);
@@ -1480,15 +1483,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Register emoji sentiment analysis routes
   app.use('/api', emojiSentimentRoutes);
-  console.log("😊 Emoji sentiment analysis routes registered successfully!");
+  log.info("😊 Emoji sentiment analysis routes registered successfully!");
   
   // Temporarily disable RSS feed scheduler while fixing server issues
-  console.log("RSS feed scheduler temporarily disabled");
+  log.info("RSS feed scheduler temporarily disabled");
   // try {
   //   rssFeedService.scheduleRssFeedRefresh(30);
-  //   console.log("RSS feed scheduler initialized successfully");
+  //   log.info("RSS feed scheduler initialized successfully");
   // } catch (error: any) {
-  //   console.error("Failed to initialize RSS feed scheduler:", error);
+  //   log.error({ err: error }, "Failed to initialize RSS feed scheduler");
   // }
   
   // Register debug routes
@@ -1578,9 +1581,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // setupEnhancedAIRoutesModule(app);
   
   // Register enhanced analytics routes  
-  console.log("📈 Setting up enhanced analytics with authentic data...");
+  log.info("📈 Setting up enhanced analytics with authentic data...");
   app.use("/api", enhancedAnalyticsRoutes);
-  console.log("📈 Enhanced analytics routes registered successfully!");
+  log.info("📈 Enhanced analytics routes registered successfully!");
   registerCharacterProfileRoutes(app);
   registerNameProcessorRoutes(app);
   registerModeratorRoutes(app);
@@ -1607,14 +1610,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Create a WebSocket server for annotations
       const wss = new WebSocketServer({ server: httpServer, path: '/ws/annotations' });
-      console.log("WebSocket server created for collaborative annotations");
+      log.info("WebSocket server created for collaborative annotations");
       
       // Keep track of connected clients and their states
       const connectedClients = new Map();
       
       // Handle WebSocket connections
       wss.on('connection', async (ws: WebSocket, req) => {
-        console.log('New WebSocket connection established for collaborative annotations');
+        log.info('New WebSocket connection established for collaborative annotations');
 
         const authenticatedUser = await getAuthenticatedUserFromRequest(req);
         if (!authenticatedUser) {
@@ -1640,7 +1643,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ws.on('message', (message: string | Buffer | ArrayBuffer | Buffer[]) => {
           try {
             const data = JSON.parse(message.toString());
-            console.log('Received annotation message:', data.type);
+            log.info({ detail: data.type }, 'Received annotation message');
             
             // Handle different message types
             switch (data.type) {
@@ -1702,16 +1705,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 break;
                 
               default:
-                console.log('Unknown message type:', data.type);
+                log.info({ detail: data.type }, 'Unknown message type');
             }
           } catch (error: any) {
-            console.error('Error processing annotation WebSocket message:', error);
+            log.error({ err: error }, 'Error processing annotation WebSocket message');
           }
         });
         
         // Handle disconnections
         ws.on('close', () => {
-          console.log('WebSocket connection closed for collaborative annotations');
+          log.info('WebSocket connection closed for collaborative annotations');
           
           // If client was in a document, notify others
           if (documentId && userId) {
@@ -1731,7 +1734,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Handle errors
         ws.on('error', (error: Error) => {
-          console.error('WebSocket error in collaborative annotations:', error);
+          log.error({ err: error }, 'WebSocket error in collaborative annotations');
         });
       });
       
@@ -1752,12 +1755,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       return wss;
     } catch (error: any) {
-      console.error("Failed to initialize collaborative annotations WebSocket:", error);
+      log.error({ err: error }, "Failed to initialize collaborative annotations WebSocket");
     }
   }
   
   // Other WebSocket connections temporarily disabled to fix blank page issue
-  console.log("Other WebSocket connections temporarily disabled");
+  log.info("Other WebSocket connections temporarily disabled");
   
   // Create WebSocket server for legislative updates on a distinct path to avoid conflicts
   // const legislativeWss = new WebSocketServer({ server: httpServer, path: '/ws/legislative-updates' });
@@ -1775,7 +1778,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Temporarily disabled
   // const legislativeWss = new WebSocketServer({ server: httpServer, path: '/ws/legislative-updates' });
   // legislativeWss.on('connection', (ws: WebSocket) => {
-  //   console.log('New WebSocket connection established for legislative updates');
+  //   log.info('New WebSocket connection established for legislative updates');
   //   
   //   // Send a welcome message
   //   ws.send(JSON.stringify({ 
@@ -1787,29 +1790,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //   ws.on('message', (message: string | Buffer | ArrayBuffer | Buffer[]) => {
   //     try {
   //       const data = JSON.parse(message.toString());
-  //       console.log('Received message:', data);
+  //       log.info({ detail: data }, 'Received message');
   //       
   //       // Handle different message types
   //       if (data.type === 'track_bill') {
   //         // Process bill tracking request
   //         const { billId } = data.payload;
-  //         console.log(`Client tracking bill: ${billId}`);
+  //         log.info(`Client tracking bill: ${billId}`);
   //         
   //         // Here you would typically store this tracking info and later send updates
   //       }
   //     } catch (error: any) {
-  //       console.error('Error processing WebSocket message:', error);
+  //       log.error({ err: error }, 'Error processing WebSocket message');
   //     }
   //   });
   //   
   //   // Handle disconnections
   //   ws.on('close', () => {
-  //     console.log('WebSocket connection closed for legislative updates');
+  //     log.info('WebSocket connection closed for legislative updates');
   //   });
   //   
   //   // Handle errors
   //   ws.on('error', (error: Error) => {
-  //     console.error('WebSocket error in legislative updates:', error);
+  //     log.error({ err: error }, 'WebSocket error in legislative updates');
   //   });
   // });
   
@@ -1818,33 +1821,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // registerVoiceSearchRoutes(app, httpServer);
   
   // Schedule RSS feed updates (temporarily disabled)
-  console.log("RSS feed scheduler temporarily disabled");
+  log.info("RSS feed scheduler temporarily disabled");
   // nodeCron.schedule("*/30 * * * *", async () => {
   //   try {
-  //     console.log("Running scheduled RSS feed update");
+  //     log.info("Running scheduled RSS feed update");
   //     await refreshRssFeeds();
   //   } catch (error: any) {
-  //     console.error("Error in scheduled RSS feed update:", error);
+  //     log.error({ err: error }, "Error in scheduled RSS feed update");
   //   }
   // });
   
   // Initial fetch also disabled
-  console.log("Initial RSS feed fetch skipped");
+  log.info("Initial RSS feed fetch skipped");
   // refreshRssFeeds().catch(error => {
-  //   console.error("Error in initial RSS feed fetch:", error);
+  //   log.error({ err: error }, "Error in initial RSS feed fetch");
   // });
   
   // Register LegiScan import routes
   app.use(legiScanRoutes);
-  console.log("📋 LegiScan data import routes registered successfully!");
+  log.info("📋 LegiScan data import routes registered successfully!");
   
   // Register Data Upload routes
   registerDataUploadRoutes(app);
-  console.log("📤 Texas legislative data upload routes registered successfully!");
+  log.info("📤 Texas legislative data upload routes registered successfully!");
   
   // Register Collaborative Amendments routes
   app.use(collaborativeAmendmentsRoutes);
-  console.log("🤝 Collaborative Amendment Playground routes registered successfully!");
+  log.info("🤝 Collaborative Amendment Playground routes registered successfully!");
 
   // Data Import endpoint for authentic Texas legislative data from local collector
   app.post('/api/data-import/legislators', async (req: Request, res: Response) => {
@@ -1855,7 +1858,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Invalid legislators data' });
       }
 
-      console.log(`📥 Received ${legislators.length} authentic legislators from ${source || 'local-collector'}`);
+      log.info(`📥 Received ${legislators.length} authentic legislators from ${source || 'local-collector'}`);
       
       let imported = 0;
       let skipped = 0;
@@ -1864,12 +1867,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           if (legislator.name && legislator.name.trim() && legislator.name !== 'Unknown') {
             imported++;
-            console.log(`✅ Processed: ${legislator.name} (${legislator.chamber} ${legislator.district})`);
+            log.info(`✅ Processed: ${legislator.name} (${legislator.chamber} ${legislator.district})`);
           } else {
             skipped++;
           }
         } catch (error: any) {
-          console.error(`Error processing legislator ${legislator.name}:`, error);
+          log.error({ err: error }, `Error processing legislator ${legislator.name}`);
           skipped++;
         }
       }
@@ -1885,11 +1888,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         collectedAt
       };
 
-      console.log('📊 Authentic Data Import Summary:', summary);
+      log.info({ detail: summary }, '📊 Authentic Data Import Summary');
       res.json(summary);
 
     } catch (error: any) {
-      console.error('💥 Data import error:', error);
+      log.error({ err: error }, '💥 Data import error');
       res.status(500).json({ 
         error: 'Failed to import authentic data',
         message: error.message 

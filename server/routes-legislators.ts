@@ -11,6 +11,9 @@ import {
   getLegislatorEthics,
   getLegislatorAiSummary
 } from "./routes-legislator-advanced";
+import { createLogger } from "./logger";
+const log = createLogger("routes-legislators");
+
 
 /**
  * Register legislator API routes
@@ -21,30 +24,30 @@ export function registerLegislatorRoutes(app: Express): void {
    */
   app.get('/api/legislators', async (req: Request, res: Response) => {
     try {
-      console.log('🏛️ EXECUTING DIRECT DATA PULL: Current Texas State Legislators from OpenStates API...');
+      log.info('🏛️ EXECUTING DIRECT DATA PULL: Current Texas State Legislators from OpenStates API...');
       
       // Import OpenStates API service
       const { openStatesAPI } = await import('./services/openstates-api');
       
       if (!openStatesAPI.isConfigured()) {
-        console.log('❌ OpenStates API key not configured');
+        log.info('❌ OpenStates API key not configured');
         return res.status(400).json({
           success: false,
           error: 'OpenStates API key not configured'
         });
       }
 
-      console.log('🔄 Calling OpenStates API for authentic Texas legislative data...');
+      log.info('🔄 Calling OpenStates API for authentic Texas legislative data...');
       const legislators = await openStatesAPI.getTexasLegislators();
       
-      console.log(`✅ DIRECT PULL SUCCESSFUL: ${legislators.length} current Texas legislators retrieved`);
-      console.log(`📋 Sample legislator: ${legislators[0]?.name} (${legislators[0]?.party}, District ${legislators[0]?.district})`);
+      log.info(`✅ DIRECT PULL SUCCESSFUL: ${legislators.length} current Texas legislators retrieved`);
+      log.info(`📋 Sample legislator: ${legislators[0]?.name} (${legislators[0]?.party}, District ${legislators[0]?.district})`);
       
       // Return the authentic Texas legislative data
       res.json(legislators);
       
     } catch (error: any) {
-      console.error('❌ ERROR in direct Texas legislator data pull:', error.message);
+      log.error({ err: error.message }, '❌ ERROR in direct Texas legislator data pull');
       res.status(500).json({
         success: false,
         error: 'Failed to retrieve current Texas legislators from OpenStates',
@@ -66,7 +69,7 @@ export function registerLegislatorRoutes(app: Express): void {
       const legislators = await legislatorService.getLegislatorsByChamber(chamber);
       res.json(legislators);
     } catch (error: any) {
-      console.error("Error fetching legislators by chamber:", error);
+      log.error({ err: error }, "Error fetching legislators by chamber");
       res.status(500).json({ error: "Failed to fetch legislators by chamber" });
     }
   });
@@ -84,7 +87,7 @@ export function registerLegislatorRoutes(app: Express): void {
       const legislators = await legislatorService.getLegislatorsByParty(party);
       res.json(legislators);
     } catch (error: any) {
-      console.error("Error fetching legislators by party:", error);
+      log.error({ err: error }, "Error fetching legislators by party");
       res.status(500).json({ error: "Failed to fetch legislators by party" });
     }
   });
@@ -106,7 +109,7 @@ export function registerLegislatorRoutes(app: Express): void {
 
       res.json(legislator);
     } catch (error: any) {
-      console.error("Error fetching legislator:", error);
+      log.error({ err: error }, "Error fetching legislator");
       res.status(500).json({ error: "Failed to fetch legislator" });
     }
   });
@@ -124,7 +127,7 @@ export function registerLegislatorRoutes(app: Express): void {
       const votes = await legislatorService.getLegislatorVotes(id);
       res.json(votes);
     } catch (error: any) {
-      console.error("Error fetching legislator votes:", error);
+      log.error({ err: error }, "Error fetching legislator votes");
       res.status(500).json({ error: "Failed to fetch legislator votes" });
     }
   });
@@ -142,7 +145,7 @@ export function registerLegislatorRoutes(app: Express): void {
       const accessories = await legislatorService.getLegislatorAccessories(id);
       res.json(accessories);
     } catch (error: any) {
-      console.error("Error fetching legislator accessories:", error);
+      log.error({ err: error }, "Error fetching legislator accessories");
       res.status(500).json({ error: "Failed to fetch legislator accessories" });
     }
   });
@@ -160,7 +163,7 @@ export function registerLegislatorRoutes(app: Express): void {
       const ratings = await legislatorService.getLegislatorRatings(id);
       res.json(ratings);
     } catch (error: any) {
-      console.error("Error fetching legislator ratings:", error);
+      log.error({ err: error }, "Error fetching legislator ratings");
       res.status(500).json({ error: "Failed to fetch legislator ratings" });
     }
   });
@@ -178,7 +181,7 @@ export function registerLegislatorRoutes(app: Express): void {
       const bills = await legislatorService.getBillsFromLegislator(id);
       res.json(bills);
     } catch (error: any) {
-      console.error("Error fetching legislator's bills:", error);
+      log.error({ err: error }, "Error fetching legislator's bills");
       res.status(500).json({ error: "Failed to fetch legislator's bills" });
     }
   });

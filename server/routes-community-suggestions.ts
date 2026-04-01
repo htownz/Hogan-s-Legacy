@@ -4,6 +4,9 @@ import { z } from "zod";
 import { db } from "./db";
 import { billSuggestions, billSuggestionComments, billSuggestionUpvotes } from "@shared/schema";
 import { eq, and, desc, asc, sql, count } from "drizzle-orm";
+import { createLogger } from "./logger";
+const log = createLogger("routes-community-suggestions");
+
 
 const router = Router();
 
@@ -109,7 +112,7 @@ router.get("/bill-suggestions", async (req, res) => {
       query: search
     });
   } catch (error: any) {
-    console.error("Error fetching bill suggestions:", error);
+    log.error({ err: error }, "Error fetching bill suggestions");
     res.status(500).json({ error: "Failed to fetch suggestions" });
   }
 });
@@ -141,7 +144,7 @@ router.post("/bill-suggestions", async (req, res) => {
       suggestion: newSuggestion[0]
     });
   } catch (error: any) {
-    console.error("Error creating bill suggestion:", error);
+    log.error({ err: error }, "Error creating bill suggestion");
     if (error instanceof z.ZodError) {
       res.status(400).json({ error: "Invalid input data", details: error.errors });
     } else {
@@ -227,7 +230,7 @@ router.post("/suggestions/:id/vote", async (req, res) => {
 
     res.json({ success: true });
   } catch (error: any) {
-    console.error("Error voting on suggestion:", error);
+    log.error({ err: error }, "Error voting on suggestion");
     res.status(500).json({ error: "Failed to vote" });
   }
 });
@@ -245,7 +248,7 @@ router.get("/suggestions/:id/comments", async (req, res) => {
 
     res.json(comments);
   } catch (error: any) {
-    console.error("Error fetching comments:", error);
+    log.error({ err: error }, "Error fetching comments");
     res.status(500).json({ error: "Failed to fetch comments" });
   }
 });
@@ -283,7 +286,7 @@ router.post("/suggestions/:id/comments", async (req, res) => {
       comment: newComment[0]
     });
   } catch (error: any) {
-    console.error("Error adding comment:", error);
+    log.error({ err: error }, "Error adding comment");
     if (error instanceof z.ZodError) {
       res.status(400).json({ error: "Invalid input data", details: error.errors });
     } else {
@@ -307,7 +310,7 @@ router.get("/trending-tags", async (req, res) => {
 
     res.json(trendingTags);
   } catch (error: any) {
-    console.error("Error fetching trending tags:", error);
+    log.error({ err: error }, "Error fetching trending tags");
     res.status(500).json({ error: "Failed to fetch trending tags" });
   }
 });
@@ -326,7 +329,7 @@ router.get("/top-contributors", async (req, res) => {
 
     res.json(topContributors);
   } catch (error: any) {
-    console.error("Error fetching top contributors:", error);
+    log.error({ err: error }, "Error fetching top contributors");
     res.status(500).json({ error: "Failed to fetch top contributors" });
   }
 });

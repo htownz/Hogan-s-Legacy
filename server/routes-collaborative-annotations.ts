@@ -3,6 +3,9 @@ import { z } from "zod";
 import { pool } from "./db";
 import { isAuthenticated } from "./auth";
 import { CustomRequest } from "./types";
+import { createLogger } from "./logger";
+const log = createLogger("routes-collaborative-annotations");
+
 
 const createDocumentSchema = z.object({
   title: z.string().min(1).max(255),
@@ -110,7 +113,7 @@ export function registerCollaborativeAnnotationsRoutes(app: Express) {
         data: result.rows,
       });
     } catch (error: any) {
-      console.error("Error getting documents:", error);
+      log.error({ err: error }, "Error getting documents");
       return res.status(500).json({
         success: false,
         error: "Failed to get documents",
@@ -153,7 +156,7 @@ export function registerCollaborativeAnnotationsRoutes(app: Express) {
         data: result.rows[0],
       });
     } catch (error: any) {
-      console.error("Error getting document:", error);
+      log.error({ err: error }, "Error getting document");
       return res.status(500).json({
         success: false,
         error: "Failed to get document",
@@ -193,7 +196,7 @@ export function registerCollaborativeAnnotationsRoutes(app: Express) {
         data: result.rows[0],
       });
     } catch (error: any) {
-      console.error("Error creating document:", error);
+      log.error({ err: error }, "Error creating document");
 
       if (error instanceof z.ZodError) {
         return res.status(400).json({
@@ -246,7 +249,7 @@ export function registerCollaborativeAnnotationsRoutes(app: Express) {
           data: result.rows,
         });
       } catch (error: any) {
-        console.error("Error getting annotations:", error);
+        log.error({ err: error }, "Error getting annotations");
         return res.status(500).json({
           success: false,
           error: "Failed to get annotations",
@@ -308,7 +311,7 @@ export function registerCollaborativeAnnotationsRoutes(app: Express) {
           data: result.rows[0],
         });
       } catch (error: any) {
-        console.error("Error creating annotation:", error);
+        log.error({ err: error }, "Error creating annotation");
 
         if (error instanceof z.ZodError) {
           return res.status(400).json({
@@ -403,7 +406,7 @@ export function registerCollaborativeAnnotationsRoutes(app: Express) {
         data: result.rows[0],
       });
     } catch (error: any) {
-      console.error("Error updating annotation:", error);
+      log.error({ err: error }, "Error updating annotation");
       return res.status(500).json({
         success: false,
         error: "Failed to update annotation",
@@ -450,7 +453,7 @@ export function registerCollaborativeAnnotationsRoutes(app: Express) {
         message: "Annotation deleted successfully",
       });
     } catch (error: any) {
-      console.error("Error deleting annotation:", error);
+      log.error({ err: error }, "Error deleting annotation");
       return res.status(500).json({
         success: false,
         error: "Failed to delete annotation",
@@ -526,7 +529,7 @@ export function registerCollaborativeAnnotationsRoutes(app: Express) {
           },
         });
       } catch (error: any) {
-        console.error("Error getting reactions:", error);
+        log.error({ err: error }, "Error getting reactions");
         return res.status(500).json({
           success: false,
           error: "Failed to get reactions",
@@ -601,7 +604,7 @@ export function registerCollaborativeAnnotationsRoutes(app: Express) {
           data: result.rows[0],
         });
       } catch (error: any) {
-        console.error("Error creating reaction:", error);
+        log.error({ err: error }, "Error creating reaction");
 
         if (error instanceof z.ZodError) {
           return res.status(400).json({
@@ -684,7 +687,7 @@ export function registerCollaborativeAnnotationsRoutes(app: Express) {
           message: "Reaction removed successfully",
         });
       } catch (error: any) {
-        console.error("Error removing reaction:", error);
+        log.error({ err: error }, "Error removing reaction");
         return res.status(500).json({
           success: false,
           error: "Failed to remove reaction",
@@ -745,7 +748,7 @@ export function registerCollaborativeAnnotationsRoutes(app: Express) {
           data: collaborators,
         });
       } catch (error: any) {
-        console.error("Error getting collaborators:", error);
+        log.error({ err: error }, "Error getting collaborators");
         return res.status(500).json({
           success: false,
           error: "Failed to get collaborators",
@@ -809,7 +812,7 @@ export function registerCollaborativeAnnotationsRoutes(app: Express) {
           data: result.rows[0],
         });
       } catch (error: any) {
-        console.error("Error adding collaborator:", error);
+        log.error({ err: error }, "Error adding collaborator");
 
         if (error instanceof z.ZodError) {
           return res.status(400).json({

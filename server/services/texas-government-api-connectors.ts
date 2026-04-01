@@ -1,6 +1,9 @@
 // @ts-nocheck
 import axios from "axios";
 import * as cheerio from "cheerio";
+import { createLogger } from "../logger";
+const log = createLogger("texas-government-api-connectors");
+
 
 /**
  * Authentic Texas Government API Connectors
@@ -12,7 +15,7 @@ export class TexasEthicsCommissionConnector {
   private apiBase = "https://www.ethics.state.tx.us/data/search";
 
   async collectCampaignFinanceReports(year: string = "2024") {
-    console.log(`📊 Collecting campaign finance data from Texas Ethics Commission for ${year}...`);
+    log.info(`📊 Collecting campaign finance data from Texas Ethics Commission for ${year}...`);
     
     try {
       // Real TEC API endpoints for campaign finance data
@@ -44,10 +47,10 @@ export class TexasEthicsCommissionConnector {
         lastUpdated: new Date().toISOString()
       }));
 
-      console.log(`✅ Collected ${reports.length} authentic campaign finance reports`);
+      log.info(`✅ Collected ${reports.length} authentic campaign finance reports`);
       return reports;
     } catch (error: any) {
-      console.log(`🔗 Direct API connection failed, using structured authentic data format...`);
+      log.info(`🔗 Direct API connection failed, using structured authentic data format...`);
       
       // Return structured authentic data format based on real TEC data structure
       return this.getAuthenticTECData(year);
@@ -55,7 +58,7 @@ export class TexasEthicsCommissionConnector {
   }
 
   async collectLobbyingExpenditures(year: string = "2024") {
-    console.log(`🏛️ Collecting lobbying data from Texas Ethics Commission for ${year}...`);
+    log.info(`🏛️ Collecting lobbying data from Texas Ethics Commission for ${year}...`);
     
     try {
       const response = await axios.get(`${this.apiBase}/lobby/LobbyList.php`, {
@@ -152,7 +155,7 @@ export class TexasComptrollerConnector {
   private apiBase = "https://comptroller.texas.gov/transparency";
 
   async collectStateContracts() {
-    console.log("🏢 Collecting state contract data from Texas Comptroller...");
+    log.info("🏢 Collecting state contract data from Texas Comptroller...");
     
     try {
       // Connect to Texas Comptroller transparency portal
@@ -187,7 +190,7 @@ export class TexasComptrollerConnector {
   }
 
   async collectVendorPayments(fiscalYear: string = "2024") {
-    console.log(`💳 Collecting vendor payment data from Texas Comptroller for FY${fiscalYear}...`);
+    log.info(`💳 Collecting vendor payment data from Texas Comptroller for FY${fiscalYear}...`);
     
     try {
       const response = await axios.get(`${this.apiBase}/payments/search`, {
@@ -278,7 +281,7 @@ export class TexasLegislatureConnector {
   private senateUrl = "https://senate.texas.gov";
 
   async collectCommitteeData() {
-    console.log("📋 Collecting committee data from Texas Legislature...");
+    log.info("📋 Collecting committee data from Texas Legislature...");
     
     try {
       // Collect House committees
@@ -314,7 +317,7 @@ export class TexasLegislatureConnector {
   }
 
   async collectCommitteeMeetings() {
-    console.log("📅 Collecting committee meeting schedules...");
+    log.info("📅 Collecting committee meeting schedules...");
     
     try {
       const response = await axios.get(`${this.capitol}/committees/meetings`, {
@@ -392,7 +395,7 @@ export class TexasRegisterConnector {
   private baseUrl = "https://www.sos.state.tx.us/texreg";
 
   async collectAgencyRulemaking() {
-    console.log("⚖️ Collecting rulemaking data from Texas Register...");
+    log.info("⚖️ Collecting rulemaking data from Texas Register...");
     
     try {
       const response = await axios.get(`${this.baseUrl}/archive/`, {

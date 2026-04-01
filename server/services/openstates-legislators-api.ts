@@ -1,6 +1,9 @@
 // @ts-nocheck
 import axios from 'axios';
 import { storage } from '../storage';
+import { createLogger } from "../logger";
+const log = createLogger("openstates-legislators-api");
+
 
 interface OpenStatesLegislator {
   id: string;
@@ -61,7 +64,7 @@ export class OpenStatesLegislatorsAPI {
     if (!this.apiKey) {
       throw new Error('OPENSTATES_API_KEY environment variable is required');
     }
-    console.log('🏛️ OpenStates Legislators API initialized');
+    log.info('🏛️ OpenStates Legislators API initialized');
   }
 
   /**
@@ -69,14 +72,14 @@ export class OpenStatesLegislatorsAPI {
    */
   async fetchAllTexasLegislators(): Promise<OpenStatesLegislator[]> {
     try {
-      console.log('🚀 Fetching all Texas legislators from OpenStates API...');
+      log.info('🚀 Fetching all Texas legislators from OpenStates API...');
       
       const allLegislators: OpenStatesLegislator[] = [];
       let page = 1;
       let hasMorePages = true;
       
       while (hasMorePages) {
-        console.log(`📖 Fetching page ${page} of Texas legislators...`);
+        log.info(`📖 Fetching page ${page} of Texas legislators...`);
         
         const response = await axios.get<OpenStatesLegislatorResponse>(
           `${this.baseUrl}/people`, 
@@ -98,7 +101,7 @@ export class OpenStatesLegislatorsAPI {
         const legislators = response.data.results;
         allLegislators.push(...legislators);
         
-        console.log(`✅ Fetched ${legislators.length} legislators from page ${page}`);
+        log.info(`✅ Fetched ${legislators.length} legislators from page ${page}`);
         
         // Check if there are more pages
         hasMorePages = page < response.data.pagination.max_page;
@@ -110,11 +113,11 @@ export class OpenStatesLegislatorsAPI {
         }
       }
       
-      console.log(`🎉 Successfully fetched ${allLegislators.length} total Texas legislators`);
+      log.info(`🎉 Successfully fetched ${allLegislators.length} total Texas legislators`);
       return allLegislators;
       
     } catch (error: any) {
-      console.error('❌ Error fetching Texas legislators from OpenStates:', error.message);
+      log.error({ err: error.message }, '❌ Error fetching Texas legislators from OpenStates');
       throw new Error(`Failed to fetch Texas legislators: ${error.message}`);
     }
   }
@@ -124,7 +127,7 @@ export class OpenStatesLegislatorsAPI {
    */
   async fetchLegislatorDetails(legislatorId: string): Promise<OpenStatesLegislator | null> {
     try {
-      console.log(`👤 Fetching detailed info for legislator ${legislatorId}...`);
+      log.info(`👤 Fetching detailed info for legislator ${legislatorId}...`);
       
       const response = await axios.get<OpenStatesLegislator>(
         `${this.baseUrl}/people/${legislatorId}`,
@@ -140,7 +143,7 @@ export class OpenStatesLegislatorsAPI {
       return response.data;
       
     } catch (error: any) {
-      console.error(`❌ Error fetching legislator ${legislatorId}:`, error.message);
+      log.error({ err: error.message }, `❌ Error fetching legislator ${legislatorId}`);
       return null;
     }
   }
@@ -235,7 +238,7 @@ export class OpenStatesLegislatorsAPI {
    */
   async storeLegislatorsInDatabase(legislators: OpenStatesLegislator[]): Promise<void> {
     try {
-      console.log(`💾 Storing ${legislators.length} Texas legislators in database...`);
+      log.info(`💾 Storing ${legislators.length} Texas legislators in database...`);
       
       let storedCount = 0;
       let errorCount = 0;
@@ -274,19 +277,19 @@ export class OpenStatesLegislatorsAPI {
           storedCount++;
           
           if (storedCount % 10 === 0) {
-            console.log(`📋 Stored ${storedCount}/${legislators.length} legislators...`);
+            log.info(`📋 Stored ${storedCount}/${legislators.length} legislators...`);
           }
           
         } catch (error: any) {
-          console.error(`❌ Error storing legislator ${legislator.name}:`, error.message);
+          log.error({ err: error.message }, `❌ Error storing legislator ${legislator.name}`);
           errorCount++;
         }
       }
       
-      console.log(`✅ Successfully stored ${storedCount} legislators (${errorCount} errors)`);
+      log.info(`✅ Successfully stored ${storedCount} legislators (${errorCount} errors)`);
       
     } catch (error: any) {
-      console.error('❌ Error storing legislators in database:', error.message);
+      log.error({ err: error.message }, '❌ Error storing legislators in database');
       throw error;
     }
   }
@@ -303,7 +306,7 @@ export class OpenStatesLegislatorsAPI {
     errors?: string[];
   }> {
     try {
-      console.log('🚀 Starting comprehensive Texas legislators data collection via OpenStates API...');
+      log.info('🚀 Starting comprehensive Texas legislators data collection via OpenStates API...');
       
       // Fetch all legislators
       const legislators = await this.fetchAllTexasLegislators();
@@ -336,13 +339,13 @@ export class OpenStatesLegislatorsAPI {
         }))
       };
       
-      console.log(`🎉 Texas legislators data collection completed!`);
-      console.log(`📊 Collected: ${result.legislatorsCollected} total (${result.houseMembers} House, ${result.senateMembers} Senate)`);
+      log.info(`🎉 Texas legislators data collection completed!`);
+      log.info(`📊 Collected: ${result.legislatorsCollected} total (${result.houseMembers} House, ${result.senateMembers} Senate)`);
       
       return result;
       
     } catch (error: any) {
-      console.error('❌ Texas legislators data collection failed:', error.message);
+      log.error({ err: error.message }, '❌ Texas legislators data collection failed');
       return {
         success: false,
         legislatorsCollected: 0,

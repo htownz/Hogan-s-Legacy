@@ -10,6 +10,9 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createHash } from 'crypto';
+import { createLogger } from "../logger";
+const log = createLogger("enhanced-cache");
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -108,14 +111,14 @@ class ApiCacheService {
               cache.set(key, data.data);
             }
           } catch (error: any) {
-            console.error(`Error loading cache file ${file}:`, error);
+            log.error({ err: error }, `Error loading cache file ${file}`);
           }
         });
         
-        console.log(`Loaded ${cache.size} items into ${service} cache from disk`);
+        log.info(`Loaded ${cache.size} items into ${service} cache from disk`);
       });
     } catch (error: any) {
-      console.error('Error loading caches from disk:', error);
+      log.error({ err: error }, 'Error loading caches from disk');
     }
   }
 
@@ -136,7 +139,7 @@ class ApiCacheService {
       const filePath = path.join(cacheDir, `${key}.json`);
       fs.writeFileSync(filePath, JSON.stringify(cacheData));
     } catch (error: any) {
-      console.error(`Error saving cache to disk for ${service}:${key}:`, error);
+      log.error({ err: error }, `Error saving cache to disk for ${service}:${key}`);
     }
   }
 
@@ -198,7 +201,7 @@ class ApiCacheService {
       
       return cache.delete(key);
     } catch (error: any) {
-      console.error(`Error deleting cache for ${service}:${key}:`, error);
+      log.error({ err: error }, `Error deleting cache for ${service}:${key}`);
       return false;
     }
   }
@@ -223,7 +226,7 @@ class ApiCacheService {
         }
       });
     } catch (error: any) {
-      console.error(`Error clearing cache directory for ${service}:`, error);
+      log.error({ err: error }, `Error clearing cache directory for ${service}`);
     }
   }
 }

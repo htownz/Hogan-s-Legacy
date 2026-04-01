@@ -8,6 +8,9 @@ import {
   TimelineEvent, 
   InsertTimelineEvent 
 } from '@shared/schema-timeline';
+import { createLogger } from "./logger";
+const log = createLogger("storage-timeline");
+
 
 /**
  * Interface for timeline storage operations
@@ -52,7 +55,7 @@ export class PostgresTimelineStorage implements TimelineStorage {
         
       return stage;
     } catch (error: any) {
-      console.error('Error creating timeline stage:', error);
+      log.error({ err: error }, 'Error creating timeline stage');
       throw new Error('Failed to create timeline stage');
     }
   }
@@ -69,7 +72,7 @@ export class PostgresTimelineStorage implements TimelineStorage {
         
       return stages;
     } catch (error: any) {
-      console.error('Error fetching timeline stages:', error);
+      log.error({ err: error }, 'Error fetching timeline stages');
       throw new Error('Failed to fetch timeline stages');
     }
   }
@@ -95,7 +98,7 @@ export class PostgresTimelineStorage implements TimelineStorage {
         
       return updatedStage || null;
     } catch (error: any) {
-      console.error('Error updating timeline stage:', error);
+      log.error({ err: error }, 'Error updating timeline stage');
       throw new Error('Failed to update timeline stage');
     }
   }
@@ -111,7 +114,7 @@ export class PostgresTimelineStorage implements TimelineStorage {
         
       return result.length > 0;
     } catch (error: any) {
-      console.error('Error deleting timeline stage:', error);
+      log.error({ err: error }, 'Error deleting timeline stage');
       throw new Error('Failed to delete timeline stage');
     }
   }
@@ -128,7 +131,7 @@ export class PostgresTimelineStorage implements TimelineStorage {
         
       return stage.length > 0 ? stage[0] : null;
     } catch (error: any) {
-      console.error('Error fetching timeline stage:', error);
+      log.error({ err: error }, 'Error fetching timeline stage');
       throw new Error('Failed to fetch timeline stage');
     }
   }
@@ -151,7 +154,7 @@ export class PostgresTimelineStorage implements TimelineStorage {
         
       return event;
     } catch (error: any) {
-      console.error('Error creating timeline event:', error);
+      log.error({ err: error }, 'Error creating timeline event');
       throw new Error('Failed to create timeline event');
     }
   }
@@ -195,7 +198,7 @@ export class PostgresTimelineStorage implements TimelineStorage {
       const events = await query.orderBy(desc(timelineEvents.eventDate));
       return events;
     } catch (error: any) {
-      console.error('Error fetching timeline events:', error);
+      log.error({ err: error }, 'Error fetching timeline events');
       throw new Error('Failed to fetch timeline events');
     }
   }
@@ -221,7 +224,7 @@ export class PostgresTimelineStorage implements TimelineStorage {
         
       return updatedEvent || null;
     } catch (error: any) {
-      console.error('Error updating timeline event:', error);
+      log.error({ err: error }, 'Error updating timeline event');
       throw new Error('Failed to update timeline event');
     }
   }
@@ -237,7 +240,7 @@ export class PostgresTimelineStorage implements TimelineStorage {
         
       return result.length > 0;
     } catch (error: any) {
-      console.error('Error deleting timeline event:', error);
+      log.error({ err: error }, 'Error deleting timeline event');
       throw new Error('Failed to delete timeline event');
     }
   }
@@ -254,7 +257,7 @@ export class PostgresTimelineStorage implements TimelineStorage {
         
       return event.length > 0 ? event[0] : null;
     } catch (error: any) {
-      console.error('Error fetching timeline event:', error);
+      log.error({ err: error }, 'Error fetching timeline event');
       throw new Error('Failed to fetch timeline event');
     }
   }
@@ -295,7 +298,7 @@ export class PostgresTimelineStorage implements TimelineStorage {
       
       return timelineItems;
     } catch (error: any) {
-      console.error('Error fetching complete bill timeline:', error);
+      log.error({ err: error }, 'Error fetching complete bill timeline');
       throw new Error('Failed to fetch complete bill timeline');
     }
   }

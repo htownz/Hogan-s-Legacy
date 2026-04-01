@@ -2,6 +2,9 @@
 import { Pinecone } from '@pinecone-database/pinecone';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
+import { createLogger } from "../logger";
+const log = createLogger("enhanced-vector-search");
+
 
 // the newest Anthropic model is "claude-3-7-sonnet-20250219" which was released February 24, 2025
 const anthropic = new Anthropic({
@@ -105,7 +108,7 @@ export class EnhancedVectorSearch {
       
       return enhancedResults;
     } catch (error: any) {
-      console.error('Advanced search failed:', error);
+      log.error({ err: error }, 'Advanced search failed');
       throw new Error('Failed to perform advanced vector search');
     }
   }
@@ -140,7 +143,7 @@ Provide query expansion in this JSON format:
       }
       throw new Error('Invalid query expansion response');
     } catch (error: any) {
-      console.error('Query expansion failed:', error);
+      log.error({ err: error }, 'Query expansion failed');
       // Fallback to original query
       return {
         originalQuery: query,
@@ -162,7 +165,7 @@ Provide query expansion in this JSON format:
       
       return response.data[0].embedding;
     } catch (error: any) {
-      console.error('Embedding generation failed:', error);
+      log.error({ err: error }, 'Embedding generation failed');
       throw new Error('Failed to generate embeddings - please ensure OpenAI API key is configured');
     }
   }
@@ -203,7 +206,7 @@ Provide query expansion in this JSON format:
         match.score && match.score >= (options?.threshold || 0.7)
       ) || [];
     } catch (error: any) {
-      console.error('Vector search execution failed:', error);
+      log.error({ err: error }, 'Vector search execution failed');
       throw new Error('Failed to execute vector search - please ensure Pinecone is properly configured');
     }
   }
@@ -235,7 +238,7 @@ Provide query expansion in this JSON format:
           relatedDocuments: relatedDocs
         });
       } catch (error: any) {
-        console.error(`Failed to enhance result ${result.id}:`, error);
+        log.error({ err: error }, `Failed to enhance result ${result.id}`);
         // Include basic result even if enhancement fails
         enhancedResults.push({
           id: result.id,
@@ -290,7 +293,7 @@ Provide explanation in this JSON format:
         return JSON.parse(content.text);
       }
     } catch (error: any) {
-      console.error('Match explanation failed:', error);
+      log.error({ err: error }, 'Match explanation failed');
     }
     
     // Fallback explanation
@@ -318,7 +321,7 @@ Provide explanation in this JSON format:
         score: match.score || 0
       })) || [];
     } catch (error: any) {
-      console.error('Related documents search failed:', error);
+      log.error({ err: error }, 'Related documents search failed');
       return [];
     }
   }
@@ -374,7 +377,7 @@ Provide reranked order in this JSON format:
         return rerankedResults;
       }
     } catch (error: any) {
-      console.error('Reranking failed:', error);
+      log.error({ err: error }, 'Reranking failed');
     }
     
     // Return original order if reranking fails
@@ -425,7 +428,7 @@ Provide clusters in this JSON format:
         }));
       }
     } catch (error: any) {
-      console.error('Semantic clustering failed:', error);
+      log.error({ err: error }, 'Semantic clustering failed');
     }
     
     return [];
@@ -458,13 +461,13 @@ Provide clusters in this JSON format:
           
           indexedCount++;
         } catch (error: any) {
-          console.error(`Failed to index document ${doc.id}:`, error);
+          log.error({ err: error }, `Failed to index document ${doc.id}`);
         }
       }
       
       return { success: true, indexed: indexedCount };
     } catch (error: any) {
-      console.error('Semantic indexing failed:', error);
+      log.error({ err: error }, 'Semantic indexing failed');
       throw new Error('Failed to build semantic index - please check API configurations');
     }
   }
@@ -487,7 +490,7 @@ Provide clusters in this JSON format:
       
       return keywordEnhanced;
     } catch (error: any) {
-      console.error('Hybrid search failed:', error);
+      log.error({ err: error }, 'Hybrid search failed');
       throw new Error('Failed to perform hybrid search');
     }
   }
@@ -534,7 +537,7 @@ Provide clusters in this JSON format:
         lastUpdated: new Date().toISOString()
       };
     } catch (error: any) {
-      console.error('Failed to get search analytics:', error);
+      log.error({ err: error }, 'Failed to get search analytics');
       return {
         totalVectors: 0,
         indexDimension: 0,

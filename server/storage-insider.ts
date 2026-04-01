@@ -17,6 +17,9 @@ import {
   InsiderUpdate
 } from '../shared/schema-insider';
 import { superUserStorage } from './storage-super-user';
+import { createLogger } from "./logger";
+const log = createLogger("storage-insider");
+
 
 /**
  * Insider updates storage implementation
@@ -135,7 +138,7 @@ export const insiderStorage = {
       
       return await query;
     } catch (error: any) {
-      console.error('Error getting insider updates:', error);
+      log.error({ err: error }, 'Error getting insider updates');
       throw error;
     }
   },
@@ -177,7 +180,7 @@ export const insiderStorage = {
       
       return update;
     } catch (error: any) {
-      console.error('Error getting insider update by ID:', error);
+      log.error({ err: error }, 'Error getting insider update by ID');
       throw error;
     }
   },
@@ -204,7 +207,7 @@ export const insiderStorage = {
         return newUpdate;
       });
     } catch (error: any) {
-      console.error('Error creating insider update:', error);
+      log.error({ err: error }, 'Error creating insider update');
       throw error;
     }
   },
@@ -244,7 +247,7 @@ export const insiderStorage = {
         return updatedUpdate;
       });
     } catch (error: any) {
-      console.error('Error updating insider update:', error);
+      log.error({ err: error }, 'Error updating insider update');
       throw error;
     }
   },
@@ -261,7 +264,7 @@ export const insiderStorage = {
       
       return true;
     } catch (error: any) {
-      console.error('Error deleting insider update:', error);
+      log.error({ err: error }, 'Error deleting insider update');
       throw error;
     }
   },
@@ -286,7 +289,7 @@ export const insiderStorage = {
       
       return result.length > 0 ? result[0] : null;
     } catch (error: any) {
-      console.error('Error verifying insider update:', error);
+      log.error({ err: error }, 'Error verifying insider update');
       throw error;
     }
   },
@@ -297,7 +300,7 @@ export const insiderStorage = {
       return await db.select().from(insiderVerifications).$dynamic()
         .where(eq(insiderVerifications.updateId, updateId));
     } catch (error: any) {
-      console.error('Error getting verifications for update:', error);
+      log.error({ err: error }, 'Error getting verifications for update');
       throw error;
     }
   },
@@ -368,7 +371,7 @@ export const insiderStorage = {
         return verificationResult;
       });
     } catch (error: any) {
-      console.error('Error creating verification:', error);
+      log.error({ err: error }, 'Error creating verification');
       throw error;
     }
   },
@@ -423,7 +426,7 @@ export const insiderStorage = {
       
       return true;
     } catch (error: any) {
-      console.error('Error deleting verification:', error);
+      log.error({ err: error }, 'Error deleting verification');
       throw error;
     }
   },
@@ -434,7 +437,7 @@ export const insiderStorage = {
       return await db.select().from(insiderReactions).$dynamic()
         .where(eq(insiderReactions.updateId, updateId));
     } catch (error: any) {
-      console.error('Error getting reactions for update:', error);
+      log.error({ err: error }, 'Error getting reactions for update');
       throw error;
     }
   },
@@ -460,7 +463,7 @@ export const insiderStorage = {
       const result = await db.insert(insiderReactions).values(data).returning();
       return result.length > 0 ? result[0] : null;
     } catch (error: any) {
-      console.error('Error creating reaction:', error);
+      log.error({ err: error }, 'Error creating reaction');
       throw error;
     }
   },
@@ -472,7 +475,7 @@ export const insiderStorage = {
       
       return true;
     } catch (error: any) {
-      console.error('Error deleting reaction:', error);
+      log.error({ err: error }, 'Error deleting reaction');
       throw error;
     }
   },
@@ -504,7 +507,7 @@ export const insiderStorage = {
       
       return await query;
     } catch (error: any) {
-      console.error('Error getting insider sources:', error);
+      log.error({ err: error }, 'Error getting insider sources');
       throw error;
     }
   },
@@ -522,7 +525,7 @@ export const insiderStorage = {
       
       return sources.length > 0 ? sources[0] : null;
     } catch (error: any) {
-      console.error('Error getting insider source by ID:', error);
+      log.error({ err: error }, 'Error getting insider source by ID');
       throw error;
     }
   },
@@ -532,7 +535,7 @@ export const insiderStorage = {
       const result = await db.insert(insiderSources).values(data).returning();
       return result.length > 0 ? result[0] : null;
     } catch (error: any) {
-      console.error('Error creating insider source:', error);
+      log.error({ err: error }, 'Error creating insider source');
       throw error;
     }
   },
@@ -549,7 +552,7 @@ export const insiderStorage = {
       
       return result.length > 0 ? result[0] : null;
     } catch (error: any) {
-      console.error('Error updating insider source:', error);
+      log.error({ err: error }, 'Error updating insider source');
       throw error;
     }
   },
@@ -566,7 +569,7 @@ export const insiderStorage = {
       
       return true;
     } catch (error: any) {
-      console.error('Error deleting insider source:', error);
+      log.error({ err: error }, 'Error deleting insider source');
       throw error;
     }
   },
@@ -584,7 +587,7 @@ export const insiderStorage = {
       
       return result.length > 0 ? result[0] : null;
     } catch (error: any) {
-      console.error('Error verifying insider source:', error);
+      log.error({ err: error }, 'Error verifying insider source');
       throw error;
     }
   },
@@ -619,7 +622,7 @@ export const insiderStorage = {
       
       return await query;
     } catch (error: any) {
-      console.error('Error getting insider verifiers:', error);
+      log.error({ err: error }, 'Error getting insider verifiers');
       throw error;
     }
   },
@@ -637,7 +640,7 @@ export const insiderStorage = {
       
       return verifiers.length > 0 ? verifiers[0] : null;
     } catch (error: any) {
-      console.error('Error getting insider verifier by user ID:', error);
+      log.error({ err: error }, 'Error getting insider verifier by user ID');
       throw error;
     }
   },
@@ -647,7 +650,7 @@ export const insiderStorage = {
       const verifier = await this.getVerifierByUserId(userId);
       return verifier !== null;
     } catch (error: any) {
-      console.error('Error checking if user is a verifier:', error);
+      log.error({ err: error }, 'Error checking if user is a verifier');
       throw error;
     }
   },
@@ -666,7 +669,7 @@ export const insiderStorage = {
       const result = await db.insert(insiderVerifiers).values(data).returning();
       return result.length > 0 ? result[0] : null;
     } catch (error: any) {
-      console.error('Error creating insider verifier:', error);
+      log.error({ err: error }, 'Error creating insider verifier');
       throw error;
     }
   },
@@ -683,7 +686,7 @@ export const insiderStorage = {
       
       return result.length > 0 ? result[0] : null;
     } catch (error: any) {
-      console.error('Error updating insider verifier:', error);
+      log.error({ err: error }, 'Error updating insider verifier');
       throw error;
     }
   },
@@ -700,7 +703,7 @@ export const insiderStorage = {
       
       return true;
     } catch (error: any) {
-      console.error('Error deleting insider verifier:', error);
+      log.error({ err: error }, 'Error deleting insider verifier');
       throw error;
     }
   },
@@ -713,7 +716,7 @@ export const insiderStorage = {
       
       return tags.map(t => t.tag);
     } catch (error: any) {
-      console.error('Error getting tags for update:', error);
+      log.error({ err: error }, 'Error getting tags for update');
       throw error;
     }
   },
@@ -732,7 +735,7 @@ export const insiderStorage = {
       
       return tagCounts;
     } catch (error: any) {
-      console.error('Error getting popular tags:', error);
+      log.error({ err: error }, 'Error getting popular tags');
       throw error;
     }
   },
@@ -812,7 +815,7 @@ export const insiderStorage = {
         topUsers: topUsersData
       };
     } catch (error: any) {
-      console.error('Error getting insider stats:', error);
+      log.error({ err: error }, 'Error getting insider stats');
       throw error;
     }
   },
@@ -866,7 +869,7 @@ export const insiderStorage = {
         }
       };
     } catch (error: any) {
-      console.error('Error getting bill insider stats:', error);
+      log.error({ err: error }, 'Error getting bill insider stats');
       throw error;
     }
   }

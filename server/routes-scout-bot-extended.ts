@@ -47,6 +47,9 @@ import {
   insertScoutBotLobbyistReportSchema,
   insertScoutBotPacLeadershipSchema
 } from "../shared/schema-scout-bot-extended";
+import { createLogger } from "./logger";
+const log = createLogger("routes-scout-bot-extended");
+
 
 /**
  * Register extended Scout Bot API routes
@@ -66,7 +69,7 @@ export function registerExtendedScoutBotRoutes(app: Express) {
       
       res.json(result);
     } catch (error: any) {
-      console.error("Error fetching extended scout bot profile:", error);
+      log.error({ err: error }, "Error fetching extended scout bot profile");
       res.status(500).json({ error: "Failed to fetch extended scout bot profile" });
     }
   });
@@ -87,7 +90,7 @@ export function registerExtendedScoutBotRoutes(app: Express) {
       const result = await checkCrawlTriggers(id);
       res.json(result);
     } catch (error: any) {
-      console.error("Error checking crawl triggers:", error);
+      log.error({ err: error }, "Error checking crawl triggers");
       res.status(500).json({ error: "Failed to check crawl triggers" });
     }
   });
@@ -119,7 +122,7 @@ export function registerExtendedScoutBotRoutes(app: Express) {
         res.status(500).json({ error: "Failed to update transparency metrics" });
       }
     } catch (error: any) {
-      console.error("Error updating transparency metrics:", error);
+      log.error({ err: error }, "Error updating transparency metrics");
       res.status(500).json({ error: "Failed to update transparency metrics" });
     }
   });
@@ -140,7 +143,7 @@ export function registerExtendedScoutBotRoutes(app: Express) {
       const reports = await getLobbyistReports(id);
       res.json(reports);
     } catch (error: any) {
-      console.error("Error fetching lobbyist reports:", error);
+      log.error({ err: error }, "Error fetching lobbyist reports");
       res.status(500).json({ error: "Failed to fetch lobbyist reports" });
     }
   });
@@ -162,7 +165,7 @@ export function registerExtendedScoutBotRoutes(app: Express) {
       const report = await addLobbyistReport(validatedData);
       res.status(201).json(report);
     } catch (error: any) {
-      console.error("Error adding lobbyist report:", error);
+      log.error({ err: error }, "Error adding lobbyist report");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -181,7 +184,7 @@ export function registerExtendedScoutBotRoutes(app: Express) {
         res.status(404).json({ error: "Lobbyist report not found" });
       }
     } catch (error: any) {
-      console.error("Error deleting lobbyist report:", error);
+      log.error({ err: error }, "Error deleting lobbyist report");
       res.status(500).json({ error: "Failed to delete lobbyist report" });
     }
   });
@@ -202,7 +205,7 @@ export function registerExtendedScoutBotRoutes(app: Express) {
       const finances = await getCampaignFinances(id);
       res.json(finances);
     } catch (error: any) {
-      console.error("Error fetching campaign finances:", error);
+      log.error({ err: error }, "Error fetching campaign finances");
       res.status(500).json({ error: "Failed to fetch campaign finances" });
     }
   });
@@ -224,7 +227,7 @@ export function registerExtendedScoutBotRoutes(app: Express) {
       const finance = await addCampaignFinance(validatedData);
       res.status(201).json(finance);
     } catch (error: any) {
-      console.error("Error adding campaign finance:", error);
+      log.error({ err: error }, "Error adding campaign finance");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -243,7 +246,7 @@ export function registerExtendedScoutBotRoutes(app: Express) {
         res.status(404).json({ error: "Campaign finance record not found" });
       }
     } catch (error: any) {
-      console.error("Error deleting campaign finance:", error);
+      log.error({ err: error }, "Error deleting campaign finance");
       res.status(500).json({ error: "Failed to delete campaign finance" });
     }
   });
@@ -264,7 +267,7 @@ export function registerExtendedScoutBotRoutes(app: Express) {
       const corrections = await getFilingCorrections(id);
       res.json(corrections);
     } catch (error: any) {
-      console.error("Error fetching filing corrections:", error);
+      log.error({ err: error }, "Error fetching filing corrections");
       res.status(500).json({ error: "Failed to fetch filing corrections" });
     }
   });
@@ -286,7 +289,7 @@ export function registerExtendedScoutBotRoutes(app: Express) {
       const correction = await addFilingCorrection(validatedData);
       res.status(201).json(correction);
     } catch (error: any) {
-      console.error("Error adding filing correction:", error);
+      log.error({ err: error }, "Error adding filing correction");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -305,7 +308,7 @@ export function registerExtendedScoutBotRoutes(app: Express) {
         res.status(404).json({ error: "Filing correction not found" });
       }
     } catch (error: any) {
-      console.error("Error deleting filing correction:", error);
+      log.error({ err: error }, "Error deleting filing correction");
       res.status(500).json({ error: "Failed to delete filing correction" });
     }
   });
@@ -326,7 +329,7 @@ export function registerExtendedScoutBotRoutes(app: Express) {
       const registrations = await getFirmRegistrations(id);
       res.json(registrations);
     } catch (error: any) {
-      console.error("Error fetching firm registrations:", error);
+      log.error({ err: error }, "Error fetching firm registrations");
       res.status(500).json({ error: "Failed to fetch firm registrations" });
     }
   });
@@ -348,7 +351,7 @@ export function registerExtendedScoutBotRoutes(app: Express) {
       const registration = await addFirmRegistration(validatedData);
       res.status(201).json(registration);
     } catch (error: any) {
-      console.error("Error adding firm registration:", error);
+      log.error({ err: error }, "Error adding firm registration");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -367,7 +370,7 @@ export function registerExtendedScoutBotRoutes(app: Express) {
         res.status(404).json({ error: "Firm registration not found" });
       }
     } catch (error: any) {
-      console.error("Error deleting firm registration:", error);
+      log.error({ err: error }, "Error deleting firm registration");
       res.status(500).json({ error: "Failed to delete firm registration" });
     }
   });
@@ -388,7 +391,7 @@ export function registerExtendedScoutBotRoutes(app: Express) {
       const appointments = await getFamilyAppointments(id);
       res.json(appointments);
     } catch (error: any) {
-      console.error("Error fetching family appointments:", error);
+      log.error({ err: error }, "Error fetching family appointments");
       res.status(500).json({ error: "Failed to fetch family appointments" });
     }
   });
@@ -410,7 +413,7 @@ export function registerExtendedScoutBotRoutes(app: Express) {
       const appointment = await addFamilyAppointment(validatedData);
       res.status(201).json(appointment);
     } catch (error: any) {
-      console.error("Error adding family appointment:", error);
+      log.error({ err: error }, "Error adding family appointment");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -429,7 +432,7 @@ export function registerExtendedScoutBotRoutes(app: Express) {
         res.status(404).json({ error: "Family appointment not found" });
       }
     } catch (error: any) {
-      console.error("Error deleting family appointment:", error);
+      log.error({ err: error }, "Error deleting family appointment");
       res.status(500).json({ error: "Failed to delete family appointment" });
     }
   });
@@ -450,7 +453,7 @@ export function registerExtendedScoutBotRoutes(app: Express) {
       const pacLeaderships = await getPacLeaderships(id);
       res.json(pacLeaderships);
     } catch (error: any) {
-      console.error("Error fetching PAC leadership records:", error);
+      log.error({ err: error }, "Error fetching PAC leadership records");
       res.status(500).json({ error: "Failed to fetch PAC leadership records" });
     }
   });
@@ -472,7 +475,7 @@ export function registerExtendedScoutBotRoutes(app: Express) {
       const pacLeadership = await addPacLeadership(validatedData);
       res.status(201).json(pacLeadership);
     } catch (error: any) {
-      console.error("Error adding PAC leadership record:", error);
+      log.error({ err: error }, "Error adding PAC leadership record");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -491,7 +494,7 @@ export function registerExtendedScoutBotRoutes(app: Express) {
         res.status(404).json({ error: "PAC leadership record not found" });
       }
     } catch (error: any) {
-      console.error("Error deleting PAC leadership record:", error);
+      log.error({ err: error }, "Error deleting PAC leadership record");
       res.status(500).json({ error: "Failed to delete PAC leadership record" });
     }
   });
@@ -512,7 +515,7 @@ export function registerExtendedScoutBotRoutes(app: Express) {
       const appearances = await getLegislativeAppearances(id);
       res.json(appearances);
     } catch (error: any) {
-      console.error("Error fetching legislative appearances:", error);
+      log.error({ err: error }, "Error fetching legislative appearances");
       res.status(500).json({ error: "Failed to fetch legislative appearances" });
     }
   });
@@ -534,7 +537,7 @@ export function registerExtendedScoutBotRoutes(app: Express) {
       const appearance = await addLegislativeAppearance(validatedData);
       res.status(201).json(appearance);
     } catch (error: any) {
-      console.error("Error adding legislative appearance:", error);
+      log.error({ err: error }, "Error adding legislative appearance");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -553,7 +556,7 @@ export function registerExtendedScoutBotRoutes(app: Express) {
         res.status(404).json({ error: "Legislative appearance not found" });
       }
     } catch (error: any) {
-      console.error("Error deleting legislative appearance:", error);
+      log.error({ err: error }, "Error deleting legislative appearance");
       res.status(500).json({ error: "Failed to delete legislative appearance" });
     }
   });
@@ -575,7 +578,7 @@ export function registerExtendedScoutBotRoutes(app: Express) {
       const relationships = await getEntityRelationships(id, includeTargeted);
       res.json(relationships);
     } catch (error: any) {
-      console.error("Error fetching entity relationships:", error);
+      log.error({ err: error }, "Error fetching entity relationships");
       res.status(500).json({ error: "Failed to fetch entity relationships" });
     }
   });
@@ -597,7 +600,7 @@ export function registerExtendedScoutBotRoutes(app: Express) {
       const relationship = await addEntityRelationship(validatedData);
       res.status(201).json(relationship);
     } catch (error: any) {
-      console.error("Error adding entity relationship:", error);
+      log.error({ err: error }, "Error adding entity relationship");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -616,7 +619,7 @@ export function registerExtendedScoutBotRoutes(app: Express) {
         res.status(404).json({ error: "Entity relationship not found" });
       }
     } catch (error: any) {
-      console.error("Error deleting entity relationship:", error);
+      log.error({ err: error }, "Error deleting entity relationship");
       res.status(500).json({ error: "Failed to delete entity relationship" });
     }
   });
@@ -637,7 +640,7 @@ export function registerExtendedScoutBotRoutes(app: Express) {
       const flags = await getFlags(id);
       res.json(flags);
     } catch (error: any) {
-      console.error("Error fetching flags:", error);
+      log.error({ err: error }, "Error fetching flags");
       res.status(500).json({ error: "Failed to fetch flags" });
     }
   });
@@ -659,7 +662,7 @@ export function registerExtendedScoutBotRoutes(app: Express) {
       const flag = await createFlag(validatedData);
       res.status(201).json(flag);
     } catch (error: any) {
-      console.error("Error adding flag:", error);
+      log.error({ err: error }, "Error adding flag");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -683,7 +686,7 @@ export function registerExtendedScoutBotRoutes(app: Express) {
         res.status(404).json({ error: "Flag not found" });
       }
     } catch (error: any) {
-      console.error("Error updating flag:", error);
+      log.error({ err: error }, "Error updating flag");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -702,7 +705,7 @@ export function registerExtendedScoutBotRoutes(app: Express) {
         res.status(404).json({ error: "Flag not found" });
       }
     } catch (error: any) {
-      console.error("Error deleting flag:", error);
+      log.error({ err: error }, "Error deleting flag");
       res.status(500).json({ error: "Failed to delete flag" });
     }
   });

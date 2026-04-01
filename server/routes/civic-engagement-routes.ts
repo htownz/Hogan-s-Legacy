@@ -12,6 +12,9 @@ import {
   userNetworkImpact,
   personalImpactAssessments
 } from "@shared/schema";
+import { createLogger } from "../logger";
+const log = createLogger("civic-engagement-routes");
+
 
 /**
  * Register routes for civic engagement metrics and visualizations
@@ -127,7 +130,7 @@ export function registerCivicEngagementRoutes(app: Express) {
         personalBillImpacts
       });
     } catch (error: any) {
-      console.error("Error fetching civic engagement metrics:", error);
+      log.error({ err: error }, "Error fetching civic engagement metrics");
       res.status(500).json({ error: "Failed to fetch civic engagement metrics" });
     }
   });
@@ -218,7 +221,7 @@ export function registerCivicEngagementRoutes(app: Express) {
         reach
       });
     } catch (error: any) {
-      console.error("Error fetching community impact data:", error);
+      log.error({ err: error }, "Error fetching community impact data");
       res.status(500).json({ error: "Failed to fetch community impact data" });
     }
   });
@@ -264,7 +267,7 @@ export function registerCivicEngagementRoutes(app: Express) {
         trend: "increasing"  // could be "increasing", "decreasing", or "stable"
       });
     } catch (error: any) {
-      console.error("Error fetching engagement history:", error);
+      log.error({ err: error }, "Error fetching engagement history");
       res.status(500).json({ error: "Failed to fetch engagement history" });
     }
   });

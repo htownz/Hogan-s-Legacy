@@ -15,6 +15,9 @@ import {
 import { Bill, bills } from "@shared/schema";
 import { generateBillRecommendations, UserProfile } from "./services/bill-recommendation-service";
 import { storage } from "./storage";
+import { createLogger } from "./logger";
+const log = createLogger("storage-interests");
+
 
 /**
  * Get user interests
@@ -25,7 +28,7 @@ export async function getUserInterests(userId: number): Promise<UserInterests[]>
   try {
     return await db.select().from(userInterests).$dynamic().where(eq(userInterests.userId, userId));
   } catch (error: any) {
-    console.error("Error getting user interests:", error);
+    log.error({ err: error }, "Error getting user interests");
     return [];
   }
 }
@@ -45,7 +48,7 @@ export async function createUserInterests(data: InsertUserInterests): Promise<Us
     
     return await db.insert(userInterests).values(dataToInsert).returning();
   } catch (error: any) {
-    console.error("Error creating user interests:", error);
+    log.error({ err: error }, "Error creating user interests");
     return [];
   }
 }
@@ -73,7 +76,7 @@ export async function updateUserInterests(userId: number, data: Partial<InsertUs
       .where(eq(userInterests.userId, userId))
       .returning();
   } catch (error: any) {
-    console.error("Error updating user interests:", error);
+    log.error({ err: error }, "Error updating user interests");
     return [];
   }
 }
@@ -91,7 +94,7 @@ export async function deleteUserInterests(userId: number): Promise<boolean> {
     
     return true;
   } catch (error: any) {
-    console.error("Error deleting user interests:", error);
+    log.error({ err: error }, "Error deleting user interests");
     return false;
   }
 }
@@ -149,7 +152,7 @@ export async function getUserBillRecommendations(
     
     return await query;
   } catch (error: any) {
-    console.error("Error getting bill recommendations:", error);
+    log.error({ err: error }, "Error getting bill recommendations");
     return [];
   }
 }
@@ -169,7 +172,7 @@ export async function getBillRecommendation(id: number): Promise<BillRecommendat
     
     return results.length > 0 ? results[0] : null;
   } catch (error: any) {
-    console.error("Error getting bill recommendation:", error);
+    log.error({ err: error }, "Error getting bill recommendation");
     return null;
   }
 }
@@ -183,7 +186,7 @@ export async function createBillRecommendation(data: InsertBillRecommendation): 
   try {
     return await db.insert(billRecommendations).values(data).returning();
   } catch (error: any) {
-    console.error("Error creating bill recommendation:", error);
+    log.error({ err: error }, "Error creating bill recommendation");
     return [];
   }
 }
@@ -208,7 +211,7 @@ export async function updateBillRecommendationStatus(
       .where(eq(billRecommendations.id, id))
       .returning();
   } catch (error: any) {
-    console.error("Error updating bill recommendation status:", error);
+    log.error({ err: error }, "Error updating bill recommendation status");
     return [];
   }
 }
@@ -256,7 +259,7 @@ export async function generateRecommendationsForUser(
         if (settings.education) userProfile.education = settings.education;
       }
     } catch (e: any) {
-      console.error("Error parsing user interests settings:", e);
+      log.error({ err: e }, "Error parsing user interests settings");
     }
     
     // Generate recommendations using OpenAI
@@ -306,7 +309,7 @@ export async function generateRecommendationsForUser(
     
     return createdRecommendations;
   } catch (error: any) {
-    console.error("Error generating recommendations:", error);
+    log.error({ err: error }, "Error generating recommendations");
     return [];
   }
 }
@@ -376,7 +379,7 @@ export async function getRecommendedBillsWithDetails(
       .sort((a, b) => b.score - a.score)
       .slice(offset, offset + limit);
   } catch (error: any) {
-    console.error("Error getting recommendations with details:", error);
+    log.error({ err: error }, "Error getting recommendations with details");
     return [];
   }
 }

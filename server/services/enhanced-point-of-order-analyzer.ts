@@ -3,6 +3,9 @@ import OpenAI from "openai";
 import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { bills } from "../../shared/schema";
+import { createLogger } from "../logger";
+const log = createLogger("enhanced-point-of-order-analyzer");
+
 
 // Initialize OpenAI client
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -157,11 +160,11 @@ Format:
       return [];
       
     } catch (error: any) {
-      console.error("Error parsing OpenAI response:", error);
+      log.error({ err: error }, "Error parsing OpenAI response");
       return [];
     }
   } catch (error: any) {
-    console.error("Error analyzing bill for points of order:", error);
+    log.error({ err: error }, "Error analyzing bill for points of order");
     return [];
   }
 }
@@ -245,11 +248,11 @@ Format:
       const parsedResponse = JSON.parse(content);
       return parsedResponse;
     } catch (error: any) {
-      console.error("Error parsing OpenAI response for enhanced analysis:", error);
+      log.error({ err: error }, "Error parsing OpenAI response for enhanced analysis");
       return {};
     }
   } catch (error: any) {
-    console.error("Error enhancing point of order analysis:", error);
+    log.error({ err: error }, "Error enhancing point of order analysis");
     return {};
   }
 }
@@ -308,7 +311,7 @@ Provide a thorough, objective analysis suitable for legal and parliamentary expe
 
     return response.choices[0].message.content || "Analysis could not be generated.";
   } catch (error: any) {
-    console.error("Error comparing points of order:", error);
+    log.error({ err: error }, "Error comparing points of order");
     return "Error generating comparative analysis.";
   }
 }

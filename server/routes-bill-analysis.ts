@@ -9,6 +9,9 @@ import { pointsOfOrder, bills } from "@shared/schema";
 import { eq, and, desc, sql, like, or } from "drizzle-orm";
 import { isAuthenticated } from "./auth";
 import { CustomRequest } from "./types";
+import { createLogger } from "./logger";
+const log = createLogger("routes-bill-analysis");
+
 
 export function registerBillAnalysisRoutes(app: Express): void {
   /**
@@ -44,7 +47,7 @@ export function registerBillAnalysisRoutes(app: Express): void {
         analysis: analysisResults,
       });
     } catch (error: any) {
-      console.error("Error analyzing bill for points of order:", error);
+      log.error({ err: error }, "Error analyzing bill for points of order");
       return res.status(500).json({ error: "Failed to analyze bill" });
     }
   });
@@ -70,7 +73,7 @@ export function registerBillAnalysisRoutes(app: Express): void {
         pointsOfOrder: pointsOfOrderData,
       });
     } catch (error: any) {
-      console.error("Error fetching points of order for bill:", error);
+      log.error({ err: error }, "Error fetching points of order for bill");
       return res.status(500).json({ error: "Failed to fetch points of order" });
     }
   });
@@ -100,14 +103,14 @@ export function registerBillAnalysisRoutes(app: Express): void {
       // Run the analysis asynchronously after responding to the request
       billPOOAnalyzer.analyzeBillBatch(billIds, storeResults)
         .then(results => {
-          console.log(`Completed batch analysis of ${results.length} bills`);
+          log.info(`Completed batch analysis of ${results.length} bills`);
         })
         .catch(err => {
-          console.error("Error in background bill analysis:", err);
+          log.error({ err: err }, "Error in background bill analysis");
         });
       
     } catch (error: any) {
-      console.error("Error scheduling batch analysis:", error);
+      log.error({ err: error }, "Error scheduling batch analysis");
       return res.status(500).json({ error: "Failed to schedule batch analysis" });
     }
   });
@@ -142,7 +145,7 @@ export function registerBillAnalysisRoutes(app: Express): void {
         analysis,
       });
     } catch (error: any) {
-      console.error("Error analyzing amendment:", error);
+      log.error({ err: error }, "Error analyzing amendment");
       return res.status(500).json({ error: "Failed to analyze amendment" });
     }
   });
@@ -196,7 +199,7 @@ export function registerBillAnalysisRoutes(app: Express): void {
         }
       });
     } catch (error: any) {
-      console.error("Error fetching points of order patterns:", error);
+      log.error({ err: error }, "Error fetching points of order patterns");
       return res.status(500).json({ error: "Failed to fetch points of order patterns" });
     }
   });

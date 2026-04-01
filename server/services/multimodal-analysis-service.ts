@@ -4,6 +4,9 @@ import fs from 'fs';
 import path from 'path';
 import { createHash } from 'crypto';
 import axios from 'axios';
+import { createLogger } from "../logger";
+const log = createLogger("multimodal-analysis-service");
+
 
 // Initialize OpenAI client
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -266,7 +269,7 @@ export async function analyzeImage(
       };
     }
   } catch (error: any) {
-    console.error('Error analyzing image:', error);
+    log.error({ err: error }, 'Error analyzing image');
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -317,7 +320,7 @@ export async function analyzePdfDocument(
       model: 'none'
     };
   } catch (error: any) {
-    console.error('Error analyzing PDF:', error);
+    log.error({ err: error }, 'Error analyzing PDF');
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -383,7 +386,7 @@ export async function extractTextFromImage(imageData: string): Promise<string> {
     
     return response.choices[0].message.content || '';
   } catch (error: any) {
-    console.error('Error extracting text from image:', error);
+    log.error({ err: error }, 'Error extracting text from image');
     throw error;
   }
 }
@@ -408,7 +411,7 @@ export async function analyzeVideo(
       model: 'none'
     };
   } catch (error: any) {
-    console.error('Error analyzing video:', error);
+    log.error({ err: error }, 'Error analyzing video');
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -435,7 +438,7 @@ export async function generateVisualExplanation(
       model: 'none'
     };
   } catch (error: any) {
-    console.error('Error generating visual explanation:', error);
+    log.error({ err: error }, 'Error generating visual explanation');
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred',

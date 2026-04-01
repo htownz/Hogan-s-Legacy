@@ -1,5 +1,8 @@
 import OpenAI from 'openai';
 import { legiscanService } from './legiscan-service';
+import { createLogger } from "../logger";
+const log = createLogger("bill-translator-service");
+
 
 // Initialize OpenAI client
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -149,7 +152,7 @@ export async function simplifyLegislativeText(
       };
     }
   } catch (error: any) {
-    console.error('Error in bill translator service:', error);
+    log.error({ err: error }, 'Error in bill translator service');
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -211,7 +214,7 @@ export async function translateBillById(
     
     return translation;
   } catch (error: any) {
-    console.error('Error in translateBillById:', error);
+    log.error({ err: error }, 'Error in translateBillById');
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -308,7 +311,7 @@ export async function compareBillVersions(originalText: string, simplifiedText: 
       };
     }
   } catch (error: any) {
-    console.error('Error in bill version comparison:', error);
+    log.error({ err: error }, 'Error in bill version comparison');
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'

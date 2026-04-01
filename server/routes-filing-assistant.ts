@@ -53,6 +53,9 @@ import fs from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import multer from 'multer';
+import { createLogger } from "./logger";
+const log = createLogger("routes-filing-assistant");
+
 
 // Interface for session data
 interface SessionData {
@@ -489,7 +492,7 @@ export function registerFilingAssistantRoutes(app: Express): void {
       const templates = await db.select().from(filingFormTemplates).orderBy(asc(filingFormTemplates.formNumber));
       res.json(templates);
     } catch (error: any) {
-      console.error("Error fetching form templates:", error);
+      log.error({ err: error }, "Error fetching form templates");
       res.status(500).json({ error: "Failed to fetch form templates" });
     }
   });
@@ -513,7 +516,7 @@ export function registerFilingAssistantRoutes(app: Express): void {
       
       res.json(fields);
     } catch (error: any) {
-      console.error("Error fetching form fields:", error);
+      log.error({ err: error }, "Error fetching form fields");
       res.status(500).json({ error: "Failed to fetch form fields" });
     }
   });
@@ -534,7 +537,7 @@ export function registerFilingAssistantRoutes(app: Express): void {
       
       res.json(drafts);
     } catch (error: any) {
-      console.error("Error fetching form drafts:", error);
+      log.error({ err: error }, "Error fetching form drafts");
       res.status(500).json({ error: "Failed to fetch form drafts" });
     }
   });
@@ -588,7 +591,7 @@ export function registerFilingAssistantRoutes(app: Express): void {
         return res.status(400).json({ errors: error.errors });
       }
       
-      console.error("Error creating form draft:", error);
+      log.error({ err: error }, "Error creating form draft");
       res.status(500).json({ error: "Failed to create form draft" });
     }
   });
@@ -624,7 +627,7 @@ export function registerFilingAssistantRoutes(app: Express): void {
       
       res.json(draft[0]);
     } catch (error: any) {
-      console.error("Error fetching form draft:", error);
+      log.error({ err: error }, "Error fetching form draft");
       res.status(500).json({ error: "Failed to fetch form draft" });
     }
   });
@@ -705,7 +708,7 @@ export function registerFilingAssistantRoutes(app: Express): void {
         return res.status(400).json({ errors: error.errors });
       }
       
-      console.error("Error updating form draft:", error);
+      log.error({ err: error }, "Error updating form draft");
       res.status(500).json({ error: "Failed to update form draft" });
     }
   });
@@ -740,7 +743,7 @@ export function registerFilingAssistantRoutes(app: Express): void {
       
       res.json({ success: true });
     } catch (error: any) {
-      console.error("Error deleting form draft:", error);
+      log.error({ err: error }, "Error deleting form draft");
       res.status(500).json({ error: "Failed to delete form draft" });
     }
   });
@@ -811,11 +814,11 @@ export function registerFilingAssistantRoutes(app: Express): void {
         
         res.json({ pdfUrl });
       } catch (error: any) {
-        console.error("Error generating PDF:", error);
+        log.error({ err: error }, "Error generating PDF");
         res.status(500).json({ error: "Failed to generate PDF" });
       }
     } catch (error: any) {
-      console.error("Error generating PDF:", error);
+      log.error({ err: error }, "Error generating PDF");
       res.status(500).json({ error: "Failed to generate PDF" });
     }
   });
@@ -855,7 +858,7 @@ export function registerFilingAssistantRoutes(app: Express): void {
       
       res.json(detectedForm);
     } catch (error: any) {
-      console.error("Error uploading form:", error);
+      log.error({ err: error }, "Error uploading form");
       res.status(500).json({ error: "Failed to process uploaded form" });
     }
   });
@@ -980,7 +983,7 @@ export function registerFilingAssistantRoutes(app: Express): void {
         return res.status(400).json({ errors: error.errors });
       }
       
-      console.error("Error with AI assistant:", error);
+      log.error({ err: error }, "Error with AI assistant");
       res.status(500).json({ error: "Failed to process AI request" });
     }
   });

@@ -1,6 +1,9 @@
 import express from 'express';
 import { Request, Response } from 'express';
 import { openStatesBillsAPI } from './services/openstates-bills-api';
+import { createLogger } from "./logger";
+const log = createLogger("routes-openstates-bills");
+
 
 const router = express.Router();
 
@@ -12,7 +15,7 @@ const router = express.Router();
 // Collect all Texas bills and voting records
 router.post('/api/openstates-bills/collect', async (req: Request, res: Response) => {
   try {
-    console.log('🚀 Starting comprehensive Texas bills and voting records collection...');
+    log.info('🚀 Starting comprehensive Texas bills and voting records collection...');
     
     const result = await openStatesBillsAPI.performBillDataCollection();
     
@@ -34,7 +37,7 @@ router.post('/api/openstates-bills/collect', async (req: Request, res: Response)
     });
 
   } catch (error: any) {
-    console.error('❌ Error in bills collection:', error.message);
+    log.error({ err: error.message }, '❌ Error in bills collection');
     res.status(500).json({
       success: false,
       error: 'Failed to collect Texas bills and voting records',
@@ -56,7 +59,7 @@ router.get('/api/openstates-bills/search', async (req: Request, res: Response) =
       });
     }
 
-    console.log(`🔍 Searching Texas bills for: "${query}"`);
+    log.info(`🔍 Searching Texas bills for: "${query}"`);
     
     const result = await openStatesBillsAPI.searchBills(query, parseInt(page as string));
     
@@ -73,7 +76,7 @@ router.get('/api/openstates-bills/search', async (req: Request, res: Response) =
     });
 
   } catch (error: any) {
-    console.error('❌ Error searching bills:', error.message);
+    log.error({ err: error.message }, '❌ Error searching bills');
     res.status(500).json({
       success: false,
       error: 'Failed to search bills',
@@ -90,7 +93,7 @@ router.get('/api/openstates-bills/status/:status', async (req: Request, res: Res
     
     const statusArray = status.split(',').map(s => s.trim());
     
-    console.log(`📊 Fetching Texas bills by status: ${statusArray.join(', ')}`);
+    log.info(`📊 Fetching Texas bills by status: ${statusArray.join(', ')}`);
     
     const result = await openStatesBillsAPI.getBillsByStatus(statusArray, parseInt(page as string));
     
@@ -107,7 +110,7 @@ router.get('/api/openstates-bills/status/:status', async (req: Request, res: Res
     });
 
   } catch (error: any) {
-    console.error('❌ Error fetching bills by status:', error.message);
+    log.error({ err: error.message }, '❌ Error fetching bills by status');
     res.status(500).json({
       success: false,
       error: 'Failed to fetch bills by status',
@@ -121,7 +124,7 @@ router.get('/api/openstates-bills/:billId', async (req: Request, res: Response) 
   try {
     const { billId } = req.params;
     
-    console.log(`📋 Fetching bill details for: ${billId}`);
+    log.info(`📋 Fetching bill details for: ${billId}`);
     
     const bill = await openStatesBillsAPI.fetchBillDetails(billId);
     
@@ -141,7 +144,7 @@ router.get('/api/openstates-bills/:billId', async (req: Request, res: Response) 
     });
 
   } catch (error: any) {
-    console.error(`❌ Error fetching bill ${req.params.billId}:`, error.message);
+    log.error({ err: error.message }, `❌ Error fetching bill ${req.params.billId}`);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch bill details',
@@ -155,7 +158,7 @@ router.get('/api/openstates-bills/:billId/votes', async (req: Request, res: Resp
   try {
     const { billId } = req.params;
     
-    console.log(`🗳️ Fetching voting records for bill: ${billId}`);
+    log.info(`🗳️ Fetching voting records for bill: ${billId}`);
     
     const votes = await openStatesBillsAPI.fetchBillVotes(billId);
     
@@ -169,7 +172,7 @@ router.get('/api/openstates-bills/:billId/votes', async (req: Request, res: Resp
     });
 
   } catch (error: any) {
-    console.error(`❌ Error fetching votes for bill ${req.params.billId}:`, error.message);
+    log.error({ err: error.message }, `❌ Error fetching votes for bill ${req.params.billId}`);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch bill voting records',
@@ -184,7 +187,7 @@ router.get('/api/openstates-legislators/:legislatorId/votes', async (req: Reques
     const { legislatorId } = req.params;
     const { page = 1 } = req.query;
     
-    console.log(`🗳️ Fetching voting records for legislator: ${legislatorId}`);
+    log.info(`🗳️ Fetching voting records for legislator: ${legislatorId}`);
     
     const result = await openStatesBillsAPI.fetchLegislatorVotes(legislatorId, parseInt(page as string));
     
@@ -201,7 +204,7 @@ router.get('/api/openstates-legislators/:legislatorId/votes', async (req: Reques
     });
 
   } catch (error: any) {
-    console.error(`❌ Error fetching votes for legislator ${req.params.legislatorId}:`, error.message);
+    log.error({ err: error.message }, `❌ Error fetching votes for legislator ${req.params.legislatorId}`);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch legislator voting records',
@@ -213,7 +216,7 @@ router.get('/api/openstates-legislators/:legislatorId/votes', async (req: Reques
 // Get collection status and API health
 router.get('/api/openstates-bills/status', async (req: Request, res: Response) => {
   try {
-    console.log('📊 Checking OpenStates bills API status...');
+    log.info('📊 Checking OpenStates bills API status...');
     
     res.json({
       success: true,
@@ -239,7 +242,7 @@ router.get('/api/openstates-bills/status', async (req: Request, res: Response) =
     });
 
   } catch (error: any) {
-    console.error('❌ Error checking status:', error.message);
+    log.error({ err: error.message }, '❌ Error checking status');
     res.status(500).json({
       success: false,
       error: 'Failed to check status',
@@ -250,5 +253,5 @@ router.get('/api/openstates-bills/status', async (req: Request, res: Response) =
 
 export function registerOpenStatesBillsRoutes(app: express.Application) {
   app.use(router);
-  console.log('📋 OpenStates Bills & Voting Records API routes registered successfully!');
+  log.info('📋 OpenStates Bills & Voting Records API routes registered successfully!');
 }

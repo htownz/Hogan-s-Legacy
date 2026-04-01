@@ -12,6 +12,9 @@ import { CustomRequest } from './types';
 import { db } from './db';
 import { bills, billHistoryEvents } from '@shared/schema';
 import { eq, desc, sql, and, like } from 'drizzle-orm';
+import { createLogger } from "./logger";
+const log = createLogger("routes-votes");
+
 
 /**
  * Register vote data API routes
@@ -124,7 +127,7 @@ export function registerVoteRoutes(app: Express): void {
       
       res.json(formattedResults);
     } catch (error: any) {
-      console.error('Error fetching vote data:', error);
+      log.error({ err: error }, 'Error fetching vote data');
       res.status(500).json({ error: 'Failed to fetch vote data' });
     }
   });
@@ -188,7 +191,7 @@ export function registerVoteRoutes(app: Express): void {
       
       res.json(formattedResults);
     } catch (error: any) {
-      console.error(`Error fetching vote data for bill ${req.params.billId}:`, error);
+      log.error({ err: error }, `Error fetching vote data for bill ${req.params.billId}`);
       res.status(500).json({ error: 'Failed to fetch vote data for this bill' });
     }
   });
@@ -255,7 +258,7 @@ export function registerVoteRoutes(app: Express): void {
       
       res.json(stats);
     } catch (error: any) {
-      console.error('Error fetching vote statistics:', error);
+      log.error({ err: error }, 'Error fetching vote statistics');
       res.status(500).json({ error: 'Failed to fetch vote statistics' });
     }
   });
@@ -305,7 +308,7 @@ export function registerVoteRoutes(app: Express): void {
       
       res.json(results.rows);
     } catch (error: any) {
-      console.error('Error fetching vote trends:', error);
+      log.error({ err: error }, 'Error fetching vote trends');
       res.status(500).json({ error: 'Failed to fetch vote trends' });
     }
   });
@@ -332,7 +335,7 @@ export function registerVoteRoutes(app: Express): void {
       
       res.json(results.rows);
     } catch (error: any) {
-      console.error('Error fetching chamber comparison:', error);
+      log.error({ err: error }, 'Error fetching chamber comparison');
       res.status(500).json({ error: 'Failed to fetch chamber comparison' });
     }
   });

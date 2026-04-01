@@ -1,6 +1,9 @@
 // @ts-nocheck
 import axios from "axios";
 import * as cheerio from "cheerio";
+import { createLogger } from "../logger";
+const log = createLogger("texas-legislature-online-collector");
+
 
 /**
  * Texas Legislature Online Comprehensive Data Collector
@@ -15,7 +18,7 @@ export class TexasLegislatureOnlineCollector {
   private tlcUrl = "https://www.tlc.texas.gov";
 
   async collectComprehensiveLegislativeData() {
-    console.log("🏛️ Starting comprehensive Texas Legislature Online data collection...");
+    log.info("🏛️ Starting comprehensive Texas Legislature Online data collection...");
     
     const results = {
       committees: await this.collectCommitteeData(),
@@ -29,19 +32,19 @@ export class TexasLegislatureOnlineCollector {
     };
 
     const totalRecords = Object.values(results).reduce((sum, data) => sum + (Array.isArray(data) ? data.length : 0), 0);
-    console.log(`🎯 Texas Legislature Online collection complete: ${totalRecords} total records collected`);
+    log.info(`🎯 Texas Legislature Online collection complete: ${totalRecords} total records collected`);
     
     return results;
   }
 
   async collectCommitteeData() {
-    console.log("📋 Collecting comprehensive committee data from Texas Legislature Online...");
+    log.info("📋 Collecting comprehensive committee data from Texas Legislature Online...");
     
     try {
       const committees = [];
 
       // Collect House Committees
-      console.log("🏛️ Fetching House committee data...");
+      log.info("🏛️ Fetching House committee data...");
       const houseResponse = await axios.get(`${this.houseUrl}/committees/`, {
         timeout: 30000,
         headers: { 'User-Agent': 'ActUp-Transparency-Platform/1.0' }
@@ -72,7 +75,7 @@ export class TexasLegislatureOnlineCollector {
       });
 
       // Collect Senate Committees
-      console.log("🏛️ Fetching Senate committee data...");
+      log.info("🏛️ Fetching Senate committee data...");
       const senateResponse = await axios.get(`${this.senateUrl}/committees.php`, {
         timeout: 30000,
         headers: { 'User-Agent': 'ActUp-Transparency-Platform/1.0' }
@@ -155,11 +158,11 @@ export class TexasLegislatureOnlineCollector {
 
       committees.push(...authenticCommittees);
       
-      console.log(`✅ Collected ${committees.length} authentic committee records from Texas Legislature Online`);
+      log.info(`✅ Collected ${committees.length} authentic committee records from Texas Legislature Online`);
       return committees;
 
     } catch (error: any) {
-      console.error('Error collecting committee data:', error);
+      log.error({ err: error }, 'Error collecting committee data');
       // Return authentic structure even if web scraping fails
       return [
         {
@@ -175,7 +178,7 @@ export class TexasLegislatureOnlineCollector {
   }
 
   async collectCommitteeMeetings() {
-    console.log("📅 Collecting committee meetings from Texas Legislature Online...");
+    log.info("📅 Collecting committee meetings from Texas Legislature Online...");
     
     try {
       const meetings = [];
@@ -240,17 +243,17 @@ export class TexasLegislatureOnlineCollector {
 
       meetings.push(...authenticMeetings);
       
-      console.log(`✅ Collected ${meetings.length} committee meeting records`);
+      log.info(`✅ Collected ${meetings.length} committee meeting records`);
       return meetings;
 
     } catch (error: any) {
-      console.error('Error collecting meeting data:', error);
+      log.error({ err: error }, 'Error collecting meeting data');
       return [];
     }
   }
 
   async collectLegislativeMembers() {
-    console.log("👥 Collecting legislative member data from Texas Legislature Online...");
+    log.info("👥 Collecting legislative member data from Texas Legislature Online...");
     
     try {
       const members = [];
@@ -280,17 +283,17 @@ export class TexasLegislatureOnlineCollector {
         }
       });
 
-      console.log(`✅ Collected ${members.length} legislative member records`);
+      log.info(`✅ Collected ${members.length} legislative member records`);
       return members;
 
     } catch (error: any) {
-      console.error('Error collecting member data:', error);
+      log.error({ err: error }, 'Error collecting member data');
       return [];
     }
   }
 
   async collectSessionInformation() {
-    console.log("📊 Collecting session information from Texas Legislature Online...");
+    log.info("📊 Collecting session information from Texas Legislature Online...");
     
     try {
       const sessionData = {
@@ -313,17 +316,17 @@ export class TexasLegislatureOnlineCollector {
         collectedAt: new Date().toISOString()
       };
 
-      console.log(`✅ Collected session information for ${sessionData.currentSession}`);
+      log.info(`✅ Collected session information for ${sessionData.currentSession}`);
       return [sessionData];
 
     } catch (error: any) {
-      console.error('Error collecting session data:', error);
+      log.error({ err: error }, 'Error collecting session data');
       return [];
     }
   }
 
   async collectVotingRecords() {
-    console.log("🗳️ Collecting voting records from Texas Legislature Online...");
+    log.info("🗳️ Collecting voting records from Texas Legislature Online...");
     
     try {
       // This would connect to actual voting records from TLO
@@ -344,17 +347,17 @@ export class TexasLegislatureOnlineCollector {
         }
       ];
 
-      console.log(`✅ Collected ${votes.length} voting records`);
+      log.info(`✅ Collected ${votes.length} voting records`);
       return votes;
 
     } catch (error: any) {
-      console.error('Error collecting voting records:', error);
+      log.error({ err: error }, 'Error collecting voting records');
       return [];
     }
   }
 
   async collectLegislativeCalendar() {
-    console.log("📅 Collecting legislative calendar from Texas Legislature Online...");
+    log.info("📅 Collecting legislative calendar from Texas Legislature Online...");
     
     try {
       const calendar = [
@@ -370,17 +373,17 @@ export class TexasLegislatureOnlineCollector {
         }
       ];
 
-      console.log(`✅ Collected ${calendar.length} calendar events`);
+      log.info(`✅ Collected ${calendar.length} calendar events`);
       return calendar;
 
     } catch (error: any) {
-      console.error('Error collecting calendar data:', error);
+      log.error({ err: error }, 'Error collecting calendar data');
       return [];
     }
   }
 
   async collectLeadershipData() {
-    console.log("🎯 Collecting legislative leadership from Texas Legislature Online...");
+    log.info("🎯 Collecting legislative leadership from Texas Legislature Online...");
     
     try {
       const leadership = [
@@ -405,17 +408,17 @@ export class TexasLegislatureOnlineCollector {
         }
       ];
 
-      console.log(`✅ Collected ${leadership.length} leadership records`);
+      log.info(`✅ Collected ${leadership.length} leadership records`);
       return leadership;
 
     } catch (error: any) {
-      console.error('Error collecting leadership data:', error);
+      log.error({ err: error }, 'Error collecting leadership data');
       return [];
     }
   }
 
   async collectDistrictInformation() {
-    console.log("🗺️ Collecting district information from Texas Legislature Online...");
+    log.info("🗺️ Collecting district information from Texas Legislature Online...");
     
     try {
       const districts = [
@@ -432,11 +435,11 @@ export class TexasLegislatureOnlineCollector {
         }
       ];
 
-      console.log(`✅ Collected ${districts.length} district records`);
+      log.info(`✅ Collected ${districts.length} district records`);
       return districts;
 
     } catch (error: any) {
-      console.error('Error collecting district data:', error);
+      log.error({ err: error }, 'Error collecting district data');
       return [];
     }
   }

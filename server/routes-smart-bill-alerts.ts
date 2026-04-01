@@ -6,6 +6,9 @@ import {
   generateContextualExplanation,
   checkBillStatusChanges
 } from './services/smart-bill-alerts-service';
+import { createLogger } from "./logger";
+const log = createLogger("routes-smart-bill-alerts");
+
 
 const router = Router();
 
@@ -51,7 +54,7 @@ router.post('/create', async (req, res) => {
 
     return res.json(result);
   } catch (error: any) {
-    console.error('Error in create alert endpoint:', error);
+    log.error({ err: error }, 'Error in create alert endpoint');
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -70,7 +73,7 @@ router.get('/user', async (req, res) => {
     const result = await getUserBillAlerts(userId);
     return res.json(result);
   } catch (error: any) {
-    console.error('Error in get user alerts endpoint:', error);
+    log.error({ err: error }, 'Error in get user alerts endpoint');
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -97,7 +100,7 @@ router.delete('/:alertId', async (req, res) => {
     const result = await deactivateBillAlert(alertId, userId);
     return res.json(result);
   } catch (error: any) {
-    console.error('Error in deactivate alert endpoint:', error);
+    log.error({ err: error }, 'Error in deactivate alert endpoint');
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -139,7 +142,7 @@ router.post('/explain', async (req, res) => {
 
     return res.json(result);
   } catch (error: any) {
-    console.error('Error in explain endpoint:', error);
+    log.error({ err: error }, 'Error in explain endpoint');
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -156,7 +159,7 @@ router.post('/check-status', async (req, res) => {
     const result = await checkBillStatusChanges();
     return res.json(result);
   } catch (error: any) {
-    console.error('Error in check status endpoint:', error);
+    log.error({ err: error }, 'Error in check status endpoint');
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -198,7 +201,7 @@ router.get('/notifications', async (req, res) => {
       });
     }
   } catch (error: any) {
-    console.error('Error in get notifications endpoint:', error);
+    log.error({ err: error }, 'Error in get notifications endpoint');
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -208,7 +211,7 @@ router.get('/notifications', async (req, res) => {
 
 export function registerSmartBillAlertsRoutes(app: any) {
   app.use('/api/alerts', router);
-  console.log('Smart Bill Alerts routes registered');
+  log.info('Smart Bill Alerts routes registered');
 }
 
 export default router;

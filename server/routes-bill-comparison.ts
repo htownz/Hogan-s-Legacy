@@ -5,6 +5,9 @@ import { db } from "./db";
 import { bills } from "../shared/schema";
 import { storage } from "./storage";
 import { generateBillComparison } from "./services/legislative-impact-analyzer";
+import { createLogger } from "./logger";
+const log = createLogger("routes-bill-comparison");
+
 
 // Define validation schema for bill comparison request
 const billComparisonRequestSchema = z.object({
@@ -71,7 +74,7 @@ export function registerBillComparisonRoutes(app: Express): void {
         bill2: enhancedBill2
       });
     } catch (error: any) {
-      console.error("Error comparing bills:", error);
+      log.error({ err: error }, "Error comparing bills");
       return res.status(500).json({ error: "Failed to compare bills: " + error.message });
     }
   });
@@ -111,7 +114,7 @@ export function registerBillComparisonRoutes(app: Express): void {
         analysis
       });
     } catch (error: any) {
-      console.error("Error generating bill comparison analysis:", error);
+      log.error({ err: error }, "Error generating bill comparison analysis");
       return res.status(500).json({ 
         error: "Failed to generate bill comparison analysis: " + error.message 
       });
@@ -150,7 +153,7 @@ export function registerBillComparisonRoutes(app: Express): void {
         }
       });
     } catch (error: any) {
-      console.error("Error comparing bill versions:", error);
+      log.error({ err: error }, "Error comparing bill versions");
       return res.status(500).json({ error: "Failed to compare bill versions: " + error.message });
     }
   });

@@ -2,6 +2,9 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { storage } from '../storage';
+import { createLogger } from "../logger";
+const log = createLogger("texas-legislators-scraper");
+
 
 interface TexasLegislatorProfile {
   id: string;
@@ -29,7 +32,7 @@ export class TexasLegislatorsScraper {
   private senateUrl = 'https://senate.texas.gov';
   
   constructor() {
-    console.log('👥 Texas Legislators scraper initialized');
+    log.info('👥 Texas Legislators scraper initialized');
   }
 
   /**
@@ -37,25 +40,25 @@ export class TexasLegislatorsScraper {
    */
   async scrapeAllLegislators(): Promise<TexasLegislatorProfile[]> {
     try {
-      console.log('🏛️ Starting comprehensive Texas legislators data collection...');
+      log.info('🏛️ Starting comprehensive Texas legislators data collection...');
       
       const legislators: TexasLegislatorProfile[] = [];
       
       // Scrape House Representatives
-      console.log('🏠 Scraping Texas House Representatives...');
+      log.info('🏠 Scraping Texas House Representatives...');
       const houseMembers = await this.scrapeHouseRepresentatives();
       legislators.push(...houseMembers);
       
       // Scrape Senate Members
-      console.log('🏛️ Scraping Texas Senate Members...');
+      log.info('🏛️ Scraping Texas Senate Members...');
       const senateMembers = await this.scrapeSenateMembers();
       legislators.push(...senateMembers);
       
-      console.log(`✅ Successfully collected ${legislators.length} Texas legislators`);
+      log.info(`✅ Successfully collected ${legislators.length} Texas legislators`);
       return legislators;
       
     } catch (error: any) {
-      console.error('❌ Error scraping Texas legislators:', error);
+      log.error({ err: error }, '❌ Error scraping Texas legislators');
       throw new Error('Failed to scrape Texas legislators data');
     }
   }
@@ -68,7 +71,7 @@ export class TexasLegislatorsScraper {
       const members: TexasLegislatorProfile[] = [];
       const membersUrl = `${this.baseUrl}/members`;
       
-      console.log(`📜 Fetching House members from: ${membersUrl}`);
+      log.info(`📜 Fetching House members from: ${membersUrl}`);
       
       const response = await axios.get(membersUrl, {
         headers: {
@@ -94,7 +97,7 @@ export class TexasLegislatorsScraper {
         const elements = $(selector);
         if (elements.length > 0) {
           memberElements = elements;
-          console.log(`Found ${elements.length} House members using selector: ${selector}`);
+          log.info(`Found ${elements.length} House members using selector: ${selector}`);
           break;
         }
       }
@@ -102,7 +105,7 @@ export class TexasLegislatorsScraper {
       // If no structured member cards found, look for member links
       if (memberElements.length === 0) {
         const memberLinks = $('a[href*="/members/"], a[href*="/representative/"], a[href*="district"]');
-        console.log(`Found ${memberLinks.length} House member links`);
+        log.info(`Found ${memberLinks.length} House member links`);
         
         for (let i = 0; i < Math.min(memberLinks.length, 150); i++) {
           const link = memberLinks.eq(i);
@@ -114,14 +117,14 @@ export class TexasLegislatorsScraper {
               const memberData = await this.scrapeIndividualHouseMember(href, name);
               if (memberData) {
                 members.push(memberData);
-                console.log(`📋 Scraped House Rep: ${memberData.name} (District ${memberData.district})`);
+                log.info(`📋 Scraped House Rep: ${memberData.name} (District ${memberData.district})`);
               }
               
               // Add delay between requests
               await this.delay(300);
               
             } catch (error: any) {
-              console.log(`⚠️ Could not scrape House member ${name}: ${error}`);
+              log.info(`⚠️ Could not scrape House member ${name}: ${error}`);
             }
           }
         }
@@ -134,19 +137,19 @@ export class TexasLegislatorsScraper {
             const memberData = await this.extractHouseMemberFromCard(element, $);
             if (memberData) {
               members.push(memberData);
-              console.log(`📋 Extracted House Rep: ${memberData.name} (District ${memberData.district})`);
+              log.info(`📋 Extracted House Rep: ${memberData.name} (District ${memberData.district})`);
             }
           } catch (error: any) {
-            console.log(`⚠️ Could not extract House member ${i}: ${error}`);
+            log.info(`⚠️ Could not extract House member ${i}: ${error}`);
           }
         }
       }
       
-      console.log(`🏠 Collected ${members.length} House Representatives`);
+      log.info(`🏠 Collected ${members.length} House Representatives`);
       return members;
       
     } catch (error: any) {
-      console.error('❌ Error scraping House representatives:', error);
+      log.error({ err: error }, '❌ Error scraping House representatives');
       return [];
     }
   }
@@ -201,7 +204,7 @@ export class TexasLegislatorsScraper {
       };
       
     } catch (error: any) {
-      console.log(`⚠️ Error scraping individual House member: ${error}`);
+      log.info(`⚠️ Error scraping individual House member: ${error}`);
       return null;
     }
   }
@@ -231,7 +234,7 @@ export class TexasLegislatorsScraper {
       };
       
     } catch (error: any) {
-      console.log(`⚠️ Error extracting House member from card: ${error}`);
+      log.info(`⚠️ Error extracting House member from card: ${error}`);
       return null;
     }
   }
@@ -244,7 +247,7 @@ export class TexasLegislatorsScraper {
       const members: TexasLegislatorProfile[] = [];
       const membersUrl = `${this.senateUrl}/members`;
       
-      console.log(`📜 Fetching Senate members from: ${membersUrl}`);
+      log.info(`📜 Fetching Senate members from: ${membersUrl}`);
       
       const response = await axios.get(membersUrl, {
         headers: {
@@ -257,7 +260,7 @@ export class TexasLegislatorsScraper {
       
       // Look for Senate member links or cards
       const memberLinks = $('a[href*="/member/"], a[href*="/senator/"], a[href*="district"]');
-      console.log(`Found ${memberLinks.length} Senate member links`);
+      log.info(`Found ${memberLinks.length} Senate member links`);
       
       for (let i = 0; i < Math.min(memberLinks.length, 31); i++) { // Texas has 31 Senate districts
         const link = memberLinks.eq(i);
@@ -269,23 +272,23 @@ export class TexasLegislatorsScraper {
             const memberData = await this.scrapeIndividualSenateMember(href, name);
             if (memberData) {
               members.push(memberData);
-              console.log(`📋 Scraped Senator: ${memberData.name} (District ${memberData.district})`);
+              log.info(`📋 Scraped Senator: ${memberData.name} (District ${memberData.district})`);
             }
             
             // Add delay between requests
             await this.delay(300);
             
           } catch (error: any) {
-            console.log(`⚠️ Could not scrape Senator ${name}: ${error}`);
+            log.info(`⚠️ Could not scrape Senator ${name}: ${error}`);
           }
         }
       }
       
-      console.log(`🏛️ Collected ${members.length} Senate Members`);
+      log.info(`🏛️ Collected ${members.length} Senate Members`);
       return members;
       
     } catch (error: any) {
-      console.error('❌ Error scraping Senate members:', error);
+      log.error({ err: error }, '❌ Error scraping Senate members');
       return [];
     }
   }
@@ -340,7 +343,7 @@ export class TexasLegislatorsScraper {
       };
       
     } catch (error: any) {
-      console.log(`⚠️ Error scraping individual Senate member: ${error}`);
+      log.info(`⚠️ Error scraping individual Senate member: ${error}`);
       return null;
     }
   }
@@ -662,7 +665,7 @@ export class TexasLegislatorsScraper {
    */
   async storeScrapedLegislators(legislators: TexasLegislatorProfile[]): Promise<void> {
     try {
-      console.log(`💾 Storing ${legislators.length} Texas legislators in database...`);
+      log.info(`💾 Storing ${legislators.length} Texas legislators in database...`);
       
       for (const legislator of legislators) {
         try {
@@ -685,14 +688,14 @@ export class TexasLegislatorsScraper {
           });
           
         } catch (error: any) {
-          console.error(`❌ Error storing legislator ${legislator.name}:`, error);
+          log.error({ err: error }, `❌ Error storing legislator ${legislator.name}`);
         }
       }
       
-      console.log(`✅ Successfully stored ${legislators.length} Texas legislators`);
+      log.info(`✅ Successfully stored ${legislators.length} Texas legislators`);
       
     } catch (error: any) {
-      console.error('❌ Error storing scraped legislators:', error);
+      log.error({ err: error }, '❌ Error storing scraped legislators');
       throw error;
     }
   }
@@ -702,7 +705,7 @@ export class TexasLegislatorsScraper {
    */
   async performLegislatorsDataCollection(): Promise<TexasLegislatorProfile[]> {
     try {
-      console.log('🚀 Starting comprehensive Texas legislators data collection...');
+      log.info('🚀 Starting comprehensive Texas legislators data collection...');
       
       const legislators = await this.scrapeAllLegislators();
       
@@ -710,11 +713,11 @@ export class TexasLegislatorsScraper {
         await this.storeScrapedLegislators(legislators);
       }
       
-      console.log(`🎉 Legislators data collection completed! Collected ${legislators.length} profiles.`);
+      log.info(`🎉 Legislators data collection completed! Collected ${legislators.length} profiles.`);
       return legislators;
       
     } catch (error: any) {
-      console.error('❌ Legislators data collection failed:', error);
+      log.error({ err: error }, '❌ Legislators data collection failed');
       throw error;
     }
   }

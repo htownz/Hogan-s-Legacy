@@ -1,5 +1,8 @@
 // @ts-nocheck
 import Anthropic from '@anthropic-ai/sdk';
+import { createLogger } from "../logger";
+const log = createLogger("scout-bot-clean");
+
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -162,7 +165,7 @@ export class CleanScoutBot {
       return report;
 
     } catch (error: any) {
-      console.error('Research error:', error);
+      log.error({ err: error }, 'Research error');
       throw new Error(`Research failed: ${error.message}`);
     }
   }
@@ -215,7 +218,7 @@ export class CleanScoutBot {
       return entityProfile;
 
     } catch (error: any) {
-      console.error('Entity analysis error:', error);
+      log.error({ err: error }, 'Entity analysis error');
       throw new Error(`Entity analysis failed: ${error.message}`);
     }
   }
@@ -248,7 +251,7 @@ export class CleanScoutBot {
       return this.parseEthicsFindings(analysisText);
 
     } catch (error: any) {
-      console.error('Ethics scan error:', error);
+      log.error({ err: error }, 'Ethics scan error');
       return [];
     }
   }

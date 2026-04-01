@@ -9,6 +9,9 @@ import { eq, and, desc, sql, like, or, inArray } from "drizzle-orm";
 import { isAuthenticated } from "./auth";
 import { CustomRequest } from "./types";
 import { createId } from "@paralleldrive/cuid2";
+import { createLogger } from "./logger";
+const log = createLogger("routes-point-of-order");
+
 
 export function registerPointOfOrderRoutes(app: Express): void {
   /**
@@ -128,7 +131,7 @@ export function registerPointOfOrderRoutes(app: Express): void {
         }
       });
     } catch (error: any) {
-      console.error("Error fetching points of order:", error);
+      log.error({ err: error }, "Error fetching points of order");
       return res.status(500).json({ error: "Failed to fetch points of order" });
     }
   });
@@ -163,7 +166,7 @@ export function registerPointOfOrderRoutes(app: Express): void {
       
       return res.json(pointOfOrder);
     } catch (error: any) {
-      console.error("Error fetching point of order:", error);
+      log.error({ err: error }, "Error fetching point of order");
       return res.status(500).json({ error: "Failed to fetch point of order" });
     }
   });
@@ -222,7 +225,7 @@ export function registerPointOfOrderRoutes(app: Express): void {
       
       return res.status(201).json(newPointOfOrder[0]);
     } catch (error: any) {
-      console.error("Error creating point of order:", error);
+      log.error({ err: error }, "Error creating point of order");
       return res.status(500).json({ error: "Failed to create point of order" });
     }
   });
@@ -277,7 +280,7 @@ export function registerPointOfOrderRoutes(app: Express): void {
       
       return res.json(updatedPOO[0]);
     } catch (error: any) {
-      console.error("Error updating point of order:", error);
+      log.error({ err: error }, "Error updating point of order");
       return res.status(500).json({ error: "Failed to update point of order" });
     }
   });
@@ -320,7 +323,7 @@ export function registerPointOfOrderRoutes(app: Express): void {
       
       return res.json(updatedPOO[0]);
     } catch (error: any) {
-      console.error("Error validating point of order:", error);
+      log.error({ err: error }, "Error validating point of order");
       return res.status(500).json({ error: "Failed to validate point of order" });
     }
   });
@@ -354,7 +357,7 @@ export function registerPointOfOrderRoutes(app: Express): void {
         byType: typeStats.rows
       });
     } catch (error: any) {
-      console.error("Error fetching validation statistics:", error);
+      log.error({ err: error }, "Error fetching validation statistics");
       return res.status(500).json({ error: "Failed to fetch validation statistics" });
     }
   });
@@ -385,7 +388,7 @@ export function registerPointOfOrderRoutes(app: Express): void {
       
       return res.json({ success: true, message: "Point of order deleted" });
     } catch (error: any) {
-      console.error("Error deleting point of order:", error);
+      log.error({ err: error }, "Error deleting point of order");
       return res.status(500).json({ error: "Failed to delete point of order" });
     }
   });

@@ -1,4 +1,7 @@
 import { z } from 'zod';
+import { createLogger } from "../logger";
+const log = createLogger("data-integrity-service");
+
 
 // Data validation schemas for government sources
 const TexasEthicsRecordSchema = z.object({
@@ -150,7 +153,7 @@ export class DataIntegrityService {
 
     this.logError(source, `API unavailable: ${error.message}`);
     
-    console.warn(`⚠️ ${source} API unavailable, returning failsafe response`);
+    log.warn(`⚠️ ${source} API unavailable, returning failsafe response`);
     return failsafeMessage;
   }
 
@@ -253,7 +256,7 @@ export class DataIntegrityService {
   // Clear error log
   public clearErrorLog(): void {
     this.errorLog = [];
-    console.log('🗑️ Data integrity error log cleared');
+    log.info('🗑️ Data integrity error log cleared');
   }
 
   // Health check for all data sources

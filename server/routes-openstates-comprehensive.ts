@@ -1,6 +1,9 @@
 import express from 'express';
 import { Request, Response } from 'express';
 import { openStatesComprehensiveAPI } from './services/openstates-comprehensive-api';
+import { createLogger } from "./logger";
+const log = createLogger("routes-openstates-comprehensive");
+
 
 const router = express.Router();
 
@@ -12,7 +15,7 @@ const router = express.Router();
 // Collect comprehensive legislative infrastructure data
 router.post('/api/openstates-comprehensive/collect', async (req: Request, res: Response) => {
   try {
-    console.log('🚀 Starting comprehensive Texas legislative infrastructure collection...');
+    log.info('🚀 Starting comprehensive Texas legislative infrastructure collection...');
     
     const result = await openStatesComprehensiveAPI.performComprehensiveDataCollection();
     
@@ -40,7 +43,7 @@ router.post('/api/openstates-comprehensive/collect', async (req: Request, res: R
     });
 
   } catch (error: any) {
-    console.error('❌ Error in comprehensive collection:', error.message);
+    log.error({ err: error.message }, '❌ Error in comprehensive collection');
     res.status(500).json({
       success: false,
       error: 'Failed to collect comprehensive legislative infrastructure',
@@ -55,7 +58,7 @@ router.get('/api/openstates-committees', async (req: Request, res: Response) => 
   try {
     const { page = 1, per_page = 25 } = req.query;
     
-    console.log(`🏛️ Fetching Texas committees (page ${page})...`);
+    log.info(`🏛️ Fetching Texas committees (page ${page})...`);
     
     const result = await openStatesComprehensiveAPI.fetchTexasCommittees(
       parseInt(page as string), 
@@ -74,7 +77,7 @@ router.get('/api/openstates-committees', async (req: Request, res: Response) => 
     });
 
   } catch (error: any) {
-    console.error('❌ Error fetching committees:', error.message);
+    log.error({ err: error.message }, '❌ Error fetching committees');
     res.status(500).json({
       success: false,
       error: 'Failed to fetch Texas committees',
@@ -88,7 +91,7 @@ router.get('/api/openstates-committees/:committeeId', async (req: Request, res: 
   try {
     const { committeeId } = req.params;
     
-    console.log(`🏛️ Fetching committee details for: ${committeeId}`);
+    log.info(`🏛️ Fetching committee details for: ${committeeId}`);
     
     const committee = await openStatesComprehensiveAPI.fetchCommitteeDetails(committeeId);
     
@@ -108,7 +111,7 @@ router.get('/api/openstates-committees/:committeeId', async (req: Request, res: 
     });
 
   } catch (error: any) {
-    console.error(`❌ Error fetching committee ${req.params.committeeId}:`, error.message);
+    log.error({ err: error.message }, `❌ Error fetching committee ${req.params.committeeId}`);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch committee details',
@@ -122,7 +125,7 @@ router.get('/api/openstates-events/upcoming', async (req: Request, res: Response
   try {
     const { days = 30 } = req.query;
     
-    console.log(`📅 Fetching upcoming Texas events (next ${days} days)...`);
+    log.info(`📅 Fetching upcoming Texas events (next ${days} days)...`);
     
     const events = await openStatesComprehensiveAPI.fetchUpcomingEvents(parseInt(days as string));
     
@@ -136,7 +139,7 @@ router.get('/api/openstates-events/upcoming', async (req: Request, res: Response
     });
 
   } catch (error: any) {
-    console.error('❌ Error fetching upcoming events:', error.message);
+    log.error({ err: error.message }, '❌ Error fetching upcoming events');
     res.status(500).json({
       success: false,
       error: 'Failed to fetch upcoming events',
@@ -150,7 +153,7 @@ router.get('/api/openstates-events', async (req: Request, res: Response) => {
   try {
     const { page = 1, per_page = 25 } = req.query;
     
-    console.log(`📅 Fetching Texas events (page ${page})...`);
+    log.info(`📅 Fetching Texas events (page ${page})...`);
     
     const result = await openStatesComprehensiveAPI.fetchTexasEvents(
       parseInt(page as string), 
@@ -169,7 +172,7 @@ router.get('/api/openstates-events', async (req: Request, res: Response) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Error fetching events:', error.message);
+    log.error({ err: error.message }, '❌ Error fetching events');
     res.status(500).json({
       success: false,
       error: 'Failed to fetch Texas events',
@@ -183,7 +186,7 @@ router.get('/api/openstates-people/:personId', async (req: Request, res: Respons
   try {
     const { personId } = req.params;
     
-    console.log(`👤 Fetching person details for: ${personId}`);
+    log.info(`👤 Fetching person details for: ${personId}`);
     
     const person = await openStatesComprehensiveAPI.fetchPersonDetails(personId);
     
@@ -203,7 +206,7 @@ router.get('/api/openstates-people/:personId', async (req: Request, res: Respons
     });
 
   } catch (error: any) {
-    console.error(`❌ Error fetching person ${req.params.personId}:`, error.message);
+    log.error({ err: error.message }, `❌ Error fetching person ${req.params.personId}`);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch person details',
@@ -218,7 +221,7 @@ router.get('/api/openstates-people/search/:query', async (req: Request, res: Res
     const { query } = req.params;
     const { page = 1 } = req.query;
     
-    console.log(`🔍 Searching for people: "${query}"`);
+    log.info(`🔍 Searching for people: "${query}"`);
     
     const result = await openStatesComprehensiveAPI.searchPeople(query, parseInt(page as string));
     
@@ -235,7 +238,7 @@ router.get('/api/openstates-people/search/:query', async (req: Request, res: Res
     });
 
   } catch (error: any) {
-    console.error('❌ Error searching people:', error.message);
+    log.error({ err: error.message }, '❌ Error searching people');
     res.status(500).json({
       success: false,
       error: 'Failed to search people',
@@ -247,7 +250,7 @@ router.get('/api/openstates-people/search/:query', async (req: Request, res: Res
 // Get Texas jurisdiction information
 router.get('/api/openstates-jurisdiction', async (req: Request, res: Response) => {
   try {
-    console.log('🗺️ Fetching Texas jurisdiction information...');
+    log.info('🗺️ Fetching Texas jurisdiction information...');
     
     const jurisdiction = await openStatesComprehensiveAPI.fetchTexasJurisdiction();
     
@@ -266,7 +269,7 @@ router.get('/api/openstates-jurisdiction', async (req: Request, res: Response) =
     });
 
   } catch (error: any) {
-    console.error('❌ Error fetching jurisdiction:', error.message);
+    log.error({ err: error.message }, '❌ Error fetching jurisdiction');
     res.status(500).json({
       success: false,
       error: 'Failed to fetch Texas jurisdiction',
@@ -278,7 +281,7 @@ router.get('/api/openstates-jurisdiction', async (req: Request, res: Response) =
 // Get comprehensive API status and capabilities
 router.get('/api/openstates-comprehensive/status', async (req: Request, res: Response) => {
   try {
-    console.log('📊 Checking comprehensive OpenStates API status...');
+    log.info('📊 Checking comprehensive OpenStates API status...');
     
     res.json({
       success: true,
@@ -315,7 +318,7 @@ router.get('/api/openstates-comprehensive/status', async (req: Request, res: Res
     });
 
   } catch (error: any) {
-    console.error('❌ Error checking status:', error.message);
+    log.error({ err: error.message }, '❌ Error checking status');
     res.status(500).json({
       success: false,
       error: 'Failed to check status',
@@ -326,5 +329,5 @@ router.get('/api/openstates-comprehensive/status', async (req: Request, res: Res
 
 export function registerOpenStatesComprehensiveRoutes(app: express.Application) {
   app.use(router);
-  console.log('🏛️ OpenStates Comprehensive Legislative Infrastructure routes registered successfully!');
+  log.info('🏛️ OpenStates Comprehensive Legislative Infrastructure routes registered successfully!');
 }

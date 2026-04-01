@@ -8,6 +8,9 @@ import { eq, desc, asc, sql } from 'drizzle-orm';
 import { isAuthenticated } from './auth';
 import { z } from 'zod';
 import { Session } from 'express-session';
+import { createLogger } from "./logger";
+const log = createLogger("routes-bill-summaries");
+
 
 // Extend Session type to include our custom properties
 declare module 'express-session' {
@@ -88,7 +91,7 @@ export function registerBillSummaryRoutes(app: Express): void {
         message: 'Summary generation has been initiated, please check back soon.'
       });
     } catch (error: any) {
-      console.error(`Error fetching bill summary for ${billId}:`, error);
+      log.error({ err: error }, `Error fetching bill summary for ${billId}`);
       return res.status(500).json({ error: 'Failed to fetch or generate bill summary' });
     }
   });
@@ -126,7 +129,7 @@ export function registerBillSummaryRoutes(app: Express): void {
         message: `Summary generation ${force ? 're' : ''}initiated, please check back soon.`
       });
     } catch (error: any) {
-      console.error(`Error generating bill summary for ${billId}:`, error);
+      log.error({ err: error }, `Error generating bill summary for ${billId}`);
       return res.status(500).json({ error: 'Failed to generate bill summary' });
     }
   });
@@ -220,7 +223,7 @@ export function registerBillSummaryRoutes(app: Express): void {
       return res.redirect(summary.pdfGeneratedUrl);
       
     } catch (error: any) {
-      console.error(`Error generating PDF for bill ${billId}:`, error);
+      log.error({ err: error }, `Error generating PDF for bill ${billId}`);
       return res.status(500).json({ error: 'Failed to generate PDF' });
     }
   });
@@ -250,11 +253,11 @@ export function registerBillSummaryRoutes(app: Express): void {
         .where(eq(billSummaries.id, summary.id));
       
       // Log the share with platform info if available
-      console.log(`Bill summary ${billId} shared${platform ? ` on ${platform}` : ''}`);
+      log.info(`Bill summary ${billId} shared${platform ? ` on ${platform}` : ''}`);
       
       return res.json({ success: true, message: 'Share tracked successfully' });
     } catch (error: any) {
-      console.error(`Error tracking share for bill ${billId}:`, error);
+      log.error({ err: error }, `Error tracking share for bill ${billId}`);
       return res.status(500).json({ error: 'Failed to track share' });
     }
   });
@@ -383,7 +386,7 @@ export function registerBillSummaryRoutes(app: Express): void {
         }
       });
     } catch (error: any) {
-      console.error('Error fetching bill summaries:', error);
+      log.error({ err: error }, 'Error fetching bill summaries');
       return res.status(500).json({ error: 'Failed to fetch bill summaries' });
     }
   });
@@ -405,7 +408,7 @@ export function registerBillSummaryRoutes(app: Express): void {
       
       return res.json({ message: 'Bill summary deleted successfully', id: deleteResult[0].id });
     } catch (error: any) {
-      console.error(`Error deleting bill summary ${id}:`, error);
+      log.error({ err: error }, `Error deleting bill summary ${id}`);
       return res.status(500).json({ error: 'Failed to delete bill summary' });
     }
   });
@@ -490,7 +493,7 @@ export function registerBillSummaryRoutes(app: Express): void {
       
       return res.json(personalizedSummary);
     } catch (error: any) {
-      console.error(`Error generating personalized summary for bill ${billId}:`, error);
+      log.error({ err: error }, `Error generating personalized summary for bill ${billId}`);
       return res.status(500).json({ error: 'Failed to generate personalized bill summary' });
     }
   });
@@ -546,7 +549,7 @@ export function registerBillSummaryRoutes(app: Express): void {
       
       return res.json(comparison);
     } catch (error: any) {
-      console.error(`Error comparing bills ${billId1} and ${billId2}:`, error);
+      log.error({ err: error }, `Error comparing bills ${billId1} and ${billId2}`);
       return res.status(500).json({ error: 'Failed to generate bill comparison' });
     }
   });

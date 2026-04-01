@@ -10,6 +10,9 @@ import {
   getOpenAIHealthStatus,
   resetOpenAIHealthStatus
 } from './middleware/openai-status';
+import { createLogger } from "./logger";
+const log = createLogger("routes-openai-status");
+
 
 /**
  * Register OpenAI status routes
@@ -40,7 +43,7 @@ export function registerOpenAIStatusRoutes(app: Express): void {
         message: isHealthy ? 'OpenAI API is operational' : 'OpenAI API is not responding correctly'
       });
     } catch (error: any) {
-      console.error('Error checking OpenAI health:', error);
+      log.error({ err: error }, 'Error checking OpenAI health');
       return res.status(500).json({
         success: false,
         error: 'Failed to check OpenAI API health'
@@ -63,7 +66,7 @@ export function registerOpenAIStatusRoutes(app: Express): void {
         message: 'OpenAI health status has been reset and rechecked'
       });
     } catch (error: any) {
-      console.error('Error resetting OpenAI health status:', error);
+      log.error({ err: error }, 'Error resetting OpenAI health status');
       return res.status(500).json({
         success: false,
         error: 'Failed to reset OpenAI health status'

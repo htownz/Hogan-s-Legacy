@@ -11,6 +11,9 @@ import {
   insertInsiderVerifierSchema
 } from '../shared/schema-insider';
 import { superUserStorage } from './storage-super-user';
+import { createLogger } from "./logger";
+const log = createLogger("routes-insider");
+
 
 /**
  * Register insider updates API routes
@@ -61,7 +64,7 @@ export function registerInsiderRoutes(app: Express): void {
       const updates = await insiderStorage.getUpdates(options);
       res.json(updates);
     } catch (error: any) {
-      console.error('Error getting insider updates:', error);
+      log.error({ err: error }, 'Error getting insider updates');
       res.status(500).json({ error: 'Failed to retrieve insider updates' });
     }
   });
@@ -85,7 +88,7 @@ export function registerInsiderRoutes(app: Express): void {
       
       res.json(update);
     } catch (error: any) {
-      console.error('Error getting insider update:', error);
+      log.error({ err: error }, 'Error getting insider update');
       res.status(500).json({ error: 'Failed to retrieve insider update' });
     }
   });
@@ -127,7 +130,7 @@ export function registerInsiderRoutes(app: Express): void {
       const update = await insiderStorage.createUpdate(data, tags);
       res.status(201).json(update);
     } catch (error: any) {
-      console.error('Error creating insider update:', error);
+      log.error({ err: error }, 'Error creating insider update');
       res.status(500).json({ error: 'Failed to create insider update' });
     }
   });
@@ -183,7 +186,7 @@ export function registerInsiderRoutes(app: Express): void {
       
       res.json(updatedUpdate);
     } catch (error: any) {
-      console.error('Error updating insider update:', error);
+      log.error({ err: error }, 'Error updating insider update');
       res.status(500).json({ error: 'Failed to update insider update' });
     }
   });
@@ -216,7 +219,7 @@ export function registerInsiderRoutes(app: Express): void {
       await insiderStorage.deleteUpdate(Number(id));
       res.json({ message: 'Insider update deleted successfully' });
     } catch (error: any) {
-      console.error('Error deleting insider update:', error);
+      log.error({ err: error }, 'Error deleting insider update');
       res.status(500).json({ error: 'Failed to delete insider update' });
     }
   });
@@ -260,7 +263,7 @@ export function registerInsiderRoutes(app: Express): void {
       
       res.json(updatedUpdate);
     } catch (error: any) {
-      console.error('Error verifying insider update:', error);
+      log.error({ err: error }, 'Error verifying insider update');
       res.status(500).json({ error: 'Failed to verify insider update' });
     }
   });
@@ -276,7 +279,7 @@ export function registerInsiderRoutes(app: Express): void {
       const verifications = await insiderStorage.getVerificationsForUpdate(Number(id));
       res.json(verifications);
     } catch (error: any) {
-      console.error('Error getting verifications:', error);
+      log.error({ err: error }, 'Error getting verifications');
       res.status(500).json({ error: 'Failed to retrieve verifications' });
     }
   });
@@ -321,7 +324,7 @@ export function registerInsiderRoutes(app: Express): void {
       const verification = await insiderStorage.createVerification(data);
       res.status(201).json(verification);
     } catch (error: any) {
-      console.error('Error creating verification:', error);
+      log.error({ err: error }, 'Error creating verification');
       res.status(500).json({ error: 'Failed to create verification' });
     }
   });
@@ -344,7 +347,7 @@ export function registerInsiderRoutes(app: Express): void {
       await insiderStorage.deleteVerification(Number(id));
       res.json({ message: 'Verification deleted successfully' });
     } catch (error: any) {
-      console.error('Error deleting verification:', error);
+      log.error({ err: error }, 'Error deleting verification');
       res.status(500).json({ error: 'Failed to delete verification' });
     }
   });
@@ -360,7 +363,7 @@ export function registerInsiderRoutes(app: Express): void {
       const reactions = await insiderStorage.getReactionsForUpdate(Number(id));
       res.json(reactions);
     } catch (error: any) {
-      console.error('Error getting reactions:', error);
+      log.error({ err: error }, 'Error getting reactions');
       res.status(500).json({ error: 'Failed to retrieve reactions' });
     }
   });
@@ -396,7 +399,7 @@ export function registerInsiderRoutes(app: Express): void {
       const reaction = await insiderStorage.createReaction(data);
       res.status(201).json(reaction);
     } catch (error: any) {
-      console.error('Error creating reaction:', error);
+      log.error({ err: error }, 'Error creating reaction');
       res.status(500).json({ error: 'Failed to create reaction' });
     }
   });
@@ -419,7 +422,7 @@ export function registerInsiderRoutes(app: Express): void {
       await insiderStorage.deleteReaction(Number(id));
       res.json({ message: 'Reaction deleted successfully' });
     } catch (error: any) {
-      console.error('Error deleting reaction:', error);
+      log.error({ err: error }, 'Error deleting reaction');
       res.status(500).json({ error: 'Failed to delete reaction' });
     }
   });
@@ -471,7 +474,7 @@ export function registerInsiderRoutes(app: Express): void {
       
       res.json(sources);
     } catch (error: any) {
-      console.error('Error getting insider sources:', error);
+      log.error({ err: error }, 'Error getting insider sources');
       res.status(500).json({ error: 'Failed to retrieve insider sources' });
     }
   });
@@ -520,7 +523,7 @@ export function registerInsiderRoutes(app: Express): void {
       
       res.json(source);
     } catch (error: any) {
-      console.error('Error getting insider source:', error);
+      log.error({ err: error }, 'Error getting insider source');
       res.status(500).json({ error: 'Failed to retrieve insider source' });
     }
   });
@@ -557,7 +560,7 @@ export function registerInsiderRoutes(app: Express): void {
       const source = await insiderStorage.createSource(data);
       res.status(201).json(source);
     } catch (error: any) {
-      console.error('Error creating insider source:', error);
+      log.error({ err: error }, 'Error creating insider source');
       res.status(500).json({ error: 'Failed to create insider source' });
     }
   });
@@ -609,7 +612,7 @@ export function registerInsiderRoutes(app: Express): void {
       
       res.json(updatedSource);
     } catch (error: any) {
-      console.error('Error updating insider source:', error);
+      log.error({ err: error }, 'Error updating insider source');
       res.status(500).json({ error: 'Failed to update insider source' });
     }
   });
@@ -641,7 +644,7 @@ export function registerInsiderRoutes(app: Express): void {
       await insiderStorage.deleteSource(Number(id));
       res.json({ message: 'Insider source deleted successfully' });
     } catch (error: any) {
-      console.error('Error deleting insider source:', error);
+      log.error({ err: error }, 'Error deleting insider source');
       res.status(500).json({ error: 'Failed to delete insider source' });
     }
   });
@@ -685,7 +688,7 @@ export function registerInsiderRoutes(app: Express): void {
       
       res.json(updatedSource);
     } catch (error: any) {
-      console.error('Error verifying insider source:', error);
+      log.error({ err: error }, 'Error verifying insider source');
       res.status(500).json({ error: 'Failed to verify insider source' });
     }
   });
@@ -707,7 +710,7 @@ export function registerInsiderRoutes(app: Express): void {
       const verifiers = await insiderStorage.getVerifiers(options);
       res.json(verifiers);
     } catch (error: any) {
-      console.error('Error getting verifiers:', error);
+      log.error({ err: error }, 'Error getting verifiers');
       res.status(500).json({ error: 'Failed to retrieve verifiers' });
     }
   });
@@ -748,7 +751,7 @@ export function registerInsiderRoutes(app: Express): void {
         });
       }
     } catch (error: any) {
-      console.error('Error creating verifier:', error);
+      log.error({ err: error }, 'Error creating verifier');
       res.status(500).json({ error: 'Failed to create verifier' });
     }
   });
@@ -796,7 +799,7 @@ export function registerInsiderRoutes(app: Express): void {
       
       res.json(updatedVerifier);
     } catch (error: any) {
-      console.error('Error updating verifier:', error);
+      log.error({ err: error }, 'Error updating verifier');
       res.status(500).json({ error: 'Failed to update verifier' });
     }
   });
@@ -833,7 +836,7 @@ export function registerInsiderRoutes(app: Express): void {
       
       res.json(updatedVerifier);
     } catch (error: any) {
-      console.error('Error approving verifier:', error);
+      log.error({ err: error }, 'Error approving verifier');
       res.status(500).json({ error: 'Failed to approve verifier' });
     }
   });
@@ -861,7 +864,7 @@ export function registerInsiderRoutes(app: Express): void {
       await insiderStorage.deleteVerifier(Number(id));
       res.json({ message: 'Verifier deleted successfully' });
     } catch (error: any) {
-      console.error('Error deleting verifier:', error);
+      log.error({ err: error }, 'Error deleting verifier');
       res.status(500).json({ error: 'Failed to delete verifier' });
     }
   });
@@ -875,7 +878,7 @@ export function registerInsiderRoutes(app: Express): void {
       const tags = await insiderStorage.getPopularTags();
       res.json(tags);
     } catch (error: any) {
-      console.error('Error getting popular tags:', error);
+      log.error({ err: error }, 'Error getting popular tags');
       res.status(500).json({ error: 'Failed to retrieve popular tags' });
     }
   });
@@ -894,7 +897,7 @@ export function registerInsiderRoutes(app: Express): void {
       
       res.json(stats);
     } catch (error: any) {
-      console.error('Error getting insider stats:', error);
+      log.error({ err: error }, 'Error getting insider stats');
       res.status(500).json({ error: 'Failed to retrieve insider statistics' });
     }
   });
@@ -909,7 +912,7 @@ export function registerInsiderRoutes(app: Express): void {
       const stats = await insiderStorage.getBillInsiderStats(billId);
       res.json(stats);
     } catch (error: any) {
-      console.error('Error getting bill insider stats:', error);
+      log.error({ err: error }, 'Error getting bill insider stats');
       res.status(500).json({ error: 'Failed to retrieve bill insider statistics' });
     }
   });

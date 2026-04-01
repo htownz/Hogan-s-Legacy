@@ -8,6 +8,9 @@ import {
   insertTutorialProgressSchema
 } from "@shared/schema-onboarding";
 import { AuthRequest } from "./types/request-types";
+import { createLogger } from "./logger";
+const log = createLogger("routes-onboarding");
+
 
 export function registerOnboardingRoutes(app: Express): void {
   /**
@@ -23,7 +26,7 @@ export function registerOnboardingRoutes(app: Express): void {
       const progress = await onboardingStorage.getOnboardingProgress(userId);
       res.json(progress);
     } catch (error: any) {
-      console.error('Error fetching onboarding progress:', error);
+      log.error({ err: error }, 'Error fetching onboarding progress');
       res.status(500).json({ error: 'Failed to fetch onboarding progress' });
     }
   });
@@ -47,7 +50,7 @@ export function registerOnboardingRoutes(app: Express): void {
       
       res.json(progress);
     } catch (error: any) {
-      console.error('Error fetching onboarding step:', error);
+      log.error({ err: error }, 'Error fetching onboarding step');
       res.status(500).json({ error: 'Failed to fetch onboarding step' });
     }
   });
@@ -77,7 +80,7 @@ export function registerOnboardingRoutes(app: Express): void {
       const progress = await onboardingStorage.upsertOnboardingStep(validationResult.data);
       res.status(201).json(progress);
     } catch (error: any) {
-      console.error('Error updating onboarding progress:', error);
+      log.error({ err: error }, 'Error updating onboarding progress');
       res.status(500).json({ error: 'Failed to update onboarding progress' });
     }
   });
@@ -101,7 +104,7 @@ export function registerOnboardingRoutes(app: Express): void {
       
       res.json(updated);
     } catch (error: any) {
-      console.error('Error completing onboarding step:', error);
+      log.error({ err: error }, 'Error completing onboarding step');
       res.status(500).json({ error: 'Failed to complete onboarding step' });
     }
   });
@@ -119,7 +122,7 @@ export function registerOnboardingRoutes(app: Express): void {
       const interests = await onboardingStorage.getCivicInterests(userId);
       res.json(interests);
     } catch (error: any) {
-      console.error('Error fetching civic interests:', error);
+      log.error({ err: error }, 'Error fetching civic interests');
       res.status(500).json({ error: 'Failed to fetch civic interests' });
     }
   });
@@ -149,7 +152,7 @@ export function registerOnboardingRoutes(app: Express): void {
       const interest = await onboardingStorage.addCivicInterest(validationResult.data);
       res.status(201).json(interest);
     } catch (error: any) {
-      console.error('Error adding civic interest:', error);
+      log.error({ err: error }, 'Error adding civic interest');
       res.status(500).json({ error: 'Failed to add civic interest' });
     }
   });
@@ -177,7 +180,7 @@ export function registerOnboardingRoutes(app: Express): void {
       
       res.json(updated);
     } catch (error: any) {
-      console.error('Error updating civic interest:', error);
+      log.error({ err: error }, 'Error updating civic interest');
       res.status(500).json({ error: 'Failed to update civic interest' });
     }
   });
@@ -200,7 +203,7 @@ export function registerOnboardingRoutes(app: Express): void {
       const success = await onboardingStorage.deleteCivicInterest(interestId);
       res.json({ success });
     } catch (error: any) {
-      console.error('Error deleting civic interest:', error);
+      log.error({ err: error }, 'Error deleting civic interest');
       res.status(500).json({ error: 'Failed to delete civic interest' });
     }
   });
@@ -231,7 +234,7 @@ export function registerOnboardingRoutes(app: Express): void {
       
       res.json(preferences);
     } catch (error: any) {
-      console.error('Error fetching engagement preferences:', error);
+      log.error({ err: error }, 'Error fetching engagement preferences');
       res.status(500).json({ error: 'Failed to fetch engagement preferences' });
     }
   });
@@ -261,7 +264,7 @@ export function registerOnboardingRoutes(app: Express): void {
       const preferences = await onboardingStorage.upsertEngagementPreferences(validationResult.data);
       res.json(preferences);
     } catch (error: any) {
-      console.error('Error updating engagement preferences:', error);
+      log.error({ err: error }, 'Error updating engagement preferences');
       res.status(500).json({ error: 'Failed to update engagement preferences' });
     }
   });
@@ -279,7 +282,7 @@ export function registerOnboardingRoutes(app: Express): void {
       const progress = await onboardingStorage.getTutorialProgress(userId);
       res.json(progress);
     } catch (error: any) {
-      console.error('Error fetching tutorial progress:', error);
+      log.error({ err: error }, 'Error fetching tutorial progress');
       res.status(500).json({ error: 'Failed to fetch tutorial progress' });
     }
   });
@@ -303,7 +306,7 @@ export function registerOnboardingRoutes(app: Express): void {
       
       res.json(progress);
     } catch (error: any) {
-      console.error('Error fetching tutorial step:', error);
+      log.error({ err: error }, 'Error fetching tutorial step');
       res.status(500).json({ error: 'Failed to fetch tutorial step' });
     }
   });
@@ -333,7 +336,7 @@ export function registerOnboardingRoutes(app: Express): void {
       const progress = await onboardingStorage.upsertTutorialStep(validationResult.data);
       res.status(201).json(progress);
     } catch (error: any) {
-      console.error('Error updating tutorial progress:', error);
+      log.error({ err: error }, 'Error updating tutorial progress');
       res.status(500).json({ error: 'Failed to update tutorial progress' });
     }
   });
@@ -357,7 +360,7 @@ export function registerOnboardingRoutes(app: Express): void {
       
       res.json(updated);
     } catch (error: any) {
-      console.error('Error completing tutorial step:', error);
+      log.error({ err: error }, 'Error completing tutorial step');
       res.status(500).json({ error: 'Failed to complete tutorial step' });
     }
   });

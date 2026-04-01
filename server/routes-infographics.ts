@@ -8,6 +8,9 @@ import { infographicGeneratorService } from "./services/infographic-generator-se
 import { insertInfographicSchema, insertInfographicShareSchema } from "@shared/schema-infographics";
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
+import { createLogger } from "./logger";
+const log = createLogger("routes-infographics");
+
 
 /**
  * Register infographics API routes
@@ -21,7 +24,7 @@ export function registerInfographicsRoutes(app: Express): void {
       const templates = await infographicsStorage.getAllTemplates();
       res.json(templates);
     } catch (error: any) {
-      console.error('Error fetching infographic templates:', error);
+      log.error({ err: error }, 'Error fetching infographic templates');
       res.status(500).json({ error: 'Failed to fetch infographic templates' });
     }
   });
@@ -35,7 +38,7 @@ export function registerInfographicsRoutes(app: Express): void {
       const templates = await infographicsStorage.getTemplatesByType(type);
       res.json(templates);
     } catch (error: any) {
-      console.error('Error fetching infographic templates by type:', error);
+      log.error({ err: error }, 'Error fetching infographic templates by type');
       res.status(500).json({ error: 'Failed to fetch infographic templates' });
     }
   });
@@ -57,7 +60,7 @@ export function registerInfographicsRoutes(app: Express): void {
 
       res.json(template);
     } catch (error: any) {
-      console.error('Error fetching infographic template:', error);
+      log.error({ err: error }, 'Error fetching infographic template');
       res.status(500).json({ error: 'Failed to fetch infographic template' });
     }
   });
@@ -70,7 +73,7 @@ export function registerInfographicsRoutes(app: Express): void {
       const template = await infographicsStorage.createTemplate(req.body);
       res.status(201).json(template);
     } catch (error: any) {
-      console.error('Error creating infographic template:', error);
+      log.error({ err: error }, 'Error creating infographic template');
       res.status(500).json({ error: 'Failed to create infographic template' });
     }
   });
@@ -84,7 +87,7 @@ export function registerInfographicsRoutes(app: Express): void {
       const infographics = await infographicsStorage.getUserInfographics(userId);
       res.json(infographics);
     } catch (error: any) {
-      console.error('Error fetching user infographics:', error);
+      log.error({ err: error }, 'Error fetching user infographics');
       res.status(500).json({ error: 'Failed to fetch infographics' });
     }
   });
@@ -111,7 +114,7 @@ export function registerInfographicsRoutes(app: Express): void {
 
       res.json(infographic);
     } catch (error: any) {
-      console.error('Error fetching infographic:', error);
+      log.error({ err: error }, 'Error fetching infographic');
       res.status(500).json({ error: 'Failed to fetch infographic' });
     }
   });
@@ -125,7 +128,7 @@ export function registerInfographicsRoutes(app: Express): void {
       const infographics = await infographicsStorage.getBillInfographics(billId);
       res.json(infographics);
     } catch (error: any) {
-      console.error('Error fetching bill infographics:', error);
+      log.error({ err: error }, 'Error fetching bill infographics');
       res.status(500).json({ error: 'Failed to fetch bill infographics' });
     }
   });
@@ -143,7 +146,7 @@ export function registerInfographicsRoutes(app: Express): void {
       const infographics = await infographicsStorage.searchInfographics(query);
       res.json(infographics);
     } catch (error: any) {
-      console.error('Error searching infographics:', error);
+      log.error({ err: error }, 'Error searching infographics');
       res.status(500).json({ error: 'Failed to search infographics' });
     }
   });
@@ -162,7 +165,7 @@ export function registerInfographicsRoutes(app: Express): void {
       const infographic = await infographicsStorage.createInfographic(validatedData);
       res.status(201).json(infographic);
     } catch (error: any) {
-      console.error('Error creating infographic:', error);
+      log.error({ err: error }, 'Error creating infographic');
       if (error instanceof ZodError) {
         const validationError = fromZodError(error);
         return res.status(400).json({ error: validationError.message });
@@ -190,7 +193,7 @@ export function registerInfographicsRoutes(app: Express): void {
 
       res.json(updatedInfographic);
     } catch (error: any) {
-      console.error('Error updating infographic:', error);
+      log.error({ err: error }, 'Error updating infographic');
       if (error instanceof ZodError) {
         const validationError = fromZodError(error);
         return res.status(400).json({ error: validationError.message });
@@ -213,7 +216,7 @@ export function registerInfographicsRoutes(app: Express): void {
       await infographicsStorage.deleteInfographic(id, userId);
       res.status(204).send();
     } catch (error: any) {
-      console.error('Error deleting infographic:', error);
+      log.error({ err: error }, 'Error deleting infographic');
       res.status(500).json({ error: 'Failed to delete infographic' });
     }
   });
@@ -231,7 +234,7 @@ export function registerInfographicsRoutes(app: Express): void {
       const shares = await infographicsStorage.getInfographicShares(id);
       res.json(shares);
     } catch (error: any) {
-      console.error('Error fetching infographic shares:', error);
+      log.error({ err: error }, 'Error fetching infographic shares');
       res.status(500).json({ error: 'Failed to fetch infographic shares' });
     }
   });
@@ -255,7 +258,7 @@ export function registerInfographicsRoutes(app: Express): void {
       const share = await infographicsStorage.createInfographicShare(validatedData);
       res.status(201).json(share);
     } catch (error: any) {
-      console.error('Error sharing infographic:', error);
+      log.error({ err: error }, 'Error sharing infographic');
       if (error instanceof ZodError) {
         const validationError = fromZodError(error);
         return res.status(400).json({ error: validationError.message });
@@ -281,7 +284,7 @@ export function registerInfographicsRoutes(app: Express): void {
 
       res.json(updatedShare);
     } catch (error: any) {
-      console.error('Error recording share click:', error);
+      log.error({ err: error }, 'Error recording share click');
       res.status(500).json({ error: 'Failed to record share click' });
     }
   });
@@ -324,7 +327,7 @@ export function registerInfographicsRoutes(app: Express): void {
       
       res.status(201).json(infographic);
     } catch (error: any) {
-      console.error('Error generating bill infographic:', error);
+      log.error({ err: error }, 'Error generating bill infographic');
       res.status(500).json({ error: 'Failed to generate bill infographic' });
     }
   });
@@ -363,7 +366,7 @@ export function registerInfographicsRoutes(app: Express): void {
       
       res.status(201).json(infographic);
     } catch (error: any) {
-      console.error('Error generating voting infographic:', error);
+      log.error({ err: error }, 'Error generating voting infographic');
       res.status(500).json({ error: 'Failed to generate voting infographic' });
     }
   });
@@ -402,7 +405,7 @@ export function registerInfographicsRoutes(app: Express): void {
       
       res.status(201).json(infographic);
     } catch (error: any) {
-      console.error('Error generating civic action infographic:', error);
+      log.error({ err: error }, 'Error generating civic action infographic');
       res.status(500).json({ error: 'Failed to generate civic action infographic' });
     }
   });
@@ -441,7 +444,7 @@ export function registerInfographicsRoutes(app: Express): void {
       
       res.status(201).json(infographic);
     } catch (error: any) {
-      console.error('Error generating impact infographic:', error);
+      log.error({ err: error }, 'Error generating impact infographic');
       res.status(500).json({ error: 'Failed to generate impact infographic' });
     }
   });

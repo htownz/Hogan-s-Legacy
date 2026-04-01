@@ -14,6 +14,9 @@ import {
   findRelatedBills,
   generateEnhancedBillAnalysis
 } from './services/contextual-bill-analysis-service';
+import { createLogger } from "./logger";
+const log = createLogger("routes-contextual-bill-analysis");
+
 
 const router = Router();
 
@@ -71,7 +74,7 @@ router.get('/bill/:billId/analysis', async (req, res) => {
     
     return res.json({ success: true, data: analysis });
   } catch (error: any) {
-    console.error('Error in bill analysis endpoint:', error);
+    log.error({ err: error }, 'Error in bill analysis endpoint');
     return res.status(500).json({ 
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error occurred' 
@@ -94,7 +97,7 @@ router.get('/bill/:billId/testimony', async (req, res) => {
     
     return res.json({ success: true, data: testimony });
   } catch (error: any) {
-    console.error('Error in witness testimony endpoint:', error);
+    log.error({ err: error }, 'Error in witness testimony endpoint');
     return res.status(500).json({ 
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error occurred' 
@@ -117,7 +120,7 @@ router.get('/statements', async (req, res) => {
     
     return res.json({ success: true, data: statements });
   } catch (error: any) {
-    console.error('Error in official statements endpoint:', error);
+    log.error({ err: error }, 'Error in official statements endpoint');
     return res.status(500).json({ 
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error occurred' 
@@ -138,7 +141,7 @@ router.get('/bill/:billId/finance', async (req, res) => {
     
     return res.json({ success: true, data: connections });
   } catch (error: any) {
-    console.error('Error in campaign finance endpoint:', error);
+    log.error({ err: error }, 'Error in campaign finance endpoint');
     return res.status(500).json({ 
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error occurred' 
@@ -159,7 +162,7 @@ router.get('/bill/:billId/narrative', async (req, res) => {
     
     return res.json({ success: true, data: narrative });
   } catch (error: any) {
-    console.error('Error in narrative context endpoint:', error);
+    log.error({ err: error }, 'Error in narrative context endpoint');
     return res.status(500).json({ 
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error occurred' 
@@ -193,7 +196,7 @@ router.post('/bill/:billId/image-analysis', upload.single('image'), async (req, 
     
     return res.json(result);
   } catch (error: any) {
-    console.error('Error in image analysis endpoint:', error);
+    log.error({ err: error }, 'Error in image analysis endpoint');
     return res.status(500).json({ 
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error occurred' 
@@ -221,7 +224,7 @@ router.post('/bill/:billId/image-url-analysis', async (req, res) => {
     
     return res.json(result);
   } catch (error: any) {
-    console.error('Error in image URL analysis endpoint:', error);
+    log.error({ err: error }, 'Error in image URL analysis endpoint');
     return res.status(500).json({ 
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error occurred' 
@@ -246,7 +249,7 @@ router.post('/bill/:billId/index', async (req, res) => {
       message: result ? 'Bill successfully indexed' : 'Failed to index bill'
     });
   } catch (error: any) {
-    console.error('Error in bill indexing endpoint:', error);
+    log.error({ err: error }, 'Error in bill indexing endpoint');
     return res.status(500).json({ 
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error occurred' 
@@ -273,7 +276,7 @@ router.get('/bill/:billId/related', async (req, res) => {
       data: relatedBills
     });
   } catch (error: any) {
-    console.error('Error in related bills endpoint:', error);
+    log.error({ err: error }, 'Error in related bills endpoint');
     return res.status(500).json({ 
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error occurred' 
@@ -301,7 +304,7 @@ router.post('/bill/:billId/enhanced-analysis', async (req, res) => {
     
     return res.json(analysis);
   } catch (error: any) {
-    console.error('Error in enhanced analysis endpoint:', error);
+    log.error({ err: error }, 'Error in enhanced analysis endpoint');
     return res.status(500).json({ 
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error occurred' 

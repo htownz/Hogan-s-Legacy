@@ -8,6 +8,9 @@
 import express from 'express';
 import { legiscanService } from './services/legiscan-service';
 import { apiRateLimiter } from './middleware/api-rate-limiter';
+import { createLogger } from "./logger";
+const log = createLogger("routes-legiscan");
+
 
 // Apply rate limiting to all LegiScan routes
 const legiscanRateLimiter = apiRateLimiter.getMiddleware('legiscan');
@@ -20,7 +23,7 @@ router.get('/api/legiscan/sessions', legiscanRateLimiter, async (req, res) => {
     const sessions = await legiscanService.getSessionList();
     res.json({ success: true, data: sessions });
   } catch (error: any) {
-    console.error('Error fetching session list:', error);
+    log.error({ err: error }, 'Error fetching session list');
     res.status(500).json({ 
       success: false, 
       error: 'Failed to fetch session list',
@@ -36,7 +39,7 @@ router.get('/api/legiscan/bills/:sessionId', legiscanRateLimiter, async (req, re
     const bills = await legiscanService.getMasterList(sessionId);
     res.json({ success: true, data: bills });
   } catch (error: any) {
-    console.error('Error fetching master list:', error);
+    log.error({ err: error }, 'Error fetching master list');
     res.status(500).json({ 
       success: false, 
       error: 'Failed to fetch bills',
@@ -52,7 +55,7 @@ router.get('/api/legiscan/bill/:billId', legiscanRateLimiter, async (req, res) =
     const bill = await legiscanService.getBill(parseInt(billId, 10));
     res.json({ success: true, data: bill });
   } catch (error: any) {
-    console.error('Error fetching bill details:', error);
+    log.error({ err: error }, 'Error fetching bill details');
     res.status(500).json({ 
       success: false, 
       error: 'Failed to fetch bill details',
@@ -68,7 +71,7 @@ router.get('/api/legiscan/legislator/:personId', legiscanRateLimiter, async (req
     const person = await legiscanService.getPerson(parseInt(personId, 10));
     res.json({ success: true, data: person });
   } catch (error: any) {
-    console.error('Error fetching legislator details:', error);
+    log.error({ err: error }, 'Error fetching legislator details');
     res.status(500).json({ 
       success: false, 
       error: 'Failed to fetch legislator details',
@@ -95,7 +98,7 @@ router.get('/api/legiscan/search', legiscanRateLimiter, async (req, res) => {
     
     res.json({ success: true, data: searchResults });
   } catch (error: any) {
-    console.error('Error searching bills:', error);
+    log.error({ err: error }, 'Error searching bills');
     res.status(500).json({ 
       success: false, 
       error: 'Failed to search bills',
@@ -113,7 +116,7 @@ router.post('/api/legiscan/import/legislators', legiscanRateLimiter, async (req,
       message: `Successfully imported ${count} legislators` 
     });
   } catch (error: any) {
-    console.error('Error importing legislators:', error);
+    log.error({ err: error }, 'Error importing legislators');
     res.status(500).json({ 
       success: false, 
       error: 'Failed to import legislators',

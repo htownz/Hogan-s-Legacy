@@ -7,13 +7,16 @@ import { Express, Request, Response } from "express";
 import { pool } from "./db";
 import { isAuthenticated } from "./auth";
 import { isAdmin } from "./middleware/auth-middleware";
+import { createLogger } from "./logger";
+const log = createLogger("routes-debug");
+
 
 export function registerDebugRoutes(app: Express): void {
   const shouldEnableDebugRoutes =
     process.env.NODE_ENV !== "production" || process.env.ENABLE_DEBUG_ROUTES === "true";
 
   if (!shouldEnableDebugRoutes) {
-    console.log("Debug routes are disabled in production (set ENABLE_DEBUG_ROUTES=true to enable)");
+    log.info("Debug routes are disabled in production (set ENABLE_DEBUG_ROUTES=true to enable)");
     return;
   }
 
@@ -30,7 +33,7 @@ export function registerDebugRoutes(app: Express): void {
         message: `There are ${count} bills in the database.`
       });
     } catch (error: any) {
-      console.error("Error counting bills:", error);
+      log.error({ err: error }, "Error counting bills");
       res.status(500).json({ message: "Failed to count bills", error: String(error) });
     }
   });
@@ -49,7 +52,7 @@ export function registerDebugRoutes(app: Express): void {
       
       res.status(200).json(result.rows);
     } catch (error: any) {
-      console.error("Error fetching sample bills:", error);
+      log.error({ err: error }, "Error fetching sample bills");
       res.status(500).json({ message: "Failed to fetch sample bills", error: String(error) });
     }
   });
@@ -90,7 +93,7 @@ export function registerDebugRoutes(app: Express): void {
         statusDistribution: statusResult.rows,
       });
     } catch (error: any) {
-      console.error("Error checking bill validity:", error);
+      log.error({ err: error }, "Error checking bill validity");
       res.status(500).json({ message: "Failed to check bill validity", error: String(error) });
     }
   });

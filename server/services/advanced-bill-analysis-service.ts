@@ -1,5 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { Pinecone } from '@pinecone-database/pinecone';
+import { createLogger } from "../logger";
+const log = createLogger("advanced-bill-analysis-service");
+
 
 // the newest Anthropic model is "claude-3-7-sonnet-20250219" which was released February 24, 2025
 const anthropic = new Anthropic({
@@ -111,7 +114,7 @@ export class AdvancedBillAnalysisService {
       
       throw new Error('Invalid response format');
     } catch (error: any) {
-      console.error('Error analyzing bill impact:', error);
+      log.error({ err: error }, 'Error analyzing bill impact');
       throw new Error('Failed to analyze bill impact');
     }
   }
@@ -161,7 +164,7 @@ export class AdvancedBillAnalysisService {
       
       throw new Error('Invalid response format');
     } catch (error: any) {
-      console.error('Error analyzing legislative trends:', error);
+      log.error({ err: error }, 'Error analyzing legislative trends');
       throw new Error('Failed to analyze legislative trends');
     }
   }
@@ -209,7 +212,7 @@ export class AdvancedBillAnalysisService {
       
       throw new Error('Invalid response format');
     } catch (error: any) {
-      console.error('Error generating summary card:', error);
+      log.error({ err: error }, 'Error generating summary card');
       throw new Error('Failed to generate summary card');
     }
   }
@@ -238,7 +241,7 @@ export class AdvancedBillAnalysisService {
         status: match.metadata?.status as string
       })) || [];
     } catch (error: any) {
-      console.error('Error finding similar bills:', error);
+      log.error({ err: error }, 'Error finding similar bills');
       return [];
     }
   }
@@ -249,7 +252,7 @@ export class AdvancedBillAnalysisService {
       // In production, you'd use a proper embedding service
       return Array.from({ length: 1536 }, () => Math.random() - 0.5);
     } catch (error: any) {
-      console.error('Error creating embedding:', error);
+      log.error({ err: error }, 'Error creating embedding');
       throw new Error('Failed to create embedding');
     }
   }
@@ -299,7 +302,7 @@ export class AdvancedBillAnalysisService {
       
       throw new Error('Invalid response format');
     } catch (error: any) {
-      console.error('Error analyzing bill complexity:', error);
+      log.error({ err: error }, 'Error analyzing bill complexity');
       throw new Error('Failed to analyze bill complexity');
     }
   }

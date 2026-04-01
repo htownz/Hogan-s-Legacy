@@ -8,6 +8,9 @@ import multer from 'multer';
 import { s3Service } from './aws/s3Service';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { createLogger } from "./logger";
+const log = createLogger("routes-documents");
+
 
 // Configure multer for memory storage
 const upload = multer({
@@ -73,7 +76,7 @@ export function registerDocumentRoutes(app: Express): void {
 
       res.status(201).json(document);
     } catch (error: any) {
-      console.error('Error uploading document:', error);
+      log.error({ err: error }, 'Error uploading document');
       res.status(500).json({ error: 'Failed to upload document' });
     }
   });
@@ -86,7 +89,7 @@ export function registerDocumentRoutes(app: Express): void {
       const documents = await documentStorage.getDocumentsByOwnerId(req.session.userId);
       res.json(documents);
     } catch (error: any) {
-      console.error('Error getting documents:', error);
+      log.error({ err: error }, 'Error getting documents');
       res.status(500).json({ error: 'Failed to get documents' });
     }
   });
@@ -99,7 +102,7 @@ export function registerDocumentRoutes(app: Express): void {
       const documents = await documentStorage.getPublicDocuments();
       res.json(documents);
     } catch (error: any) {
-      console.error('Error getting public documents:', error);
+      log.error({ err: error }, 'Error getting public documents');
       res.status(500).json({ error: 'Failed to get public documents' });
     }
   });
@@ -117,7 +120,7 @@ export function registerDocumentRoutes(app: Express): void {
       const documents = await documentStorage.searchDocuments(req.session.userId, query);
       res.json(documents);
     } catch (error: any) {
-      console.error('Error searching documents:', error);
+      log.error({ err: error }, 'Error searching documents');
       res.status(500).json({ error: 'Failed to search documents' });
     }
   });
@@ -150,7 +153,7 @@ export function registerDocumentRoutes(app: Express): void {
 
       res.json(document);
     } catch (error: any) {
-      console.error('Error getting document:', error);
+      log.error({ err: error }, 'Error getting document');
       res.status(500).json({ error: 'Failed to get document' });
     }
   });
@@ -191,7 +194,7 @@ export function registerDocumentRoutes(app: Express): void {
       const updatedDocument = await documentStorage.updateDocument(documentId, validatedData);
       res.json(updatedDocument);
     } catch (error: any) {
-      console.error('Error updating document:', error);
+      log.error({ err: error }, 'Error updating document');
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: 'Invalid document data', details: error.errors });
       }
@@ -227,7 +230,7 @@ export function registerDocumentRoutes(app: Express): void {
         res.status(500).json({ error: 'Failed to delete document' });
       }
     } catch (error: any) {
-      console.error('Error deleting document:', error);
+      log.error({ err: error }, 'Error deleting document');
       res.status(500).json({ error: 'Failed to delete document' });
     }
   });
@@ -267,7 +270,7 @@ export function registerDocumentRoutes(app: Express): void {
       
       res.json({ downloadUrl });
     } catch (error: any) {
-      console.error('Error generating download URL:', error);
+      log.error({ err: error }, 'Error generating download URL');
       res.status(500).json({ error: 'Failed to generate download URL' });
     }
   });
@@ -308,7 +311,7 @@ export function registerDocumentRoutes(app: Express): void {
 
       res.status(201).json(share);
     } catch (error: any) {
-      console.error('Error sharing document with user:', error);
+      log.error({ err: error }, 'Error sharing document with user');
       res.status(500).json({ error: 'Failed to share document with user' });
     }
   });
@@ -356,7 +359,7 @@ export function registerDocumentRoutes(app: Express): void {
         url: `${req.protocol}://${req.get('host')}/shared-document/${accessLink}`
       });
     } catch (error: any) {
-      console.error('Error creating public share link:', error);
+      log.error({ err: error }, 'Error creating public share link');
       res.status(500).json({ error: 'Failed to create public share link' });
     }
   });
@@ -379,7 +382,7 @@ export function registerDocumentRoutes(app: Express): void {
         permission: result.permission
       });
     } catch (error: any) {
-      console.error('Error getting shared document:', error);
+      log.error({ err: error }, 'Error getting shared document');
       res.status(500).json({ error: 'Failed to get shared document' });
     }
   });
@@ -408,7 +411,7 @@ export function registerDocumentRoutes(app: Express): void {
       const shares = await documentStorage.getDocumentShares(documentId);
       res.json(shares);
     } catch (error: any) {
-      console.error('Error getting document shares:', error);
+      log.error({ err: error }, 'Error getting document shares');
       res.status(500).json({ error: 'Failed to get document shares' });
     }
   });
@@ -431,7 +434,7 @@ export function registerDocumentRoutes(app: Express): void {
         res.status(500).json({ error: 'Failed to delete share' });
       }
     } catch (error: any) {
-      console.error('Error deleting document share:', error);
+      log.error({ err: error }, 'Error deleting document share');
       res.status(500).json({ error: 'Failed to delete document share' });
     }
   });
@@ -484,7 +487,7 @@ export function registerDocumentRoutes(app: Express): void {
 
       res.status(201).json(comment);
     } catch (error: any) {
-      console.error('Error adding comment:', error);
+      log.error({ err: error }, 'Error adding comment');
       res.status(500).json({ error: 'Failed to add comment' });
     }
   });
@@ -503,7 +506,7 @@ export function registerDocumentRoutes(app: Express): void {
       const comments = await documentStorage.getDocumentComments(documentId);
       res.json(comments);
     } catch (error: any) {
-      console.error('Error getting document comments:', error);
+      log.error({ err: error }, 'Error getting document comments');
       res.status(500).json({ error: 'Failed to get document comments' });
     }
   });
@@ -522,7 +525,7 @@ export function registerDocumentRoutes(app: Express): void {
       const replies = await documentStorage.getCommentReplies(commentId);
       res.json(replies);
     } catch (error: any) {
-      console.error('Error getting comment replies:', error);
+      log.error({ err: error }, 'Error getting comment replies');
       res.status(500).json({ error: 'Failed to get comment replies' });
     }
   });
@@ -551,7 +554,7 @@ export function registerDocumentRoutes(app: Express): void {
 
       res.json(updatedComment);
     } catch (error: any) {
-      console.error('Error updating comment:', error);
+      log.error({ err: error }, 'Error updating comment');
       res.status(500).json({ error: 'Failed to update comment' });
     }
   });
@@ -574,7 +577,7 @@ export function registerDocumentRoutes(app: Express): void {
         res.status(404).json({ error: 'Comment not found' });
       }
     } catch (error: any) {
-      console.error('Error deleting comment:', error);
+      log.error({ err: error }, 'Error deleting comment');
       res.status(500).json({ error: 'Failed to delete comment' });
     }
   });
@@ -594,7 +597,7 @@ export function registerDocumentRoutes(app: Express): void {
       const collection = await documentStorage.createCollection(validatedData);
       res.status(201).json(collection);
     } catch (error: any) {
-      console.error('Error creating collection:', error);
+      log.error({ err: error }, 'Error creating collection');
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: 'Invalid collection data', details: error.errors });
       }
@@ -610,7 +613,7 @@ export function registerDocumentRoutes(app: Express): void {
       const collections = await documentStorage.getCollectionsByOwnerId(req.session.userId);
       res.json(collections);
     } catch (error: any) {
-      console.error('Error getting collections:', error);
+      log.error({ err: error }, 'Error getting collections');
       res.status(500).json({ error: 'Failed to get collections' });
     }
   });
@@ -623,7 +626,7 @@ export function registerDocumentRoutes(app: Express): void {
       const collections = await documentStorage.getPublicCollections();
       res.json(collections);
     } catch (error: any) {
-      console.error('Error getting public collections:', error);
+      log.error({ err: error }, 'Error getting public collections');
       res.status(500).json({ error: 'Failed to get public collections' });
     }
   });
@@ -645,7 +648,7 @@ export function registerDocumentRoutes(app: Express): void {
 
       res.json(collection);
     } catch (error: any) {
-      console.error('Error getting collection:', error);
+      log.error({ err: error }, 'Error getting collection');
       res.status(500).json({ error: 'Failed to get collection' });
     }
   });
@@ -677,7 +680,7 @@ export function registerDocumentRoutes(app: Express): void {
       const updatedCollection = await documentStorage.updateCollection(collectionId, validatedData);
       res.json(updatedCollection);
     } catch (error: any) {
-      console.error('Error updating collection:', error);
+      log.error({ err: error }, 'Error updating collection');
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: 'Invalid collection data', details: error.errors });
       }
@@ -713,7 +716,7 @@ export function registerDocumentRoutes(app: Express): void {
         res.status(500).json({ error: 'Failed to delete collection' });
       }
     } catch (error: any) {
-      console.error('Error deleting collection:', error);
+      log.error({ err: error }, 'Error deleting collection');
       res.status(500).json({ error: 'Failed to delete collection' });
     }
   });
@@ -753,7 +756,7 @@ export function registerDocumentRoutes(app: Express): void {
 
       res.status(201).json(collectionItem);
     } catch (error: any) {
-      console.error('Error adding document to collection:', error);
+      log.error({ err: error }, 'Error adding document to collection');
       res.status(500).json({ error: 'Failed to add document to collection' });
     }
   });
@@ -772,7 +775,7 @@ export function registerDocumentRoutes(app: Express): void {
       const documents = await documentStorage.getDocumentsInCollection(collectionId);
       res.json(documents);
     } catch (error: any) {
-      console.error('Error getting documents in collection:', error);
+      log.error({ err: error }, 'Error getting documents in collection');
       res.status(500).json({ error: 'Failed to get documents in collection' });
     }
   });
@@ -806,7 +809,7 @@ export function registerDocumentRoutes(app: Express): void {
         res.status(404).json({ error: 'Document not found in collection' });
       }
     } catch (error: any) {
-      console.error('Error removing document from collection:', error);
+      log.error({ err: error }, 'Error removing document from collection');
       res.status(500).json({ error: 'Failed to remove document from collection' });
     }
   });

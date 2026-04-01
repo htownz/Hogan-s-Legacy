@@ -23,6 +23,9 @@ import {
   insertScoutBotHistoricalTrendsSchema
 } from "../shared/schema-scout-bot-analytics";
 import { isAdmin } from "./middleware/auth-middleware";
+import { createLogger } from "./logger";
+const log = createLogger("routes-scout-bot-analytics");
+
 
 /**
  * Register Scout Bot Analytics API routes
@@ -51,7 +54,7 @@ export function registerScoutBotAnalyticsRoutes(app: Express) {
         }
       });
     } catch (error: any) {
-      console.error("Error fetching advanced analyses:", error);
+      log.error({ err: error }, "Error fetching advanced analyses");
       res.status(500).json({ error: "Failed to fetch advanced analyses" });
     }
   });
@@ -76,7 +79,7 @@ export function registerScoutBotAnalyticsRoutes(app: Express) {
         }
       });
     } catch (error: any) {
-      console.error("Error fetching advanced analyses:", error);
+      log.error({ err: error }, "Error fetching advanced analyses");
       res.status(500).json({ error: "Failed to fetch advanced analyses" });
     }
   });
@@ -96,7 +99,7 @@ export function registerScoutBotAnalyticsRoutes(app: Express) {
       
       res.status(201).json(result);
     } catch (error: any) {
-      console.error("Error analyzing financial networks:", error);
+      log.error({ err: error }, "Error analyzing financial networks");
       res.status(500).json({ error: "Failed to analyze financial networks" });
     }
   });
@@ -112,7 +115,7 @@ export function registerScoutBotAnalyticsRoutes(app: Express) {
       
       res.status(201).json(analysis);
     } catch (error: any) {
-      console.error("Error creating advanced analysis:", error);
+      log.error({ err: error }, "Error creating advanced analysis");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -148,7 +151,7 @@ export function registerScoutBotAnalyticsRoutes(app: Express) {
         }
       });
     } catch (error: any) {
-      console.error("Error fetching historical trends:", error);
+      log.error({ err: error }, "Error fetching historical trends");
       res.status(500).json({ error: "Failed to fetch historical trends" });
     }
   });
@@ -164,7 +167,7 @@ export function registerScoutBotAnalyticsRoutes(app: Express) {
       
       res.status(201).json(trend);
     } catch (error: any) {
-      console.error("Error creating historical trend:", error);
+      log.error({ err: error }, "Error creating historical trend");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -195,7 +198,7 @@ export function registerScoutBotAnalyticsRoutes(app: Express) {
         }
       });
     } catch (error: any) {
-      console.error("Error fetching anomalies:", error);
+      log.error({ err: error }, "Error fetching anomalies");
       res.status(500).json({ error: "Failed to fetch anomalies" });
     }
   });
@@ -220,7 +223,7 @@ export function registerScoutBotAnalyticsRoutes(app: Express) {
         }
       });
     } catch (error: any) {
-      console.error("Error fetching anomalies:", error);
+      log.error({ err: error }, "Error fetching anomalies");
       res.status(500).json({ error: "Failed to fetch anomalies" });
     }
   });
@@ -240,7 +243,7 @@ export function registerScoutBotAnalyticsRoutes(app: Express) {
       
       res.status(201).json(result);
     } catch (error: any) {
-      console.error("Error detecting cross-dataset anomalies:", error);
+      log.error({ err: error }, "Error detecting cross-dataset anomalies");
       res.status(500).json({ error: "Failed to detect cross-dataset anomalies" });
     }
   });
@@ -256,7 +259,7 @@ export function registerScoutBotAnalyticsRoutes(app: Express) {
       
       res.status(201).json(anomaly);
     } catch (error: any) {
-      console.error("Error creating cross-dataset anomaly:", error);
+      log.error({ err: error }, "Error creating cross-dataset anomaly");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -288,7 +291,7 @@ export function registerScoutBotAnalyticsRoutes(app: Express) {
       
       res.json(result);
     } catch (error: any) {
-      console.error("Error reviewing anomaly:", error);
+      log.error({ err: error }, "Error reviewing anomaly");
       res.status(500).json({ error: "Failed to review anomaly" });
     }
   });
@@ -316,7 +319,7 @@ export function registerScoutBotAnalyticsRoutes(app: Express) {
         }
       });
     } catch (error: any) {
-      console.error("Error fetching automated reports:", error);
+      log.error({ err: error }, "Error fetching automated reports");
       res.status(500).json({ error: "Failed to fetch automated reports" });
     }
   });
@@ -348,7 +351,7 @@ export function registerScoutBotAnalyticsRoutes(app: Express) {
       
       res.status(201).json(result);
     } catch (error: any) {
-      console.error("Error generating automated report:", error);
+      log.error({ err: error }, "Error generating automated report");
       res.status(500).json({ error: "Failed to generate automated report" });
     }
   });
@@ -364,7 +367,7 @@ export function registerScoutBotAnalyticsRoutes(app: Express) {
       
       res.status(201).json(report);
     } catch (error: any) {
-      console.error("Error creating automated report:", error);
+      log.error({ err: error }, "Error creating automated report");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }

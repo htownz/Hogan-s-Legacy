@@ -7,6 +7,9 @@ import learningService from "./services/learning-service";
 import { storage } from "./storage";
 import { db } from "./db";
 import { insertContextualLearningContentSchema, insertCivicConceptSchema } from "@shared/schema-learning";
+import { createLogger } from "./logger";
+const log = createLogger("routes-learning");
+
 
 /**
  * Register learning module API routes
@@ -33,7 +36,7 @@ export function registerLearningRoutes(app: Express): void {
       
       res.status(200).json(modules);
     } catch (error: any) {
-      console.error("Error fetching learning modules:", error);
+      log.error({ err: error }, "Error fetching learning modules");
       res.status(500).json({ message: "Failed to fetch learning modules" });
     }
   });
@@ -65,7 +68,7 @@ export function registerLearningRoutes(app: Express): void {
         quizzes
       });
     } catch (error: any) {
-      console.error("Error fetching learning module:", error);
+      log.error({ err: error }, "Error fetching learning module");
       res.status(500).json({ message: "Failed to fetch learning module" });
     }
   });
@@ -84,7 +87,7 @@ export function registerLearningRoutes(app: Express): void {
       const module = await learningStorage.createLearningModule(moduleData);
       res.status(201).json(module);
     } catch (error: any) {
-      console.error("Error creating learning module:", error);
+      log.error({ err: error }, "Error creating learning module");
       res.status(500).json({ message: "Failed to create learning module" });
     }
   });
@@ -107,7 +110,7 @@ export function registerLearningRoutes(app: Express): void {
       
       res.status(200).json(objectives);
     } catch (error: any) {
-      console.error("Error generating learning objectives:", error);
+      log.error({ err: error }, "Error generating learning objectives");
       res.status(500).json({ message: "Failed to generate learning objectives" });
     }
   });
@@ -122,7 +125,7 @@ export function registerLearningRoutes(app: Express): void {
       
       res.status(200).json(progress);
     } catch (error: any) {
-      console.error("Error fetching learning progress:", error);
+      log.error({ err: error }, "Error fetching learning progress");
       res.status(500).json({ message: "Failed to fetch learning progress" });
     }
   });
@@ -159,7 +162,7 @@ export function registerLearningRoutes(app: Express): void {
       
       res.status(200).json(progress);
     } catch (error: any) {
-      console.error("Error updating learning progress:", error);
+      log.error({ err: error }, "Error updating learning progress");
       res.status(500).json({ message: "Failed to update learning progress" });
     }
   });
@@ -210,7 +213,7 @@ export function registerLearningRoutes(app: Express): void {
         furtherQuestions: content.furtherQuestions
       });
     } catch (error: any) {
-      console.error("Error generating contextual learning content:", error);
+      log.error({ err: error }, "Error generating contextual learning content");
       res.status(500).json({ message: "Failed to generate learning content" });
     }
   });
@@ -227,7 +230,7 @@ export function registerLearningRoutes(app: Express): void {
       
       res.status(200).json(history);
     } catch (error: any) {
-      console.error("Error fetching contextual learning history:", error);
+      log.error({ err: error }, "Error fetching contextual learning history");
       res.status(500).json({ message: "Failed to fetch learning history" });
     }
   });
@@ -253,7 +256,7 @@ export function registerLearningRoutes(app: Express): void {
       
       res.status(200).json(concepts);
     } catch (error: any) {
-      console.error("Error searching civic concepts:", error);
+      log.error({ err: error }, "Error searching civic concepts");
       res.status(500).json({ message: "Failed to search civic concepts" });
     }
   });
@@ -281,7 +284,7 @@ export function registerLearningRoutes(app: Express): void {
       
       res.status(200).json(concept);
     } catch (error: any) {
-      console.error("Error fetching civic concept:", error);
+      log.error({ err: error }, "Error fetching civic concept");
       res.status(500).json({ message: "Failed to fetch civic concept" });
     }
   });
@@ -324,7 +327,7 @@ export function registerLearningRoutes(app: Express): void {
       
       res.status(201).json(savedConcept);
     } catch (error: any) {
-      console.error("Error generating civic concept:", error);
+      log.error({ err: error }, "Error generating civic concept");
       res.status(500).json({ message: "Failed to generate civic concept" });
     }
   });
@@ -350,7 +353,7 @@ export function registerLearningRoutes(app: Express): void {
       
       res.status(200).json(quizData);
     } catch (error: any) {
-      console.error("Error generating quiz questions:", error);
+      log.error({ err: error }, "Error generating quiz questions");
       res.status(500).json({ message: "Failed to generate quiz questions" });
     }
   });
@@ -421,7 +424,7 @@ export function registerLearningRoutes(app: Express): void {
         passed
       });
     } catch (error: any) {
-      console.error("Error submitting quiz attempt:", error);
+      log.error({ err: error }, "Error submitting quiz attempt");
       res.status(500).json({ message: "Failed to submit quiz attempt" });
     }
   });
@@ -468,7 +471,7 @@ export function registerLearningRoutes(app: Express): void {
         concepts: filteredConcepts
       });
     } catch (error: any) {
-      console.error("Error fetching bill learning content:", error);
+      log.error({ err: error }, "Error fetching bill learning content");
       res.status(500).json({ message: "Failed to fetch bill learning content" });
     }
   });

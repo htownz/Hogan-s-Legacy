@@ -8,6 +8,9 @@
 import { Router } from 'express';
 import { expandedDataCollector } from './services/expanded-data-collector';
 import { storage } from './storage';
+import { createLogger } from "./logger";
+const log = createLogger("routes-expanded-data");
+
 
 const router = Router();
 
@@ -17,7 +20,7 @@ const router = Router();
  */
 router.post('/collect/committees', async (req, res) => {
   try {
-    console.log('🚀 Starting committee data collection...');
+    log.info('🚀 Starting committee data collection...');
     
     const committees = await expandedDataCollector.collectCommitteeData();
     
@@ -33,7 +36,7 @@ router.post('/collect/committees', async (req, res) => {
       message: `Successfully collected ${committees.length} committees with comprehensive data`
     });
   } catch (error: any) {
-    console.error('❌ Committee collection error:', error);
+    log.error({ err: error }, '❌ Committee collection error');
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to collect committee data',
@@ -50,7 +53,7 @@ router.post('/collect/hearings/:committeeId', async (req, res) => {
   try {
     const { committeeId } = req.params;
     
-    console.log(`🚀 Starting hearing collection for committee: ${committeeId}`);
+    log.info(`🚀 Starting hearing collection for committee: ${committeeId}`);
     
     const hearings = await expandedDataCollector.collectCommitteeHearings(committeeId);
     
@@ -67,7 +70,7 @@ router.post('/collect/hearings/:committeeId', async (req, res) => {
       message: `Successfully collected ${hearings.length} hearings for committee ${committeeId}`
     });
   } catch (error: any) {
-    console.error('❌ Hearing collection error:', error);
+    log.error({ err: error }, '❌ Hearing collection error');
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to collect hearing data',
@@ -84,7 +87,7 @@ router.post('/collect/voting-records', async (req, res) => {
   try {
     const { sessionId } = req.body;
     
-    console.log('🚀 Starting voting records collection...');
+    log.info('🚀 Starting voting records collection...');
     
     const votingRecords = await expandedDataCollector.collectVotingRecords(sessionId);
     
@@ -101,7 +104,7 @@ router.post('/collect/voting-records', async (req, res) => {
       message: `Successfully collected ${votingRecords.length} voting records`
     });
   } catch (error: any) {
-    console.error('❌ Voting records collection error:', error);
+    log.error({ err: error }, '❌ Voting records collection error');
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to collect voting records',
@@ -116,7 +119,7 @@ router.post('/collect/voting-records', async (req, res) => {
  */
 router.post('/collect/historical-sessions', async (req, res) => {
   try {
-    console.log('🚀 Starting historical session collection...');
+    log.info('🚀 Starting historical session collection...');
     
     const sessions = await expandedDataCollector.collectHistoricalSessions();
     
@@ -136,7 +139,7 @@ router.post('/collect/historical-sessions', async (req, res) => {
       message: `Successfully collected ${sessions.length} historical sessions`
     });
   } catch (error: any) {
-    console.error('❌ Historical sessions collection error:', error);
+    log.error({ err: error }, '❌ Historical sessions collection error');
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to collect historical session data',
@@ -151,7 +154,7 @@ router.post('/collect/historical-sessions', async (req, res) => {
  */
 router.post('/collect/ethics-data', async (req, res) => {
   try {
-    console.log('🚀 Starting ethics data collection...');
+    log.info('🚀 Starting ethics data collection...');
     
     await expandedDataCollector.collectEthicsData();
     
@@ -169,7 +172,7 @@ router.post('/collect/ethics-data', async (req, res) => {
       message: 'Successfully collected Texas Ethics Commission data'
     });
   } catch (error: any) {
-    console.error('❌ Ethics data collection error:', error);
+    log.error({ err: error }, '❌ Ethics data collection error');
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to collect ethics data',
@@ -184,15 +187,15 @@ router.post('/collect/ethics-data', async (req, res) => {
  */
 router.post('/collect/comprehensive', async (req, res) => {
   try {
-    console.log('🚀 Starting comprehensive data expansion...');
+    log.info('🚀 Starting comprehensive data expansion...');
     
     // Start the collection process
     expandedDataCollector.runComprehensiveDataExpansion()
       .then(() => {
-        console.log('✅ Comprehensive data expansion completed successfully');
+        log.info('✅ Comprehensive data expansion completed successfully');
       })
       .catch((error) => {
-        console.error('❌ Comprehensive data expansion failed:', error);
+        log.error({ err: error }, '❌ Comprehensive data expansion failed');
       });
     
     // Return immediate response since this is a long-running process
@@ -213,7 +216,7 @@ router.post('/collect/comprehensive', async (req, res) => {
       message: 'Comprehensive data expansion started successfully'
     });
   } catch (error: any) {
-    console.error('❌ Comprehensive collection error:', error);
+    log.error({ err: error }, '❌ Comprehensive collection error');
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to start comprehensive data collection',
@@ -245,7 +248,7 @@ router.get('/status', async (req, res) => {
       stats.historicalSessions = await storage.getHistoricalSessionCount?.() || 0;
       stats.ethicsRecords = await storage.getEthicsRecordCount?.() || 0;
     } catch (error: any) {
-      console.log('ℹ️ Storage methods not yet implemented, using placeholder counts');
+      log.info('ℹ️ Storage methods not yet implemented, using placeholder counts');
     }
     
     res.json({
@@ -267,7 +270,7 @@ router.get('/status', async (req, res) => {
       message: 'Data collection status retrieved successfully'
     });
   } catch (error: any) {
-    console.error('❌ Status retrieval error:', error);
+    log.error({ err: error }, '❌ Status retrieval error');
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to retrieve collection status',
@@ -307,7 +310,7 @@ router.get('/committees', async (req, res) => {
       message: 'Committee data retrieved successfully'
     });
   } catch (error: any) {
-    console.error('❌ Committee retrieval error:', error);
+    log.error({ err: error }, '❌ Committee retrieval error');
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to retrieve committee data',
@@ -345,7 +348,7 @@ router.get('/hearings/:committeeId', async (req, res) => {
       message: 'Hearing data retrieved successfully'
     });
   } catch (error: any) {
-    console.error('❌ Hearing retrieval error:', error);
+    log.error({ err: error }, '❌ Hearing retrieval error');
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to retrieve hearing data',
@@ -389,7 +392,7 @@ router.get('/voting-records/:billId', async (req, res) => {
       message: 'Voting records retrieved successfully'
     });
   } catch (error: any) {
-    console.error('❌ Voting records retrieval error:', error);
+    log.error({ err: error }, '❌ Voting records retrieval error');
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to retrieve voting records',
@@ -438,7 +441,7 @@ router.get('/historical-sessions', async (req, res) => {
       message: 'Historical sessions retrieved successfully'
     });
   } catch (error: any) {
-    console.error('❌ Historical sessions retrieval error:', error);
+    log.error({ err: error }, '❌ Historical sessions retrieval error');
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to retrieve historical sessions',

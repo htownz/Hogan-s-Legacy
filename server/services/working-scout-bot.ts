@@ -1,5 +1,8 @@
 // @ts-nocheck
 import Anthropic from '@anthropic-ai/sdk';
+import { createLogger } from "../logger";
+const log = createLogger("working-scout-bot");
+
 
 // the newest Anthropic model is "claude-3-7-sonnet-20250219" which was released February 24, 2025
 const anthropic = new Anthropic({
@@ -104,7 +107,7 @@ Format your response as detailed analysis with specific findings, connections, a
       return this.parseResearchResponse(analysisText, query);
 
     } catch (error: any) {
-      console.error('Research error:', error);
+      log.error({ err: error }, 'Research error');
       throw new Error(`Research failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -134,7 +137,7 @@ Focus on factual, verifiable information and note the sources of your findings.`
       return this.parseEntityProfile(analysisText, entityName);
 
     } catch (error: any) {
-      console.error('Entity analysis error:', error);
+      log.error({ err: error }, 'Entity analysis error');
       throw new Error(`Entity analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -164,7 +167,7 @@ Provide specific findings with dates, amounts, and sources where available.`;
       return this.parseEthicsFindings(analysisText);
 
     } catch (error: any) {
-      console.error('Ethics scan error:', error);
+      log.error({ err: error }, 'Ethics scan error');
       throw new Error(`Ethics scan failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }

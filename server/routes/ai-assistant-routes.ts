@@ -13,6 +13,9 @@ import {
   insertAiAssistantConversationSchema,
   insertAiAssistantMessageSchema
 } from "@shared/schema";
+import { createLogger } from "../logger";
+const log = createLogger("ai-assistant-routes");
+
 
 // Schemas for request validation
 const roleSchema = z.object({
@@ -57,7 +60,7 @@ export function registerAiAssistantRoutes(app: Express) {
       
       return res.status(200).json(assistants);
     } catch (error: any) {
-      console.error("Error fetching assistants:", error);
+      log.error({ err: error }, "Error fetching assistants");
       return res.status(500).json({ message: "Failed to fetch assistants" });
     }
   });
@@ -87,7 +90,7 @@ export function registerAiAssistantRoutes(app: Express) {
       
       return res.status(200).json(assistant);
     } catch (error: any) {
-      console.error("Error fetching assistant:", error);
+      log.error({ err: error }, "Error fetching assistant");
       return res.status(500).json({ message: "Failed to fetch assistant" });
     }
   });
@@ -118,7 +121,7 @@ export function registerAiAssistantRoutes(app: Express) {
       
       return res.status(200).json(conversations);
     } catch (error: any) {
-      console.error("Error fetching conversations:", error);
+      log.error({ err: error }, "Error fetching conversations");
       return res.status(500).json({ message: "Failed to fetch conversations" });
     }
   });
@@ -154,7 +157,7 @@ export function registerAiAssistantRoutes(app: Express) {
       
       return res.status(201).json(conversation);
     } catch (error: any) {
-      console.error("Error creating conversation:", error);
+      log.error({ err: error }, "Error creating conversation");
       return res.status(500).json({ message: "Failed to create conversation" });
     }
   });
@@ -187,7 +190,7 @@ export function registerAiAssistantRoutes(app: Express) {
       
       return res.status(200).json(messages);
     } catch (error: any) {
-      console.error("Error fetching messages:", error);
+      log.error({ err: error }, "Error fetching messages");
       return res.status(500).json({ message: "Failed to fetch messages" });
     }
   });
@@ -267,7 +270,7 @@ export function registerAiAssistantRoutes(app: Express) {
         assistantMessage: aiMessage
       });
     } catch (error: any) {
-      console.error("Error sending message:", error);
+      log.error({ err: error }, "Error sending message");
       return res.status(500).json({ message: "Failed to send message" });
     }
   });
@@ -310,7 +313,7 @@ export function registerAiAssistantRoutes(app: Express) {
       
       return res.status(200).json(assessment);
     } catch (error: any) {
-      console.error("Error generating skill assessment:", error);
+      log.error({ err: error }, "Error generating skill assessment");
       return res.status(500).json({ message: "Failed to generate skill assessment" });
     }
   });
@@ -359,7 +362,7 @@ export function registerAiAssistantRoutes(app: Express) {
       
       return res.status(200).json(trainingPlan);
     } catch (error: any) {
-      console.error("Error generating training plan:", error);
+      log.error({ err: error }, "Error generating training plan");
       return res.status(500).json({ message: "Failed to generate training plan" });
     }
   });
@@ -392,7 +395,7 @@ export function registerAiAssistantRoutes(app: Express) {
       
       return res.status(200).json(updatedAssistant);
     } catch (error: any) {
-      console.error("Error updating assistant settings:", error);
+      log.error({ err: error }, "Error updating assistant settings");
       return res.status(500).json({ message: "Failed to update assistant settings" });
     }
   });
@@ -429,7 +432,7 @@ export function registerAiAssistantRoutes(app: Express) {
         return res.status(500).json({ message: "Failed to delete conversation" });
       }
     } catch (error: any) {
-      console.error("Error deleting conversation:", error);
+      log.error({ err: error }, "Error deleting conversation");
       return res.status(500).json({ message: "Failed to delete conversation" });
     }
   });

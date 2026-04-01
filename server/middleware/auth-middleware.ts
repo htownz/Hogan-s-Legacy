@@ -3,6 +3,9 @@ import { db } from '../db';
 import { users } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 import { AuthRequest } from '../types/request-types';
+import { createLogger } from '../logger';
+
+const log = createLogger('auth-middleware');
 
 function parseUserIdSet(raw: string | undefined): Set<number> {
   if (!raw) return new Set();
@@ -90,7 +93,7 @@ export const isAdmin = async (req: AuthRequest, res: Response, next: NextFunctio
 
     return res.status(403).json({ error: 'Forbidden - Admin access required' });
   } catch (error: any) {
-    console.error('Error in isAdmin middleware:', error);
+    log.error({ err: error }, 'Error in isAdmin middleware');
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -116,7 +119,7 @@ export const isModeratorOrAdmin = async (req: AuthRequest, res: Response, next: 
 
     return res.status(403).json({ error: 'Forbidden - Moderator or admin access required' });
   } catch (error: any) {
-    console.error('Error in isModeratorOrAdmin middleware:', error);
+    log.error({ err: error }, 'Error in isModeratorOrAdmin middleware');
     return res.status(500).json({ error: 'Internal server error' });
   }
 };

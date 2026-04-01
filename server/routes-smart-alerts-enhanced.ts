@@ -1,5 +1,8 @@
 import { Router } from 'express';
 import { generateSmartAlert, processAlertAction, getUserAlerts, markAlertAsRead } from './services/smart-alerts-enhanced-service';
+import { createLogger } from "./logger";
+const log = createLogger("routes-smart-alerts-enhanced");
+
 
 const router = Router();
 
@@ -22,7 +25,7 @@ router.post('/generate', async (req, res) => {
     const result = await generateSmartAlert(billId, changeType, changeDetails || {});
     return res.json(result);
   } catch (error: any) {
-    console.error('Error in smart alert generation endpoint:', error);
+    log.error({ err: error }, 'Error in smart alert generation endpoint');
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -51,7 +54,7 @@ router.post('/:alertId/action', async (req, res) => {
     const result = await processAlertAction(alertId, action, userId, data);
     return res.json(result);
   } catch (error: any) {
-    console.error('Error in alert action endpoint:', error);
+    log.error({ err: error }, 'Error in alert action endpoint');
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -77,7 +80,7 @@ router.get('/user', async (req, res) => {
     const result = await getUserAlerts(userId, filters);
     return res.json(result);
   } catch (error: any) {
-    console.error('Error in get user alerts endpoint:', error);
+    log.error({ err: error }, 'Error in get user alerts endpoint');
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -97,7 +100,7 @@ router.post('/:alertId/read', async (req, res) => {
     const result = await markAlertAsRead(alertId, userId);
     return res.json(result);
   } catch (error: any) {
-    console.error('Error in mark alert as read endpoint:', error);
+    log.error({ err: error }, 'Error in mark alert as read endpoint');
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -172,7 +175,7 @@ router.post('/simulate', async (req, res) => {
     const result = await generateSmartAlert(billId, scenarioData.changeType, scenarioData.changeDetails);
     return res.json(result);
   } catch (error: any) {
-    console.error('Error in simulate alert endpoint:', error);
+    log.error({ err: error }, 'Error in simulate alert endpoint');
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -208,7 +211,7 @@ router.get('/stats', async (req, res) => {
       data: stats
     });
   } catch (error: any) {
-    console.error('Error in alert stats endpoint:', error);
+    log.error({ err: error }, 'Error in alert stats endpoint');
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -218,7 +221,7 @@ router.get('/stats', async (req, res) => {
 
 export function registerSmartAlertsEnhancedRoutes(app: any) {
   app.use('/api/smart-alerts', router);
-  console.log('Enhanced smart alerts routes registered');
+  log.info('Enhanced smart alerts routes registered');
 }
 
 export default router;

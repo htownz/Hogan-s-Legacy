@@ -11,6 +11,9 @@ import {
   insertVerificationSourceSchema,
   insertUserVerificationCredentialSchema
 } from "@shared/schema";
+import { createLogger } from "../logger";
+const log = createLogger("verification-routes");
+
 
 export function registerVerificationRoutes(app: Express) {
   const getCurrentUserId = (req: CustomRequest): number | null => {
@@ -32,7 +35,7 @@ export function registerVerificationRoutes(app: Express) {
       const updates = await storage.getLegislativeUpdatesByBillId(billId);
       res.json(updates);
     } catch (error: any) {
-      console.error("Error fetching legislative updates:", error);
+      log.error({ err: error }, "Error fetching legislative updates");
       res.status(500).json({ error: "Failed to fetch legislative updates" });
     }
   });
@@ -44,7 +47,7 @@ export function registerVerificationRoutes(app: Express) {
       const updates = await storage.getRecentLegislativeUpdates(limit);
       res.json(updates);
     } catch (error: any) {
-      console.error("Error fetching recent updates:", error);
+      log.error({ err: error }, "Error fetching recent updates");
       res.status(500).json({ error: "Failed to fetch recent updates" });
     }
   });
@@ -56,7 +59,7 @@ export function registerVerificationRoutes(app: Express) {
       const updates = await storage.getPendingLegislativeUpdates(limit);
       res.json(updates);
     } catch (error: any) {
-      console.error("Error fetching pending updates:", error);
+      log.error({ err: error }, "Error fetching pending updates");
       res.status(500).json({ error: "Failed to fetch pending updates" });
     }
   });
@@ -68,7 +71,7 @@ export function registerVerificationRoutes(app: Express) {
       const updates = await storage.getVerifiedLegislativeUpdates(limit);
       res.json(updates);
     } catch (error: any) {
-      console.error("Error fetching verified updates:", error);
+      log.error({ err: error }, "Error fetching verified updates");
       res.status(500).json({ error: "Failed to fetch verified updates" });
     }
   });
@@ -85,7 +88,7 @@ export function registerVerificationRoutes(app: Express) {
       
       res.json(update);
     } catch (error: any) {
-      console.error("Error fetching legislative update:", error);
+      log.error({ err: error }, "Error fetching legislative update");
       res.status(500).json({ error: "Failed to fetch legislative update" });
     }
   });
@@ -116,7 +119,7 @@ export function registerVerificationRoutes(app: Express) {
       
       res.status(201).json(newUpdate);
     } catch (error: any) {
-      console.error("Error creating legislative update:", error);
+      log.error({ err: error }, "Error creating legislative update");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -133,7 +136,7 @@ export function registerVerificationRoutes(app: Express) {
       const verifications = await storage.getVerificationsByUpdateId(updateId);
       res.json(verifications);
     } catch (error: any) {
-      console.error("Error fetching verifications:", error);
+      log.error({ err: error }, "Error fetching verifications");
       res.status(500).json({ error: "Failed to fetch verifications" });
     }
   });
@@ -196,7 +199,7 @@ export function registerVerificationRoutes(app: Express) {
       
       res.status(201).json(newVerification);
     } catch (error: any) {
-      console.error("Error submitting verification:", error);
+      log.error({ err: error }, "Error submitting verification");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -212,7 +215,7 @@ export function registerVerificationRoutes(app: Express) {
       const rules = await storage.getAllVerificationRules();
       res.json(rules);
     } catch (error: any) {
-      console.error("Error fetching verification rules:", error);
+      log.error({ err: error }, "Error fetching verification rules");
       res.status(500).json({ error: "Failed to fetch verification rules" });
     }
   });
@@ -229,7 +232,7 @@ export function registerVerificationRoutes(app: Express) {
       
       res.json(rule);
     } catch (error: any) {
-      console.error("Error fetching verification rule:", error);
+      log.error({ err: error }, "Error fetching verification rule");
       res.status(500).json({ error: "Failed to fetch verification rule" });
     }
   });
@@ -241,7 +244,7 @@ export function registerVerificationRoutes(app: Express) {
       const newRule = await storage.createVerificationRule(ruleData);
       res.status(201).json(newRule);
     } catch (error: any) {
-      console.error("Error creating verification rule:", error);
+      log.error({ err: error }, "Error creating verification rule");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -257,7 +260,7 @@ export function registerVerificationRoutes(app: Express) {
       const sources = await storage.getAllVerificationSources();
       res.json(sources);
     } catch (error: any) {
-      console.error("Error fetching verification sources:", error);
+      log.error({ err: error }, "Error fetching verification sources");
       res.status(500).json({ error: "Failed to fetch verification sources" });
     }
   });
@@ -269,7 +272,7 @@ export function registerVerificationRoutes(app: Express) {
       const sources = await storage.getVerificationSourcesByType(sourceType);
       res.json(sources);
     } catch (error: any) {
-      console.error("Error fetching verification sources:", error);
+      log.error({ err: error }, "Error fetching verification sources");
       res.status(500).json({ error: "Failed to fetch verification sources" });
     }
   });
@@ -289,7 +292,7 @@ export function registerVerificationRoutes(app: Express) {
       const newSource = await storage.createVerificationSource(sourceData);
       res.status(201).json(newSource);
     } catch (error: any) {
-      console.error("Error adding verification source:", error);
+      log.error({ err: error }, "Error adding verification source");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -306,7 +309,7 @@ export function registerVerificationRoutes(app: Express) {
       const credentials = await storage.getUserVerificationCredentialsByUserId(userId);
       res.json(credentials);
     } catch (error: any) {
-      console.error("Error fetching user verification credentials:", error);
+      log.error({ err: error }, "Error fetching user verification credentials");
       res.status(500).json({ error: "Failed to fetch user verification credentials" });
     }
   });
@@ -321,7 +324,7 @@ export function registerVerificationRoutes(app: Express) {
       const credentials = await storage.getUserVerificationCredentialsByUserId(userId);
       res.json(credentials);
     } catch (error: any) {
-      console.error("Error fetching user verification credentials:", error);
+      log.error({ err: error }, "Error fetching user verification credentials");
       res.status(500).json({ error: "Failed to fetch user verification credentials" });
     }
   });
@@ -351,7 +354,7 @@ export function registerVerificationRoutes(app: Express) {
       
       res.json(updatedCredential);
     } catch (error: any) {
-      console.error("Error updating verification credential:", error);
+      log.error({ err: error }, "Error updating verification credential");
       res.status(500).json({ error: "Failed to update verification credential" });
     }
   });

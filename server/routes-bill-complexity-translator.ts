@@ -2,6 +2,9 @@
 import express from 'express';
 import { Request, Response } from 'express';
 import { storage } from './storage';
+import { createLogger } from "./logger";
+const log = createLogger("routes-bill-complexity-translator");
+
 
 const router = express.Router();
 
@@ -74,7 +77,7 @@ router.post('/api/bills/translate', async (req: Request, res: Response) => {
       });
     }
 
-    console.log(`🧠 AI translating bill ${billId} to level ${level} with ${focus} focus...`);
+    log.info(`🧠 AI translating bill ${billId} to level ${level} with ${focus} focus...`);
 
     // Fetch the bill from storage
     const bill = await storage.getBillById(billId);
@@ -87,7 +90,7 @@ router.post('/api/bills/translate', async (req: Request, res: Response) => {
     // Perform AI-powered translation
     const translation = await translateBillComplexity(bill, level, focus);
 
-    console.log(`✅ Bill translation completed for ${bill.title}`);
+    log.info(`✅ Bill translation completed for ${bill.title}`);
 
     res.json({
       success: true,
@@ -98,7 +101,7 @@ router.post('/api/bills/translate', async (req: Request, res: Response) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Error in bill translation:', error.message);
+    log.error({ err: error.message }, '❌ Error in bill translation');
     res.status(500).json({
       error: 'Failed to translate bill',
       details: error.message
@@ -111,7 +114,7 @@ router.get('/api/bills/:id/reading-level', async (req: Request, res: Response) =
   try {
     const { id } = req.params;
     
-    console.log(`📊 Analyzing reading level for bill ${id}...`);
+    log.info(`📊 Analyzing reading level for bill ${id}...`);
 
     const bill = await storage.getBillById(id);
     if (!bill) {
@@ -135,7 +138,7 @@ router.get('/api/bills/:id/reading-level', async (req: Request, res: Response) =
     });
 
   } catch (error: any) {
-    console.error('❌ Error analyzing reading level:', error.message);
+    log.error({ err: error.message }, '❌ Error analyzing reading level');
     res.status(500).json({
       error: 'Failed to analyze reading level',
       details: error.message
@@ -149,7 +152,7 @@ router.post('/api/bills/:id/explain-section', async (req: Request, res: Response
     const { id } = req.params;
     const { section, level = 5 } = req.body;
     
-    console.log(`🔍 Explaining section for bill ${id}...`);
+    log.info(`🔍 Explaining section for bill ${id}...`);
 
     const bill = await storage.getBillById(id);
     if (!bill) {
@@ -169,7 +172,7 @@ router.post('/api/bills/:id/explain-section', async (req: Request, res: Response
     });
 
   } catch (error: any) {
-    console.error('❌ Error explaining bill section:', error.message);
+    log.error({ err: error.message }, '❌ Error explaining bill section');
     res.status(500).json({
       error: 'Failed to explain bill section',
       details: error.message
@@ -226,7 +229,7 @@ async function translateBillComplexity(bill: any, level: number, focus: string):
     };
 
   } catch (error: any) {
-    console.error('Error in bill translation:', error);
+    log.error({ err: error }, 'Error in bill translation');
     throw new Error('Failed to translate bill complexity');
   }
 }
@@ -236,7 +239,7 @@ async function translateBillComplexity(bill: any, level: number, focus: string):
  */
 async function generateSponsorAnalysis(bill: any) {
   try {
-    console.log(`🔍 Analyzing sponsor for bill: ${bill.title}`);
+    log.info(`🔍 Analyzing sponsor for bill: ${bill.title}`);
     
     // Try to find the sponsor in our authentic legislator data
     const sponsorName = bill.sponsor || bill.primarySponsor;
@@ -248,11 +251,11 @@ async function generateSponsorAnalysis(bill: any) {
     const legislator = await storage.getLegislatorByName(sponsorName);
     
     if (!legislator) {
-      console.log(`⚠️ Legislator ${sponsorName} not found in authentic data`);
+      log.info(`⚠️ Legislator ${sponsorName} not found in authentic data`);
       return null;
     }
     
-    console.log(`✅ Found authentic legislator data for ${legislator.name}`);
+    log.info(`✅ Found authentic legislator data for ${legislator.name}`);
     
     // Generate authentic analysis based on real data
     const votingPattern = {
@@ -314,7 +317,7 @@ async function generateSponsorAnalysis(bill: any) {
     };
     
   } catch (error: any) {
-    console.error('Error generating sponsor analysis:', error);
+    log.error({ err: error }, 'Error generating sponsor analysis');
     return null;
   }
 }
@@ -683,5 +686,5 @@ async function explainBillSection(section: string, level: number): Promise<strin
 
 export function registerBillComplexityTranslatorRoutes(app: express.Application) {
   app.use(router);
-  console.log('🧠 AI Bill Complexity Translator routes registered successfully!');
+  log.info('🧠 AI Bill Complexity Translator routes registered successfully!');
 }

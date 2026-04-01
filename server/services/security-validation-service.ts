@@ -1,4 +1,7 @@
 import OpenAI from 'openai';
+import { createLogger } from "../logger";
+const log = createLogger("security-validation-service");
+
 
 // Initialize OpenAI client for content validation
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -130,12 +133,11 @@ User Agent: ${context.userAgent || 'unknown'}`
       const result = JSON.parse(functionCall.arguments);
       
       // Log validation for audit trail
-      console.log('Security validation completed:', {
+      log.info({
         endpoint: context.endpoint,
         result: result.category,
         confidence: result.confidence,
-        timestamp: new Date().toISOString()
-      });
+      }, 'Security validation completed');
 
       return result;
     }
@@ -150,7 +152,7 @@ User Agent: ${context.userAgent || 'unknown'}`
     };
 
   } catch (error: any) {
-    console.error('Security validation error:', error);
+    log.error({ err: error }, 'Security validation error');
     
     // Conservative fallback - allow but flag for review
     return {

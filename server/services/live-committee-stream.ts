@@ -5,6 +5,9 @@ import * as cheerio from "cheerio";
 import { db } from "../db";
 import { committeeMeetings, committees, bills, liveStreamSegments, liveStreamQuotes } from "@shared/schema";
 import { eq, desc, and } from "drizzle-orm";
+import { createLogger } from "../logger";
+const log = createLogger("live-committee-stream");
+
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
@@ -42,7 +45,7 @@ const activeStreams: Record<string, LiveStreamData> = {};
  */
 export async function scanForLiveCommitteeMeetings(): Promise<void> {
   try {
-    console.log("Scanning for live committee meetings...");
+    log.info("Scanning for live committee meetings...");
     
     // Scan House committee broadcasts
     const houseCommittees = await axios.get(LIVE_STREAM_SOURCES.houseCommittees);
@@ -66,9 +69,9 @@ export async function scanForLiveCommitteeMeetings(): Promise<void> {
       }
     }
     
-    console.log(`Found ${Object.keys(activeStreams).length} active streams (${Object.values(activeStreams).filter(s => s.isLive).length} live)`);
+    log.info(`Found ${Object.keys(activeStreams).length} active streams (${Object.values(activeStreams).filter(s => s.isLive).length} live)`);
   } catch (error: any) {
-    console.error("Error scanning for live committee meetings:", error);
+    log.error({ err: error }, "Error scanning for live committee meetings");
   }
 }
 
@@ -178,7 +181,7 @@ function createStreamId(committee: string, url: string): string {
  */
 async function processLiveStream(streamId: string, streamData: LiveStreamData): Promise<void> {
   try {
-    console.log(`Processing live stream: ${streamData.committee}`);
+    log.info(`Processing live stream: ${streamData.committee}`);
     
     // In a real implementation, we would extract a transcript from the live stream
     // For this demo, we'll simulate by generating content
@@ -200,7 +203,7 @@ async function processLiveStream(streamId: string, streamData: LiveStreamData): 
       streamData.lastProcessed = new Date();
     }
   } catch (error: any) {
-    console.error(`Error processing live stream ${streamId}:`, error);
+    log.error({ err: error }, `Error processing live stream ${streamId}`);
   }
 }
 
@@ -223,7 +226,7 @@ async function analyzeTranscript(streamId: string, streamData: LiveStreamData): 
     const fullTranscript = streamData.transcriptBuffer.join('\n');
     
     if (!fullTranscript.trim()) {
-      console.log(`No transcript available for ${streamData.committee}`);
+      log.info(`No transcript available for ${streamData.committee}`);
       return;
     }
     
@@ -233,7 +236,7 @@ async function analyzeTranscript(streamId: string, streamData: LiveStreamData): 
     });
     
     if (!committee) {
-      console.log(`Committee not found in database: ${streamData.committee}`);
+      log.info(`Committee not found in database: ${streamData.committee}`);
       return;
     }
     
@@ -341,7 +344,7 @@ async function analyzeTranscript(streamId: string, streamData: LiveStreamData): 
     // Parse the analysis
     const analysisContent = response.choices[0].message.content;
     if (!analysisContent) {
-      console.error("No content in OpenAI response");
+      log.error("No content in OpenAI response");
       return;
     }
     
@@ -381,9 +384,9 @@ async function analyzeTranscript(streamId: string, streamData: LiveStreamData): 
       }
     }
     
-    console.log(`Successfully analyzed transcript for ${streamData.committee}`);
+    log.info(`Successfully analyzed transcript for ${streamData.committee}`);
   } catch (error: any) {
-    console.error("Error analyzing transcript:", error);
+    log.error({ err: error }, "Error analyzing transcript");
   }
 }
 
@@ -441,22 +444,22 @@ export async function getActiveCommitteesWithLiveStreams(): Promise<{
  * Initialize the scheduled scanning for live committee meetings
  */
 export function initLiveCommitteeMeetingScanner(): void {
-  console.log("Setting up scheduled live committee meeting scans...");
+  log.info("Setting up scheduled live committee meeting scans...");
   
   // Initial scan
   scanForLiveCommitteeMeetings().catch(error => {
-    console.error("Error in initial live committee scan:", error);
+    log.error({ err: error }, "Error in initial live committee scan");
   });
   
   // Set up recurring scans every 15 minutes
   setInterval(() => {
-    console.log("Running scheduled scan for live committee meetings...");
+    log.info("Running scheduled scan for live committee meetings...");
     scanForLiveCommitteeMeetings()
-      .then(() => console.log("Completed scheduled scan for live committee meetings"))
-      .catch(error => console.error("Error in scheduled live committee scan:", error));
+      .then(() => log.info("Completed scheduled scan for live committee meetings"))
+      .catch(error => log.error({ err: error }, "Error in scheduled live committee scan"));
   }, 15 * 60 * 1000); // 15 minutes in milliseconds
   
-  console.log("Live committee scan schedule established");
+  log.info("Live committee scan schedule established");
 }
 
 export default {

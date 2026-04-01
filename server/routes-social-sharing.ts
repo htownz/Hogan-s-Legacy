@@ -4,6 +4,9 @@ import { db } from './db';
 import { bills, legislators } from '@shared/schema';
 import { eq, like, or } from 'drizzle-orm';
 import Anthropic from '@anthropic-ai/sdk';
+import { createLogger } from "./logger";
+const log = createLogger("routes-social-sharing");
+
 
 // the newest Anthropic model is "claude-3-7-sonnet-20250219" which was released February 24, 2025
 const anthropic = new Anthropic({
@@ -11,14 +14,14 @@ const anthropic = new Anthropic({
 });
 
 export default function setupSocialSharingRoutes(app: express.Express) {
-  console.log('📱 Setting up social media sharing routes for bill insights...');
+  log.info('📱 Setting up social media sharing routes for bill insights...');
 
   // One-click social media sharing generation
   app.post('/api/social-sharing/generate', async (req, res) => {
     try {
       const { billId, type } = req.body;
       
-      console.log(`🚀 Generating one-click share content for bill: ${billId}`);
+      log.info(`🚀 Generating one-click share content for bill: ${billId}`);
       
       // Get authentic bill data from your Texas legislative database
       const [bill] = await db.select().from(bills).$dynamic().where(eq(bills.id, billId));
@@ -50,12 +53,12 @@ export default function setupSocialSharingRoutes(app: express.Express) {
         }
       };
       
-      console.log(`✅ One-click share content generated for: ${bill.title}`);
+      log.info(`✅ One-click share content generated for: ${bill.title}`);
       
       res.json(shareContent);
       
     } catch (error: any) {
-      console.error('❌ Error generating share content:', error);
+      log.error({ err: error }, '❌ Error generating share content');
       res.status(500).json({ 
         error: 'Failed to generate shareable content',
         details: error.message 
@@ -68,7 +71,7 @@ export default function setupSocialSharingRoutes(app: express.Express) {
     try {
       const { billId } = req.params;
       
-      console.log(`📊 Generating social media insights for bill: ${billId}`);
+      log.info(`📊 Generating social media insights for bill: ${billId}`);
       
       // Get authentic bill data from your Texas legislative collection
       const [bill] = await db.select().from(bills).$dynamic().where(eq(bills.id, billId));
@@ -88,12 +91,12 @@ export default function setupSocialSharingRoutes(app: express.Express) {
         insights: insights
       };
       
-      console.log(`✅ Social insights generated for ${bill.title}`);
+      log.info(`✅ Social insights generated for ${bill.title}`);
       
       res.json(shareableContent);
       
     } catch (error: any) {
-      console.error('❌ Error generating social insights:', error);
+      log.error({ err: error }, '❌ Error generating social insights');
       res.status(500).json({ 
         error: 'Failed to generate social insights',
         details: error.message 
@@ -104,7 +107,7 @@ export default function setupSocialSharingRoutes(app: express.Express) {
   // Get trending bills for social sharing
   app.get('/api/bills/trending/social', async (req, res) => {
     try {
-      console.log('📈 Getting trending bills for social sharing...');
+      log.info('📈 Getting trending bills for social sharing...');
       
       // Get recent active bills from your authentic Texas data
       const trendingBills = await db.select().from(bills).$dynamic()
@@ -123,12 +126,12 @@ export default function setupSocialSharingRoutes(app: express.Express) {
         })
       );
       
-      console.log(`📊 Generated insights for ${billsWithInsights.length} trending bills`);
+      log.info(`📊 Generated insights for ${billsWithInsights.length} trending bills`);
       
       res.json({ bills: billsWithInsights });
       
     } catch (error: any) {
-      console.error('❌ Error getting trending bills:', error);
+      log.error({ err: error }, '❌ Error getting trending bills');
       res.status(500).json({ 
         error: 'Failed to get trending bills',
         details: error.message 
@@ -142,16 +145,16 @@ export default function setupSocialSharingRoutes(app: express.Express) {
       const { billId } = req.params;
       const { platform, content } = req.body;
       
-      console.log(`📱 Tracking social share: ${billId} on ${platform}`);
+      log.info(`📱 Tracking social share: ${billId} on ${platform}`);
       
       // Here you could store analytics data about shares
       // For now, just log the activity
-      console.log(`🔗 Bill ${billId} shared on ${platform}`);
+      log.info(`🔗 Bill ${billId} shared on ${platform}`);
       
       res.json({ success: true, message: 'Share tracked successfully' });
       
     } catch (error: any) {
-      console.error('❌ Error tracking share:', error);
+      log.error({ err: error }, '❌ Error tracking share');
       res.status(500).json({ 
         error: 'Failed to track share',
         details: error.message 
@@ -159,7 +162,7 @@ export default function setupSocialSharingRoutes(app: express.Express) {
     }
   });
 
-  console.log('📱 Social media sharing routes registered successfully!');
+  log.info('📱 Social media sharing routes registered successfully!');
 }
 
 // Generate comprehensive AI insights for bill sharing
@@ -194,7 +197,7 @@ Generate insights in JSON format:
     return JSON.parse(insightsText);
     
   } catch (error: any) {
-    console.error('Error generating AI insights:', error);
+    log.error({ err: error }, 'Error generating AI insights');
     // Return basic insights if AI fails
     return {
       complexity: 'Medium',

@@ -2,6 +2,9 @@
 import express from 'express';
 import { Request, Response } from 'express';
 import { storage } from './storage';
+import { createLogger } from "./logger";
+const log = createLogger("routes-interactive-bill-comparison");
+
 
 const router = express.Router();
 
@@ -35,7 +38,7 @@ router.post('/api/bills/compare', async (req: Request, res: Response) => {
       });
     }
 
-    console.log(`🔍 Comparing ${billIds.length} bills: ${billIds.join(', ')}`);
+    log.info(`🔍 Comparing ${billIds.length} bills: ${billIds.join(', ')}`);
 
     // Fetch the bills from storage
     const bills = await Promise.all(
@@ -51,7 +54,7 @@ router.post('/api/bills/compare', async (req: Request, res: Response) => {
     // Perform comparison analysis
     const comparisonMetrics = await performBillComparison(bills);
 
-    console.log(`✅ Bill comparison completed for ${bills.length} bills`);
+    log.info(`✅ Bill comparison completed for ${bills.length} bills`);
 
     res.json({
       success: true,
@@ -61,7 +64,7 @@ router.post('/api/bills/compare', async (req: Request, res: Response) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Error in bill comparison:', error.message);
+    log.error({ err: error.message }, '❌ Error in bill comparison');
     res.status(500).json({
       error: 'Failed to compare bills',
       details: error.message
@@ -88,7 +91,7 @@ router.get('/api/bills/compare', async (req: Request, res: Response) => {
       });
     }
 
-    console.log(`🔍 Comparing bills via GET: ${billIdArray.join(', ')}`);
+    log.info(`🔍 Comparing bills via GET: ${billIdArray.join(', ')}`);
 
     // Fetch the bills from storage
     const bills = await Promise.all(
@@ -112,7 +115,7 @@ router.get('/api/bills/compare', async (req: Request, res: Response) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Error in bill comparison:', error.message);
+    log.error({ err: error.message }, '❌ Error in bill comparison');
     res.status(500).json({
       error: 'Failed to compare bills',
       details: error.message
@@ -125,7 +128,7 @@ router.get('/api/bills/:id1/similarity/:id2', async (req: Request, res: Response
   try {
     const { id1, id2 } = req.params;
     
-    console.log(`🔍 Analyzing similarity between bills ${id1} and ${id2}`);
+    log.info(`🔍 Analyzing similarity between bills ${id1} and ${id2}`);
 
     const bill1 = await storage.getBillById(id1);
     const bill2 = await storage.getBillById(id2);
@@ -157,7 +160,7 @@ router.get('/api/bills/:id1/similarity/:id2', async (req: Request, res: Response
     });
 
   } catch (error: any) {
-    console.error('❌ Error in similarity analysis:', error.message);
+    log.error({ err: error.message }, '❌ Error in similarity analysis');
     res.status(500).json({
       error: 'Failed to analyze bill similarity',
       details: error.message
@@ -203,7 +206,7 @@ async function performBillComparison(bills: any[]): Promise<BillComparisonMetric
     };
 
   } catch (error: any) {
-    console.error('Error in bill comparison analysis:', error);
+    log.error({ err: error }, 'Error in bill comparison analysis');
     return {
       similarity: 0,
       differences: ['Analysis unavailable'],
@@ -257,7 +260,7 @@ function calculateBillSimilarity(bill1: any, bill2: any): number {
     return factors > 0 ? Math.round(similarityScore / factors * (100 / 100)) : 0;
 
   } catch (error: any) {
-    console.error('Error calculating bill similarity:', error);
+    log.error({ err: error }, 'Error calculating bill similarity');
     return 0;
   }
 }
@@ -299,7 +302,7 @@ function findCommonElements(bills: any[]): string[] {
     return commonElements.length > 0 ? commonElements : ['No significant common elements identified'];
 
   } catch (error: any) {
-    console.error('Error finding common elements:', error);
+    log.error({ err: error }, 'Error finding common elements');
     return ['Analysis unavailable'];
   }
 }
@@ -335,7 +338,7 @@ function findKeyDifferences(bills: any[]): string[] {
     return differences.length > 0 ? differences : ['Bills are very similar in scope and approach'];
 
   } catch (error: any) {
-    console.error('Error finding differences:', error);
+    log.error({ err: error }, 'Error finding differences');
     return ['Analysis unavailable'];
   }
 }
@@ -369,7 +372,7 @@ function findConflictingProvisions(bills: any[]): string[] {
     return conflicts.length > 0 ? conflicts : [];
 
   } catch (error: any) {
-    console.error('Error finding conflicts:', error);
+    log.error({ err: error }, 'Error finding conflicts');
     return [];
   }
 }
@@ -411,7 +414,7 @@ async function generateDetailedAnalysis(bills: any[]): Promise<string> {
     return analysis;
 
   } catch (error: any) {
-    console.error('Error generating detailed analysis:', error);
+    log.error({ err: error }, 'Error generating detailed analysis');
     return 'Detailed analysis could not be completed at this time.';
   }
 }
@@ -433,12 +436,12 @@ async function generateDetailedComparison(bill1: any, bill2: any): Promise<strin
     return comparison;
 
   } catch (error: any) {
-    console.error('Error generating comparison:', error);
+    log.error({ err: error }, 'Error generating comparison');
     return 'Comparison analysis unavailable';
   }
 }
 
 export function registerInteractiveBillComparisonRoutes(app: express.Application) {
   app.use(router);
-  console.log('📊 Interactive Bill Comparison routes registered successfully!');
+  log.info('📊 Interactive Bill Comparison routes registered successfully!');
 }

@@ -6,6 +6,9 @@ import { db } from '../db';
 import { committeeMeetings, committees, liveStreamSegments, liveStreamQuotes } from '@shared/schema';
 import { committeeMeetingTaggedSegments } from '@shared/schema-committee-videos';
 import { eq, desc, and, sql, or, like, isNull } from 'drizzle-orm';
+import { createLogger } from "../logger";
+const log = createLogger("historical-committee-video-scraper");
+
 
 // Initialize OpenAI client
 // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
@@ -46,12 +49,12 @@ interface HistoricalMeeting {
  * Initialize historical committee video scraper
  */
 export async function initHistoricalCommitteeVideoScraper(): Promise<void> {
-  console.log("Initializing historical committee video scraper...");
+  log.info("Initializing historical committee video scraper...");
   
   // Ensure database is properly set up
   await ensureCommitteesExist();
   
-  console.log("Historical committee video scraper initialized");
+  log.info("Historical committee video scraper initialized");
 }
 
 /**
@@ -128,7 +131,7 @@ async function ensureCommitteesExist(): Promise<void> {
         createdAt: new Date(),
         updatedAt: new Date(),
       });
-      console.log(`Created House committee: ${name}`);
+      log.info(`Created House committee: ${name}`);
     }
   }
   
@@ -141,7 +144,7 @@ async function ensureCommitteesExist(): Promise<void> {
         createdAt: new Date(),
         updatedAt: new Date(),
       });
-      console.log(`Created Senate committee: ${name}`);
+      log.info(`Created Senate committee: ${name}`);
     }
   }
 }
@@ -151,7 +154,7 @@ async function ensureCommitteesExist(): Promise<void> {
  */
 export async function scrapeHouse89RegularSessionVideos(): Promise<void> {
   try {
-    console.log("Scraping Texas House 89th Regular Session committee videos...");
+    log.info("Scraping Texas House 89th Regular Session committee videos...");
     
     // Fetch the committee broadcasts page
     const response = await axios.get(HISTORICAL_VIDEO_SOURCES.house89Regular);
@@ -208,9 +211,9 @@ export async function scrapeHouse89RegularSessionVideos(): Promise<void> {
       }
     }
     
-    console.log("Completed scraping Texas House 89th Regular Session committee videos");
+    log.info("Completed scraping Texas House 89th Regular Session committee videos");
   } catch (error: any) {
-    console.error("Error scraping House 89th Regular Session videos:", error);
+    log.error({ err: error }, "Error scraping House 89th Regular Session videos");
   }
 }
 
@@ -219,7 +222,7 @@ export async function scrapeHouse89RegularSessionVideos(): Promise<void> {
  */
 export async function scrapeSenate89RegularSessionVideos(): Promise<void> {
   try {
-    console.log("Scraping Texas Senate 89th Regular Session committee videos...");
+    log.info("Scraping Texas Senate 89th Regular Session committee videos...");
     
     // Fetch the committee page
     const response = await axios.get(HISTORICAL_VIDEO_SOURCES.senate89Regular);
@@ -244,9 +247,9 @@ export async function scrapeSenate89RegularSessionVideos(): Promise<void> {
       await scrapeSenateCommitteePage(committee.name, committee.url);
     }
     
-    console.log("Completed scraping Texas Senate 89th Regular Session committee videos");
+    log.info("Completed scraping Texas Senate 89th Regular Session committee videos");
   } catch (error: any) {
-    console.error("Error scraping Senate 89th Regular Session videos:", error);
+    log.error({ err: error }, "Error scraping Senate 89th Regular Session videos");
   }
 }
 
@@ -293,7 +296,7 @@ async function scrapeSenateCommitteePage(committeeName: string, committeeUrl: st
       await saveHistoricalMeeting(meeting);
     }
   } catch (error: any) {
-    console.error(`Error scraping Senate committee page for ${committeeName}:`, error);
+    log.error({ err: error }, `Error scraping Senate committee page for ${committeeName}`);
   }
 }
 
@@ -348,7 +351,7 @@ async function saveHistoricalMeeting(meeting: HistoricalMeeting): Promise<void> 
     });
     
     if (existingMeeting) {
-      console.log(`Meeting already exists: ${meeting.committee.name} - ${meeting.date.toISOString()}`);
+      log.info(`Meeting already exists: ${meeting.committee.name} - ${meeting.date.toISOString()}`);
       return;
     }
     
@@ -368,9 +371,9 @@ async function saveHistoricalMeeting(meeting: HistoricalMeeting): Promise<void> 
         updatedAt: new Date(),
       });
     
-    console.log(`Saved historical meeting: ${meeting.committee.name} - ${meeting.date.toISOString()}`);
+    log.info(`Saved historical meeting: ${meeting.committee.name} - ${meeting.date.toISOString()}`);
   } catch (error: any) {
-    console.error("Error saving historical meeting:", error);
+    log.error({ err: error }, "Error saving historical meeting");
   }
 }
 
@@ -391,7 +394,7 @@ export async function scheduleHistoricalMeetingAnalysis(limit: number = 5): Prom
       }
     });
     
-    console.log(`Found ${pendingMeetings.length} pending historical meetings for analysis`);
+    log.info(`Found ${pendingMeetings.length} pending historical meetings for analysis`);
     
     // Update meetings to processing status
     for (const meeting of pendingMeetings) {
@@ -404,10 +407,10 @@ export async function scheduleHistoricalMeetingAnalysis(limit: number = 5): Prom
       
       // TODO: Schedule the actual analysis with video transcription and OpenAI processing
       // This would call the existing committee video analyzer or enhanced analyzer
-      console.log(`Scheduled analysis for meeting: ${meeting.committee.name} - ${meeting.date.toISOString()}`);
+      log.info(`Scheduled analysis for meeting: ${meeting.committee.name} - ${meeting.date.toISOString()}`);
     }
   } catch (error: any) {
-    console.error("Error scheduling historical meeting analysis:", error);
+    log.error({ err: error }, "Error scheduling historical meeting analysis");
   }
 }
 
@@ -441,7 +444,7 @@ function parseDate(dateStr: string): Date | null {
     
     return null;
   } catch (error: any) {
-    console.error("Error parsing date:", error);
+    log.error({ err: error }, "Error parsing date");
     return null;
   }
 }

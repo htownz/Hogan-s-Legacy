@@ -18,6 +18,9 @@ import {
   DiscussionThread,
   DiscussionPost
 } from '../shared/schema-discussions';
+import { createLogger } from "./logger";
+const log = createLogger("storage-discussions");
+
 
 /**
  * Discussion forum storage implementation
@@ -79,7 +82,7 @@ export const discussionStorage = {
       
       return await query;
     } catch (error: any) {
-      console.error('Error getting forums:', error);
+      log.error({ err: error }, 'Error getting forums');
       throw error;
     }
   },
@@ -92,7 +95,7 @@ export const discussionStorage = {
       
       return forums.length > 0 ? forums[0] : null;
     } catch (error: any) {
-      console.error('Error getting forum by ID:', error);
+      log.error({ err: error }, 'Error getting forum by ID');
       throw error;
     }
   },
@@ -102,7 +105,7 @@ export const discussionStorage = {
       const result = await db.insert(discussionForums).values(data).returning();
       return result.length > 0 ? result[0] : null;
     } catch (error: any) {
-      console.error('Error creating forum:', error);
+      log.error({ err: error }, 'Error creating forum');
       throw error;
     }
   },
@@ -119,7 +122,7 @@ export const discussionStorage = {
       
       return result.length > 0 ? result[0] : null;
     } catch (error: any) {
-      console.error('Error updating forum:', error);
+      log.error({ err: error }, 'Error updating forum');
       throw error;
     }
   },
@@ -136,7 +139,7 @@ export const discussionStorage = {
       
       return true;
     } catch (error: any) {
-      console.error('Error deleting forum:', error);
+      log.error({ err: error }, 'Error deleting forum');
       throw error;
     }
   },
@@ -188,7 +191,7 @@ export const discussionStorage = {
       
       return await query;
     } catch (error: any) {
-      console.error('Error getting threads:', error);
+      log.error({ err: error }, 'Error getting threads');
       throw error;
     }
   },
@@ -206,7 +209,7 @@ export const discussionStorage = {
       
       return threads.length > 0 ? threads[0] : null;
     } catch (error: any) {
-      console.error('Error getting thread by ID:', error);
+      log.error({ err: error }, 'Error getting thread by ID');
       throw error;
     }
   },
@@ -231,7 +234,7 @@ export const discussionStorage = {
       
       return result.length > 0 ? result[0] : null;
     } catch (error: any) {
-      console.error('Error creating thread:', error);
+      log.error({ err: error }, 'Error creating thread');
       throw error;
     }
   },
@@ -248,7 +251,7 @@ export const discussionStorage = {
       
       return result.length > 0 ? result[0] : null;
     } catch (error: any) {
-      console.error('Error updating thread:', error);
+      log.error({ err: error }, 'Error updating thread');
       throw error;
     }
   },
@@ -281,7 +284,7 @@ export const discussionStorage = {
       
       return true;
     } catch (error: any) {
-      console.error('Error deleting thread:', error);
+      log.error({ err: error }, 'Error deleting thread');
       throw error;
     }
   },
@@ -305,7 +308,7 @@ export const discussionStorage = {
       
       return result.length > 0 ? result[0] : null;
     } catch (error: any) {
-      console.error('Error moderating thread:', error);
+      log.error({ err: error }, 'Error moderating thread');
       throw error;
     }
   },
@@ -348,7 +351,7 @@ export const discussionStorage = {
       
       return await query;
     } catch (error: any) {
-      console.error('Error getting posts:', error);
+      log.error({ err: error }, 'Error getting posts');
       throw error;
     }
   },
@@ -366,7 +369,7 @@ export const discussionStorage = {
       
       return posts.length > 0 ? posts[0] : null;
     } catch (error: any) {
-      console.error('Error getting post by ID:', error);
+      log.error({ err: error }, 'Error getting post by ID');
       throw error;
     }
   },
@@ -403,7 +406,7 @@ export const discussionStorage = {
       
       return result.length > 0 ? result[0] : null;
     } catch (error: any) {
-      console.error('Error creating post:', error);
+      log.error({ err: error }, 'Error creating post');
       throw error;
     }
   },
@@ -421,7 +424,7 @@ export const discussionStorage = {
       
       return result.length > 0 ? result[0] : null;
     } catch (error: any) {
-      console.error('Error updating post:', error);
+      log.error({ err: error }, 'Error updating post');
       throw error;
     }
   },
@@ -465,7 +468,7 @@ export const discussionStorage = {
       
       return true;
     } catch (error: any) {
-      console.error('Error deleting post:', error);
+      log.error({ err: error }, 'Error deleting post');
       throw error;
     }
   },
@@ -489,7 +492,7 @@ export const discussionStorage = {
       
       return result.length > 0 ? result[0] : null;
     } catch (error: any) {
-      console.error('Error moderating post:', error);
+      log.error({ err: error }, 'Error moderating post');
       throw error;
     }
   },
@@ -520,7 +523,7 @@ export const discussionStorage = {
       
       return await query;
     } catch (error: any) {
-      console.error('Error getting reactions:', error);
+      log.error({ err: error }, 'Error getting reactions');
       throw error;
     }
   },
@@ -564,7 +567,7 @@ export const discussionStorage = {
       
       return result.length > 0 ? result[0] : null;
     } catch (error: any) {
-      console.error('Error creating reaction:', error);
+      log.error({ err: error }, 'Error creating reaction');
       throw error;
     }
   },
@@ -603,7 +606,7 @@ export const discussionStorage = {
       
       return true;
     } catch (error: any) {
-      console.error('Error deleting reaction:', error);
+      log.error({ err: error }, 'Error deleting reaction');
       throw error;
     }
   },
@@ -634,7 +637,7 @@ export const discussionStorage = {
       
       return await query;
     } catch (error: any) {
-      console.error('Error getting moderators:', error);
+      log.error({ err: error }, 'Error getting moderators');
       throw error;
     }
   },
@@ -662,7 +665,7 @@ export const discussionStorage = {
       // User is not a moderator
       return false;
     } catch (error: any) {
-      console.error('Error checking moderator status:', error);
+      log.error({ err: error }, 'Error checking moderator status');
       throw error;
     }
   },
@@ -683,7 +686,7 @@ export const discussionStorage = {
       const result = await db.insert(discussionModerators).values(data).returning();
       return result.length > 0 ? result[0] : null;
     } catch (error: any) {
-      console.error('Error adding moderator:', error);
+      log.error({ err: error }, 'Error adding moderator');
       throw error;
     }
   },
@@ -695,7 +698,7 @@ export const discussionStorage = {
       
       return true;
     } catch (error: any) {
-      console.error('Error removing moderator:', error);
+      log.error({ err: error }, 'Error removing moderator');
       throw error;
     }
   },
@@ -752,7 +755,7 @@ export const discussionStorage = {
       
       return await query;
     } catch (error: any) {
-      console.error('Error getting reports:', error);
+      log.error({ err: error }, 'Error getting reports');
       throw error;
     }
   },
@@ -775,7 +778,7 @@ export const discussionStorage = {
       const result = await db.insert(discussionReports).values(data).returning();
       return result.length > 0 ? result[0] : null;
     } catch (error: any) {
-      console.error('Error creating report:', error);
+      log.error({ err: error }, 'Error creating report');
       throw error;
     }
   },
@@ -799,7 +802,7 @@ export const discussionStorage = {
       
       return result.length > 0 ? result[0] : null;
     } catch (error: any) {
-      console.error('Error updating report status:', error);
+      log.error({ err: error }, 'Error updating report status');
       throw error;
     }
   },
@@ -864,7 +867,7 @@ export const discussionStorage = {
         lastActivityAt: forum.lastActivityAt
       };
     } catch (error: any) {
-      console.error('Error getting forum stats:', error);
+      log.error({ err: error }, 'Error getting forum stats');
       throw error;
     }
   },
@@ -933,7 +936,7 @@ export const discussionStorage = {
         forumsModerated: moderatedForums.length
       };
     } catch (error: any) {
-      console.error('Error getting user activity stats:', error);
+      log.error({ err: error }, 'Error getting user activity stats');
       throw error;
     }
   }

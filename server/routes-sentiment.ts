@@ -9,6 +9,9 @@ import {
   insertUserSentimentVoteSchema
 } from '../shared/schema-sentiment';
 import { z } from 'zod';
+import { createLogger } from "./logger";
+const log = createLogger("routes-sentiment");
+
 
 /**
  * Register sentiment visualization API routes
@@ -34,7 +37,7 @@ export function registerSentimentRoutes(app: Express): void {
       
       res.json(snapshots);
     } catch (error: any) {
-      console.error('Error fetching bill sentiment snapshots:', error);
+      log.error({ err: error }, 'Error fetching bill sentiment snapshots');
       res.status(500).json({ error: 'Failed to fetch sentiment snapshots' });
     }
   });
@@ -53,7 +56,7 @@ export function registerSentimentRoutes(app: Express): void {
       
       res.json(snapshot);
     } catch (error: any) {
-      console.error('Error fetching sentiment snapshot:', error);
+      log.error({ err: error }, 'Error fetching sentiment snapshot');
       res.status(500).json({ error: 'Failed to fetch sentiment snapshot' });
     }
   });
@@ -77,7 +80,7 @@ export function registerSentimentRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
-      console.error('Error creating sentiment snapshot:', error);
+      log.error({ err: error }, 'Error creating sentiment snapshot');
       res.status(500).json({ error: 'Failed to create sentiment snapshot' });
     }
   });
@@ -96,7 +99,7 @@ export function registerSentimentRoutes(app: Express): void {
       const breakdowns = await sentimentStorage.getDemographicSentimentBreakdowns(billId, parsedDate);
       res.json(breakdowns);
     } catch (error: any) {
-      console.error('Error fetching demographic sentiment breakdowns:', error);
+      log.error({ err: error }, 'Error fetching demographic sentiment breakdowns');
       res.status(500).json({ error: 'Failed to fetch demographic sentiment breakdowns' });
     }
   });
@@ -120,7 +123,7 @@ export function registerSentimentRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
-      console.error('Error creating demographic sentiment breakdown:', error);
+      log.error({ err: error }, 'Error creating demographic sentiment breakdown');
       res.status(500).json({ error: 'Failed to create demographic sentiment breakdown' });
     }
   });
@@ -145,7 +148,7 @@ export function registerSentimentRoutes(app: Express): void {
       
       res.json(triggers);
     } catch (error: any) {
-      console.error('Error fetching sentiment triggers:', error);
+      log.error({ err: error }, 'Error fetching sentiment triggers');
       res.status(500).json({ error: 'Failed to fetch sentiment triggers' });
     }
   });
@@ -169,7 +172,7 @@ export function registerSentimentRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
-      console.error('Error creating sentiment trigger:', error);
+      log.error({ err: error }, 'Error creating sentiment trigger');
       res.status(500).json({ error: 'Failed to create sentiment trigger' });
     }
   });
@@ -188,7 +191,7 @@ export function registerSentimentRoutes(app: Express): void {
       const votes = await sentimentStorage.getUserSentimentVotes(billId, parsedUserId);
       res.json(votes);
     } catch (error: any) {
-      console.error('Error fetching user sentiment votes:', error);
+      log.error({ err: error }, 'Error fetching user sentiment votes');
       res.status(500).json({ error: 'Failed to fetch user sentiment votes' });
     }
   });
@@ -213,7 +216,7 @@ export function registerSentimentRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
-      console.error('Error submitting user sentiment vote:', error);
+      log.error({ err: error }, 'Error submitting user sentiment vote');
       res.status(500).json({ error: 'Failed to submit user sentiment vote' });
     }
   });
@@ -254,7 +257,7 @@ export function registerSentimentRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
-      console.error('Error updating sentiment vote:', error);
+      log.error({ err: error }, 'Error updating sentiment vote');
       res.status(500).json({ error: 'Failed to update sentiment vote' });
     }
   });
@@ -268,7 +271,7 @@ export function registerSentimentRoutes(app: Express): void {
       const data = await sentimentStorage.getBillSentimentOverTime(billId);
       res.json(data);
     } catch (error: any) {
-      console.error('Error fetching sentiment over time:', error);
+      log.error({ err: error }, 'Error fetching sentiment over time');
       res.status(500).json({ error: 'Failed to fetch sentiment analytics' });
     }
   });
@@ -287,7 +290,7 @@ export function registerSentimentRoutes(app: Express): void {
       const data = await sentimentStorage.getDemographicSentimentComparison(billId, parsedDate);
       res.json(data);
     } catch (error: any) {
-      console.error('Error fetching demographic sentiment comparison:', error);
+      log.error({ err: error }, 'Error fetching demographic sentiment comparison');
       res.status(500).json({ error: 'Failed to fetch demographic sentiment analytics' });
     }
   });
@@ -301,7 +304,7 @@ export function registerSentimentRoutes(app: Express): void {
       const data = await sentimentStorage.getSentimentCorrelations(billId);
       res.json(data);
     } catch (error: any) {
-      console.error('Error fetching sentiment correlations:', error);
+      log.error({ err: error }, 'Error fetching sentiment correlations');
       res.status(500).json({ error: 'Failed to fetch sentiment correlation analytics' });
     }
   });

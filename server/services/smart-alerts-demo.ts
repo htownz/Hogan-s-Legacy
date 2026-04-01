@@ -1,5 +1,8 @@
 import OpenAI from 'openai';
 import { legiscanService } from './legiscan-service';
+import { createLogger } from "../logger";
+const log = createLogger("smart-alerts-demo");
+
 
 // Initialize OpenAI client
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -137,7 +140,7 @@ export async function generateSmartAlert(
       error: 'Failed to generate alert explanation'
     };
   } catch (error: any) {
-    console.error('Error generating smart alert:', error);
+    log.error({ err: error }, 'Error generating smart alert');
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'

@@ -1,5 +1,8 @@
 import { Router } from 'express';
 import { compareBills, getUserComparisons } from './services/bill-comparison-service';
+import { createLogger } from "./logger";
+const log = createLogger("routes-bill-comparison-enhanced");
+
 
 const router = Router();
 
@@ -30,7 +33,7 @@ router.post('/compare', async (req, res) => {
     
     return res.json(result);
   } catch (error: any) {
-    console.error('Error in bill comparison endpoint:', error);
+    log.error({ err: error }, 'Error in bill comparison endpoint');
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -49,7 +52,7 @@ router.get('/user', async (req, res) => {
     const result = await getUserComparisons(userId);
     return res.json(result);
   } catch (error: any) {
-    console.error('Error getting user comparisons:', error);
+    log.error({ err: error }, 'Error getting user comparisons');
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -59,7 +62,7 @@ router.get('/user', async (req, res) => {
 
 export function registerBillComparisonEnhancedRoutes(app: any) {
   app.use('/api/bill-comparison', router);
-  console.log('Enhanced bill comparison routes registered');
+  log.info('Enhanced bill comparison routes registered');
 }
 
 export default router;

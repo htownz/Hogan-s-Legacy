@@ -6,6 +6,9 @@ import { isAuthenticated } from './auth';
 import type { CustomRequest } from './types';
 import { enhancedBillPOOAnalyzer } from './services/enhanced-bill-poo-analyzer';
 import { v4 as uuidv4 } from 'uuid';
+import { createLogger } from "./logger";
+const log = createLogger("routes-enhanced-point-of-order");
+
 
 /**
  * Register routes for enhanced point of order analysis
@@ -75,7 +78,7 @@ export function registerEnhancedPointOfOrderRoutes(app: Express): void {
         results: analysisResults
       });
     } catch (error: any) {
-      console.error("Error in enhanced point of order analysis:", error);
+      log.error({ err: error }, "Error in enhanced point of order analysis");
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Unknown error during analysis"
@@ -118,7 +121,7 @@ export function registerEnhancedPointOfOrderRoutes(app: Express): void {
         results: analysisResults
       });
     } catch (error: any) {
-      console.error("Error in amendment analysis:", error);
+      log.error({ err: error }, "Error in amendment analysis");
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Unknown error during analysis"
@@ -138,7 +141,7 @@ export function registerEnhancedPointOfOrderRoutes(app: Express): void {
         data: patterns
       });
     } catch (error: any) {
-      console.error("Error getting points of order patterns:", error);
+      log.error({ err: error }, "Error getting points of order patterns");
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Unknown error retrieving patterns"
@@ -171,7 +174,7 @@ export function registerEnhancedPointOfOrderRoutes(app: Express): void {
       processBillBatch(billIds);
       
     } catch (error: any) {
-      console.error("Error in batch analysis:", error);
+      log.error({ err: error }, "Error in batch analysis");
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Unknown error during batch analysis"
@@ -187,12 +190,12 @@ export function registerEnhancedPointOfOrderRoutes(app: Express): void {
  */
 async function processBillBatch(billIds: string[]) {
   try {
-    console.log(`Starting background analysis of ${billIds.length} bills for points of order`);
+    log.info(`Starting background analysis of ${billIds.length} bills for points of order`);
     
     // Process bills one at a time
     for (const billId of billIds) {
       try {
-        console.log(`Analyzing bill ${billId}...`);
+        log.info(`Analyzing bill ${billId}...`);
         
         // Run the enhanced analysis
         const analysisResults = await enhancedBillPOOAnalyzer.analyzeBill(billId);
@@ -222,18 +225,18 @@ async function processBillBatch(billIds: string[]) {
             });
           }
           
-          console.log(`Stored ${analysisResults.analysis.length} potential points of order for bill ${billId}`);
+          log.info(`Stored ${analysisResults.analysis.length} potential points of order for bill ${billId}`);
         } else {
-          console.log(`No points of order detected for bill ${billId}`);
+          log.info(`No points of order detected for bill ${billId}`);
         }
       } catch (error: any) {
-        console.error(`Error processing bill ${billId}:`, error);
+        log.error({ err: error }, `Error processing bill ${billId}`);
         // Continue with the next bill
       }
     }
     
-    console.log(`Completed batch analysis of ${billIds.length} bills`);
+    log.info(`Completed batch analysis of ${billIds.length} bills`);
   } catch (error: any) {
-    console.error("Error in background bill batch processing:", error);
+    log.error({ err: error }, "Error in background bill batch processing");
   }
 }

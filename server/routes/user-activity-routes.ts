@@ -4,6 +4,9 @@ import { isAuthenticated } from "../middleware/auth-middleware";
 import { EnhancedRequest } from "../types/request-types";
 import { userActivityStorage } from "../storage-user-activity";
 import { insertUserActivitySchema, insertUserActionTrackingSchema } from "@shared/schema-user-activity";
+import { createLogger } from "../logger";
+const log = createLogger("user-activity-routes");
+
 
 // Create validation schemas
 const dateRangeSchema = z.object({
@@ -51,7 +54,7 @@ export function registerUserActivityRoutes(app: Express): void {
       
       return res.status(201).json(activity);
     } catch (error: any) {
-      console.error("Error tracking user activity:", error);
+      log.error({ err: error }, "Error tracking user activity");
       return res.status(500).json({ message: "Failed to track activity" });
     }
   });
@@ -78,7 +81,7 @@ export function registerUserActivityRoutes(app: Express): void {
       
       return res.status(200).json(activities);
     } catch (error: any) {
-      console.error("Error fetching user activities:", error);
+      log.error({ err: error }, "Error fetching user activities");
       return res.status(500).json({ message: "Failed to fetch activities" });
     }
   });
@@ -95,7 +98,7 @@ export function registerUserActivityRoutes(app: Express): void {
       
       return res.status(200).json(activities);
     } catch (error: any) {
-      console.error("Error fetching recent activities:", error);
+      log.error({ err: error }, "Error fetching recent activities");
       return res.status(500).json({ message: "Failed to fetch recent activities" });
     }
   });
@@ -112,7 +115,7 @@ export function registerUserActivityRoutes(app: Express): void {
       
       return res.status(200).json({ count });
     } catch (error: any) {
-      console.error("Error fetching activity count:", error);
+      log.error({ err: error }, "Error fetching activity count");
       return res.status(500).json({ message: "Failed to fetch activity count" });
     }
   });
@@ -141,7 +144,7 @@ export function registerUserActivityRoutes(app: Express): void {
       
       return res.status(201).json(action);
     } catch (error: any) {
-      console.error("Error tracking user action:", error);
+      log.error({ err: error }, "Error tracking user action");
       return res.status(500).json({ message: "Failed to track action" });
     }
   });
@@ -168,7 +171,7 @@ export function registerUserActivityRoutes(app: Express): void {
       
       return res.status(200).json(actions);
     } catch (error: any) {
-      console.error("Error fetching user actions:", error);
+      log.error({ err: error }, "Error fetching user actions");
       return res.status(500).json({ message: "Failed to fetch actions" });
     }
   });
@@ -185,7 +188,7 @@ export function registerUserActivityRoutes(app: Express): void {
       
       return res.status(200).json({ count });
     } catch (error: any) {
-      console.error("Error fetching action count:", error);
+      log.error({ err: error }, "Error fetching action count");
       return res.status(500).json({ message: "Failed to fetch action count" });
     }
   });
@@ -215,7 +218,7 @@ export function registerUserActivityRoutes(app: Express): void {
       
       return res.status(201).json(achievement);
     } catch (error: any) {
-      console.error("Error creating achievement:", error);
+      log.error({ err: error }, "Error creating achievement");
       return res.status(500).json({ message: "Failed to create achievement" });
     }
   });
@@ -238,7 +241,7 @@ export function registerUserActivityRoutes(app: Express): void {
       
       return res.status(200).json(achievements);
     } catch (error: any) {
-      console.error("Error fetching achievements:", error);
+      log.error({ err: error }, "Error fetching achievements");
       return res.status(500).json({ message: "Failed to fetch achievements" });
     }
   });
@@ -255,7 +258,7 @@ export function registerUserActivityRoutes(app: Express): void {
       
       return res.status(200).json(streak);
     } catch (error: any) {
-      console.error("Error fetching streak:", error);
+      log.error({ err: error }, "Error fetching streak");
       return res.status(500).json({ message: "Failed to fetch streak" });
     }
   });
@@ -271,7 +274,7 @@ export function registerUserActivityRoutes(app: Express): void {
       
       return res.status(200).json(users);
     } catch (error: any) {
-      console.error("Error fetching most active users:", error);
+      log.error({ err: error }, "Error fetching most active users");
       return res.status(500).json({ message: "Failed to fetch most active users" });
     }
   });
@@ -287,7 +290,7 @@ export function registerUserActivityRoutes(app: Express): void {
       
       return res.status(200).json(activities);
     } catch (error: any) {
-      console.error("Error fetching popular activities:", error);
+      log.error({ err: error }, "Error fetching popular activities");
       return res.status(500).json({ message: "Failed to fetch popular activities" });
     }
   });
@@ -303,7 +306,7 @@ export function registerUserActivityRoutes(app: Express): void {
       
       return res.status(200).json(timeData);
     } catch (error: any) {
-      console.error("Error fetching activity time data:", error);
+      log.error({ err: error }, "Error fetching activity time data");
       return res.status(500).json({ message: "Failed to fetch activity time data" });
     }
   });

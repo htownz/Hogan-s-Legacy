@@ -1,6 +1,9 @@
 // @ts-nocheck
 import OpenAI from 'openai';
 import { legiscanService } from './legiscan-service';
+import { createLogger } from "../logger";
+const log = createLogger("bill-comparison-service");
+
 
 // Initialize OpenAI client
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -65,7 +68,7 @@ export async function compareBills(
   billId2: number
 ): Promise<{ success: boolean; data?: BillComparison; error?: string }> {
   try {
-    console.log(`Generating comparison between bills ${billId1} and ${billId2}`);
+    log.info(`Generating comparison between bills ${billId1} and ${billId2}`);
 
     // Get bill details from LegiScan
     const [bill1Details, bill2Details] = await Promise.all([
@@ -231,7 +234,7 @@ Provide detailed comparison analysis focusing on how these bills relate to each 
         createdAt: new Date()
       };
 
-      console.log(`Bill comparison generated successfully for ${billId1} vs ${billId2}`);
+      log.info(`Bill comparison generated successfully for ${billId1} vs ${billId2}`);
       return {
         success: true,
         data: comparison
@@ -244,7 +247,7 @@ Provide detailed comparison analysis focusing on how these bills relate to each 
     };
 
   } catch (error: any) {
-    console.error('Error comparing bills:', error);
+    log.error({ err: error }, 'Error comparing bills');
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -304,7 +307,7 @@ export async function getUserComparisons(userId: number): Promise<{ success: boo
       data: []
     };
   } catch (error: any) {
-    console.error('Error getting user comparisons:', error);
+    log.error({ err: error }, 'Error getting user comparisons');
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'

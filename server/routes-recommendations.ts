@@ -12,6 +12,9 @@ import {
   generateRecommendationsForUser
 } from "./storage-recommendations";
 import { CustomRequest } from "./types";
+import { createLogger } from "./logger";
+const log = createLogger("routes-recommendations");
+
 
 const router = express.Router();
 
@@ -40,7 +43,7 @@ router.get('/', isAuthenticated, async (req: CustomRequest, res) => {
     
     res.json(recommendations);
   } catch (error: any) {
-    console.error('Error fetching recommendations:', error);
+    log.error({ err: error }, 'Error fetching recommendations');
     res.status(500).json({ error: 'Failed to fetch recommendations' });
   }
 });
@@ -64,7 +67,7 @@ router.patch('/:id', isAuthenticated, async (req: CustomRequest, res) => {
     
     res.json(result[0]);
   } catch (error: any) {
-    console.error('Error updating recommendation status:', error);
+    log.error({ err: error }, 'Error updating recommendation status');
     res.status(500).json({ error: 'Failed to update recommendation status' });
   }
 });
@@ -93,7 +96,7 @@ router.post('/generate', isAuthenticated, async (req: CustomRequest, res) => {
       message: `Generated ${recommendations.length} new bill recommendations`
     });
   } catch (error: any) {
-    console.error('Error generating recommendations:', error);
+    log.error({ err: error }, 'Error generating recommendations');
     res.status(500).json({ error: 'Failed to generate recommendations' });
   }
 });
@@ -117,7 +120,7 @@ router.post('/record-interaction', isAuthenticated, async (req: CustomRequest, r
     
     res.json({ success: true });
   } catch (error: any) {
-    console.error('Error recording interaction:', error);
+    log.error({ err: error }, 'Error recording interaction');
     res.status(500).json({ error: 'Failed to record interaction' });
   }
 });

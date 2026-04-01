@@ -1,6 +1,9 @@
 import { Router } from "express";
 import { z } from "zod";
 import { advancedBillAnalysisService } from "./services/advanced-bill-analysis-service";
+import { createLogger } from "./logger";
+const log = createLogger("routes-advanced-analysis");
+
 
 const router = Router();
 
@@ -28,7 +31,7 @@ router.post("/analyze-impact", async (req, res) => {
       }
     });
   } catch (error: any) {
-    console.error("Error in impact analysis:", error);
+    log.error({ err: error }, "Error in impact analysis");
     if (error instanceof z.ZodError) {
       res.status(400).json({ error: "Invalid input data", details: error.errors });
     } else {
@@ -54,7 +57,7 @@ router.post("/analyze-trends", async (req, res) => {
       }
     });
   } catch (error: any) {
-    console.error("Error in trend analysis:", error);
+    log.error({ err: error }, "Error in trend analysis");
     res.status(500).json({ error: "Failed to analyze legislative trends" });
   }
 });
@@ -75,7 +78,7 @@ router.post("/analyze-complexity", async (req, res) => {
       }
     });
   } catch (error: any) {
-    console.error("Error in complexity analysis:", error);
+    log.error({ err: error }, "Error in complexity analysis");
     res.status(500).json({ error: "Failed to analyze bill complexity" });
   }
 });
@@ -97,7 +100,7 @@ router.post("/generate-summary-card", async (req, res) => {
       }
     });
   } catch (error: any) {
-    console.error("Error generating summary card:", error);
+    log.error({ err: error }, "Error generating summary card");
     res.status(500).json({ error: "Failed to generate summary card" });
   }
 });
@@ -123,7 +126,7 @@ router.post("/find-similar", async (req, res) => {
       }
     });
   } catch (error: any) {
-    console.error("Error finding similar bills:", error);
+    log.error({ err: error }, "Error finding similar bills");
     res.status(500).json({ error: "Failed to find similar bills" });
   }
 });
@@ -156,7 +159,7 @@ router.post("/comprehensive-analysis", async (req, res) => {
       }
     });
   } catch (error: any) {
-    console.error("Error in comprehensive analysis:", error);
+    log.error({ err: error }, "Error in comprehensive analysis");
     res.status(500).json({ error: "Failed to perform comprehensive analysis" });
   }
 });
@@ -182,7 +185,7 @@ router.get("/status", async (req, res) => {
       lastUpdated: new Date().toISOString()
     });
   } catch (error: any) {
-    console.error("Error checking analysis status:", error);
+    log.error({ err: error }, "Error checking analysis status");
     res.status(500).json({ error: "Failed to check status" });
   }
 });

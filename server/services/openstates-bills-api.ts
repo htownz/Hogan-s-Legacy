@@ -1,5 +1,8 @@
 import axios from 'axios';
 import { storage } from '../storage';
+import { createLogger } from "../logger";
+const log = createLogger("openstates-bills-api");
+
 
 /**
  * OpenStates Bills API Service
@@ -119,7 +122,7 @@ class OpenStatesBillsAPI {
   constructor() {
     this.apiKey = process.env.OPENSTATES_API_KEY || '';
     if (!this.apiKey) {
-      console.warn('⚠️ OPENSTATES_API_KEY not found - bill tracking will be limited');
+      log.warn('⚠️ OPENSTATES_API_KEY not found - bill tracking will be limited');
     }
   }
 
@@ -131,7 +134,7 @@ class OpenStatesBillsAPI {
     pagination: any;
   }> {
     try {
-      console.log(`📋 Fetching Texas bills page ${page}...`);
+      log.info(`📋 Fetching Texas bills page ${page}...`);
 
       const response = await axios.get(`${this.baseUrl}/bills`, {
         headers: {
@@ -153,7 +156,7 @@ class OpenStatesBillsAPI {
       };
 
     } catch (error: any) {
-      console.error('❌ Error fetching Texas bills:', error.message);
+      log.error({ err: error.message }, '❌ Error fetching Texas bills');
       throw new Error(`Failed to fetch Texas bills: ${error.message}`);
     }
   }
@@ -163,7 +166,7 @@ class OpenStatesBillsAPI {
    */
   async fetchBillDetails(billId: string): Promise<OpenStatesBill | null> {
     try {
-      console.log(`📋 Fetching bill details for ID: ${billId}`);
+      log.info(`📋 Fetching bill details for ID: ${billId}`);
 
       const response = await axios.get(`${this.baseUrl}/bills/${billId}`, {
         headers: {
@@ -178,7 +181,7 @@ class OpenStatesBillsAPI {
       return response.data;
 
     } catch (error: any) {
-      console.error(`❌ Error fetching bill ${billId}:`, error.message);
+      log.error({ err: error.message }, `❌ Error fetching bill ${billId}`);
       return null;
     }
   }
@@ -191,7 +194,7 @@ class OpenStatesBillsAPI {
     pagination: any;
   }> {
     try {
-      console.log(`🔍 Searching Texas bills for: "${query}"`);
+      log.info(`🔍 Searching Texas bills for: "${query}"`);
 
       const response = await axios.get(`${this.baseUrl}/bills`, {
         headers: {
@@ -214,7 +217,7 @@ class OpenStatesBillsAPI {
       };
 
     } catch (error: any) {
-      console.error('❌ Error searching bills:', error.message);
+      log.error({ err: error.message }, '❌ Error searching bills');
       throw new Error(`Failed to search bills: ${error.message}`);
     }
   }
@@ -224,7 +227,7 @@ class OpenStatesBillsAPI {
    */
   async fetchBillVotes(billId: string): Promise<OpenStatesVote[]> {
     try {
-      console.log(`🗳️ Fetching votes for bill: ${billId}`);
+      log.info(`🗳️ Fetching votes for bill: ${billId}`);
 
       const response = await axios.get(`${this.baseUrl}/votes`, {
         headers: {
@@ -240,7 +243,7 @@ class OpenStatesBillsAPI {
       return response.data.results || [];
 
     } catch (error: any) {
-      console.error(`❌ Error fetching votes for bill ${billId}:`, error.message);
+      log.error({ err: error.message }, `❌ Error fetching votes for bill ${billId}`);
       throw new Error(`Failed to fetch bill votes: ${error.message}`);
     }
   }
@@ -253,7 +256,7 @@ class OpenStatesBillsAPI {
     pagination: any;
   }> {
     try {
-      console.log(`🗳️ Fetching votes for legislator: ${legislatorId}`);
+      log.info(`🗳️ Fetching votes for legislator: ${legislatorId}`);
 
       const response = await axios.get(`${this.baseUrl}/votes`, {
         headers: {
@@ -274,7 +277,7 @@ class OpenStatesBillsAPI {
       };
 
     } catch (error: any) {
-      console.error(`❌ Error fetching legislator votes:`, error.message);
+      log.error({ err: error.message }, `❌ Error fetching legislator votes`);
       throw new Error(`Failed to fetch legislator votes: ${error.message}`);
     }
   }
@@ -287,7 +290,7 @@ class OpenStatesBillsAPI {
     pagination: any;
   }> {
     try {
-      console.log(`📊 Fetching Texas bills by status: ${status.join(', ')}`);
+      log.info(`📊 Fetching Texas bills by status: ${status.join(', ')}`);
 
       const response = await axios.get(`${this.baseUrl}/bills`, {
         headers: {
@@ -310,7 +313,7 @@ class OpenStatesBillsAPI {
       };
 
     } catch (error: any) {
-      console.error('❌ Error fetching bills by status:', error.message);
+      log.error({ err: error.message }, '❌ Error fetching bills by status');
       throw new Error(`Failed to fetch bills by status: ${error.message}`);
     }
   }
@@ -334,7 +337,7 @@ class OpenStatesBillsAPI {
     };
 
     try {
-      console.log('🚀 Starting comprehensive Texas bills data collection via OpenStates API...');
+      log.info('🚀 Starting comprehensive Texas bills data collection via OpenStates API...');
 
       let page = 1;
       let hasMore = true;
@@ -348,7 +351,7 @@ class OpenStatesBillsAPI {
             break;
           }
 
-          console.log(`📋 Processing ${billsData.bills.length} bills from page ${page}...`);
+          log.info(`📋 Processing ${billsData.bills.length} bills from page ${page}...`);
 
           for (const bill of billsData.bills) {
             try {
@@ -366,14 +369,14 @@ class OpenStatesBillsAPI {
                 normalizedBill.votes = votes.map(vote => this.normalizeVoteData(vote));
 
               } catch (voteError: any) {
-                console.warn(`⚠️ Could not fetch votes for bill ${bill.identifier}: ${voteError.message}`);
+                log.warn(`⚠️ Could not fetch votes for bill ${bill.identifier}: ${voteError.message}`);
               }
 
               // Small delay to avoid rate limiting
               await new Promise(resolve => setTimeout(resolve, 100));
 
             } catch (billError: any) {
-              console.error(`❌ Error processing bill ${bill.identifier}:`, billError.message);
+              log.error({ err: billError.message }, `❌ Error processing bill ${bill.identifier}`);
               results.errors.push(`Bill ${bill.identifier}: ${billError.message}`);
             }
           }
@@ -386,16 +389,16 @@ class OpenStatesBillsAPI {
           }
 
         } catch (pageError: any) {
-          console.error(`❌ Error fetching page ${page}:`, pageError.message);
+          log.error({ err: pageError.message }, `❌ Error fetching page ${page}`);
           results.errors.push(`Page ${page}: ${pageError.message}`);
           hasMore = false;
         }
       }
 
-      console.log(`✅ Bill collection completed: ${results.billsCollected} bills, ${results.votesCollected} votes`);
+      log.info(`✅ Bill collection completed: ${results.billsCollected} bills, ${results.votesCollected} votes`);
 
     } catch (error: any) {
-      console.error('❌ Texas bills data collection failed:', error.message);
+      log.error({ err: error.message }, '❌ Texas bills data collection failed');
       results.success = false;
       results.errors.push(error.message);
     }
@@ -482,4 +485,4 @@ class OpenStatesBillsAPI {
 
 export const openStatesBillsAPI = new OpenStatesBillsAPI();
 
-console.log('📋 OpenStates Bills API initialized');
+log.info('📋 OpenStates Bills API initialized');

@@ -6,6 +6,9 @@ import { db } from '../db';
 import { committeeMeetings, committees, liveStreamSegments, liveStreamQuotes } from '@shared/schema';
 import { committeeMeetingTaggedSegments } from '@shared/schema-committee-videos';
 import { eq, desc, and, sql, or, like } from 'drizzle-orm';
+import { createLogger } from "../logger";
+const log = createLogger("enhanced-committee-video-analyzer");
+
 
 // Initialize OpenAI client
 // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
@@ -133,11 +136,11 @@ export interface MeetingSummary {
  * Initialize the enhanced committee video analyzer
  */
 export function initEnhancedCommitteeVideoAnalyzer(): void {
-  console.log("Initializing enhanced committee video analyzer...");
+  log.info("Initializing enhanced committee video analyzer...");
   
   // Set up recurring scan for live committee meetings (every 5 minutes)
   setInterval(async () => {
-    console.log("Scanning for live committee meetings...");
+    log.info("Scanning for live committee meetings...");
     await scanForLiveCommitteeVideos();
   }, 5 * 60 * 1000); // 5 minutes
   
@@ -146,7 +149,7 @@ export function initEnhancedCommitteeVideoAnalyzer(): void {
     // Convert Map entries to array before iteration to solve TypeScript downlevel iteration issue
     Array.from(activeStreams.entries()).forEach(async ([streamId, stream]) => {
       if (stream.isLive) {
-        console.log(`Processing live stream: ${stream.committee}`);
+        log.info(`Processing live stream: ${stream.committee}`);
         await processLiveStream(streamId, stream);
       }
     });
@@ -154,10 +157,10 @@ export function initEnhancedCommitteeVideoAnalyzer(): void {
   
   // Initial scan
   scanForLiveCommitteeVideos().catch(error => {
-    console.error("Error in initial live committee scan:", error);
+    log.error({ err: error }, "Error in initial live committee scan");
   });
   
-  console.log("Enhanced committee video analyzer initialized");
+  log.info("Enhanced committee video analyzer initialized");
 }
 
 /**
@@ -187,9 +190,9 @@ async function scanForLiveCommitteeVideos(): Promise<void> {
       }
     }));
     
-    console.log(`Found ${activeStreams.size} active streams (${Array.from(activeStreams.values()).filter(s => s.isLive).length} live)`);
+    log.info(`Found ${activeStreams.size} active streams (${Array.from(activeStreams.values()).filter(s => s.isLive).length} live)`);
   } catch (error: any) {
-    console.error("Error scanning for live committee meetings:", error);
+    log.error({ err: error }, "Error scanning for live committee meetings");
   }
 }
 
@@ -316,7 +319,7 @@ function updateActiveStreamsRegistry(newStreams: ActiveStream[]): void {
       // Before removing, mark meeting as completed if it was live
       if (stream.meetingId && stream.isLive) {
         finalizeCommitteeMeeting(stream.meetingId).catch(error => {
-          console.error(`Error finalizing meeting ${stream.meetingId}:`, error);
+          log.error({ err: error }, `Error finalizing meeting ${stream.meetingId}`);
         });
       }
       
@@ -341,7 +344,7 @@ async function ensureMeetingRecord(stream: ActiveStream): Promise<number> {
     });
     
     if (!committee) {
-      console.log(`Committee not found in database: ${stream.committee}`);
+      log.info(`Committee not found in database: ${stream.committee}`);
       throw new Error(`Committee not found: ${stream.committee}`);
     }
     
@@ -389,7 +392,7 @@ async function ensureMeetingRecord(stream: ActiveStream): Promise<number> {
       return meetingId;
     }
   } catch (error: any) {
-    console.error(`Error ensuring meeting record for ${stream.committee}:`, error);
+    log.error({ err: error }, `Error ensuring meeting record for ${stream.committee}`);
     throw error;
   }
 }
@@ -458,7 +461,7 @@ async function processLiveStream(streamId: string, stream: ActiveStream): Promis
     
     stream.lastProcessed = new Date();
   } catch (error: any) {
-    console.error(`Error processing live stream ${streamId}:`, error);
+    log.error({ err: error }, `Error processing live stream ${streamId}`);
   }
 }
 
@@ -650,7 +653,7 @@ async function saveSegmentToDatabase(segment: MeetingSegment, stream: ActiveStre
       updatedAt: new Date()
     });
   } catch (error: any) {
-    console.error("Error saving segment to database:", error);
+    log.error({ err: error }, "Error saving segment to database");
     throw error;
   }
 }
@@ -660,7 +663,7 @@ async function saveSegmentToDatabase(segment: MeetingSegment, stream: ActiveStre
  */
 async function finalizeCommitteeMeeting(meetingId: number): Promise<void> {
   try {
-    console.log(`Finalizing committee meeting ${meetingId}`);
+    log.info(`Finalizing committee meeting ${meetingId}`);
     
     // Retrieve all segments for this meeting
     const segments = await db.query.liveStreamSegments.findMany({
@@ -669,7 +672,7 @@ async function finalizeCommitteeMeeting(meetingId: number): Promise<void> {
     });
     
     if (segments.length === 0) {
-      console.log(`No segments found for meeting ${meetingId}`);
+      log.info(`No segments found for meeting ${meetingId}`);
       return;
     }
     
@@ -689,9 +692,9 @@ async function finalizeCommitteeMeeting(meetingId: number): Promise<void> {
       })
       .where(eq(committeeMeetings.id, meetingId));
     
-    console.log(`Successfully finalized meeting ${meetingId}`);
+    log.info(`Successfully finalized meeting ${meetingId}`);
   } catch (error: any) {
-    console.error(`Error finalizing meeting ${meetingId}:`, error);
+    log.error({ err: error }, `Error finalizing meeting ${meetingId}`);
     
     // Update the meeting to failed status
     await db.update(committeeMeetings)
@@ -1046,7 +1049,7 @@ export default {
         sentimentScore: r.segment.sentimentScore
       }));
     } catch (error: any) {
-      console.error("Error in searchCommitteeMeetings:", error);
+      log.error({ err: error }, "Error in searchCommitteeMeetings");
       return [];
     }
   }

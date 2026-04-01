@@ -15,6 +15,9 @@ import {
   InsertAnnotationTag
 } from '../shared/schema-annotations';
 import { users } from '../shared/schema';
+import { createLogger } from "./logger";
+const log = createLogger("storage-annotations");
+
 
 /**
  * Interface for annotation storage operations
@@ -190,7 +193,7 @@ export class AnnotationStorage implements IAnnotationStorage {
       
       return annotations;
     } catch (error: any) {
-      console.error('Error getting annotations:', error);
+      log.error({ err: error }, 'Error getting annotations');
       throw error;
     }
   }
@@ -262,7 +265,7 @@ export class AnnotationStorage implements IAnnotationStorage {
       
       return annotation;
     } catch (error: any) {
-      console.error('Error getting annotation by ID:', error);
+      log.error({ err: error }, 'Error getting annotation by ID');
       throw error;
     }
   }
@@ -275,7 +278,7 @@ export class AnnotationStorage implements IAnnotationStorage {
       const result = await db.insert(billAnnotations).values(data).returning();
       return result[0];
     } catch (error: any) {
-      console.error('Error creating annotation:', error);
+      log.error({ err: error }, 'Error creating annotation');
       throw error;
     }
   }
@@ -299,7 +302,7 @@ export class AnnotationStorage implements IAnnotationStorage {
       
       return result[0] || null;
     } catch (error: any) {
-      console.error('Error updating annotation:', error);
+      log.error({ err: error }, 'Error updating annotation');
       throw error;
     }
   }
@@ -314,7 +317,7 @@ export class AnnotationStorage implements IAnnotationStorage {
         .set({ isActive: false, updatedAt: new Date() })
         .where(eq(billAnnotations.id, id));
     } catch (error: any) {
-      console.error('Error deleting annotation:', error);
+      log.error({ err: error }, 'Error deleting annotation');
       throw error;
     }
   }
@@ -356,7 +359,7 @@ export class AnnotationStorage implements IAnnotationStorage {
         isActive: reply.isActive
       }));
     } catch (error: any) {
-      console.error('Error getting replies:', error);
+      log.error({ err: error }, 'Error getting replies');
       throw error;
     }
   }
@@ -392,7 +395,7 @@ export class AnnotationStorage implements IAnnotationStorage {
       
       return query;
     } catch (error: any) {
-      console.error('Error getting replies for multiple annotations:', error);
+      log.error({ err: error }, 'Error getting replies for multiple annotations');
       throw error;
     }
   }
@@ -405,7 +408,7 @@ export class AnnotationStorage implements IAnnotationStorage {
       const result = await db.insert(annotationReplies).values(data).returning();
       return result[0];
     } catch (error: any) {
-      console.error('Error creating reply:', error);
+      log.error({ err: error }, 'Error creating reply');
       throw error;
     }
   }
@@ -429,7 +432,7 @@ export class AnnotationStorage implements IAnnotationStorage {
       
       return result[0] || null;
     } catch (error: any) {
-      console.error('Error updating reply:', error);
+      log.error({ err: error }, 'Error updating reply');
       throw error;
     }
   }
@@ -444,7 +447,7 @@ export class AnnotationStorage implements IAnnotationStorage {
         .set({ isActive: false, updatedAt: new Date() })
         .where(eq(annotationReplies.id, id));
     } catch (error: any) {
-      console.error('Error deleting reply:', error);
+      log.error({ err: error }, 'Error deleting reply');
       throw error;
     }
   }
@@ -493,7 +496,7 @@ export class AnnotationStorage implements IAnnotationStorage {
       
       return query;
     } catch (error: any) {
-      console.error('Error getting reactions:', error);
+      log.error({ err: error }, 'Error getting reactions');
       throw error;
     }
   }
@@ -526,7 +529,7 @@ export class AnnotationStorage implements IAnnotationStorage {
       
       return query;
     } catch (error: any) {
-      console.error('Error getting reactions for multiple annotations:', error);
+      log.error({ err: error }, 'Error getting reactions for multiple annotations');
       throw error;
     }
   }
@@ -559,7 +562,7 @@ export class AnnotationStorage implements IAnnotationStorage {
       const result = await db.insert(annotationReactions).values(data).returning();
       return result[0];
     } catch (error: any) {
-      console.error('Error creating reaction:', error);
+      log.error({ err: error }, 'Error creating reaction');
       throw error;
     }
   }
@@ -573,7 +576,7 @@ export class AnnotationStorage implements IAnnotationStorage {
         .delete(annotationReactions)
         .where(eq(annotationReactions.id, id));
     } catch (error: any) {
-      console.error('Error deleting reaction:', error);
+      log.error({ err: error }, 'Error deleting reaction');
       throw error;
     }
   }
@@ -591,7 +594,7 @@ export class AnnotationStorage implements IAnnotationStorage {
       
       return query;
     } catch (error: any) {
-      console.error('Error getting tags:', error);
+      log.error({ err: error }, 'Error getting tags');
       throw error;
     }
   }
@@ -613,7 +616,7 @@ export class AnnotationStorage implements IAnnotationStorage {
       
       return query;
     } catch (error: any) {
-      console.error('Error getting tags for multiple annotations:', error);
+      log.error({ err: error }, 'Error getting tags for multiple annotations');
       throw error;
     }
   }
@@ -626,7 +629,7 @@ export class AnnotationStorage implements IAnnotationStorage {
       const result = await db.insert(annotationTags).values(data).returning();
       return result[0];
     } catch (error: any) {
-      console.error('Error creating tag:', error);
+      log.error({ err: error }, 'Error creating tag');
       throw error;
     }
   }
@@ -640,7 +643,7 @@ export class AnnotationStorage implements IAnnotationStorage {
         .delete(annotationTags)
         .where(eq(annotationTags.id, id));
     } catch (error: any) {
-      console.error('Error deleting tag:', error);
+      log.error({ err: error }, 'Error deleting tag');
       throw error;
     }
   }
@@ -706,7 +709,7 @@ export class AnnotationStorage implements IAnnotationStorage {
         sentimentDistribution: sentimentDistribution
       };
     } catch (error: any) {
-      console.error('Error getting annotation statistics:', error);
+      log.error({ err: error }, 'Error getting annotation statistics');
       throw error;
     }
   }
@@ -744,7 +747,7 @@ export class AnnotationStorage implements IAnnotationStorage {
       
       return query;
     } catch (error: any) {
-      console.error('Error getting top annotated sections:', error);
+      log.error({ err: error }, 'Error getting top annotated sections');
       throw error;
     }
   }
@@ -795,7 +798,7 @@ export class AnnotationStorage implements IAnnotationStorage {
       
       return query;
     } catch (error: any) {
-      console.error('Error getting most discussed annotations:', error);
+      log.error({ err: error }, 'Error getting most discussed annotations');
       throw error;
     }
   }

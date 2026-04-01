@@ -3,6 +3,9 @@ import { CustomRequest } from "../types";
 import { isAuthenticated } from "../auth";
 import { actionCircleStorage } from "../storage-action-circle";
 import { z } from "zod";
+import { createLogger } from "../logger";
+const log = createLogger("action-circles-routes");
+
 
 const createCircleSchema = z.object({
   name: z.string().min(3, "Name must be at least 3 characters long"),
@@ -48,7 +51,7 @@ export function registerActionCirclesRoutes(app: Express): void {
       const circles = await actionCircleStorage.getActionCircles();
       return res.json(circles);
     } catch (error: any) {
-      console.error("Error fetching action circles:", error);
+      log.error({ err: error }, "Error fetching action circles");
       return res.status(500).json({ error: "Failed to fetch action circles" });
     }
   });
@@ -75,7 +78,7 @@ export function registerActionCirclesRoutes(app: Express): void {
       
       return res.json(circle);
     } catch (error: any) {
-      console.error("Error fetching action circle:", error);
+      log.error({ err: error }, "Error fetching action circle");
       return res.status(500).json({ error: "Failed to fetch action circle" });
     }
   });
@@ -107,7 +110,7 @@ export function registerActionCirclesRoutes(app: Express): void {
       
       return res.status(201).json(circle);
     } catch (error: any) {
-      console.error("Error creating action circle:", error);
+      log.error({ err: error }, "Error creating action circle");
       return res.status(500).json({ error: "Failed to create action circle" });
     }
   });
@@ -140,7 +143,7 @@ export function registerActionCirclesRoutes(app: Express): void {
       const updatedCircle = await actionCircleStorage.updateActionCircle(circleId, parsedBody.data);
       return res.json(updatedCircle);
     } catch (error: any) {
-      console.error("Error updating action circle:", error);
+      log.error({ err: error }, "Error updating action circle");
       return res.status(500).json({ error: "Failed to update action circle" });
     }
   });
@@ -168,7 +171,7 @@ export function registerActionCirclesRoutes(app: Express): void {
       await actionCircleStorage.deleteActionCircle(circleId);
       return res.status(204).send();
     } catch (error: any) {
-      console.error("Error deleting action circle:", error);
+      log.error({ err: error }, "Error deleting action circle");
       return res.status(500).json({ error: "Failed to delete action circle" });
     }
   });
@@ -198,7 +201,7 @@ export function registerActionCirclesRoutes(app: Express): void {
       const members = await actionCircleStorage.getCircleMembersWithUserDetails(circleId);
       return res.json(members);
     } catch (error: any) {
-      console.error("Error fetching circle members:", error);
+      log.error({ err: error }, "Error fetching circle members");
       return res.status(500).json({ error: "Failed to fetch circle members" });
     }
   });
@@ -237,7 +240,7 @@ export function registerActionCirclesRoutes(app: Express): void {
       
       return res.status(201).json(member);
     } catch (error: any) {
-      console.error("Error joining action circle:", error);
+      log.error({ err: error }, "Error joining action circle");
       return res.status(500).json({ error: "Failed to join action circle" });
     }
   });
@@ -275,7 +278,7 @@ export function registerActionCirclesRoutes(app: Express): void {
       await actionCircleStorage.removeCircleMember(circleId, req.user!.id);
       return res.status(204).send();
     } catch (error: any) {
-      console.error("Error leaving action circle:", error);
+      log.error({ err: error }, "Error leaving action circle");
       return res.status(500).json({ error: "Failed to leave action circle" });
     }
   });
@@ -303,7 +306,7 @@ export function registerActionCirclesRoutes(app: Express): void {
       const annotations = await actionCircleStorage.getCircleAnnotations(parseInt(circleId), billId);
       return res.json(annotations);
     } catch (error: any) {
-      console.error("Error fetching circle annotations:", error);
+      log.error({ err: error }, "Error fetching circle annotations");
       return res.status(500).json({ error: "Failed to fetch circle annotations" });
     }
   });

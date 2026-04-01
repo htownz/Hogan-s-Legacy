@@ -2,6 +2,9 @@
 import OpenAI from "openai";
 import { storage } from "../storage";
 import { Bill } from "@shared/schema";
+import { createLogger } from "../logger";
+const log = createLogger("bill-recommendation-service");
+
 
 export interface UserProfile {
   userId: number;
@@ -68,11 +71,11 @@ export async function inferUserInterestsFromBills(bills: Bill[]): Promise<string
       const parsedContent = JSON.parse(content);
       return Array.isArray(parsedContent.topics) ? parsedContent.topics : [];
     } catch (error: any) {
-      console.error("Error parsing OpenAI response:", error);
+      log.error({ err: error }, "Error parsing OpenAI response");
       return [];
     }
   } catch (error: any) {
-    console.error("Error inferring user interests:", error);
+    log.error({ err: error }, "Error inferring user interests");
     return [];
   }
 }
@@ -171,11 +174,11 @@ export async function generateBillRecommendations(
         ? parsedContent.recommendations 
         : [];
     } catch (error: any) {
-      console.error("Error parsing OpenAI recommendations response:", error);
+      log.error({ err: error }, "Error parsing OpenAI recommendations response");
       return [];
     }
   } catch (error: any) {
-    console.error("Error generating bill recommendations:", error);
+    log.error({ err: error }, "Error generating bill recommendations");
     return [];
   }
 }
@@ -200,7 +203,7 @@ export async function processAndStoreRecommendations(
       // Get the full bill object
       const bill = await storage.getBillById(rec.billId);
       if (!bill) {
-        console.warn(`Bill ${rec.billId} not found, skipping recommendation`);
+        log.warn(`Bill ${rec.billId} not found, skipping recommendation`);
         continue;
       }
       
@@ -228,7 +231,7 @@ export async function processAndStoreRecommendations(
     
     return storedRecommendations;
   } catch (error: any) {
-    console.error("Error storing recommendations:", error);
+    log.error({ err: error }, "Error storing recommendations");
     return [];
   }
 }

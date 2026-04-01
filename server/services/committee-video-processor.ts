@@ -16,6 +16,9 @@ const openai = new OpenAI({
 // Directory for temporary file storage
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { createLogger } from "../logger";
+const log = createLogger("committee-video-processor");
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -94,7 +97,7 @@ export async function processVideoFromUrl(
   agenda: string
 ): Promise<{ success: boolean; error?: string; data?: any }> {
   try {
-    console.log(`Processing video for meeting ID ${meetingId}: ${videoUrl}`);
+    log.info(`Processing video for meeting ID ${meetingId}: ${videoUrl}`);
 
     // For this MVP, we'll simulate the video processing since 
     // implementing actual video to audio transcription is complex
@@ -141,7 +144,7 @@ export async function processVideoFromUrl(
       data: result
     };
   } catch (error: any) {
-    console.error("Error processing video:", error);
+    log.error({ err: error }, "Error processing video");
     
     // Update status to failed - use both fields for backward compatibility
     await db.update(committeeMeetings)
@@ -193,7 +196,7 @@ async function generateSimulatedSummary(meeting: any): Promise<VideoSummaryResul
           });
         }
       } catch (e: any) {
-        console.error(`Error fetching bill ${billId}:`, e);
+        log.error({ err: e }, `Error fetching bill ${billId}`);
       }
     }
   }
@@ -340,7 +343,7 @@ async function generateTranscript(audioFilePath: string): Promise<string> {
     
     return transcription.text;
   } catch (error: any) {
-    console.error("Error generating transcript:", error);
+    log.error({ err: error }, "Error generating transcript");
     throw error;
   }
 }
@@ -416,7 +419,7 @@ export async function queueMeetingForProcessing(meetingId: number): Promise<bool
     );
     return result.success;
   } catch (error: any) {
-    console.error("Error queueing meeting:", error);
+    log.error({ err: error }, "Error queueing meeting");
     return false;
   }
 }
@@ -424,7 +427,7 @@ export async function queueMeetingForProcessing(meetingId: number): Promise<bool
 // Process a committee meeting video
 async function processVideo(meeting: any, committee: any): Promise<boolean> {
   if (!meeting.videoUrl) {
-    console.error("No video URL found for meeting ID:", meeting.id);
+    log.error({ err: meeting.id }, "No video URL found for meeting ID");
     return false;
   }
 
@@ -470,7 +473,7 @@ async function processVideo(meeting: any, committee: any): Promise<boolean> {
     
     return true;
   } catch (error: any) {
-    console.error("Error processing video for meeting:", meeting.id, error);
+    log.error("Error processing video for meeting:", meeting.id, error);
     
     // Update status to failed - use both fields for backward compatibility
     await db.update(committeeMeetings)

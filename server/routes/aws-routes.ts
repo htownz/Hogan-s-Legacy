@@ -1,5 +1,8 @@
 import { Router } from 'express';
 import { CustomRequest } from '../types';
+import { createLogger } from "../logger";
+const log = createLogger("aws-routes");
+
 
 // This file contains routes that interact with AWS services
 // In a real implementation, these would use AWS SDK to perform operations
@@ -18,7 +21,7 @@ export function registerAwsRoutes(app: Router) {
       
       res.json(awsStatus);
     } catch (error: any) {
-      console.error('Error checking AWS status:', error);
+      log.error({ err: error }, 'Error checking AWS status');
       res.status(500).json({ error: 'Failed to check AWS status' });
     }
   });
@@ -50,7 +53,7 @@ export function registerAwsRoutes(app: Router) {
       
       res.json(files);
     } catch (error: any) {
-      console.error('Error getting S3 files:', error);
+      log.error({ err: error }, 'Error getting S3 files');
       res.status(500).json({ error: 'Failed to get S3 files' });
     }
   });
@@ -81,7 +84,7 @@ export function registerAwsRoutes(app: Router) {
       
       res.json({ uploadUrl, fileKey });
     } catch (error: any) {
-      console.error('Error generating S3 upload URL:', error);
+      log.error({ err: error }, 'Error generating S3 upload URL');
       res.status(500).json({ error: 'Failed to generate S3 upload URL' });
     }
   });
@@ -107,7 +110,7 @@ export function registerAwsRoutes(app: Router) {
       
       res.json({ downloadUrl });
     } catch (error: any) {
-      console.error('Error generating S3 download URL:', error);
+      log.error({ err: error }, 'Error generating S3 download URL');
       res.status(500).json({ error: 'Failed to generate S3 download URL' });
     }
   });
@@ -132,7 +135,7 @@ export function registerAwsRoutes(app: Router) {
       
       res.status(200).json({ message: 'File deleted successfully' });
     } catch (error: any) {
-      console.error('Error deleting S3 file:', error);
+      log.error({ err: error }, 'Error deleting S3 file');
       res.status(500).json({ error: 'Failed to delete S3 file' });
     }
   });
@@ -162,7 +165,7 @@ export function registerAwsRoutes(app: Router) {
       
       res.json(tables);
     } catch (error: any) {
-      console.error('Error getting DynamoDB tables:', error);
+      log.error({ err: error }, 'Error getting DynamoDB tables');
       res.status(500).json({ error: 'Failed to get DynamoDB tables' });
     }
   });

@@ -2,6 +2,9 @@
 import rateLimit from 'express-rate-limit';
 import cors from 'cors';
 import { Request, Response, NextFunction } from 'express';
+import { createLogger } from '../logger';
+
+const log = createLogger('production-security');
 
 // Rate limiting for different endpoint types
 export const createRateLimiters = () => {
@@ -159,10 +162,9 @@ export const validateEnvironment = () => {
   const missing = requiredEnvVars.filter(envVar => !process.env[envVar]);
   
   if (missing.length > 0) {
-    console.warn('⚠️ Missing environment variables:', missing);
-    console.warn('Some features may not work correctly in production');
+    log.warn({ missing }, 'Missing environment variables — some features may not work correctly in production');
   } else {
-    console.log('✅ All required environment variables are set');
+    log.info('All required environment variables are set');
   }
   
   return missing.length === 0;

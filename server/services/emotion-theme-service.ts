@@ -3,6 +3,9 @@ import { db } from '../db';
 import { bills, liveStreamSegments } from '../../shared/schema';
 import { eq, and, like, desc, sql } from 'drizzle-orm';
 import { ThemeRecommendation } from '../../shared/types';
+import { createLogger } from "../logger";
+const log = createLogger("emotion-theme-service");
+
 
 /**
  * Analyzes sentiment data and recommends appropriate UI themes
@@ -34,7 +37,7 @@ export class EmotionThemeService {
       
       return this.getDefaultTheme();
     } catch (error: any) {
-      console.error('Error getting bill theme recommendation:', error);
+      log.error({ err: error }, 'Error getting bill theme recommendation');
       return this.getDefaultTheme();
     }
   }
@@ -74,7 +77,7 @@ export class EmotionThemeService {
       
       return this.getThemeFromSentiment(normalizedScore);
     } catch (error: any) {
-      console.error('Error getting committee theme recommendation:', error);
+      log.error({ err: error }, 'Error getting committee theme recommendation');
       return this.getDefaultTheme();
     }
   }

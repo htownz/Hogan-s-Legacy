@@ -5,6 +5,9 @@
 
 import { Router } from 'express';
 import { storage } from './storage';
+import { createLogger } from "./logger";
+const log = createLogger("routes-user-auth");
+
 
 const router = Router();
 
@@ -67,7 +70,7 @@ router.post('/login', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('Login error:', error);
+    log.error({ err: error }, 'Login error');
     res.status(500).json({
       success: false,
       message: 'Login failed',
@@ -134,7 +137,7 @@ router.post('/signup', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('Signup error:', error);
+    log.error({ err: error }, 'Signup error');
     res.status(500).json({
       success: false,
       message: 'Account creation failed',
@@ -191,7 +194,7 @@ router.get('/preferences', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('Error fetching preferences:', error);
+    log.error({ err: error }, 'Error fetching preferences');
     res.status(500).json({
       success: false,
       message: 'Failed to fetch preferences',
@@ -219,7 +222,7 @@ router.put('/preferences', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('Error updating preferences:', error);
+    log.error({ err: error }, 'Error updating preferences');
     res.status(500).json({
       success: false,
       message: 'Failed to update preferences',
@@ -317,7 +320,7 @@ router.get('/dashboard/:timeframe?', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('Error fetching dashboard data:', error);
+    log.error({ err: error }, 'Error fetching dashboard data');
     res.status(500).json({
       success: false,
       message: 'Failed to fetch dashboard data',
@@ -365,7 +368,7 @@ router.get('/recommendations', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('Error fetching recommendations:', error);
+    log.error({ err: error }, 'Error fetching recommendations');
     res.status(500).json({
       success: false,
       message: 'Failed to fetch recommendations',

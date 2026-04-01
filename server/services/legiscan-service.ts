@@ -13,6 +13,9 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { db } from '../db';
+import { createLogger } from "../logger";
+const log = createLogger("legiscan-service");
+
 
 // ES modules don't have __dirname, so we need to create it
 const __filename = fileURLToPath(import.meta.url);
@@ -103,7 +106,7 @@ class LegiScanService {
     this.apiKey = process.env.LEGISCAN_API_KEY;
     
     if (!this.apiKey) {
-      console.warn('LEGISCAN_API_KEY environment variable not set. LegiScan API will not function properly.');
+      log.warn('LEGISCAN_API_KEY environment variable not set. LegiScan API will not function properly.');
     }
   }
 
@@ -122,11 +125,11 @@ class LegiScanService {
       // Check if we have a cached response
       const cachedData = apiCache.get('legiscan', operation, params);
       if (cachedData) {
-        console.log(`Using cached LegiScan data for ${operation}`);
+        log.info(`Using cached LegiScan data for ${operation}`);
         return cachedData;
       }
     } catch (error: any) {
-      console.warn('Enhanced cache not available, falling back to file cache:', error);
+      log.warn({ detail: error }, 'Enhanced cache not available, falling back to file cache');
       
       // Create a cache key based on the operation and parameters
       const paramString = JSON.stringify(params);
@@ -142,11 +145,11 @@ class LegiScanService {
           
           // Use cache if it's less than 24 hours old
           if ((now.getTime() - cacheTime.getTime()) < 24 * 60 * 60 * 1000) {
-            console.log(`Using file-cached LegiScan data for ${operation}`);
+            log.info(`Using file-cached LegiScan data for ${operation}`);
             return cacheData.data;
           }
         } catch (error: any) {
-          console.error('Error reading file cache:', error);
+          log.error({ err: error }, 'Error reading file cache');
           // Continue to fetch fresh data if cache reading fails
         }
       }
@@ -161,7 +164,7 @@ class LegiScanService {
     };
 
     try {
-      console.log(`Fetching LegiScan data for ${operation}`);
+      log.info(`Fetching LegiScan data for ${operation}`);
       const response = await axios.get(this.baseUrl, { params: requestParams });
       
       if (response.data.status === 'OK') {
@@ -171,7 +174,7 @@ class LegiScanService {
           apiCache.set('legiscan', operation, params, response.data);
         } catch (cacheError: any) {
           // Fallback to filesystem cache
-          console.warn('Error saving to enhanced cache, falling back to file cache:', cacheError);
+          log.warn({ detail: cacheError }, 'Error saving to enhanced cache, falling back to file cache');
           
           // Create cache key and path 
           const paramString = JSON.stringify(params);
@@ -190,7 +193,7 @@ class LegiScanService {
         throw new Error(`LegiScan API error: ${response.data.alert?.message || 'Unknown error'}`);
       }
     } catch (error: any) {
-      console.error('LegiScan API request failed:', error);
+      log.error({ err: error }, 'LegiScan API request failed');
       throw error;
     }
   }
@@ -314,18 +317,18 @@ class LegiScanService {
             }
           }
         } catch (err: any) {
-          console.error(`Error processing bill ${bill.bill_id}:`, err);
+          log.error({ err: err }, `Error processing bill ${bill.bill_id}`);
         }
       }
       
-      console.log(`Found ${processedLegislators.length} legislators`);
+      log.info(`Found ${processedLegislators.length} legislators`);
       
       // TODO: Store legislators in database
       // This is where we would update our database with the legislator information
       
       return processedLegislators.length;
     } catch (error: any) {
-      console.error('Error importing legislators:', error);
+      log.error({ err: error }, 'Error importing legislators');
       throw error;
     }
   }

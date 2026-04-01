@@ -1,6 +1,9 @@
 // @ts-nocheck
 import OpenAI from "openai";
 import { Bill } from "../../shared/schema";
+import { createLogger } from "../logger";
+const log = createLogger("legislative-impact-analyzer");
+
 
 // Initialize OpenAI client
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -15,7 +18,7 @@ const MODEL = "gpt-4o";
 export async function generateLegislativeImpactAnalysis(bill: Bill): Promise<any> {
   try {
     if (!bill.fullText) {
-      console.warn(`Bill ${bill.id} is missing full text for analysis`);
+      log.warn(`Bill ${bill.id} is missing full text for analysis`);
       // We'll provide a basic analysis without the full text
       return generateBasicAnalysis(bill);
     }
@@ -50,7 +53,7 @@ export async function generateLegislativeImpactAnalysis(bill: Bill): Promise<any
 
     return analysis;
   } catch (error: any) {
-    console.error("Error generating legislative impact analysis:", error);
+    log.error({ err: error }, "Error generating legislative impact analysis");
     // Fall back to basic analysis if OpenAI call fails
     return generateBasicAnalysis(bill);
   }
@@ -261,7 +264,7 @@ Focus on how this specific bill would impact this individual based on their demo
 
     return personalizedImpact;
   } catch (error: any) {
-    console.error("Error generating personalized impact:", error);
+    log.error({ err: error }, "Error generating personalized impact");
     throw error;
   }
 }
@@ -361,7 +364,7 @@ Highlight key similarities and differences, trade-offs between the bills, and pr
 
     return comparison;
   } catch (error: any) {
-    console.error("Error generating bill comparison:", error);
+    log.error({ err: error }, "Error generating bill comparison");
     throw error;
   }
 }

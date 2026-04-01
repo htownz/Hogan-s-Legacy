@@ -2,6 +2,9 @@
 import axios from 'axios';
 import { db } from '../db';
 import { sql } from 'drizzle-orm';
+import { createLogger } from "../logger";
+const log = createLogger("live-data-integration-service");
+
 
 export interface DataSource {
   name: string;
@@ -109,18 +112,18 @@ export class LiveDataIntegrationService {
     }
 
     try {
-      console.log('🏛️ Starting LegiScan data sync...');
+      log.info('🏛️ Starting LegiScan data sync...');
       
       // Get current legislative session for Texas
       const sessionResponse = await axios.get(`${legiscan.baseUrl}?key=${legiscan.apiKey}&op=getSessionList&state=TX`);
       
-      console.log('LegiScan API Response Status:', sessionResponse.status);
-      console.log('LegiScan API Response Data Status:', sessionResponse.data?.status);
-      console.log('LegiScan API Response Keys:', Object.keys(sessionResponse.data || {}));
+      log.info({ detail: sessionResponse.status }, 'LegiScan API Response Status');
+      log.info('LegiScan API Response Data Status:', sessionResponse.data?.status);
+      log.info('LegiScan API Response Keys:', Object.keys(sessionResponse.data || {}));
       
       if (sessionResponse.data && sessionResponse.data.status === 'OK') {
         const sessions = sessionResponse.data.sessions;
-        console.log(`📋 Found ${sessions.length} Texas legislative sessions`);
+        log.info(`📋 Found ${sessions.length} Texas legislative sessions`);
         
         // Store session data
         await this.processSessionData(sessions);
@@ -129,7 +132,7 @@ export class LiveDataIntegrationService {
         const currentSession = sessions.find((s: any) => s.current === 1) || sessions[0];
         
         if (currentSession) {
-          console.log(`🏛️ Processing current session: ${currentSession.session_name}`);
+          log.info(`🏛️ Processing current session: ${currentSession.session_name}`);
           
           // Get bills for current session
           const billsResponse = await axios.get(
@@ -139,7 +142,7 @@ export class LiveDataIntegrationService {
           if (billsResponse.data && billsResponse.data.status === 'OK') {
             const masterlist = billsResponse.data.masterlist || {};
             const bills = Object.values(masterlist);
-            console.log(`📋 Found ${bills.length} bills in current Texas session`);
+            log.info(`📋 Found ${bills.length} bills in current Texas session`);
             
             // Process and store bills
             if (bills.length > 0) {
@@ -171,7 +174,7 @@ export class LiveDataIntegrationService {
       
       throw new Error('Invalid response from LegiScan API');
     } catch (error: any) {
-      console.error('LegiScan sync error:', error);
+      log.error({ err: error }, 'LegiScan sync error');
       await this.updateSyncStatus('legiscan', false);
       throw error;
     }
@@ -182,7 +185,7 @@ export class LiveDataIntegrationService {
     const fec = this.dataSources.get('fec');
     
     try {
-      console.log('💰 Starting FEC campaign finance sync...');
+      log.info('💰 Starting FEC campaign finance sync...');
       
       // FEC API requires an API key for production use
       const apiKey = process.env.FEC_API_KEY || 'DEMO_KEY';
@@ -203,7 +206,7 @@ export class LiveDataIntegrationService {
 
       if (candidatesResponse.data && candidatesResponse.data.results) {
         const candidates = candidatesResponse.data.results;
-        console.log(`👤 Found ${candidates.length} Texas candidates from FEC`);
+        log.info(`👤 Found ${candidates.length} Texas candidates from FEC`);
 
         // Get committee data
         const committeesResponse = await axios.get(
@@ -220,7 +223,7 @@ export class LiveDataIntegrationService {
         );
 
         const committees = committeesResponse.data?.results || [];
-        console.log(`🏢 Found ${committees.length} Texas committees from FEC`);
+        log.info(`🏢 Found ${committees.length} Texas committees from FEC`);
 
         // Get individual contributions for transparency
         const contributionsResponse = await axios.get(
@@ -236,7 +239,7 @@ export class LiveDataIntegrationService {
         );
 
         const contributions = contributionsResponse.data?.results || [];
-        console.log(`💵 Found ${contributions.length} recent Texas contributions from FEC`);
+        log.info(`💵 Found ${contributions.length} recent Texas contributions from FEC`);
 
         // Process and store campaign finance data
         await this.processFECCandidates(candidates);
@@ -257,7 +260,7 @@ export class LiveDataIntegrationService {
       
       throw new Error('No data received from FEC API');
     } catch (error: any) {
-      console.error('FEC sync error:', error);
+      log.error({ err: error }, 'FEC sync error');
       await this.updateSyncStatus('fec', false);
       throw error;
     }
@@ -266,7 +269,7 @@ export class LiveDataIntegrationService {
   // Texas Legislature Online Integration
   async syncTexasLegislatureData(): Promise<any> {
     try {
-      console.log('🏛️ Starting Texas Legislature Online sync...');
+      log.info('🏛️ Starting Texas Legislature Online sync...');
       
       // Get current session information
       const sessionResponse = await axios.get(
@@ -275,7 +278,7 @@ export class LiveDataIntegrationService {
       );
 
       const currentSession = sessionResponse.data;
-      console.log(`📋 Current Texas Legislative Session: ${currentSession.SessionNumber}`);
+      log.info(`📋 Current Texas Legislative Session: ${currentSession.SessionNumber}`);
 
       // Get recent bills from current session
       const billsResponse = await axios.get(
@@ -290,7 +293,7 @@ export class LiveDataIntegrationService {
       );
 
       const bills = billsResponse.data || [];
-      console.log(`📜 Found ${bills.length} recent Texas bills`);
+      log.info(`📜 Found ${bills.length} recent Texas bills`);
 
       // Get voting records for recent bills
       let votingRecords = [];
@@ -303,9 +306,9 @@ export class LiveDataIntegrationService {
           }
         );
         votingRecords = votesResponse.data || [];
-        console.log(`🗳️ Found ${votingRecords.length} recent voting records`);
+        log.info(`🗳️ Found ${votingRecords.length} recent voting records`);
       } catch (voteError: any) {
-        console.log('Note: Voting records endpoint may require specific access');
+        log.info('Note: Voting records endpoint may require specific access');
       }
 
       // Process and store legislative data
@@ -322,7 +325,7 @@ export class LiveDataIntegrationService {
         message: 'Successfully connected to Texas Legislature Online for authentic legislative data'
       };
     } catch (error: any) {
-      console.error('Texas Legislature sync error:', error);
+      log.error({ err: error }, 'Texas Legislature sync error');
       await this.updateSyncStatus('texas_legislature', false);
       throw error;
     }
@@ -331,7 +334,7 @@ export class LiveDataIntegrationService {
   // Texas Ethics Commission Integration
   async syncTexasEthicsData(): Promise<any> {
     try {
-      console.log('⚖️ Starting Texas Ethics Commission sync...');
+      log.info('⚖️ Starting Texas Ethics Commission sync...');
       
       // TEC provides downloadable datasets and search interfaces
       // We'll connect to their public data sources
@@ -345,7 +348,7 @@ export class LiveDataIntegrationService {
 
       // 1. Connect to TEC Lobbyist Registration data
       try {
-        console.log('📋 Fetching TEC lobbyist registrations...');
+        log.info('📋 Fetching TEC lobbyist registrations...');
         
         // TEC provides CSV downloads for lobbyist data
         const lobbyistResponse = await axios.get(
@@ -362,15 +365,15 @@ export class LiveDataIntegrationService {
         if (lobbyistResponse.data) {
           await this.processTECLobbyistData(lobbyistResponse.data);
           ethicsData.lobbyistRegistrations = 1; // Mark as processed
-          console.log('✅ TEC lobbyist data processed successfully');
+          log.info('✅ TEC lobbyist data processed successfully');
         }
       } catch (error: any) {
-        console.log('ℹ️ TEC lobbyist data not available via direct API, will use alternative methods');
+        log.info('ℹ️ TEC lobbyist data not available via direct API, will use alternative methods');
       }
 
       // 2. Connect to TEC Campaign Finance data
       try {
-        console.log('💰 Fetching TEC campaign finance reports...');
+        log.info('💰 Fetching TEC campaign finance reports...');
         
         // TEC provides searchable campaign finance database
         const campaignResponse = await axios.get(
@@ -387,15 +390,15 @@ export class LiveDataIntegrationService {
         if (campaignResponse.data) {
           await this.processTECCampaignData(campaignResponse.data);
           ethicsData.campaignReports = 1; // Mark as processed
-          console.log('✅ TEC campaign finance data processed successfully');
+          log.info('✅ TEC campaign finance data processed successfully');
         }
       } catch (error: any) {
-        console.log('ℹ️ TEC campaign finance data requires specialized access, setting up alternative methods');
+        log.info('ℹ️ TEC campaign finance data requires specialized access, setting up alternative methods');
       }
 
       // 3. Connect to TEC Ethics Violations database
       try {
-        console.log('⚖️ Fetching TEC ethics violations...');
+        log.info('⚖️ Fetching TEC ethics violations...');
         
         // TEC maintains public enforcement database
         const violationsResponse = await axios.get(
@@ -412,10 +415,10 @@ export class LiveDataIntegrationService {
         if (violationsResponse.data) {
           await this.processTECViolationsData(violationsResponse.data);
           ethicsData.violationsProcessed = 1; // Mark as processed
-          console.log('✅ TEC ethics violations data processed successfully');
+          log.info('✅ TEC ethics violations data processed successfully');
         }
       } catch (error: any) {
-        console.log('ℹ️ TEC ethics violations data requires specialized parsing');
+        log.info('ℹ️ TEC ethics violations data requires specialized parsing');
       }
 
       await this.updateSyncStatus('ethics_texas', true);
@@ -426,7 +429,7 @@ export class LiveDataIntegrationService {
         message: 'Connected to TEC data sources - lobbyist registrations, campaign finance, and ethics violations'
       };
     } catch (error: any) {
-      console.error('Texas Ethics sync error:', error);
+      log.error({ err: error }, 'Texas Ethics sync error');
       await this.updateSyncStatus('ethics_texas', false);
       throw error;
     }
@@ -435,7 +438,7 @@ export class LiveDataIntegrationService {
   // Congress.gov API Integration
   async syncCongressData(): Promise<any> {
     try {
-      console.log('🏛️ Starting Congress.gov sync...');
+      log.info('🏛️ Starting Congress.gov sync...');
       
       // Get recent bills related to Texas or federal legislation
       const billsResponse = await axios.get(
@@ -453,7 +456,7 @@ export class LiveDataIntegrationService {
       );
 
       const bills = billsResponse.data.bills || [];
-      console.log(`📜 Found ${bills.length} federal bills`);
+      log.info(`📜 Found ${bills.length} federal bills`);
 
       await this.processFederalBillData(bills);
       await this.updateSyncStatus('congress_gov', true);
@@ -464,7 +467,7 @@ export class LiveDataIntegrationService {
         timestamp: new Date()
       };
     } catch (error: any) {
-      console.error('Congress.gov sync error:', error);
+      log.error({ err: error }, 'Congress.gov sync error');
       await this.updateSyncStatus('congress_gov', false);
       throw error;
     }
@@ -497,7 +500,7 @@ export class LiveDataIntegrationService {
             description = EXCLUDED.description
         `);
       } catch (error: any) {
-        console.error(`Error processing bill ${bill.bill_number}:`, error);
+        log.error({ err: error }, `Error processing bill ${bill.bill_number}`);
       }
     }
   }
@@ -528,7 +531,7 @@ export class LiveDataIntegrationService {
             entity_name = EXCLUDED.entity_name
         `);
       } catch (error: any) {
-        console.error(`Error processing candidate ${candidate.name}:`, error);
+        log.error({ err: error }, `Error processing candidate ${candidate.name}`);
       }
     }
 
@@ -556,7 +559,7 @@ export class LiveDataIntegrationService {
             entity_name = EXCLUDED.entity_name
         `);
       } catch (error: any) {
-        console.error(`Error processing committee ${committee.name}:`, error);
+        log.error({ err: error }, `Error processing committee ${committee.name}`);
       }
     }
   }
@@ -589,7 +592,7 @@ export class LiveDataIntegrationService {
             title = EXCLUDED.title
         `);
       } catch (error: any) {
-        console.error(`Error processing federal bill ${bill.number}:`, error);
+        log.error({ err: error }, `Error processing federal bill ${bill.number}`);
       }
     }
   }
@@ -620,7 +623,7 @@ export class LiveDataIntegrationService {
             END
         `);
       } catch (error: any) {
-        console.error(`Error updating sync status for ${sourceKey}:`, error);
+        log.error({ err: error }, `Error updating sync status for ${sourceKey}`);
       }
     }
   }
@@ -651,7 +654,7 @@ export class LiveDataIntegrationService {
         }
       }
     } catch (error: any) {
-      console.error('Error processing TEC lobbyist data:', error);
+      log.error({ err: error }, 'Error processing TEC lobbyist data');
     }
   }
 
@@ -678,7 +681,7 @@ export class LiveDataIntegrationService {
         `);
       }
     } catch (error: any) {
-      console.error('Error processing TEC campaign data:', error);
+      log.error({ err: error }, 'Error processing TEC campaign data');
     }
   }
 
@@ -686,7 +689,7 @@ export class LiveDataIntegrationService {
   private async processTECViolationsData(data: string): Promise<void> {
     try {
       // Process ethics violations from TEC enforcement database
-      console.log('Processing TEC ethics violations data...');
+      log.info('Processing TEC ethics violations data...');
       // This would parse XML or HTML data from TEC sworn complaint search
       // For now, we'll create a sample record to show the structure
       await db.execute(sql`
@@ -705,7 +708,7 @@ export class LiveDataIntegrationService {
         ON CONFLICT DO NOTHING
       `);
     } catch (error: any) {
-      console.error('Error processing TEC violations data:', error);
+      log.error({ err: error }, 'Error processing TEC violations data');
     }
   }
 
@@ -731,7 +734,7 @@ export class LiveDataIntegrationService {
         `);
       }
     } catch (error: any) {
-      console.error('Error processing FEC candidates:', error);
+      log.error({ err: error }, 'Error processing FEC candidates');
     }
   }
 
@@ -757,7 +760,7 @@ export class LiveDataIntegrationService {
         `);
       }
     } catch (error: any) {
-      console.error('Error processing FEC committees:', error);
+      log.error({ err: error }, 'Error processing FEC committees');
     }
   }
 
@@ -782,7 +785,7 @@ export class LiveDataIntegrationService {
         `);
       }
     } catch (error: any) {
-      console.error('Error processing FEC contributions:', error);
+      log.error({ err: error }, 'Error processing FEC contributions');
     }
   }
 

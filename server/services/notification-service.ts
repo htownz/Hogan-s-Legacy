@@ -1,5 +1,8 @@
 import { smartAlertsStorage } from "../storage-smart-alerts";
 import { InsertSmartBillAlert, UserAlertPreferences } from "@shared/schema";
+import { createLogger } from "../logger";
+const log = createLogger("notification-service");
+
 
 interface NotificationPayload {
   title: string;
@@ -90,7 +93,7 @@ class NotificationService {
       }
 
     } catch (error: any) {
-      console.error('Failed to send notification:', error);
+      log.error({ err: error }, 'Failed to send notification');
     }
   }
 
@@ -121,11 +124,11 @@ class NotificationService {
     payload: NotificationPayload
   ): Promise<void> {
     // This would integrate with web push API in a production environment
-    console.log(`📱 Push notification sent to user ${userId}:`, {
+    log.info({
       title: payload.title,
       body: payload.message,
       urgency: payload.urgencyLevel
-    });
+    }, `Push notification sent to user ${userId}`);
     
     // In production, you would:
     // 1. Store user's push subscription
@@ -139,11 +142,11 @@ class NotificationService {
     payload: NotificationPayload
   ): Promise<void> {
     // This would integrate with SendGrid or similar email service
-    console.log(`📧 Email notification sent to user ${userId}:`, {
-      subject: `🚨 ${payload.title}`,
+    log.info({
+      subject: `${payload.title}`,
       message: payload.message,
       urgency: payload.urgencyLevel
-    });
+    }, `Email notification sent to user ${userId}`);
     
     // In production, you would:
     // 1. Get user's email from database
@@ -183,7 +186,7 @@ class NotificationService {
         });
       }
     } catch (error: any) {
-      console.error('Failed to broadcast bill update:', error);
+      log.error({ err: error }, 'Failed to broadcast bill update');
     }
   }
 
@@ -208,7 +211,7 @@ class NotificationService {
         urgencyBreakdown
       };
     } catch (error: any) {
-      console.error('Failed to get notification stats:', error);
+      log.error({ err: error }, 'Failed to get notification stats');
       return { totalSent: 0, unreadCount: 0, urgencyBreakdown: {} };
     }
   }

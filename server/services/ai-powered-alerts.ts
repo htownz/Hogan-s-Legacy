@@ -1,5 +1,8 @@
 // @ts-nocheck
 import Anthropic from '@anthropic-ai/sdk';
+import { createLogger } from "../logger";
+const log = createLogger("ai-powered-alerts");
+
 
 /**
  * AI-Powered Legislative Alert Enhancement System
@@ -13,7 +16,7 @@ const anthropic = new Anthropic({
 export class AIPoweredAlertSystem {
 
   async enhanceAlertsWithAI(alerts: any[]) {
-    console.log("🤖 Enhancing alerts with AI-powered analysis...");
+    log.info("🤖 Enhancing alerts with AI-powered analysis...");
     
     const enhancedAlerts = [];
     
@@ -31,7 +34,7 @@ export class AIPoweredAlertSystem {
           relatedTopics: aiEnhancement.relatedTopics
         });
       } catch (error: any) {
-        console.error('AI enhancement error for alert:', alert.id, error);
+        log.error('AI enhancement error for alert:', alert.id, error);
         enhancedAlerts.push(alert);
       }
     }
@@ -40,7 +43,7 @@ export class AIPoweredAlertSystem {
   }
 
   async analyzeAlertWithAI(alert: any) {
-    console.log(`🧠 AI analyzing alert: ${alert.title}`);
+    log.info(`🧠 AI analyzing alert: ${alert.title}`);
     
     const prompt = `
     Analyze this Texas legislative alert and provide intelligent insights:
@@ -81,7 +84,7 @@ export class AIPoweredAlertSystem {
         relatedTopics: aiAnalysis.relatedTopics || []
       };
     } catch (error: any) {
-      console.error('AI analysis failed:', error);
+      log.error({ err: error }, 'AI analysis failed');
       return {
         impactScore: 5,
         personalRelevance: 5,
@@ -94,7 +97,7 @@ export class AIPoweredAlertSystem {
   }
 
   async generatePersonalizedAlertFeed(userPreferences: any = {}) {
-    console.log("🎯 Generating personalized alert feed with AI...");
+    log.info("🎯 Generating personalized alert feed with AI...");
     
     const prompt = `
     Generate personalized Texas legislative alerts based on these preferences:
@@ -118,13 +121,13 @@ export class AIPoweredAlertSystem {
 
       return JSON.parse(response.content[0].text);
     } catch (error: any) {
-      console.error('Personalized feed generation failed:', error);
+      log.error({ err: error }, 'Personalized feed generation failed');
       return [];
     }
   }
 
   async intelligentAlertPrioritization(alerts: any[]) {
-    console.log("🧠 AI prioritizing alerts by relevance and impact...");
+    log.info("🧠 AI prioritizing alerts by relevance and impact...");
     
     const prompt = `
     Prioritize these Texas legislative alerts for maximum citizen engagement:
@@ -164,13 +167,13 @@ export class AIPoweredAlertSystem {
         reasoning: prioritization.reasoning
       };
     } catch (error: any) {
-      console.error('Alert prioritization failed:', error);
+      log.error({ err: error }, 'Alert prioritization failed');
       return { alerts, reasoning: 'Default chronological order' };
     }
   }
 
   async generateSmartAlertInsights(alertHistory: any[]) {
-    console.log("📊 Generating smart insights from alert patterns...");
+    log.info("📊 Generating smart insights from alert patterns...");
     
     const prompt = `
     Analyze these Texas legislative alert patterns and generate insights:
@@ -199,7 +202,7 @@ export class AIPoweredAlertSystem {
 
       return JSON.parse(response.content[0].text);
     } catch (error: any) {
-      console.error('Smart insights generation failed:', error);
+      log.error({ err: error }, 'Smart insights generation failed');
       return {
         trends: ['Active legislative session'],
         hotTopics: ['Education', 'Healthcare'],
@@ -211,7 +214,7 @@ export class AIPoweredAlertSystem {
   }
 
   async predictiveAlertAnalysis(alerts: any[]) {
-    console.log("🔮 Running AI predictive analysis on legislative patterns...");
+    log.info("🔮 Running AI predictive analysis on legislative patterns...");
     
     const prompt = `
     Analyze these Texas legislative alerts and predict future developments:
@@ -250,7 +253,7 @@ export class AIPoweredAlertSystem {
       const content = response.content[0];
       return JSON.parse(content.type === 'text' ? content.text : '{}');
     } catch (error: any) {
-      console.error('Predictive analysis failed:', error);
+      log.error({ err: error }, 'Predictive analysis failed');
       return {
         predictions: ['Legislative session continues with education and healthcare focus'],
         hotCommittees: ['House State Affairs', 'Senate Education'],
@@ -263,7 +266,7 @@ export class AIPoweredAlertSystem {
   }
 
   async sentimentAnalysisOfAlerts(alerts: any[]) {
-    console.log("😊 Analyzing sentiment and public mood from legislative activity...");
+    log.info("😊 Analyzing sentiment and public mood from legislative activity...");
     
     const prompt = `
     Analyze the sentiment and public impact of these Texas legislative alerts:
@@ -302,7 +305,7 @@ export class AIPoweredAlertSystem {
       const content = response.content[0];
       return JSON.parse(content.type === 'text' ? content.text : '{}');
     } catch (error: any) {
-      console.error('Sentiment analysis failed:', error);
+      log.error({ err: error }, 'Sentiment analysis failed');
       return {
         overallSentiment: 'neutral',
         sentimentScore: 5,
@@ -316,7 +319,7 @@ export class AIPoweredAlertSystem {
   }
 
   async intelligentAlertClustering(alerts: any[]) {
-    console.log("🧩 AI clustering related alerts by topic and urgency...");
+    log.info("🧩 AI clustering related alerts by topic and urgency...");
     
     const prompt = `
     Group these Texas legislative alerts into intelligent clusters:
@@ -358,7 +361,7 @@ export class AIPoweredAlertSystem {
       const content = response.content[0];
       return JSON.parse(content.type === 'text' ? content.text : '{"clusters": []}');
     } catch (error: any) {
-      console.error('Alert clustering failed:', error);
+      log.error({ err: error }, 'Alert clustering failed');
       return {
         clusters: [
           {

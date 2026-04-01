@@ -3,6 +3,9 @@ import { z } from 'zod';
 import { isAdmin } from '../middleware/auth-middleware';
 import { avatarService } from '../services/avatar-service';
 import { StorageRequest } from '../types/request-types';
+import { createLogger } from "../logger";
+const log = createLogger("avatar-routes");
+
 
 /**
  * Register avatar-related API routes
@@ -44,7 +47,7 @@ export function registerAvatarRoutes(app: express.Application): void {
         avatarUrl 
       });
     } catch (error: any) {
-      console.error('Error generating avatar:', error);
+      log.error({ err: error }, 'Error generating avatar');
       return res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -65,13 +68,13 @@ export function registerAvatarRoutes(app: express.Application): void {
       // Continue processing in the background
       avatarService.generateMissingAvatars()
         .then(count => {
-          console.log(`Generated ${count} avatars successfully`);
+          log.info(`Generated ${count} avatars successfully`);
         })
         .catch(error => {
-          console.error('Error generating missing avatars:', error);
+          log.error({ err: error }, 'Error generating missing avatars');
         });
     } catch (error: any) {
-      console.error('Error starting avatar generation:', error);
+      log.error({ err: error }, 'Error starting avatar generation');
       // Client won't see this since we already responded
     }
   });
@@ -109,13 +112,13 @@ export function registerAvatarRoutes(app: express.Application): void {
       // Continue processing in the background
       avatarService.regenerateAvatarsByFilter(filter)
         .then(count => {
-          console.log(`Regenerated ${count} avatars successfully`);
+          log.info(`Regenerated ${count} avatars successfully`);
         })
         .catch(error => {
-          console.error('Error regenerating avatars:', error);
+          log.error({ err: error }, 'Error regenerating avatars');
         });
     } catch (error: any) {
-      console.error('Error starting avatar regeneration:', error);
+      log.error({ err: error }, 'Error starting avatar regeneration');
       // Client won't see this since we already responded
     }
   });

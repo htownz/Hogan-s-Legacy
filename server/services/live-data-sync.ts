@@ -2,6 +2,9 @@
 import { db } from '../db';
 import { sql } from 'drizzle-orm';
 import * as cron from 'node-cron';
+import { createLogger } from "../logger";
+const log = createLogger("live-data-sync");
+
 
 export interface SyncStatus {
   source: string;
@@ -17,7 +20,7 @@ export class LiveDataSyncService {
 
   // Initialize scheduled data sync
   async initialize(): Promise<void> {
-    console.log('🔄 Initializing live data synchronization...');
+    log.info('🔄 Initializing live data synchronization...');
     
     // Schedule LegiScan sync every 30 minutes
     cron.schedule('*/30 * * * *', async () => {
@@ -40,7 +43,7 @@ export class LiveDataSyncService {
       }
     });
 
-    console.log('✅ Live data sync schedules initialized');
+    log.info('✅ Live data sync schedules initialized');
   }
 
   // Check if we're currently in legislative session
@@ -62,7 +65,7 @@ export class LiveDataSyncService {
         throw new Error('LegiScan API key not configured');
       }
 
-      console.log('📡 Syncing LegiScan data...');
+      log.info('📡 Syncing LegiScan data...');
       
       // Get recent bill updates
       const billsResponse = await fetch(
@@ -88,12 +91,12 @@ export class LiveDataSyncService {
       }
 
       this.updateSyncStatus(syncId, 'success', processedCount);
-      console.log(`✅ LegiScan sync completed: ${processedCount} bills processed`);
+      log.info(`✅ LegiScan sync completed: ${processedCount} bills processed`);
       
     } catch (error: any) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.updateSyncStatus(syncId, 'error', 0, errorMessage);
-      console.error('❌ LegiScan sync failed:', errorMessage);
+      log.error({ err: errorMessage }, '❌ LegiScan sync failed');
     }
   }
 
@@ -103,7 +106,7 @@ export class LiveDataSyncService {
     this.updateSyncStatus(syncId, 'pending', 0);
 
     try {
-      console.log('📡 Syncing TEC data...');
+      log.info('📡 Syncing TEC data...');
       
       // TEC provides CSV data exports - would need to implement based on their current format
       // For now, simulate the process structure
@@ -119,12 +122,12 @@ export class LiveDataSyncService {
       processedCount += 25; // Simulated count
 
       this.updateSyncStatus(syncId, 'success', processedCount);
-      console.log(`✅ TEC sync completed: ${processedCount} records processed`);
+      log.info(`✅ TEC sync completed: ${processedCount} records processed`);
       
     } catch (error: any) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.updateSyncStatus(syncId, 'error', 0, errorMessage);
-      console.error('❌ TEC sync failed:', errorMessage);
+      log.error({ err: errorMessage }, '❌ TEC sync failed');
     }
   }
 
@@ -134,7 +137,7 @@ export class LiveDataSyncService {
     this.updateSyncStatus(syncId, 'pending', 0);
 
     try {
-      console.log('📡 Syncing bill status updates...');
+      log.info('📡 Syncing bill status updates...');
       
       // Get bills that need status updates (tracked bills or recent activity)
       const trackedBills = await db.execute(sql`
@@ -153,12 +156,12 @@ export class LiveDataSyncService {
       }
 
       this.updateSyncStatus(syncId, 'success', processedCount);
-      console.log(`✅ Bill status sync completed: ${processedCount} bills updated`);
+      log.info(`✅ Bill status sync completed: ${processedCount} bills updated`);
       
     } catch (error: any) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.updateSyncStatus(syncId, 'error', 0, errorMessage);
-      console.error('❌ Bill status sync failed:', errorMessage);
+      log.error({ err: errorMessage }, '❌ Bill status sync failed');
     }
   }
 
@@ -201,7 +204,7 @@ export class LiveDataSyncService {
       }
       
     } catch (error: any) {
-      console.error('Failed to process bill update:', bill.bill_id, error);
+      log.error('Failed to process bill update:', bill.bill_id, error);
     }
   }
 
@@ -220,7 +223,7 @@ export class LiveDataSyncService {
         await this.processBillUpdate(data.bill);
       }
     } catch (error: any) {
-      console.error('Failed to update bill status:', legiScanBillId, error);
+      log.error('Failed to update bill status:', legiScanBillId, error);
     }
   }
 
@@ -228,13 +231,13 @@ export class LiveDataSyncService {
   private async processTECCampaignFinance(): Promise<void> {
     // This would implement TEC-specific campaign finance data processing
     // Based on their CSV exports and data structure
-    console.log('Processing TEC campaign finance data...');
+    log.info('Processing TEC campaign finance data...');
   }
 
   // Process TEC lobbyist data
   private async processTECLobbyistData(): Promise<void> {
     // This would implement TEC-specific lobbyist registration processing
-    console.log('Processing TEC lobbyist data...');
+    log.info('Processing TEC lobbyist data...');
   }
 
   // Trigger notification for bill update
@@ -254,7 +257,7 @@ export class LiveDataSyncService {
         )
       `);
     } catch (error: any) {
-      console.error('Failed to create notification:', error);
+      log.error({ err: error }, 'Failed to create notification');
     }
   }
 
@@ -307,7 +310,7 @@ export class LiveDataSyncService {
   // Stop all sync operations
   stop(): void {
     this.isRunning = false;
-    console.log('🛑 Live data sync stopped');
+    log.info('🛑 Live data sync stopped');
   }
 }
 

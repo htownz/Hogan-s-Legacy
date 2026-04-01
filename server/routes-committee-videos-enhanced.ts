@@ -9,6 +9,9 @@ interface CustomRequest extends Request {
   userId?: string;
 }
 import enhancedVideoAnalyzer from "./services/enhanced-committee-video-analyzer";
+import { createLogger } from "./logger";
+const log = createLogger("routes-committee-videos-enhanced");
+
 
 /**
  * Register enhanced committee video API routes
@@ -26,7 +29,7 @@ export function registerEnhancedCommitteeVideoRoutes(app: Express): void {
         data: liveStreams
       });
     } catch (error: any) {
-      console.error("Error fetching live streams:", error);
+      log.error({ err: error }, "Error fetching live streams");
       return res.status(500).json({
         success: false,
         error: "Failed to fetch live committee streams"
@@ -48,7 +51,7 @@ export function registerEnhancedCommitteeVideoRoutes(app: Express): void {
         data: streamSummary
       });
     } catch (error: any) {
-      console.error(`Error fetching live stream ${req.params.streamId}:`, error);
+      log.error({ err: error }, `Error fetching live stream ${req.params.streamId}`);
       return res.status(500).json({
         success: false,
         error: "Failed to fetch live stream details"
@@ -73,7 +76,7 @@ export function registerEnhancedCommitteeVideoRoutes(app: Express): void {
         data: segments
       });
     } catch (error: any) {
-      console.error(`Error fetching segments for meeting ${req.params.meetingId}:`, error);
+      log.error({ err: error }, `Error fetching segments for meeting ${req.params.meetingId}`);
       return res.status(500).json({
         success: false,
         error: "Failed to fetch meeting segments"
@@ -98,7 +101,7 @@ export function registerEnhancedCommitteeVideoRoutes(app: Express): void {
         data: quotes
       });
     } catch (error: any) {
-      console.error(`Error fetching quotes for meeting ${req.params.meetingId}:`, error);
+      log.error({ err: error }, `Error fetching quotes for meeting ${req.params.meetingId}`);
       return res.status(500).json({
         success: false,
         error: "Failed to fetch meeting quotes"
@@ -123,7 +126,7 @@ export function registerEnhancedCommitteeVideoRoutes(app: Express): void {
         data: quotes
       });
     } catch (error: any) {
-      console.error(`Error fetching quotes for bill ${req.params.billId}:`, error);
+      log.error({ err: error }, `Error fetching quotes for bill ${req.params.billId}`);
       return res.status(500).json({
         success: false,
         error: "Failed to fetch bill quotes"
@@ -149,7 +152,7 @@ export function registerEnhancedCommitteeVideoRoutes(app: Express): void {
         data: reportData
       });
     } catch (error: any) {
-      console.error(`Error generating report for meeting ${req.params.meetingId}:`, error);
+      log.error({ err: error }, `Error generating report for meeting ${req.params.meetingId}`);
       return res.status(500).json({
         success: false,
         error: "Failed to generate meeting report"
@@ -218,7 +221,7 @@ export function registerEnhancedCommitteeVideoRoutes(app: Express): void {
           data: results
         });
       } catch (searchError: any) {
-        console.error("Error in search operation:", searchError);
+        log.error({ err: searchError }, "Error in search operation");
         return res.json({
           success: true,
           data: [],
@@ -226,7 +229,7 @@ export function registerEnhancedCommitteeVideoRoutes(app: Express): void {
         });
       }
     } catch (error: any) {
-      console.error("Error searching committee videos:", error);
+      log.error({ err: error }, "Error searching committee videos");
       return res.status(500).json({
         success: false,
         error: "Failed to search committee videos"
@@ -259,7 +262,7 @@ export function registerEnhancedCommitteeVideoRoutes(app: Express): void {
         }
       });
     } catch (error: any) {
-      console.error("Error fetching active committees:", error);
+      log.error({ err: error }, "Error fetching active committees");
       return res.status(500).json({
         success: false,
         error: "Failed to fetch active committees"
@@ -281,7 +284,7 @@ export function registerEnhancedCommitteeVideoRoutes(app: Express): void {
         message: "Committee video analyzer initialized"
       });
     } catch (error: any) {
-      console.error("Error initializing committee video analyzer:", error);
+      log.error({ err: error }, "Error initializing committee video analyzer");
       return res.status(500).json({
         success: false,
         error: "Failed to initialize committee video analyzer"

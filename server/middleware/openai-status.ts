@@ -3,6 +3,9 @@
  */
 import { Request, Response, NextFunction } from 'express';
 import OpenAI from 'openai';
+import { createLogger } from '../logger';
+
+const log = createLogger('openai-status');
 
 // Constants for status checking
 const STATUS_CHECK_INTERVAL = 60 * 60 * 1000; // 1 hour
@@ -87,7 +90,7 @@ export async function checkOpenAIHealth(): Promise<boolean> {
   } catch (error: any) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     healthTracker.recordError(errorMessage);
-    console.error("OpenAI health check failed:", errorMessage);
+    log.error({ err: errorMessage }, 'OpenAI health check failed');
     return false;
   }
 }
@@ -118,7 +121,7 @@ export function openAIStatusMiddleware(req: Request, res: Response, next: NextFu
   // If it's time to check health, do it asynchronously
   if (healthTracker.shouldCheckHealth()) {
     checkOpenAIHealth().catch(err => {
-      console.error("Background health check failed:", err);
+      log.error({ err }, 'Background health check failed');
     });
   }
   

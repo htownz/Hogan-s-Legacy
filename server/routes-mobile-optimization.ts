@@ -1,5 +1,8 @@
 import { Router } from 'express';
 import { mobileOptimizationService } from './services/mobile-optimization-service';
+import { createLogger } from "./logger";
+const log = createLogger("routes-mobile-optimization");
+
 
 const router = Router();
 
@@ -15,7 +18,7 @@ router.get('/api/mobile/critical-bills', async (req, res) => {
     
     res.json(optimizedData);
   } catch (error: any) {
-    console.error('Mobile critical bills error:', error);
+    log.error({ err: error }, 'Mobile critical bills error');
     res.status(500).json({ error: 'Failed to load critical bills' });
   }
 });
@@ -36,7 +39,7 @@ router.post('/api/mobile/metrics', async (req, res) => {
     
     res.json({ success: true });
   } catch (error: any) {
-    console.error('Mobile metrics tracking error:', error);
+    log.error({ err: error }, 'Mobile metrics tracking error');
     res.status(500).json({ error: 'Failed to track metrics' });
   }
 });
@@ -47,7 +50,7 @@ router.get('/api/mobile/performance', async (req, res) => {
     const insights = await mobileOptimizationService.getMobilePerformanceInsights();
     res.json(insights);
   } catch (error: any) {
-    console.error('Mobile performance insights error:', error);
+    log.error({ err: error }, 'Mobile performance insights error');
     res.status(500).json({ error: 'Failed to get performance insights' });
   }
 });
@@ -64,7 +67,7 @@ router.get('/api/mobile/bills/:id', async (req, res) => {
     
     res.json(optimizedBill);
   } catch (error: any) {
-    console.error('Mobile bill optimization error:', error);
+    log.error({ err: error }, 'Mobile bill optimization error');
     res.status(500).json({ error: 'Failed to optimize bill' });
   }
 });
@@ -81,7 +84,7 @@ router.post('/api/mobile/adaptive-content', async (req, res) => {
       content: adaptiveContent
     });
   } catch (error: any) {
-    console.error('Adaptive content error:', error);
+    log.error({ err: error }, 'Adaptive content error');
     res.status(500).json({ error: 'Failed to get adaptive content' });
   }
 });
@@ -92,12 +95,12 @@ router.get('/api/mobile/cache-manifest', async (req, res) => {
     const manifest = await mobileOptimizationService.generateOfflineCacheManifest();
     res.json({ resources: manifest });
   } catch (error: any) {
-    console.error('Cache manifest error:', error);
+    log.error({ err: error }, 'Cache manifest error');
     res.status(500).json({ error: 'Failed to generate cache manifest' });
   }
 });
 
 export function registerMobileOptimizationRoutes(app: any) {
   app.use(router);
-  console.log('📱 Mobile optimization routes registered successfully!');
+  log.info('📱 Mobile optimization routes registered successfully!');
 }

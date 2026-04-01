@@ -14,6 +14,9 @@ import {
   QuickActionInteraction,
   InsertQuickActionInteraction
 } from '../shared/schema-civic-actions';
+import { createLogger } from "./logger";
+const log = createLogger("storage-civic-actions");
+
 
 /**
  * Interface for civic action storage service
@@ -79,7 +82,7 @@ export class CivicActionStorage implements ICivicActionStorage {
       `);
       return result.rows as CivicActionType[];
     } catch (error: any) {
-      console.error("Error in getCivicActionTypes:", error);
+      log.error({ err: error }, "Error in getCivicActionTypes");
       throw error;
     }
   }
@@ -93,7 +96,7 @@ export class CivicActionStorage implements ICivicActionStorage {
       `);
       return result.rows[0] as CivicActionType | undefined;
     } catch (error: any) {
-      console.error("Error in getCivicActionTypeById:", error);
+      log.error({ err: error }, "Error in getCivicActionTypeById");
       throw error;
     }
   }
@@ -111,7 +114,7 @@ export class CivicActionStorage implements ICivicActionStorage {
       `);
       return result.rows as CivicActionType[];
     } catch (error: any) {
-      console.error("Error in getCivicActionTypesByCategory:", error);
+      log.error({ err: error }, "Error in getCivicActionTypesByCategory");
       throw error;
     }
   }
@@ -205,7 +208,7 @@ export class CivicActionStorage implements ICivicActionStorage {
       `);
       return result.rows as QuickActionShortcut[];
     } catch (error: any) {
-      console.error("Error in getQuickActionShortcuts:", error);
+      log.error({ err: error }, "Error in getQuickActionShortcuts");
       throw error;
     }
   }
@@ -220,7 +223,7 @@ export class CivicActionStorage implements ICivicActionStorage {
       `);
       return result.rows[0] as QuickActionShortcut | undefined;
     } catch (error: any) {
-      console.error("Error in getQuickActionShortcutById:", error);
+      log.error({ err: error }, "Error in getQuickActionShortcutById");
       throw error;
     }
   }
@@ -244,7 +247,7 @@ export class CivicActionStorage implements ICivicActionStorage {
       `);
       return result.rows[0] as QuickActionShortcut;
     } catch (error: any) {
-      console.error("Error in createQuickActionShortcut:", error);
+      log.error({ err: error }, "Error in createQuickActionShortcut");
       throw error;
     }
   }
@@ -297,7 +300,7 @@ export class CivicActionStorage implements ICivicActionStorage {
       
       return result.rows[0] as QuickActionShortcut | undefined;
     } catch (error: any) {
-      console.error("Error in updateQuickActionShortcut:", error);
+      log.error({ err: error }, "Error in updateQuickActionShortcut");
       throw error;
     }
   }
@@ -339,7 +342,7 @@ export class CivicActionStorage implements ICivicActionStorage {
         return result.rows[0] as QuickActionInteraction;
       }
     } catch (error: any) {
-      console.error("Error in recordQuickActionInteraction:", error);
+      log.error({ err: error }, "Error in recordQuickActionInteraction");
       throw error;
     }
   }
@@ -377,7 +380,7 @@ export class CivicActionStorage implements ICivicActionStorage {
       
       return result.rows as QuickActionInteraction[];
     } catch (error: any) {
-      console.error("Error in getQuickActionInteractions:", error);
+      log.error({ err: error }, "Error in getQuickActionInteractions");
       throw error;
     }
   }

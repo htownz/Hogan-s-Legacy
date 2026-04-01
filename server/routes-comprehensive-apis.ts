@@ -9,6 +9,9 @@ import express from 'express';
 import { fecAPI } from './services/fec-api';
 import { openStatesAPI } from './services/openstates-api';
 import { legiscanService } from './services/legiscan-service';
+import { createLogger } from "./logger";
+const log = createLogger("routes-comprehensive-apis");
+
 
 const router = express.Router();
 
@@ -17,7 +20,7 @@ const router = express.Router();
  */
 router.get('/api/texas/campaign-finance', async (req, res) => {
   try {
-    console.log('💰 Fetching comprehensive Texas campaign finance data...');
+    log.info('💰 Fetching comprehensive Texas campaign finance data...');
     
     if (!fecAPI.isConfigured()) {
       return res.status(400).json({
@@ -44,7 +47,7 @@ router.get('/api/texas/campaign-finance', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Error fetching campaign finance data:', error.message);
+    log.error({ err: error.message }, '❌ Error fetching campaign finance data');
     res.status(500).json({
       success: false,
       error: 'Failed to fetch campaign finance data',
@@ -59,7 +62,7 @@ router.get('/api/texas/campaign-finance', async (req, res) => {
 router.get('/api/texas/candidate-contributions/:candidateName', async (req, res) => {
   try {
     const { candidateName } = req.params;
-    console.log(`💰 Fetching contributions for candidate: ${candidateName}...`);
+    log.info(`💰 Fetching contributions for candidate: ${candidateName}...`);
     
     // First get candidate data to find FEC ID
     const candidates = await fecAPI.getTexasCandidateFinances(candidateName);
@@ -86,7 +89,7 @@ router.get('/api/texas/candidate-contributions/:candidateName', async (req, res)
     });
 
   } catch (error: any) {
-    console.error('❌ Error fetching candidate contributions:', error.message);
+    log.error({ err: error.message }, '❌ Error fetching candidate contributions');
     res.status(500).json({
       success: false,
       error: 'Failed to fetch candidate contributions',
@@ -100,7 +103,7 @@ router.get('/api/texas/candidate-contributions/:candidateName', async (req, res)
  */
 router.get('/api/texas/comprehensive-data', async (req, res) => {
   try {
-    console.log('🏛️ Fetching comprehensive Texas legislative data from all APIs...');
+    log.info('🏛️ Fetching comprehensive Texas legislative data from all APIs...');
     
     const [
       openStatesData,
@@ -136,7 +139,7 @@ router.get('/api/texas/comprehensive-data', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Error fetching comprehensive data:', error.message);
+    log.error({ err: error.message }, '❌ Error fetching comprehensive data');
     res.status(500).json({
       success: false,
       error: 'Failed to fetch comprehensive legislative data',
@@ -150,7 +153,7 @@ router.get('/api/texas/comprehensive-data', async (req, res) => {
  */
 router.get('/api/status/all-apis', async (req, res) => {
   try {
-    console.log('🔍 Checking status of all government data APIs...');
+    log.info('🔍 Checking status of all government data APIs...');
     
     const apiStatus = {
       openStates: {
@@ -205,7 +208,7 @@ router.get('/api/status/all-apis', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Error checking API status:', error.message);
+    log.error({ err: error.message }, '❌ Error checking API status');
     res.status(500).json({
       success: false,
       error: 'Failed to check API status',

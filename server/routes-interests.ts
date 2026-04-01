@@ -16,6 +16,9 @@ import {
 import { z } from "zod";
 import { inferUserInterestsFromBills } from "./services/bill-recommendation-service";
 import { storage } from "./storage";
+import { createLogger } from "./logger";
+const log = createLogger("routes-interests");
+
 
 const router = Router();
 
@@ -52,7 +55,7 @@ router.get("/interests", isAuthenticated, async (req: CustomRequest, res: Respon
     
     res.json(interests[0]);
   } catch (error: any) {
-    console.error("Error fetching user interests:", error);
+    log.error({ err: error }, "Error fetching user interests");
     res.status(500).json({ error: "Failed to fetch user interests" });
   }
 });
@@ -85,7 +88,7 @@ router.post("/interests", isAuthenticated, async (req: CustomRequest, res: Respo
     if (error instanceof z.ZodError) {
       res.status(400).json({ error: "Invalid interest data", details: error.errors });
     } else {
-      console.error("Error creating/updating user interests:", error);
+      log.error({ err: error }, "Error creating/updating user interests");
       res.status(500).json({ error: "Failed to save user interests" });
     }
   }
@@ -154,7 +157,7 @@ router.post("/interests/infer", isAuthenticated, async (req: CustomRequest, res:
       });
     }
   } catch (error: any) {
-    console.error("Error inferring user interests:", error);
+    log.error({ err: error }, "Error inferring user interests");
     res.status(500).json({ error: "Failed to infer user interests" });
   }
 });
@@ -195,7 +198,7 @@ router.get("/recommendations", isAuthenticated, async (req: CustomRequest, res: 
     
     res.json(recommendations);
   } catch (error: any) {
-    console.error("Error fetching bill recommendations:", error);
+    log.error({ err: error }, "Error fetching bill recommendations");
     res.status(500).json({ error: "Failed to fetch bill recommendations" });
   }
 });
@@ -227,7 +230,7 @@ router.post("/recommendations/generate", isAuthenticated, async (req: CustomRequ
       message: `Generated ${recommendations.length} new bill recommendations`
     });
   } catch (error: any) {
-    console.error("Error generating bill recommendations:", error);
+    log.error({ err: error }, "Error generating bill recommendations");
     res.status(500).json({ error: "Failed to generate bill recommendations" });
   }
 });
@@ -262,7 +265,7 @@ router.patch("/recommendations/:id", isAuthenticated, async (req: CustomRequest,
     if (error instanceof z.ZodError) {
       res.status(400).json({ error: "Invalid status data", details: error.errors });
     } else {
-      console.error("Error updating recommendation status:", error);
+      log.error({ err: error }, "Error updating recommendation status");
       res.status(500).json({ error: "Failed to update recommendation status" });
     }
   }
@@ -288,7 +291,7 @@ router.get("/topics/popular", async (_req: Request, res: Response) => {
       "Privacy"
     ]);
   } catch (error: any) {
-    console.error("Error fetching popular topics:", error);
+    log.error({ err: error }, "Error fetching popular topics");
     res.status(500).json({ error: "Failed to fetch popular topics" });
   }
 });

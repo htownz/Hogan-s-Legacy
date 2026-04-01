@@ -6,6 +6,9 @@ import { isAuthenticated } from "./auth";
 import { db } from "./db";
 import * as scoutBotStorage from "./storage-scout-bot";
 import * as extendedScoutBotStorage from "./storage-scout-bot-extended";
+import { createLogger } from "./logger";
+const log = createLogger("routes-character-profiles");
+
 
 /**
  * Character Profile type based on schema data
@@ -223,7 +226,7 @@ async function createCharacterProfileFromScoutBotProfile(profileId: string): Pro
     
     return characterProfile;
   } catch (error: any) {
-    console.error("Error creating character profile:", error);
+    log.error({ err: error }, "Error creating character profile");
     return null;
   }
 }
@@ -253,7 +256,7 @@ export function registerCharacterProfileRoutes(app: Express) {
       
       res.json(characterProfiles);
     } catch (error: any) {
-      console.error("Error fetching character profiles:", error);
+      log.error({ err: error }, "Error fetching character profiles");
       res.status(500).json({ error: "Failed to fetch character profiles" });
     }
   });
@@ -274,7 +277,7 @@ export function registerCharacterProfileRoutes(app: Express) {
       
       res.json(characterProfile);
     } catch (error: any) {
-      console.error(`Error fetching character profile ${req.params.id}:`, error);
+      log.error({ err: error }, `Error fetching character profile ${req.params.id}`);
       res.status(500).json({ error: "Failed to fetch character profile" });
     }
   });
@@ -305,7 +308,7 @@ export function registerCharacterProfileRoutes(app: Express) {
       
       res.json(flags);
     } catch (error: any) {
-      console.error(`Error fetching flags for profile ${req.params.id}:`, error);
+      log.error({ err: error }, `Error fetching flags for profile ${req.params.id}`);
       res.status(500).json({ error: "Failed to fetch profile flags" });
     }
   });
@@ -352,7 +355,7 @@ export function registerCharacterProfileRoutes(app: Express) {
       
       res.json(characterProfiles);
     } catch (error: any) {
-      console.error("Error searching character profiles:", error);
+      log.error({ err: error }, "Error searching character profiles");
       res.status(500).json({ error: "Failed to search character profiles" });
     }
   });

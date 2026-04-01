@@ -8,6 +8,9 @@ import { db } from '../db';
 import { eq, desc } from 'drizzle-orm';
 import { committeeMeetings } from '@shared/schema';
 import { committeeMeetingTaggedSegments } from '@shared/schema-committee-videos';
+import { createLogger } from "../logger";
+const log = createLogger("committee-video-analyzer");
+
 
 // Initialize OpenAI client
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -137,7 +140,7 @@ export async function analyzeCommitteeVideo(
       procedureNotes: summary.procedureNotes
     };
   } catch (error: any) {
-    console.error("Error analyzing committee video:", error);
+    log.error({ err: error }, "Error analyzing committee video");
     throw error;
   }
 }
@@ -508,7 +511,7 @@ async function storeSegments(meetingId: number, segments: VideoSegment[]): Promi
       });
     }
   } catch (error: any) {
-    console.error("Error storing segments:", error);
+    log.error({ err: error }, "Error storing segments");
     throw error;
   }
 }

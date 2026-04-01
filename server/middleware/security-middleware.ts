@@ -1,6 +1,9 @@
 // @ts-nocheck
 import { Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
+import { createLogger } from '../logger';
+
+const log = createLogger('security');
 
 // Content Security Policy middleware
 export const contentSecurityPolicy = (req: Request, res: Response, next: NextFunction) => {
@@ -146,11 +149,7 @@ export const validatePurpose = (req: Request, res: Response, next: NextFunction)
   );
 
   if (!hasLegitimateContent && !isSystemEndpoint && req.method !== 'GET') {
-    console.warn(`Potentially non-civic request blocked: ${req.method} ${req.path}`, {
-      userAgent,
-      origin,
-      body: req.body
-    });
+    log.warn({ method: req.method, path: req.path, userAgent, origin, body: req.body }, 'Potentially non-civic request blocked');
     
     return res.status(403).json({
       error: 'This platform is designed exclusively for civic engagement and legislative transparency.',
@@ -214,7 +213,7 @@ export const auditLogger = (req: Request, res: Response, next: NextFunction) => 
       requestId: req.get('X-Request-ID') || 'unknown'
     };
 
-    console.log('AUDIT:', JSON.stringify(auditLog));
+    log.info({ audit: auditLog }, 'AUDIT');
   }
 
   next();

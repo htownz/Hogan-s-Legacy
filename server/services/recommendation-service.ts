@@ -3,6 +3,9 @@ import { Bill } from "@shared/schema";
 import { generatePersonalImpactAssessment, UserDemographics } from "./openai-service";
 import { insertBillRecommendationSchema } from "@shared/schema-recommendations";
 import { z } from "zod";
+import { createLogger } from "../logger";
+const log = createLogger("recommendation-service");
+
 
 /**
  * Generate personalized bill recommendation reason with impact assessment
@@ -43,7 +46,7 @@ export async function generatePersonalizedRecommendation(
     try {
       impactAssessment = await generatePersonalImpactAssessment(bill, userDemographics);
     } catch (error: any) {
-      console.error("Error generating impact assessment:", error);
+      log.error({ err: error }, "Error generating impact assessment");
       impactAssessment = {
         personalImpact: null,
         relevanceScore: 0,
@@ -142,7 +145,7 @@ export async function generatePersonalizedRecommendation(
 
     return result;
   } catch (error: any) {
-    console.error("Error generating personalized recommendation:", error);
+    log.error({ err: error }, "Error generating personalized recommendation");
     
     // Return a basic recommendation if something goes wrong
     return {

@@ -4,6 +4,9 @@ import { CustomRequest } from "../types";
 import { z } from "zod";
 import { policyAnnotationStorage } from "../storage-policy-annotations";
 import { insertPolicyAnnotationSchema, insertAnnotationReplySchema } from "../../shared/schema";
+import { createLogger } from "../logger";
+const log = createLogger("annotations-routes");
+
 
 export function registerAnnotationRoutes(app: Express) {
   // Get all public annotations for a bill
@@ -13,7 +16,7 @@ export function registerAnnotationRoutes(app: Express) {
       const annotations = await policyAnnotationStorage.getPublicAnnotationsByBillId(billId);
       res.json(annotations);
     } catch (error: any) {
-      console.error("Error fetching bill annotations:", error);
+      log.error({ err: error }, "Error fetching bill annotations");
       res.status(500).json({ error: "Failed to fetch annotations" });
     }
   });
@@ -25,7 +28,7 @@ export function registerAnnotationRoutes(app: Express) {
       const annotations = await policyAnnotationStorage.getAnnotationsWithUserDetails(billId);
       res.json(annotations);
     } catch (error: any) {
-      console.error("Error fetching bill annotations with details:", error);
+      log.error({ err: error }, "Error fetching bill annotations with details");
       res.status(500).json({ error: "Failed to fetch annotations" });
     }
   });
@@ -37,7 +40,7 @@ export function registerAnnotationRoutes(app: Express) {
       const annotations = await policyAnnotationStorage.getCircleAnnotationsByBillId(billId, parseInt(circleId));
       res.json(annotations);
     } catch (error: any) {
-      console.error("Error fetching circle annotations:", error);
+      log.error({ err: error }, "Error fetching circle annotations");
       res.status(500).json({ error: "Failed to fetch annotations" });
     }
   });
@@ -51,7 +54,7 @@ export function registerAnnotationRoutes(app: Express) {
       const annotations = await policyAnnotationStorage.getAnnotationsByUserId(req.session.userId);
       res.json(annotations);
     } catch (error: any) {
-      console.error("Error fetching user annotations:", error);
+      log.error({ err: error }, "Error fetching user annotations");
       res.status(500).json({ error: "Failed to fetch annotations" });
     }
   });
@@ -66,7 +69,7 @@ export function registerAnnotationRoutes(app: Express) {
       }
       res.json(annotation);
     } catch (error: any) {
-      console.error("Error fetching annotation:", error);
+      log.error({ err: error }, "Error fetching annotation");
       res.status(500).json({ error: "Failed to fetch annotation" });
     }
   });
@@ -86,7 +89,7 @@ export function registerAnnotationRoutes(app: Express) {
       const annotation = await policyAnnotationStorage.createAnnotation(validatedData);
       res.status(201).json(annotation);
     } catch (error: any) {
-      console.error("Error creating annotation:", error);
+      log.error({ err: error }, "Error creating annotation");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -119,7 +122,7 @@ export function registerAnnotationRoutes(app: Express) {
       
       res.json(updatedAnnotation);
     } catch (error: any) {
-      console.error("Error updating annotation:", error);
+      log.error({ err: error }, "Error updating annotation");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -152,7 +155,7 @@ export function registerAnnotationRoutes(app: Express) {
         res.status(500).json({ error: "Failed to delete annotation" });
       }
     } catch (error: any) {
-      console.error("Error deleting annotation:", error);
+      log.error({ err: error }, "Error deleting annotation");
       res.status(500).json({ error: "Failed to delete annotation" });
     }
   });
@@ -164,7 +167,7 @@ export function registerAnnotationRoutes(app: Express) {
       const annotation = await policyAnnotationStorage.upvoteAnnotation(parseInt(id));
       res.json(annotation);
     } catch (error: any) {
-      console.error("Error upvoting annotation:", error);
+      log.error({ err: error }, "Error upvoting annotation");
       res.status(500).json({ error: "Failed to upvote annotation" });
     }
   });
@@ -176,7 +179,7 @@ export function registerAnnotationRoutes(app: Express) {
       const annotation = await policyAnnotationStorage.downvoteAnnotation(parseInt(id));
       res.json(annotation);
     } catch (error: any) {
-      console.error("Error downvoting annotation:", error);
+      log.error({ err: error }, "Error downvoting annotation");
       res.status(500).json({ error: "Failed to downvote annotation" });
     }
   });
@@ -188,7 +191,7 @@ export function registerAnnotationRoutes(app: Express) {
       const replies = await policyAnnotationStorage.getRepliesWithUserDetails(parseInt(id));
       res.json(replies);
     } catch (error: any) {
-      console.error("Error fetching replies:", error);
+      log.error({ err: error }, "Error fetching replies");
       res.status(500).json({ error: "Failed to fetch replies" });
     }
   });
@@ -210,7 +213,7 @@ export function registerAnnotationRoutes(app: Express) {
       const reply = await policyAnnotationStorage.createReply(validatedData);
       res.status(201).json(reply);
     } catch (error: any) {
-      console.error("Error creating reply:", error);
+      log.error({ err: error }, "Error creating reply");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -243,7 +246,7 @@ export function registerAnnotationRoutes(app: Express) {
         res.status(500).json({ error: "Failed to delete reply" });
       }
     } catch (error: any) {
-      console.error("Error deleting reply:", error);
+      log.error({ err: error }, "Error deleting reply");
       res.status(500).json({ error: "Failed to delete reply" });
     }
   });
@@ -255,7 +258,7 @@ export function registerAnnotationRoutes(app: Express) {
       const reply = await policyAnnotationStorage.upvoteReply(parseInt(id));
       res.json(reply);
     } catch (error: any) {
-      console.error("Error upvoting reply:", error);
+      log.error({ err: error }, "Error upvoting reply");
       res.status(500).json({ error: "Failed to upvote reply" });
     }
   });
@@ -267,7 +270,7 @@ export function registerAnnotationRoutes(app: Express) {
       const reply = await policyAnnotationStorage.downvoteReply(parseInt(id));
       res.json(reply);
     } catch (error: any) {
-      console.error("Error downvoting reply:", error);
+      log.error({ err: error }, "Error downvoting reply");
       res.status(500).json({ error: "Failed to downvote reply" });
     }
   });

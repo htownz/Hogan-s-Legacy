@@ -15,6 +15,9 @@ import {
   CommitteeMeetingLocation,
   InsertCommitteeMeetingLocation
 } from '@shared/schema-legislative-map';
+import { createLogger } from "./logger";
+const log = createLogger("storage-legislative-map");
+
 
 /**
  * Interface for legislative map storage operations
@@ -63,7 +66,7 @@ export class PostgresLegislativeMapStorage implements LegislativeMapStorage {
         
       return district;
     } catch (error: any) {
-      console.error('Error creating legislative district:', error);
+      log.error({ err: error }, 'Error creating legislative district');
       throw new Error('Failed to create legislative district');
     }
   }
@@ -81,7 +84,7 @@ export class PostgresLegislativeMapStorage implements LegislativeMapStorage {
       
       return await query.orderBy(legislativeDistricts.type, legislativeDistricts.districtNumber);
     } catch (error: any) {
-      console.error('Error fetching legislative districts:', error);
+      log.error({ err: error }, 'Error fetching legislative districts');
       throw new Error('Failed to fetch legislative districts');
     }
   }
@@ -98,7 +101,7 @@ export class PostgresLegislativeMapStorage implements LegislativeMapStorage {
         
       return districts.length > 0 ? districts[0] : null;
     } catch (error: any) {
-      console.error('Error fetching legislative district:', error);
+      log.error({ err: error }, 'Error fetching legislative district');
       throw new Error('Failed to fetch legislative district');
     }
   }
@@ -118,7 +121,7 @@ export class PostgresLegislativeMapStorage implements LegislativeMapStorage {
         
       return updated || null;
     } catch (error: any) {
-      console.error('Error updating legislative district:', error);
+      log.error({ err: error }, 'Error updating legislative district');
       throw new Error('Failed to update legislative district');
     }
   }
@@ -134,7 +137,7 @@ export class PostgresLegislativeMapStorage implements LegislativeMapStorage {
         
       return result.length > 0;
     } catch (error: any) {
-      console.error('Error deleting legislative district:', error);
+      log.error({ err: error }, 'Error deleting legislative district');
       throw new Error('Failed to delete legislative district');
     }
   }
@@ -150,7 +153,7 @@ export class PostgresLegislativeMapStorage implements LegislativeMapStorage {
         
       return impact;
     } catch (error: any) {
-      console.error('Error creating bill district impact:', error);
+      log.error({ err: error }, 'Error creating bill district impact');
       throw new Error('Failed to create bill district impact');
     }
   }
@@ -165,7 +168,7 @@ export class PostgresLegislativeMapStorage implements LegislativeMapStorage {
         .where(eq(billDistrictImpacts.billId, billId))
         .orderBy(desc(billDistrictImpacts.impactScore));
     } catch (error: any) {
-      console.error('Error fetching bill district impacts:', error);
+      log.error({ err: error }, 'Error fetching bill district impacts');
       throw new Error('Failed to fetch bill district impacts');
     }
   }
@@ -182,7 +185,7 @@ export class PostgresLegislativeMapStorage implements LegislativeMapStorage {
         
       return impacts.length > 0 ? impacts[0] : null;
     } catch (error: any) {
-      console.error('Error fetching bill district impact:', error);
+      log.error({ err: error }, 'Error fetching bill district impact');
       throw new Error('Failed to fetch bill district impact');
     }
   }
@@ -202,7 +205,7 @@ export class PostgresLegislativeMapStorage implements LegislativeMapStorage {
         
       return updated || null;
     } catch (error: any) {
-      console.error('Error updating bill district impact:', error);
+      log.error({ err: error }, 'Error updating bill district impact');
       throw new Error('Failed to update bill district impact');
     }
   }
@@ -218,7 +221,7 @@ export class PostgresLegislativeMapStorage implements LegislativeMapStorage {
         
       return result.length > 0;
     } catch (error: any) {
-      console.error('Error deleting bill district impact:', error);
+      log.error({ err: error }, 'Error deleting bill district impact');
       throw new Error('Failed to delete bill district impact');
     }
   }
@@ -234,7 +237,7 @@ export class PostgresLegislativeMapStorage implements LegislativeMapStorage {
         
       return activity;
     } catch (error: any) {
-      console.error('Error creating bill activity heatmap point:', error);
+      log.error({ err: error }, 'Error creating bill activity heatmap point');
       throw new Error('Failed to create bill activity heatmap point');
     }
   }
@@ -267,7 +270,7 @@ export class PostgresLegislativeMapStorage implements LegislativeMapStorage {
         .from(billActivityHeatmap).$dynamic()
         .where(queryCondition);
     } catch (error: any) {
-      console.error('Error fetching bill activity heatmap:', error);
+      log.error({ err: error }, 'Error fetching bill activity heatmap');
       throw new Error('Failed to fetch bill activity heatmap');
     }
   }
@@ -283,7 +286,7 @@ export class PostgresLegislativeMapStorage implements LegislativeMapStorage {
         
       return parseInt(result[0].count.toString(), 10);
     } catch (error: any) {
-      console.error('Error getting total bill activity:', error);
+      log.error({ err: error }, 'Error getting total bill activity');
       throw new Error('Failed to get total bill activity');
     }
   }
@@ -299,7 +302,7 @@ export class PostgresLegislativeMapStorage implements LegislativeMapStorage {
         
       return result.length > 0;
     } catch (error: any) {
-      console.error('Error deleting bill activity heatmap point:', error);
+      log.error({ err: error }, 'Error deleting bill activity heatmap point');
       throw new Error('Failed to delete bill activity heatmap point');
     }
   }
@@ -315,7 +318,7 @@ export class PostgresLegislativeMapStorage implements LegislativeMapStorage {
         
       return location;
     } catch (error: any) {
-      console.error('Error creating committee meeting location:', error);
+      log.error({ err: error }, 'Error creating committee meeting location');
       throw new Error('Failed to create committee meeting location');
     }
   }
@@ -329,7 +332,7 @@ export class PostgresLegislativeMapStorage implements LegislativeMapStorage {
         .from(committeeMeetingLocations)
         .orderBy(committeeMeetingLocations.name);
     } catch (error: any) {
-      console.error('Error fetching committee meeting locations:', error);
+      log.error({ err: error }, 'Error fetching committee meeting locations');
       throw new Error('Failed to fetch committee meeting locations');
     }
   }
@@ -346,7 +349,7 @@ export class PostgresLegislativeMapStorage implements LegislativeMapStorage {
         
       return locations.length > 0 ? locations[0] : null;
     } catch (error: any) {
-      console.error('Error fetching committee meeting location:', error);
+      log.error({ err: error }, 'Error fetching committee meeting location');
       throw new Error('Failed to fetch committee meeting location');
     }
   }
@@ -366,7 +369,7 @@ export class PostgresLegislativeMapStorage implements LegislativeMapStorage {
         
       return updated || null;
     } catch (error: any) {
-      console.error('Error updating committee meeting location:', error);
+      log.error({ err: error }, 'Error updating committee meeting location');
       throw new Error('Failed to update committee meeting location');
     }
   }
@@ -382,7 +385,7 @@ export class PostgresLegislativeMapStorage implements LegislativeMapStorage {
         
       return result.length > 0;
     } catch (error: any) {
-      console.error('Error deleting committee meeting location:', error);
+      log.error({ err: error }, 'Error deleting committee meeting location');
       throw new Error('Failed to delete committee meeting location');
     }
   }

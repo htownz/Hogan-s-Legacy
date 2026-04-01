@@ -9,6 +9,9 @@ import {
   insertDocumentCommentSchema
 } from "@shared/schema-collaborative";
 import { authenticateJWT } from "./middleware/auth";
+import { createLogger } from "./logger";
+const log = createLogger("routes-collaborative");
+
 
 const router = express.Router();
 
@@ -31,7 +34,7 @@ router.post("/sessions", async (req, res) => {
     if (error instanceof z.ZodError) {
       res.status(400).json({ error: error.errors });
     } else {
-      console.error("Failed to create session:", error);
+      log.error({ err: error }, "Failed to create session");
       res.status(500).json({ error: "Failed to create collaborative session" });
     }
   }
@@ -52,7 +55,7 @@ router.get("/sessions/:id", async (req, res) => {
     
     res.json(session);
   } catch (error: any) {
-    console.error("Failed to get session:", error);
+    log.error({ err: error }, "Failed to get session");
     res.status(500).json({ error: "Failed to retrieve session" });
   }
 });
@@ -80,7 +83,7 @@ router.patch("/sessions/:id", async (req, res) => {
     if (error instanceof z.ZodError) {
       res.status(400).json({ error: error.errors });
     } else {
-      console.error("Failed to update session:", error);
+      log.error({ err: error }, "Failed to update session");
       res.status(500).json({ error: "Failed to update session" });
     }
   }
@@ -95,7 +98,7 @@ router.get("/sessions", async (req, res) => {
     const sessions = await collaborativeStorage.listSessions(limit, offset);
     res.json(sessions);
   } catch (error: any) {
-    console.error("Failed to list sessions:", error);
+    log.error({ err: error }, "Failed to list sessions");
     res.status(500).json({ error: "Failed to list sessions" });
   }
 });
@@ -107,7 +110,7 @@ router.get("/sessions/bill/:billId", async (req, res) => {
     const sessions = await collaborativeStorage.listSessionsByBillId(billId);
     res.json(sessions);
   } catch (error: any) {
-    console.error("Failed to list sessions for bill:", error);
+    log.error({ err: error }, "Failed to list sessions for bill");
     res.status(500).json({ error: "Failed to list sessions for bill" });
   }
 });
@@ -140,7 +143,7 @@ router.post("/sessions/:id/participants", async (req, res) => {
     if (error instanceof z.ZodError) {
       res.status(400).json({ error: error.errors });
     } else {
-      console.error("Failed to join session:", error);
+      log.error({ err: error }, "Failed to join session");
       res.status(500).json({ error: "Failed to join session" });
     }
   }
@@ -165,7 +168,7 @@ router.delete("/sessions/:id/participants", async (req, res) => {
     
     res.status(204).end();
   } catch (error: any) {
-    console.error("Failed to leave session:", error);
+    log.error({ err: error }, "Failed to leave session");
     res.status(500).json({ error: "Failed to leave session" });
   }
 });
@@ -196,7 +199,7 @@ router.patch("/sessions/:id/participants", async (req, res) => {
     
     res.status(200).json({ success: true });
   } catch (error: any) {
-    console.error("Failed to update participant status:", error);
+    log.error({ err: error }, "Failed to update participant status");
     res.status(500).json({ error: "Failed to update participant status" });
   }
 });
@@ -212,7 +215,7 @@ router.get("/sessions/:id/participants", async (req, res) => {
     const participants = await collaborativeStorage.listSessionParticipants(sessionId);
     res.json(participants);
   } catch (error: any) {
-    console.error("Failed to list participants:", error);
+    log.error({ err: error }, "Failed to list participants");
     res.status(500).json({ error: "Failed to list participants" });
   }
 });
@@ -228,7 +231,7 @@ router.get("/sessions/:id/participants/active", async (req, res) => {
     const participants = await collaborativeStorage.getActiveParticipants(sessionId);
     res.json(participants);
   } catch (error: any) {
-    console.error("Failed to get active participants:", error);
+    log.error({ err: error }, "Failed to get active participants");
     res.status(500).json({ error: "Failed to get active participants" });
   }
 });
@@ -255,7 +258,7 @@ router.post("/sessions/:id/changes", async (req, res) => {
     if (error instanceof z.ZodError) {
       res.status(400).json({ error: error.errors });
     } else {
-      console.error("Failed to record change:", error);
+      log.error({ err: error }, "Failed to record change");
       res.status(500).json({ error: "Failed to record change" });
     }
   }
@@ -274,7 +277,7 @@ router.get("/sessions/:id/changes", async (req, res) => {
     const changes = await collaborativeStorage.getSessionChanges(sessionId, limit);
     res.json(changes);
   } catch (error: any) {
-    console.error("Failed to get changes:", error);
+    log.error({ err: error }, "Failed to get changes");
     res.status(500).json({ error: "Failed to get changes" });
   }
 });
@@ -313,7 +316,7 @@ router.post("/sessions/:id/versions", async (req, res) => {
     if (error instanceof z.ZodError) {
       res.status(400).json({ error: error.errors });
     } else {
-      console.error("Failed to create version:", error);
+      log.error({ err: error }, "Failed to create version");
       res.status(500).json({ error: "Failed to create version" });
     }
   }
@@ -336,7 +339,7 @@ router.get("/sessions/:id/versions/:versionNumber", async (req, res) => {
     
     res.json(version);
   } catch (error: any) {
-    console.error("Failed to get version:", error);
+    log.error({ err: error }, "Failed to get version");
     res.status(500).json({ error: "Failed to get version" });
   }
 });
@@ -356,7 +359,7 @@ router.get("/sessions/:id/versions/latest", async (req, res) => {
     
     res.json(version);
   } catch (error: any) {
-    console.error("Failed to get latest version:", error);
+    log.error({ err: error }, "Failed to get latest version");
     res.status(500).json({ error: "Failed to get latest version" });
   }
 });
@@ -372,7 +375,7 @@ router.get("/sessions/:id/versions", async (req, res) => {
     const versions = await collaborativeStorage.listVersions(sessionId);
     res.json(versions);
   } catch (error: any) {
-    console.error("Failed to list versions:", error);
+    log.error({ err: error }, "Failed to list versions");
     res.status(500).json({ error: "Failed to list versions" });
   }
 });
@@ -399,7 +402,7 @@ router.post("/sessions/:id/comments", async (req, res) => {
     if (error instanceof z.ZodError) {
       res.status(400).json({ error: error.errors });
     } else {
-      console.error("Failed to add comment:", error);
+      log.error({ err: error }, "Failed to add comment");
       res.status(500).json({ error: "Failed to add comment" });
     }
   }
@@ -425,7 +428,7 @@ router.patch("/comments/:id", async (req, res) => {
     
     res.json(comment);
   } catch (error: any) {
-    console.error("Failed to update comment:", error);
+    log.error({ err: error }, "Failed to update comment");
     res.status(500).json({ error: "Failed to update comment" });
   }
 });
@@ -449,7 +452,7 @@ router.post("/comments/:id/resolve", async (req, res) => {
     
     res.json(comment);
   } catch (error: any) {
-    console.error("Failed to resolve comment:", error);
+    log.error({ err: error }, "Failed to resolve comment");
     res.status(500).json({ error: "Failed to resolve comment" });
   }
 });
@@ -465,7 +468,7 @@ router.get("/sessions/:id/comments", async (req, res) => {
     const comments = await collaborativeStorage.getComments(sessionId);
     res.json(comments);
   } catch (error: any) {
-    console.error("Failed to get comments:", error);
+    log.error({ err: error }, "Failed to get comments");
     res.status(500).json({ error: "Failed to get comments" });
   }
 });

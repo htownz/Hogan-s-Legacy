@@ -4,6 +4,9 @@ import { z } from "zod";
 import { v4 as uuidv4 } from "uuid";
 import { CustomRequest } from "../types";
 import { insertUserInvitationSchema } from "@shared/schema";
+import { createLogger } from "../logger";
+const log = createLogger("invitation-routes");
+
 
 export function registerInvitationRoutes(app: Express) {
   // Create a new invitation
@@ -32,7 +35,7 @@ export function registerInvitationRoutes(app: Express) {
       if (error instanceof z.ZodError) {
         res.status(400).json({ message: "Invalid input", errors: error.errors });
       } else {
-        console.error("Create invitation error:", error);
+        log.error({ err: error }, "Create invitation error");
         res.status(500).json({ message: "Error creating invitation" });
       }
     }
@@ -48,7 +51,7 @@ export function registerInvitationRoutes(app: Express) {
       const invitations = await storage.getUserInvitationsByInviterId(req.session.userId);
       res.status(200).json(invitations);
     } catch (error: any) {
-      console.error("Get invitations error:", error);
+      log.error({ err: error }, "Get invitations error");
       res.status(500).json({ message: "Error retrieving invitations" });
     }
   });
@@ -89,7 +92,7 @@ export function registerInvitationRoutes(app: Express) {
         message: "Invitation accepted. You can now register for an account."
       });
     } catch (error: any) {
-      console.error("Accept invitation error:", error);
+      log.error({ err: error }, "Accept invitation error");
       res.status(500).json({ message: "Error accepting invitation" });
     }
   });
@@ -145,7 +148,7 @@ export function registerInvitationRoutes(app: Express) {
       
       res.status(200).json({ message: "Registration complete" });
     } catch (error: any) {
-      console.error("Register with invitation error:", error);
+      log.error({ err: error }, "Register with invitation error");
       res.status(500).json({ message: "Error registering with invitation" });
     }
   });
@@ -163,7 +166,7 @@ export function registerInvitationRoutes(app: Express) {
       
       res.status(200).json(invitation);
     } catch (error: any) {
-      console.error("Get invitation error:", error);
+      log.error({ err: error }, "Get invitation error");
       res.status(500).json({ message: "Error retrieving invitation" });
     }
   });
@@ -201,7 +204,7 @@ export function registerInvitationRoutes(app: Express) {
       
       res.status(200).json(updatedInvitation);
     } catch (error: any) {
-      console.error("Resend invitation error:", error);
+      log.error({ err: error }, "Resend invitation error");
       res.status(500).json({ message: "Error resending invitation" });
     }
   });
@@ -235,7 +238,7 @@ export function registerInvitationRoutes(app: Express) {
       
       res.status(200).json({ message: "Invitation cancelled successfully" });
     } catch (error: any) {
-      console.error("Cancel invitation error:", error);
+      log.error({ err: error }, "Cancel invitation error");
       res.status(500).json({ message: "Error cancelling invitation" });
     }
   });

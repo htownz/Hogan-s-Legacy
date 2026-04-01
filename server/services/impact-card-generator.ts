@@ -1,5 +1,8 @@
 import OpenAI from 'openai';
 import { legiscanService } from './legiscan-service';
+import { createLogger } from "../logger";
+const log = createLogger("impact-card-generator");
+
 
 // Initialize OpenAI client
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -65,7 +68,7 @@ export async function generateImpactCard(
   style: 'modern' | 'classic' | 'bold' | 'minimal' = 'modern'
 ): Promise<{ success: boolean; data?: ImpactCard; error?: string }> {
   try {
-    console.log(`Generating impact card for bill ${billId} with ${style} style`);
+    log.info(`Generating impact card for bill ${billId} with ${style} style`);
 
     // Get bill details from LegiScan
     const billDetails = await legiscanService.getBill(billId);
@@ -219,7 +222,7 @@ Generate compelling content that helps citizens understand the bill's impact and
         createdAt: new Date()
       };
 
-      console.log(`Impact card generated successfully for bill ${billId}`);
+      log.info(`Impact card generated successfully for bill ${billId}`);
       return {
         success: true,
         data: impactCard
@@ -232,7 +235,7 @@ Generate compelling content that helps citizens understand the bill's impact and
     };
 
   } catch (error: any) {
-    console.error('Error generating impact card:', error);
+    log.error({ err: error }, 'Error generating impact card');
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -248,7 +251,7 @@ export async function generateShareableGraphic(
   format: ShareableGraphic['format'] = 'social_media'
 ): Promise<{ success: boolean; data?: ShareableGraphic; error?: string }> {
   try {
-    console.log(`Generating shareable graphic for impact card ${impactCard.id}`);
+    log.info(`Generating shareable graphic for impact card ${impactCard.id}`);
 
     // Define dimensions based on format
     const dimensions = getDimensionsForFormat(format);
@@ -277,7 +280,7 @@ export async function generateShareableGraphic(
     };
 
   } catch (error: any) {
-    console.error('Error generating shareable graphic:', error);
+    log.error({ err: error }, 'Error generating shareable graphic');
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'

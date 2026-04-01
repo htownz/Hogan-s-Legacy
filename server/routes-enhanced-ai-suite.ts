@@ -2,6 +2,9 @@ import express from 'express';
 import { advancedBillAnalysisEngine } from './services/advanced-bill-analysis-engine';
 import { advancedScoutBot } from './services/advanced-scout-bot';
 import { enhancedVectorSearch } from './services/enhanced-vector-search';
+import { createLogger } from "./logger";
+const log = createLogger("routes-enhanced-ai-suite");
+
 
 const router = express.Router();
 
@@ -28,7 +31,7 @@ router.post('/api/ai-suite/bill-analysis/comprehensive', async (req, res) => {
       data: analysis
     });
   } catch (error: any) {
-    console.error('Comprehensive bill analysis failed:', error);
+    log.error({ err: error }, 'Comprehensive bill analysis failed');
     res.status(500).json({
       success: false,
       error: 'Failed to perform comprehensive analysis'
@@ -54,7 +57,7 @@ router.post('/api/ai-suite/bill-analysis/entities', async (req, res) => {
       data: entities
     });
   } catch (error: any) {
-    console.error('Entity extraction failed:', error);
+    log.error({ err: error }, 'Entity extraction failed');
     res.status(500).json({
       success: false,
       error: 'Failed to extract entities and relationships'
@@ -89,7 +92,7 @@ router.post('/api/ai-suite/scout-bot/research', async (req, res) => {
       data: report
     });
   } catch (error: any) {
-    console.error('Deep research failed:', error);
+    log.error({ err: error }, 'Deep research failed');
     res.status(500).json({
       success: false,
       error: 'Failed to conduct research'
@@ -119,7 +122,7 @@ router.post('/api/ai-suite/scout-bot/profile', async (req, res) => {
       data: profile
     });
   } catch (error: any) {
-    console.error('Entity profiling failed:', error);
+    log.error({ err: error }, 'Entity profiling failed');
     res.status(500).json({
       success: false,
       error: 'Failed to profile entity'
@@ -145,7 +148,7 @@ router.post('/api/ai-suite/scout-bot/network-map', async (req, res) => {
       data: networkMap
     });
   } catch (error: any) {
-    console.error('Network map generation failed:', error);
+    log.error({ err: error }, 'Network map generation failed');
     res.status(500).json({
       success: false,
       error: 'Failed to generate network map'
@@ -179,7 +182,7 @@ router.post('/api/ai-suite/vector-search/advanced', async (req, res) => {
       data: results
     });
   } catch (error: any) {
-    console.error('Advanced vector search failed:', error);
+    log.error({ err: error }, 'Advanced vector search failed');
     res.status(500).json({
       success: false,
       error: 'Failed to perform advanced search'
@@ -205,7 +208,7 @@ router.post('/api/ai-suite/vector-search/hybrid', async (req, res) => {
       data: results
     });
   } catch (error: any) {
-    console.error('Hybrid search failed:', error);
+    log.error({ err: error }, 'Hybrid search failed');
     res.status(500).json({
       success: false,
       error: 'Failed to perform hybrid search'
@@ -227,7 +230,7 @@ router.get('/api/ai-suite/vector-search/clusters', async (req, res) => {
       data: clusters
     });
   } catch (error: any) {
-    console.error('Semantic clustering failed:', error);
+    log.error({ err: error }, 'Semantic clustering failed');
     res.status(500).json({
       success: false,
       error: 'Failed to discover semantic clusters'
@@ -244,7 +247,7 @@ router.get('/api/ai-suite/vector-search/analytics', async (req, res) => {
       data: analytics
     });
   } catch (error: any) {
-    console.error('Search analytics failed:', error);
+    log.error({ err: error }, 'Search analytics failed');
     res.status(500).json({
       success: false,
       error: 'Failed to get search analytics'
@@ -296,7 +299,7 @@ router.post('/api/ai-suite/integrated-analysis', async (req, res) => {
       data: integratedResults
     });
   } catch (error: any) {
-    console.error('Integrated analysis failed:', error);
+    log.error({ err: error }, 'Integrated analysis failed');
     res.status(500).json({
       success: false,
       error: 'Failed to perform integrated AI analysis'
@@ -326,7 +329,7 @@ router.get('/api/ai-suite/status', async (req, res) => {
       data: status
     });
   } catch (error: any) {
-    console.error('Status check failed:', error);
+    log.error({ err: error }, 'Status check failed');
     res.status(500).json({
       success: false,
       error: 'Failed to check AI suite status'

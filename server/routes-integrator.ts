@@ -8,6 +8,9 @@
 import express from 'express';
 import { apiIntegrator } from './services/api-integrator';
 import { apiRateLimiter } from './middleware/api-rate-limiter';
+import { createLogger } from "./logger";
+const log = createLogger("routes-integrator");
+
 
 // Apply rate limiting to all integrator routes
 const integratorRateLimiter = apiRateLimiter.getMiddleware('default');
@@ -33,7 +36,7 @@ router.get('/api/integrator/bill/:billId', integratorRateLimiter, async (req, re
       data: enhancedBill
     });
   } catch (error: any) {
-    console.error('Error fetching enhanced bill data:', error);
+    log.error({ err: error }, 'Error fetching enhanced bill data');
     res.status(500).json({
       success: false,
       error: 'Failed to fetch enhanced bill data',
@@ -61,7 +64,7 @@ router.get('/api/integrator/legislator/:personId', integratorRateLimiter, async 
       data: enhancedLegislator
     });
   } catch (error: any) {
-    console.error('Error fetching enhanced legislator data:', error);
+    log.error({ err: error }, 'Error fetching enhanced legislator data');
     res.status(500).json({
       success: false,
       error: 'Failed to fetch enhanced legislator data',

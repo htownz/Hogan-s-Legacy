@@ -4,6 +4,9 @@ import { db } from '../db';
 import { bills, userBillTracking } from '@shared/schema';
 import { billHistory } from '@shared/schema-additions';
 import { eq, and, desc, lt, gte } from 'drizzle-orm';
+import { createLogger } from "../logger";
+const log = createLogger("bill-utils");
+
 
 // Base URL for Texas Legislature Online
 const TLO_BASE_URL = 'https://capitol.texas.gov';
@@ -40,12 +43,12 @@ export async function scrapeTXLegislatureBills(
 ): Promise<TXLegislatureBill[]> {
   const bills: TXLegislatureBill[] = [];
   
-  console.log(`Starting to scrape ${chamber} bills ${startBill}-${endBill} from Texas Legislature Online`);
+  log.info(`Starting to scrape ${chamber} bills ${startBill}-${endBill} from Texas Legislature Online`);
   
   for (let billNum = startBill; billNum <= endBill; billNum++) {
     try {
       const billId = `TX-${chamber}${billNum.toString().padStart(4, '0')}`;
-      console.log(`Fetching data for bill: ${billId}`);
+      log.info(`Fetching data for bill: ${billId}`);
       
       // Build the URL
       const url = `${TLO_BASE_URL}/BillLookup/History.aspx?LegSess=${CURRENT_SESSION}&Bill=${chamber}${billNum}`;
@@ -54,7 +57,7 @@ export async function scrapeTXLegislatureBills(
       const response = await axios.get(url);
       
       if (response.status !== 200) {
-        console.error(`Failed to fetch bill ${billId}, status: ${response.status}`);
+        log.error(`Failed to fetch bill ${billId}, status: ${response.status}`);
         continue;
       }
       
@@ -184,11 +187,11 @@ export async function scrapeTXLegislatureBills(
       // Small delay to prevent overwhelming the target site
       await new Promise(resolve => setTimeout(resolve, 500));
     } catch (error: any) {
-      console.error(`Error scraping bill ${chamber}${billNum}:`, error);
+      log.error({ err: error }, `Error scraping bill ${chamber}${billNum}`);
     }
   }
   
-  console.log(`Successfully scraped ${bills.length} ${chamber} bills`);
+  log.info(`Successfully scraped ${bills.length} ${chamber} bills`);
   return bills;
 }
 
@@ -200,7 +203,7 @@ export async function storeBillHistory(
   historyEvents: { date: Date; chamber: string; description: string }[]
 ): Promise<void> {
   if (historyEvents.length === 0) {
-    console.log(`No history events to store for bill ${billId}`);
+    log.info(`No history events to store for bill ${billId}`);
     return;
   }
   
@@ -209,7 +212,7 @@ export async function storeBillHistory(
     const existingBill = await db.select({ id: bills.id }).from(bills).$dynamic().where(eq(bills.id, billId));
     
     if (existingBill.length === 0) {
-      console.log(`Bill ${billId} not found in database, skipping history storage`);
+      log.info(`Bill ${billId} not found in database, skipping history storage`);
       return;
     }
     
@@ -236,7 +239,7 @@ export async function storeBillHistory(
     });
     
     if (newEvents.length === 0) {
-      console.log(`No new history events for bill ${billId}`);
+      log.info(`No new history events for bill ${billId}`);
       return;
     }
     
@@ -251,9 +254,9 @@ export async function storeBillHistory(
       }))
     );
     
-    console.log(`Stored ${newEvents.length} history events for bill ${billId}`);
+    log.info(`Stored ${newEvents.length} history events for bill ${billId}`);
   } catch (error: any) {
-    console.error(`Error storing history for bill ${billId}:`, error);
+    log.error({ err: error }, `Error storing history for bill ${billId}`);
   }
 }
 

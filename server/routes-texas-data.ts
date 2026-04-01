@@ -9,13 +9,16 @@ import { texasDataActivator } from './services/texas-data-activator';
 import { texasLegislatureAPI } from './services/texas-legislature-api';
 import { openStatesAPI } from './services/openstates-api';
 import { tloCrawler } from './services/tlo-crawler';
+import { createLogger } from "./logger";
+const log = createLogger("routes-texas-data");
+
 
 const router = express.Router();
 
 // Get current Texas legislative data
 router.get('/api/texas/current-data', async (req, res) => {
   try {
-    console.log('🏛️ Fetching current Texas legislative data...');
+    log.info('🏛️ Fetching current Texas legislative data...');
     const data = await texasDataActivator.getCurrentTexasData();
     
     res.json({
@@ -25,7 +28,7 @@ router.get('/api/texas/current-data', async (req, res) => {
       source: 'Texas Legislature via LegiScan API'
     });
   } catch (error: any) {
-    console.error('❌ Error fetching Texas data:', error);
+    log.error({ err: error }, '❌ Error fetching Texas data');
     res.status(500).json({
       success: false,
       error: 'Failed to fetch current Texas legislative data',
@@ -37,7 +40,7 @@ router.get('/api/texas/current-data', async (req, res) => {
 // Get current Texas bills
 router.get('/api/texas/bills', async (req, res) => {
   try {
-    console.log('📋 Fetching current Texas bills...');
+    log.info('📋 Fetching current Texas bills...');
     const bills = await texasDataActivator.loadCurrentBills();
     
     res.json({
@@ -47,7 +50,7 @@ router.get('/api/texas/bills', async (req, res) => {
       source: 'Texas Legislature via LegiScan API'
     });
   } catch (error: any) {
-    console.error('❌ Error fetching Texas bills:', error);
+    log.error({ err: error }, '❌ Error fetching Texas bills');
     res.status(500).json({
       success: false,
       error: 'Failed to fetch Texas bills',
@@ -59,7 +62,7 @@ router.get('/api/texas/bills', async (req, res) => {
 // Get current Texas legislators
 router.get('/api/texas/legislators', async (req, res) => {
   try {
-    console.log('👥 Fetching current Texas legislators...');
+    log.info('👥 Fetching current Texas legislators...');
     const legislators = await texasDataActivator.loadCurrentLegislators();
     
     res.json({
@@ -69,7 +72,7 @@ router.get('/api/texas/legislators', async (req, res) => {
       source: 'Texas Legislature via LegiScan API'
     });
   } catch (error: any) {
-    console.error('❌ Error fetching Texas legislators:', error);
+    log.error({ err: error }, '❌ Error fetching Texas legislators');
     res.status(500).json({
       success: false,
       error: 'Failed to fetch Texas legislators',
@@ -81,7 +84,7 @@ router.get('/api/texas/legislators', async (req, res) => {
 // Get comprehensive Texas data from official API
 router.get('/api/texas/official-data', async (req, res) => {
   try {
-    console.log('🏛️ Fetching comprehensive Texas legislative data from official API...');
+    log.info('🏛️ Fetching comprehensive Texas legislative data from official API...');
     const data = await texasLegislatureAPI.getComprehensiveData();
     
     res.json({
@@ -91,7 +94,7 @@ router.get('/api/texas/official-data', async (req, res) => {
       source: 'Texas Legislature Official API'
     });
   } catch (error: any) {
-    console.error('❌ Error fetching official Texas data:', error);
+    log.error({ err: error }, '❌ Error fetching official Texas data');
     res.status(500).json({
       success: false,
       error: 'Failed to fetch Texas legislative data',
@@ -103,7 +106,7 @@ router.get('/api/texas/official-data', async (req, res) => {
 // Get current Texas legislators from official API
 router.get('/api/texas/legislators-official', async (req, res) => {
   try {
-    console.log('👥 Fetching current Texas legislators from official API...');
+    log.info('👥 Fetching current Texas legislators from official API...');
     const legislators = await texasLegislatureAPI.getCurrentLegislators();
     
     res.json({
@@ -113,7 +116,7 @@ router.get('/api/texas/legislators-official', async (req, res) => {
       source: 'Texas Legislature Official API'
     });
   } catch (error: any) {
-    console.error('❌ Error fetching official legislators:', error);
+    log.error({ err: error }, '❌ Error fetching official legislators');
     res.status(500).json({
       success: false,
       error: 'Failed to fetch Texas legislators',
@@ -125,7 +128,7 @@ router.get('/api/texas/legislators-official', async (req, res) => {
 // Get current Texas bills from official API
 router.get('/api/texas/bills-official', async (req, res) => {
   try {
-    console.log('📋 Fetching current Texas bills from official API...');
+    log.info('📋 Fetching current Texas bills from official API...');
     const bills = await texasLegislatureAPI.getCurrentBills();
     
     res.json({
@@ -135,7 +138,7 @@ router.get('/api/texas/bills-official', async (req, res) => {
       source: 'Texas Legislature Official API'
     });
   } catch (error: any) {
-    console.error('❌ Error fetching official bills:', error);
+    log.error({ err: error }, '❌ Error fetching official bills');
     res.status(500).json({
       success: false,
       error: 'Failed to fetch Texas bills',
@@ -148,7 +151,7 @@ router.get('/api/texas/bills-official', async (req, res) => {
 router.get('/api/texas/bill/:billNumber', async (req, res) => {
   try {
     const { billNumber } = req.params;
-    console.log(`📄 Fetching details for bill ${billNumber}...`);
+    log.info(`📄 Fetching details for bill ${billNumber}...`);
     const bill = await texasLegislatureAPI.getBillDetails(billNumber);
     
     if (bill) {
@@ -164,7 +167,7 @@ router.get('/api/texas/bill/:billNumber', async (req, res) => {
       });
     }
   } catch (error: any) {
-    console.error(`❌ Error fetching bill ${req.params.billNumber}:`, error);
+    log.error({ err: error }, `❌ Error fetching bill ${req.params.billNumber}`);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch bill details',
@@ -184,7 +187,7 @@ router.get('/api/texas/openstates-data', async (req, res) => {
       });
     }
 
-    console.log('🏛️ Fetching comprehensive Texas data from OpenStates...');
+    log.info('🏛️ Fetching comprehensive Texas data from OpenStates...');
     const data = await openStatesAPI.getComprehensiveTexasData();
     
     res.json({
@@ -194,7 +197,7 @@ router.get('/api/texas/openstates-data', async (req, res) => {
       source: 'OpenStates API - Official Texas Legislature'
     });
   } catch (error: any) {
-    console.error('❌ Error fetching OpenStates data:', error);
+    log.error({ err: error }, '❌ Error fetching OpenStates data');
     res.status(500).json({
       success: false,
       error: 'Failed to fetch Texas data from OpenStates',
@@ -214,7 +217,7 @@ router.get('/api/texas/legislators-openstates', async (req, res) => {
       });
     }
 
-    console.log('👥 Fetching Texas legislators from OpenStates...');
+    log.info('👥 Fetching Texas legislators from OpenStates...');
     const legislators = await openStatesAPI.getTexasLegislators();
     
     res.json({
@@ -224,7 +227,7 @@ router.get('/api/texas/legislators-openstates', async (req, res) => {
       source: 'OpenStates API - Official Texas Legislature'
     });
   } catch (error: any) {
-    console.error('❌ Error fetching OpenStates legislators:', error);
+    log.error({ err: error }, '❌ Error fetching OpenStates legislators');
     res.status(500).json({
       success: false,
       error: 'Failed to fetch Texas legislators',
@@ -244,7 +247,7 @@ router.get('/api/texas/bills-openstates', async (req, res) => {
       });
     }
 
-    console.log('📋 Fetching Texas bills from OpenStates...');
+    log.info('📋 Fetching Texas bills from OpenStates...');
     const bills = await openStatesAPI.getTexasBills(100);
     
     res.json({
@@ -254,7 +257,7 @@ router.get('/api/texas/bills-openstates', async (req, res) => {
       source: 'OpenStates API - Official Texas Legislature'
     });
   } catch (error: any) {
-    console.error('❌ Error fetching OpenStates bills:', error);
+    log.error({ err: error }, '❌ Error fetching OpenStates bills');
     res.status(500).json({
       success: false,
       error: 'Failed to fetch Texas bills',
@@ -266,7 +269,7 @@ router.get('/api/texas/bills-openstates', async (req, res) => {
 // Get authentic Texas data from TLO (Texas Legislature Online)
 router.get('/api/texas/tlo-data', async (req, res) => {
   try {
-    console.log('🏛️ Crawling comprehensive Texas data from TLO...');
+    log.info('🏛️ Crawling comprehensive Texas data from TLO...');
     const data = await tloCrawler.getComprehensiveData();
     
     res.json({
@@ -276,7 +279,7 @@ router.get('/api/texas/tlo-data', async (req, res) => {
       source: 'Texas Legislature Online - Official State Government'
     });
   } catch (error: any) {
-    console.error('❌ Error crawling TLO data:', error);
+    log.error({ err: error }, '❌ Error crawling TLO data');
     res.status(500).json({
       success: false,
       error: 'Failed to crawl Texas data from TLO',
@@ -288,7 +291,7 @@ router.get('/api/texas/tlo-data', async (req, res) => {
 // Get Texas legislators from TLO
 router.get('/api/texas/legislators-tlo', async (req, res) => {
   try {
-    console.log('👥 Crawling Texas legislators from TLO...');
+    log.info('👥 Crawling Texas legislators from TLO...');
     const legislators = await tloCrawler.getCurrentLegislators();
     
     res.json({
@@ -298,7 +301,7 @@ router.get('/api/texas/legislators-tlo', async (req, res) => {
       source: 'Texas Legislature Online - Official State Government'
     });
   } catch (error: any) {
-    console.error('❌ Error crawling TLO legislators:', error);
+    log.error({ err: error }, '❌ Error crawling TLO legislators');
     res.status(500).json({
       success: false,
       error: 'Failed to crawl Texas legislators from TLO',
@@ -310,7 +313,7 @@ router.get('/api/texas/legislators-tlo', async (req, res) => {
 // Initialize Texas data on server start
 router.post('/api/texas/initialize', async (req, res) => {
   try {
-    console.log('🔄 Initializing Texas legislative data...');
+    log.info('🔄 Initializing Texas legislative data...');
     const result = await texasDataActivator.initialize();
     
     res.json({
@@ -319,7 +322,7 @@ router.post('/api/texas/initialize', async (req, res) => {
       message: result.success ? 'Texas data initialized successfully' : 'Failed to initialize Texas data'
     });
   } catch (error: any) {
-    console.error('❌ Error initializing Texas data:', error);
+    log.error({ err: error }, '❌ Error initializing Texas data');
     res.status(500).json({
       success: false,
       error: 'Failed to initialize Texas data',
@@ -330,5 +333,5 @@ router.post('/api/texas/initialize', async (req, res) => {
 
 export function registerTexasDataRoutes(app: express.Application) {
   app.use(router);
-  console.log('🏛️ Texas legislative data routes registered');
+  log.info('🏛️ Texas legislative data routes registered');
 }

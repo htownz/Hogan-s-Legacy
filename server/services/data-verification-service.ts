@@ -1,5 +1,8 @@
 import OpenAI from 'openai';
 import { legiscanService } from './legiscan-service';
+import { createLogger } from "../logger";
+const log = createLogger("data-verification-service");
+
 
 // Initialize OpenAI client for verification analysis
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -74,7 +77,7 @@ const AUTHORIZED_SOURCES: DataSource[] = [
  */
 export async function verifyBillData(billId: number, existingData: any): Promise<VerificationResult> {
   try {
-    console.log(`Starting verification for bill ID: ${billId}`);
+    log.info(`Starting verification for bill ID: ${billId}`);
     
     const verificationResult: VerificationResult = {
       isVerified: false,
@@ -121,7 +124,7 @@ export async function verifyBillData(billId: number, existingData: any): Promise
         verificationResult.flaggedIssues.push('Bill not found in LegiScan API');
       }
     } catch (error: any) {
-      console.error('LegiScan verification failed:', error);
+      log.error({ err: error }, 'LegiScan verification failed');
       verificationResult.flaggedIssues.push('LegiScan API verification failed');
     }
 
@@ -136,7 +139,7 @@ export async function verifyBillData(billId: number, existingData: any): Promise
           verificationResult.flaggedIssues.push(...aiVerification.flaggedIssues);
         }
       } catch (error: any) {
-        console.error('AI consistency check failed:', error);
+        log.error({ err: error }, 'AI consistency check failed');
         verificationResult.flaggedIssues.push('AI consistency verification failed');
       }
     }
@@ -168,17 +171,18 @@ export async function verifyBillData(billId: number, existingData: any): Promise
       verificationResult.recommendations.push('Data verified and safe for database update');
     }
 
-    console.log(`Verification completed for bill ${billId}:`, {
+    log.info({
+      billId,
       verified: verificationResult.isVerified,
       confidence: verificationResult.confidence,
       sources: verificationResult.sources.length,
       issues: verificationResult.flaggedIssues.length
-    });
+    }, `Verification completed for bill ${billId}`);
 
     return verificationResult;
 
   } catch (error: any) {
-    console.error('Data verification service error:', error);
+    log.error({ err: error }, 'Data verification service error');
     
     return {
       isVerified: false,
@@ -280,7 +284,7 @@ Check for:
     };
 
   } catch (error: any) {
-    console.error('AI consistency check error:', error);
+    log.error({ err: error }, 'AI consistency check error');
     return {
       consistencyScore: 0.3,
       recommendations: ['AI verification failed - manual review required'],
@@ -398,7 +402,7 @@ export async function batchVerifyData(items: Array<{ id: number; data: any; type
       await new Promise(resolve => setTimeout(resolve, 1000));
       
     } catch (error: any) {
-      console.error(`Batch verification error for item ${item.id}:`, error);
+      log.error({ err: error }, `Batch verification error for item ${item.id}`);
       results.push({
         isVerified: false,
         confidence: 0,

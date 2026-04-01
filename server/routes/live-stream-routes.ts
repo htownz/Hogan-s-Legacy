@@ -6,6 +6,9 @@ import { CustomRequest } from "../types";
 import { eq, desc } from "drizzle-orm";
 import { committees, committeeMeetings } from "@shared/schema";
 import liveCommitteeStream from "../services/live-committee-stream";
+import { createLogger } from "../logger";
+const log = createLogger("live-stream-routes");
+
 
 const router = Router();
 
@@ -15,7 +18,7 @@ router.get("/live-committees", isAuthenticated, async (req: CustomRequest, res) 
     const activeCommittees = await liveCommitteeStream.getActiveCommitteesWithLiveStreams();
     return res.json(activeCommittees);
   } catch (error: any) {
-    console.error("Error fetching active committees:", error);
+    log.error({ err: error }, "Error fetching active committees");
     return res.status(500).json({ error: "Failed to fetch active committees" });
   }
 });
@@ -29,7 +32,7 @@ router.post("/scan-live-meetings", isAuthenticated, async (req: CustomRequest, r
     await liveCommitteeStream.scanForLiveCommitteeMeetings();
     return res.json({ success: true, message: "Scan initiated" });
   } catch (error: any) {
-    console.error("Error initiating scan:", error);
+    log.error({ err: error }, "Error initiating scan");
     return res.status(500).json({ error: "Failed to initiate scan" });
   }
 });
@@ -49,7 +52,7 @@ router.get("/committee-meetings/:id/live-segments", isAuthenticated, async (req:
     const segments = await liveCommitteeStream.getLiveStreamSegments(meetingId, limit);
     return res.json(segments);
   } catch (error: any) {
-    console.error("Error fetching live segments:", error);
+    log.error({ err: error }, "Error fetching live segments");
     return res.status(500).json({ error: "Failed to fetch live segments" });
   }
 });
@@ -69,7 +72,7 @@ router.get("/committee-meetings/:id/live-quotes", isAuthenticated, async (req: C
     const quotes = await liveCommitteeStream.getLiveStreamQuotes(meetingId, limit);
     return res.json(quotes);
   } catch (error: any) {
-    console.error("Error fetching live quotes:", error);
+    log.error({ err: error }, "Error fetching live quotes");
     return res.status(500).json({ error: "Failed to fetch live quotes" });
   }
 });

@@ -3,6 +3,9 @@ import type { ChatCompletionMessageParam } from "openai/resources/chat/completio
 import { Bill } from "@shared/schema";
 import { CivicConcept, UserQuizAttempt } from "@shared/schema-learning";
 import { storage } from "../storage";
+import { createLogger } from "../logger";
+const log = createLogger("learning-service");
+
 
 // Initialize OpenAI API client
 const openai = new OpenAI({ 
@@ -131,7 +134,7 @@ export async function generateContextualLearningContent(
     const content = response.choices[0].message.content || "{}";
     return JSON.parse(content);
   } catch (error: any) {
-    console.error("Error generating contextual learning content:", error);
+    log.error({ err: error }, "Error generating contextual learning content");
     throw new Error("Failed to generate learning content");
   }
 }
@@ -190,7 +193,7 @@ export async function generateCivicConceptDefinition(
     const content = response.choices[0].message.content || "{}";
     return JSON.parse(content);
   } catch (error: any) {
-    console.error("Error generating civic concept definition:", error);
+    log.error({ err: error }, "Error generating civic concept definition");
     throw new Error("Failed to generate concept definition");
   }
 }
@@ -255,7 +258,7 @@ export async function generateQuizQuestions(
     const content = response.choices[0].message.content || "{}";
     return JSON.parse(content);
   } catch (error: any) {
-    console.error("Error generating quiz questions:", error);
+    log.error({ err: error }, "Error generating quiz questions");
     throw new Error("Failed to generate quiz questions");
   }
 }
@@ -329,7 +332,7 @@ export async function generateQuizFeedback(
     const content = response.choices[0].message.content || "{}";
     return JSON.parse(content);
   } catch (error: any) {
-    console.error("Error generating quiz feedback:", error);
+    log.error({ err: error }, "Error generating quiz feedback");
     throw new Error("Failed to generate quiz feedback");
   }
 }
@@ -383,7 +386,7 @@ export async function generateLearningObjectives(
     const content = response.choices[0].message.content || "{}";
     return JSON.parse(content);
   } catch (error: any) {
-    console.error("Error generating learning objectives:", error);
+    log.error({ err: error }, "Error generating learning objectives");
     throw new Error("Failed to generate learning objectives");
   }
 }

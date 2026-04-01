@@ -8,6 +8,9 @@
  */
 
 import axios from 'axios';
+import { createLogger } from "../logger";
+const log = createLogger("openstates-api");
+
 
 export class OpenStatesAPI {
   private baseUrl = 'https://v3.openstates.org';
@@ -22,7 +25,7 @@ export class OpenStatesAPI {
    */
   async getTexasLegislators() {
     try {
-      console.log('👥 Fetching current Texas legislators from OpenStates...');
+      log.info('👥 Fetching current Texas legislators from OpenStates...');
       
       const response = await axios.get(
         `${this.baseUrl}/people`,
@@ -40,12 +43,12 @@ export class OpenStatesAPI {
       );
 
       const legislators = this.normalizeLegislators(response.data.results);
-      console.log(`✅ Retrieved ${legislators.length} Texas legislators from OpenStates`);
+      log.info(`✅ Retrieved ${legislators.length} Texas legislators from OpenStates`);
       return legislators;
 
     } catch (error: any) {
-      console.error('❌ Error fetching Texas legislators from OpenStates:', error.message);
-      console.error('❌ Full error details:', error.response?.data || error.response || error);
+      log.error({ err: error.message }, '❌ Error fetching Texas legislators from OpenStates');
+      log.error('❌ Full error details:', error.response?.data || error.response || error);
       if (error.response?.status === 401) {
         throw new Error('OpenStates API key is invalid or missing');
       }
@@ -58,7 +61,7 @@ export class OpenStatesAPI {
    */
   async getTexasBills(limit = 100) {
     try {
-      console.log('📋 Fetching current Texas bills from OpenStates...');
+      log.info('📋 Fetching current Texas bills from OpenStates...');
       
       const response = await axios.get(
         `${this.baseUrl}/bills`,
@@ -78,11 +81,11 @@ export class OpenStatesAPI {
       );
 
       const bills = this.normalizeBills(response.data.results);
-      console.log(`✅ Retrieved ${bills.length} Texas bills from OpenStates`);
+      log.info(`✅ Retrieved ${bills.length} Texas bills from OpenStates`);
       return bills;
 
     } catch (error: any) {
-      console.error('❌ Error fetching Texas bills from OpenStates:', error.message);
+      log.error({ err: error.message }, '❌ Error fetching Texas bills from OpenStates');
       if (error.response?.status === 401) {
         throw new Error('OpenStates API key is invalid or missing');
       }
@@ -95,7 +98,7 @@ export class OpenStatesAPI {
    */
   async getBillVotes(billId: string) {
     try {
-      console.log(`🗳️ Fetching votes for bill ${billId}...`);
+      log.info(`🗳️ Fetching votes for bill ${billId}...`);
       
       const response = await axios.get(
         `${this.baseUrl}/bills/${billId}/votes`,
@@ -111,7 +114,7 @@ export class OpenStatesAPI {
       return this.normalizeVotes(response.data.results);
 
     } catch (error: any) {
-      console.error(`❌ Error fetching votes for bill ${billId}:`, error.message);
+      log.error({ err: error.message }, `❌ Error fetching votes for bill ${billId}`);
       return [];
     }
   }
@@ -121,7 +124,7 @@ export class OpenStatesAPI {
    */
   async getLegislatorDetails(personId: string) {
     try {
-      console.log(`👤 Fetching details for legislator ${personId}...`);
+      log.info(`👤 Fetching details for legislator ${personId}...`);
       
       const response = await axios.get(
         `${this.baseUrl}/people/${personId}`,
@@ -137,7 +140,7 @@ export class OpenStatesAPI {
       return this.normalizeLegislatorDetails(response.data);
 
     } catch (error: any) {
-      console.error(`❌ Error fetching legislator ${personId}:`, error.message);
+      log.error({ err: error.message }, `❌ Error fetching legislator ${personId}`);
       return null;
     }
   }
@@ -257,7 +260,7 @@ export class OpenStatesAPI {
    * Get comprehensive Texas legislative data
    */
   async getComprehensiveTexasData() {
-    console.log('🏛️ Fetching comprehensive Texas legislative data from OpenStates...');
+    log.info('🏛️ Fetching comprehensive Texas legislative data from OpenStates...');
     
     const [legislators, bills] = await Promise.all([
       this.getTexasLegislators(),

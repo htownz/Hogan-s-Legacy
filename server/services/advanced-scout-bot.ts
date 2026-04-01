@@ -1,6 +1,9 @@
 // @ts-nocheck
 import Anthropic from '@anthropic-ai/sdk';
 import { Pinecone } from '@pinecone-database/pinecone';
+import { createLogger } from "../logger";
+const log = createLogger("advanced-scout-bot");
+
 
 // the newest Anthropic model is "claude-3-7-sonnet-20250219" which was released February 24, 2025
 const anthropic = new Anthropic({
@@ -159,7 +162,7 @@ interface ResearchReport {
 
 export class AdvancedScoutBot {
   constructor() {
-    console.log('🔍 Advanced Scout Bot initialized with enhanced research capabilities');
+    log.info('🔍 Advanced Scout Bot initialized with enhanced research capabilities');
   }
 
   // Advanced Entity Extraction with AI
@@ -203,14 +206,14 @@ Focus on extracting actionable intelligence for civic engagement and transparenc
           const parsed = JSON.parse(content.text);
           return this.normalizeExtractedEntities(parsed.entities || []);
         } catch (parseError: any) {
-          console.error('Failed to parse entity extraction response:', parseError);
+          log.error({ err: parseError }, 'Failed to parse entity extraction response');
           return [];
         }
       }
       return [];
 
     } catch (error: any) {
-      console.error('Entity extraction failed:', error);
+      log.error({ err: error }, 'Entity extraction failed');
       return [];
     }
   }
@@ -243,7 +246,7 @@ Focus on extracting actionable intelligence for civic engagement and transparenc
       };
 
     } catch (error: any) {
-      console.error('Advanced research failed:', error);
+      log.error({ err: error }, 'Advanced research failed');
       return {
         query,
         entities: [],
@@ -270,7 +273,7 @@ Focus on extracting actionable intelligence for civic engagement and transparenc
         policyConnections
       );
     } catch (error: any) {
-      console.error('Deep research failed:', error);
+      log.error({ err: error }, 'Deep research failed');
       return {
         summary: 'Deep research is temporarily unavailable',
         keyFindings: ['Unable to complete research analysis'],
@@ -343,7 +346,7 @@ Focus on extracting actionable intelligence for civic engagement and transparenc
         confidenceScore: profileConfidenceScore,
       };
     } catch (error: any) {
-      console.error('Entity profiling failed:', error);
+      log.error({ err: error }, 'Entity profiling failed');
       throw new Error('Failed to create comprehensive entity profile');
     }
   }
@@ -388,14 +391,14 @@ Focus on connections that could indicate influence, conflicts of interest, or tr
           const parsed = JSON.parse(content.text);
           return parsed.connections || [];
         } catch (parseError: any) {
-          console.error('Failed to parse network analysis:', parseError);
+          log.error({ err: parseError }, 'Failed to parse network analysis');
           return [];
         }
       }
       return [];
 
     } catch (error: any) {
-      console.error('Network analysis failed:', error);
+      log.error({ err: error }, 'Network analysis failed');
       return [];
     }
   }
@@ -444,14 +447,14 @@ Be thorough but fair - only flag genuine concerns with solid reasoning.`
           const parsed = JSON.parse(content.text);
           return parsed.flags || [];
         } catch (parseError: any) {
-          console.error('Failed to parse ethics scan:', parseError);
+          log.error({ err: parseError }, 'Failed to parse ethics scan');
           return [];
         }
       }
       return [];
 
     } catch (error: any) {
-      console.error('Ethics scanning failed:', error);
+      log.error({ err: error }, 'Ethics scanning failed');
       return [];
     }
   }
@@ -541,7 +544,7 @@ Format as an array of clear, actionable insight statements.`
       return [];
 
     } catch (error: any) {
-      console.error('Insight generation failed:', error);
+      log.error({ err: error }, 'Insight generation failed');
       return ['Analysis capabilities temporarily unavailable'];
     }
   }
@@ -802,7 +805,7 @@ Provide network map data in this JSON format:
       }
       throw new Error('Invalid network map response');
     } catch (error: any) {
-      console.error('Network map generation failed:', error);
+      log.error({ err: error }, 'Network map generation failed');
       return {
         nodes: [],
         edges: [],
@@ -848,7 +851,7 @@ Provide entities to research in this JSON format:
           const profile = await this.extractAndProfileEntity(entity.name, entity.context);
           profiles.push(profile);
         } catch (error: any) {
-          console.error(`Failed to profile entity ${entity.name}:`, error);
+          log.error({ err: error }, `Failed to profile entity ${entity.name}`);
         }
       }
 

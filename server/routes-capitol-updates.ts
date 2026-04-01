@@ -27,6 +27,9 @@ import {
   sql 
 } from "drizzle-orm";
 import { z } from "zod";
+import { createLogger } from "./logger";
+const log = createLogger("routes-capitol-updates");
+
 
 /**
  * Register Capitol updates API routes
@@ -152,7 +155,7 @@ export function registerCapitolUpdatesRoutes(app: Express): void {
         }
       });
     } catch (error: any) {
-      console.error("Error fetching Capitol updates:", error);
+      log.error({ err: error }, "Error fetching Capitol updates");
       res.status(500).json({ message: "Error fetching Capitol updates" });
     }
   });
@@ -190,7 +193,7 @@ export function registerCapitolUpdatesRoutes(app: Express): void {
       
       res.json(update);
     } catch (error: any) {
-      console.error(`Error fetching Capitol update ${req.params.id}:`, error);
+      log.error({ err: error }, `Error fetching Capitol update ${req.params.id}`);
       res.status(500).json({ message: "Error fetching Capitol update" });
     }
   });
@@ -255,7 +258,7 @@ export function registerCapitolUpdatesRoutes(app: Express): void {
         }
       });
     } catch (error: any) {
-      console.error("Error fetching Capitol notices:", error);
+      log.error({ err: error }, "Error fetching Capitol notices");
       res.status(500).json({ message: "Error fetching Capitol notices" });
     }
   });
@@ -277,7 +280,7 @@ export function registerCapitolUpdatesRoutes(app: Express): void {
       
       res.json(notice);
     } catch (error: any) {
-      console.error(`Error fetching Capitol notice ${req.params.id}:`, error);
+      log.error({ err: error }, `Error fetching Capitol notice ${req.params.id}`);
       res.status(500).json({ message: "Error fetching Capitol notice" });
     }
   });
@@ -329,7 +332,7 @@ export function registerCapitolUpdatesRoutes(app: Express): void {
       
       res.json(meetings);
     } catch (error: any) {
-      console.error("Error fetching committee schedules:", error);
+      log.error({ err: error }, "Error fetching committee schedules");
       res.status(500).json({ message: "Error fetching committee schedules" });
     }
   });
@@ -358,7 +361,7 @@ export function registerCapitolUpdatesRoutes(app: Express): void {
       
       res.json(updates);
     } catch (error: any) {
-      console.error(`Error fetching Capitol updates for bill ${req.params.billId}:`, error);
+      log.error({ err: error }, `Error fetching Capitol updates for bill ${req.params.billId}`);
       res.status(500).json({ message: "Error fetching Capitol updates for bill" });
     }
   });
@@ -400,7 +403,7 @@ export function registerCapitolUpdatesRoutes(app: Express): void {
         notices
       });
     } catch (error: any) {
-      console.error(`Error searching Capitol updates:`, error);
+      log.error({ err: error }, `Error searching Capitol updates`);
       res.status(500).json({ message: "Error searching Capitol updates" });
     }
   });
@@ -460,7 +463,7 @@ export function registerCapitolUpdatesRoutes(app: Express): void {
         upcomingMeetingsCount: upcomingMeetingsCount.count
       });
     } catch (error: any) {
-      console.error("Error fetching Capitol stats:", error);
+      log.error({ err: error }, "Error fetching Capitol stats");
       res.status(500).json({ message: "Error fetching Capitol stats" });
     }
   });

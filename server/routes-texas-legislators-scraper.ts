@@ -3,6 +3,9 @@ import express from 'express';
 import { Request, Response } from 'express';
 import { texasLegislatorsScraper } from './services/texas-legislators-scraper';
 import { storage } from './storage';
+import { createLogger } from "./logger";
+const log = createLogger("routes-texas-legislators-scraper");
+
 
 const router = express.Router();
 
@@ -14,7 +17,7 @@ const router = express.Router();
 // Scrape all Texas legislators (House + Senate)
 router.post('/api/texas-legislators/scrape', async (req: Request, res: Response) => {
   try {
-    console.log('🚀 Starting comprehensive Texas legislators data collection...');
+    log.info('🚀 Starting comprehensive Texas legislators data collection...');
     
     // Perform the web scraping for all legislators
     const legislators = await texasLegislatorsScraper.performLegislatorsDataCollection();
@@ -43,7 +46,7 @@ router.post('/api/texas-legislators/scrape', async (req: Request, res: Response)
     });
 
   } catch (error: any) {
-    console.error('❌ Error in Texas legislators scraping:', error.message);
+    log.error({ err: error.message }, '❌ Error in Texas legislators scraping');
     res.status(500).json({
       success: false,
       error: 'Failed to scrape Texas legislators',
@@ -56,7 +59,7 @@ router.post('/api/texas-legislators/scrape', async (req: Request, res: Response)
 // Scrape only House Representatives
 router.post('/api/texas-legislators/scrape-house', async (req: Request, res: Response) => {
   try {
-    console.log('🏠 Starting Texas House Representatives data collection...');
+    log.info('🏠 Starting Texas House Representatives data collection...');
     
     const houseMembers = await texasLegislatorsScraper.scrapeHouseRepresentatives();
     
@@ -78,7 +81,7 @@ router.post('/api/texas-legislators/scrape-house', async (req: Request, res: Res
     });
 
   } catch (error: any) {
-    console.error('❌ Error scraping House representatives:', error.message);
+    log.error({ err: error.message }, '❌ Error scraping House representatives');
     res.status(500).json({
       success: false,
       error: 'Failed to scrape House representatives',
@@ -90,7 +93,7 @@ router.post('/api/texas-legislators/scrape-house', async (req: Request, res: Res
 // Scrape only Senate Members
 router.post('/api/texas-legislators/scrape-senate', async (req: Request, res: Response) => {
   try {
-    console.log('🏛️ Starting Texas Senate Members data collection...');
+    log.info('🏛️ Starting Texas Senate Members data collection...');
     
     const senateMembers = await texasLegislatorsScraper.scrapeSenateMembers();
     
@@ -112,7 +115,7 @@ router.post('/api/texas-legislators/scrape-senate', async (req: Request, res: Re
     });
 
   } catch (error: any) {
-    console.error('❌ Error scraping Senate members:', error.message);
+    log.error({ err: error.message }, '❌ Error scraping Senate members');
     res.status(500).json({
       success: false,
       error: 'Failed to scrape Senate members',
@@ -124,7 +127,7 @@ router.post('/api/texas-legislators/scrape-senate', async (req: Request, res: Re
 // Get legislators scraping status and statistics
 router.get('/api/texas-legislators/status', async (req: Request, res: Response) => {
   try {
-    console.log('📊 Checking Texas legislators data status...');
+    log.info('📊 Checking Texas legislators data status...');
     
     // Get current legislators count from database
     const totalLegislators = await storage.getLegislatorsCount();
@@ -150,7 +153,7 @@ router.get('/api/texas-legislators/status', async (req: Request, res: Response) 
     });
 
   } catch (error: any) {
-    console.error('❌ Error checking legislators status:', error.message);
+    log.error({ err: error.message }, '❌ Error checking legislators status');
     res.status(500).json({
       success: false,
       error: 'Failed to check legislators status',
@@ -164,7 +167,7 @@ router.get('/api/texas-legislators/:id', async (req: Request, res: Response) => 
   try {
     const { id } = req.params;
     
-    console.log(`👤 Fetching detailed profile for legislator ${id}...`);
+    log.info(`👤 Fetching detailed profile for legislator ${id}...`);
     
     const legislator = await storage.getLegislatorById(id);
     
@@ -184,7 +187,7 @@ router.get('/api/texas-legislators/:id', async (req: Request, res: Response) => 
     });
 
   } catch (error: any) {
-    console.error(`❌ Error fetching legislator ${req.params.id}:`, error.message);
+    log.error({ err: error.message }, `❌ Error fetching legislator ${req.params.id}`);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch legislator',
@@ -198,7 +201,7 @@ router.get('/api/texas-legislators/search', async (req: Request, res: Response) 
   try {
     const { name, party, chamber, district, county } = req.query;
     
-    console.log('🔍 Searching Texas legislators with criteria:', { name, party, chamber, district, county });
+    log.info({ name, party, chamber, district, county }, 'Searching Texas legislators');
     
     const searchResults = await storage.searchLegislators({
       name: name as string,
@@ -217,7 +220,7 @@ router.get('/api/texas-legislators/search', async (req: Request, res: Response) 
     });
 
   } catch (error: any) {
-    console.error('❌ Error searching legislators:', error.message);
+    log.error({ err: error.message }, '❌ Error searching legislators');
     res.status(500).json({
       success: false,
       error: 'Failed to search legislators',
@@ -228,5 +231,5 @@ router.get('/api/texas-legislators/search', async (req: Request, res: Response) 
 
 export function registerTexasLegislatorsScraperRoutes(app: express.Application) {
   app.use(router);
-  console.log('👥 Texas Legislators scraper routes registered successfully!');
+  log.info('👥 Texas Legislators scraper routes registered successfully!');
 }

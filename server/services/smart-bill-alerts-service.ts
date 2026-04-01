@@ -5,6 +5,9 @@ import { db } from '../db';
 import { users, bills } from '../../shared/schema';
 import { smartBillAlerts as billAlerts } from '../../shared/schema-smart-alerts';
 import { eq, and } from 'drizzle-orm';
+import { createLogger } from "../logger";
+const log = createLogger("smart-bill-alerts-service");
+
 
 // Temporary bill alerts interface until schema is updated
 interface BillAlertsTable {
@@ -110,7 +113,7 @@ export async function createBillAlert(
       };
     }
   } catch (error: any) {
-    console.error('Error creating bill alert:', error);
+    log.error({ err: error }, 'Error creating bill alert');
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -246,7 +249,7 @@ export async function generateContextualExplanation(
       };
     }
   } catch (error: any) {
-    console.error('Error generating contextual explanation:', error);
+    log.error({ err: error }, 'Error generating contextual explanation');
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -259,7 +262,7 @@ export async function generateContextualExplanation(
  */
 export async function checkBillStatusChanges(): Promise<any> {
   try {
-    console.log('Checking for bill status changes...');
+    log.info('Checking for bill status changes...');
     
     // For MVP demo, we'll simulate active alerts
     // In production, this would query the actual billAlerts table
@@ -283,7 +286,7 @@ export async function checkBillStatusChanges(): Promise<any> {
 
         // Check if status has changed
         if (currentStatus !== lastKnownStatus) {
-          console.log(`Status change detected for bill ${bill.legiscanId}: ${lastKnownStatus} -> ${currentStatus}`);
+          log.info(`Status change detected for bill ${bill.legiscanId}: ${lastKnownStatus} -> ${currentStatus}`);
 
           // Generate contextual explanation
           const contextPreferences = typeof alert.contextPreferences === 'string' 
@@ -339,7 +342,7 @@ export async function checkBillStatusChanges(): Promise<any> {
           }
         }
       } catch (billError: any) {
-        console.error(`Error checking bill ${bill.legiscanId}:`, billError);
+        log.error({ err: billError }, `Error checking bill ${bill.legiscanId}`);
         continue;
       }
     }
@@ -353,7 +356,7 @@ export async function checkBillStatusChanges(): Promise<any> {
       }
     };
   } catch (error: any) {
-    console.error('Error checking bill status changes:', error);
+    log.error({ err: error }, 'Error checking bill status changes');
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -380,7 +383,7 @@ export async function getUserBillAlerts(userId: number): Promise<any> {
       data: userAlerts
     };
   } catch (error: any) {
-    console.error('Error getting user bill alerts:', error);
+    log.error({ err: error }, 'Error getting user bill alerts');
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -407,7 +410,7 @@ export async function deactivateBillAlert(alertId: number, userId: number): Prom
       data: updatedAlert
     };
   } catch (error: any) {
-    console.error('Error deactivating bill alert:', error);
+    log.error({ err: error }, 'Error deactivating bill alert');
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'

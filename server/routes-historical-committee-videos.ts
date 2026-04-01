@@ -5,6 +5,9 @@ import { db } from './db';
 import { committeeMeetings, committees } from '@shared/schema';
 import { eq, and, like, desc, sql } from 'drizzle-orm';
 import historicalVideoScraper from './services/historical-committee-video-scraper';
+import { createLogger } from "./logger";
+const log = createLogger("routes-historical-committee-videos");
+
 
 /**
  * Register historical committee video API routes
@@ -24,7 +27,7 @@ export function registerHistoricalCommitteeVideoRoutes(app: Express): void {
         message: 'Historical committee video scraper initialized'
       });
     } catch (error: any) {
-      console.error('Error initializing historical committee video scraper:', error);
+      log.error({ err: error }, 'Error initializing historical committee video scraper');
       return res.status(500).json({
         success: false,
         error: 'Failed to initialize historical committee video scraper',
@@ -43,10 +46,10 @@ export function registerHistoricalCommitteeVideoRoutes(app: Express): void {
       // In a production app, this would be handled by a queue or a background job
       const scrapePromise = historicalVideoScraper.scrapeHouse89RegularSessionVideos()
         .then(() => {
-          console.log('Successfully scraped House 89th Regular Session committee videos');
+          log.info('Successfully scraped House 89th Regular Session committee videos');
         })
         .catch((error) => {
-          console.error('Error scraping House 89th Regular Session committee videos:', error);
+          log.error({ err: error }, 'Error scraping House 89th Regular Session committee videos');
         });
       
       // Return immediate response to the client
@@ -55,7 +58,7 @@ export function registerHistoricalCommitteeVideoRoutes(app: Express): void {
         message: 'Started scraping House 89th Regular Session committee videos'
       });
     } catch (error: any) {
-      console.error('Error starting House 89th Regular Session scraper:', error);
+      log.error({ err: error }, 'Error starting House 89th Regular Session scraper');
       return res.status(500).json({
         success: false,
         error: 'Failed to start House 89th Regular Session scraper',
@@ -74,10 +77,10 @@ export function registerHistoricalCommitteeVideoRoutes(app: Express): void {
       // In a production app, this would be handled by a queue or a background job
       const scrapePromise = historicalVideoScraper.scrapeSenate89RegularSessionVideos()
         .then(() => {
-          console.log('Successfully scraped Senate 89th Regular Session committee videos');
+          log.info('Successfully scraped Senate 89th Regular Session committee videos');
         })
         .catch((error) => {
-          console.error('Error scraping Senate 89th Regular Session committee videos:', error);
+          log.error({ err: error }, 'Error scraping Senate 89th Regular Session committee videos');
         });
       
       // Return immediate response to the client
@@ -86,7 +89,7 @@ export function registerHistoricalCommitteeVideoRoutes(app: Express): void {
         message: 'Started scraping Senate 89th Regular Session committee videos'
       });
     } catch (error: any) {
-      console.error('Error starting Senate 89th Regular Session scraper:', error);
+      log.error({ err: error }, 'Error starting Senate 89th Regular Session scraper');
       return res.status(500).json({
         success: false,
         error: 'Failed to start Senate 89th Regular Session scraper',
@@ -115,10 +118,10 @@ export function registerHistoricalCommitteeVideoRoutes(app: Express): void {
       // In a production app, this would be handled by a queue or a background job
       const analysisPromise = historicalVideoScraper.scheduleHistoricalMeetingAnalysis(parseInt(limit))
         .then(() => {
-          console.log(`Successfully scheduled analysis for up to ${limit} historical meetings`);
+          log.info(`Successfully scheduled analysis for up to ${limit} historical meetings`);
         })
         .catch((error) => {
-          console.error('Error scheduling historical meeting analysis:', error);
+          log.error({ err: error }, 'Error scheduling historical meeting analysis');
         });
       
       // Return immediate response to the client
@@ -127,7 +130,7 @@ export function registerHistoricalCommitteeVideoRoutes(app: Express): void {
         message: `Scheduled analysis for up to ${limit} historical meetings`
       });
     } catch (error: any) {
-      console.error('Error scheduling historical meeting analysis:', error);
+      log.error({ err: error }, 'Error scheduling historical meeting analysis');
       return res.status(500).json({
         success: false,
         error: 'Failed to schedule historical meeting analysis',
@@ -190,7 +193,7 @@ export function registerHistoricalCommitteeVideoRoutes(app: Express): void {
         data: meetings
       });
     } catch (error: any) {
-      console.error('Error fetching historical committee meetings:', error);
+      log.error({ err: error }, 'Error fetching historical committee meetings');
       return res.status(500).json({
         success: false,
         error: 'Failed to fetch historical committee meetings',
@@ -259,7 +262,7 @@ export function registerHistoricalCommitteeVideoRoutes(app: Express): void {
         }
       });
     } catch (error: any) {
-      console.error('Error fetching historical committee video stats:', error);
+      log.error({ err: error }, 'Error fetching historical committee video stats');
       return res.status(500).json({
         success: false,
         error: 'Failed to fetch historical committee video stats',

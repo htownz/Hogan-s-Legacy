@@ -11,6 +11,9 @@ import {
   insertWarRoomActionItemAssignmentSchema,
   insertWarRoomReactionSchema
 } from "@shared/schema";
+import { createLogger } from "../logger";
+const log = createLogger("war-room-routes");
+
 
 export function registerWarRoomRoutes(app: Express) {
   // Get all campaigns
@@ -19,7 +22,7 @@ export function registerWarRoomRoutes(app: Express) {
       const campaigns = await storage.getAllWarRoomCampaigns();
       res.json(campaigns);
     } catch (error: any) {
-      console.error("Error fetching war room campaigns:", error);
+      log.error({ err: error }, "Error fetching war room campaigns");
       res.status(500).json({ error: "Failed to fetch campaigns" });
     }
   });
@@ -35,7 +38,7 @@ export function registerWarRoomRoutes(app: Express) {
       const campaigns = await storage.getUserWarRoomCampaigns(userId);
       res.json(campaigns);
     } catch (error: any) {
-      console.error("Error fetching user war room campaigns:", error);
+      log.error({ err: error }, "Error fetching user war room campaigns");
       res.status(500).json({ error: "Failed to fetch user campaigns" });
     }
   });
@@ -55,7 +58,7 @@ export function registerWarRoomRoutes(app: Express) {
 
       res.json(campaign);
     } catch (error: any) {
-      console.error("Error fetching war room campaign:", error);
+      log.error({ err: error }, "Error fetching war room campaign");
       res.status(500).json({ error: "Failed to fetch campaign" });
     }
   });
@@ -79,7 +82,7 @@ export function registerWarRoomRoutes(app: Express) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
-      console.error("Error creating war room campaign:", error);
+      log.error({ err: error }, "Error creating war room campaign");
       res.status(500).json({ error: "Failed to create campaign" });
     }
   });
@@ -118,7 +121,7 @@ export function registerWarRoomRoutes(app: Express) {
 
       res.json(updatedCampaign);
     } catch (error: any) {
-      console.error("Error updating war room campaign:", error);
+      log.error({ err: error }, "Error updating war room campaign");
       res.status(500).json({ error: "Failed to update campaign" });
     }
   });
@@ -134,7 +137,7 @@ export function registerWarRoomRoutes(app: Express) {
       const members = await storage.getWarRoomCampaignMembersByCampaignId(campaignId);
       res.json(members);
     } catch (error: any) {
-      console.error("Error fetching war room campaign members:", error);
+      log.error({ err: error }, "Error fetching war room campaign members");
       res.status(500).json({ error: "Failed to fetch campaign members" });
     }
   });
@@ -170,7 +173,7 @@ export function registerWarRoomRoutes(app: Express) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
-      console.error("Error adding war room campaign member:", error);
+      log.error({ err: error }, "Error adding war room campaign member");
       res.status(500).json({ error: "Failed to add campaign member" });
     }
   });
@@ -186,7 +189,7 @@ export function registerWarRoomRoutes(app: Express) {
       const discussions = await storage.getWarRoomDiscussionsByCampaignId(campaignId);
       res.json(discussions);
     } catch (error: any) {
-      console.error("Error fetching war room campaign discussions:", error);
+      log.error({ err: error }, "Error fetching war room campaign discussions");
       res.status(500).json({ error: "Failed to fetch campaign discussions" });
     }
   });
@@ -222,7 +225,7 @@ export function registerWarRoomRoutes(app: Express) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
-      console.error("Error creating war room discussion:", error);
+      log.error({ err: error }, "Error creating war room discussion");
       res.status(500).json({ error: "Failed to create discussion" });
     }
   });
@@ -238,7 +241,7 @@ export function registerWarRoomRoutes(app: Express) {
       const resources = await storage.getWarRoomResourcesByCampaignId(campaignId);
       res.json(resources);
     } catch (error: any) {
-      console.error("Error fetching war room resources:", error);
+      log.error({ err: error }, "Error fetching war room resources");
       res.status(500).json({ error: "Failed to fetch resources" });
     }
   });
@@ -277,7 +280,7 @@ export function registerWarRoomRoutes(app: Express) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
-      console.error("Error creating war room resource:", error);
+      log.error({ err: error }, "Error creating war room resource");
       res.status(500).json({ error: "Failed to create resource" });
     }
   });
@@ -293,7 +296,7 @@ export function registerWarRoomRoutes(app: Express) {
       const updatedResource = await storage.incrementWarRoomResourceDownloads(resourceId);
       res.json(updatedResource);
     } catch (error: any) {
-      console.error("Error updating resource download count:", error);
+      log.error({ err: error }, "Error updating resource download count");
       res.status(500).json({ error: "Failed to update download count" });
     }
   });
@@ -309,7 +312,7 @@ export function registerWarRoomRoutes(app: Express) {
       const actionItems = await storage.getWarRoomActionItemsByCampaignId(campaignId);
       res.json(actionItems);
     } catch (error: any) {
-      console.error("Error fetching war room action items:", error);
+      log.error({ err: error }, "Error fetching war room action items");
       res.status(500).json({ error: "Failed to fetch action items" });
     }
   });
@@ -349,7 +352,7 @@ export function registerWarRoomRoutes(app: Express) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
-      console.error("Error creating war room action item:", error);
+      log.error({ err: error }, "Error creating war room action item");
       res.status(500).json({ error: "Failed to create action item" });
     }
   });
@@ -392,7 +395,7 @@ export function registerWarRoomRoutes(app: Express) {
       const updatedActionItem = await storage.updateWarRoomActionItem(actionItemId, updateData);
       res.json(updatedActionItem);
     } catch (error: any) {
-      console.error("Error updating war room action item:", error);
+      log.error({ err: error }, "Error updating war room action item");
       res.status(500).json({ error: "Failed to update action item" });
     }
   });
@@ -408,7 +411,7 @@ export function registerWarRoomRoutes(app: Express) {
       const assignments = await storage.getWarRoomActionItemAssignmentsByActionItemId(actionItemId);
       res.json(assignments);
     } catch (error: any) {
-      console.error("Error fetching action item assignments:", error);
+      log.error({ err: error }, "Error fetching action item assignments");
       res.status(500).json({ error: "Failed to fetch assignments" });
     }
   });
@@ -456,7 +459,7 @@ export function registerWarRoomRoutes(app: Express) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
-      console.error("Error creating action item assignment:", error);
+      log.error({ err: error }, "Error creating action item assignment");
       res.status(500).json({ error: "Failed to create assignment" });
     }
   });
@@ -491,7 +494,7 @@ export function registerWarRoomRoutes(app: Express) {
 
       res.json(updatedAssignment);
     } catch (error: any) {
-      console.error("Error updating action item assignment:", error);
+      log.error({ err: error }, "Error updating action item assignment");
       res.status(500).json({ error: "Failed to update assignment" });
     }
   });
@@ -507,7 +510,7 @@ export function registerWarRoomRoutes(app: Express) {
       const assignments = await storage.getUserWarRoomActionItemAssignments(userId);
       res.json(assignments);
     } catch (error: any) {
-      console.error("Error fetching user assignments:", error);
+      log.error({ err: error }, "Error fetching user assignments");
       res.status(500).json({ error: "Failed to fetch assignments" });
     }
   });
@@ -537,7 +540,7 @@ export function registerWarRoomRoutes(app: Express) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
-      console.error("Error creating reaction:", error);
+      log.error({ err: error }, "Error creating reaction");
       res.status(500).json({ error: "Failed to create reaction" });
     }
   });
@@ -558,7 +561,7 @@ export function registerWarRoomRoutes(app: Express) {
       await storage.removeWarRoomReaction(reactionId, userId);
       res.status(204).end();
     } catch (error: any) {
-      console.error("Error removing reaction:", error);
+      log.error({ err: error }, "Error removing reaction");
       res.status(500).json({ error: "Failed to remove reaction" });
     }
   });
@@ -574,7 +577,7 @@ export function registerWarRoomRoutes(app: Express) {
       const reactions = await storage.getWarRoomReactionsByDiscussionId(discussionId);
       res.json(reactions);
     } catch (error: any) {
-      console.error("Error fetching reactions:", error);
+      log.error({ err: error }, "Error fetching reactions");
       res.status(500).json({ error: "Failed to fetch reactions" });
     }
   });

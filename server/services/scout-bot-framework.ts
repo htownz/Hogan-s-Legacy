@@ -1,5 +1,8 @@
 // @ts-nocheck
 import Anthropic from '@anthropic-ai/sdk';
+import { createLogger } from "../logger";
+const log = createLogger("scout-bot-framework");
+
 
 // the newest Anthropic model is "claude-3-7-sonnet-20250219" which was released February 24, 2025
 const anthropic = new Anthropic({
@@ -42,7 +45,7 @@ Provide a clear, factual summary with key findings, important entities/people in
       const responseText = content.type === 'text' ? content.text : '';
       return this.parseResponse(responseText, query);
     } catch (error: any) {
-      console.error('Scout Bot research failed:', error);
+      log.error({ err: error }, 'Scout Bot research failed');
       throw new Error('Research investigation failed');
     }
   }
@@ -74,7 +77,7 @@ Be factual and objective.`
         focus: 'ethics' as const 
       });
     } catch (error: any) {
-      console.error('Entity analysis failed:', error);
+      log.error({ err: error }, 'Entity analysis failed');
       throw new Error('Entity analysis failed');
     }
   }

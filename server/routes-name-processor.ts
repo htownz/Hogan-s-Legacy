@@ -5,6 +5,9 @@ import { CustomRequest } from "./types";
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createLogger } from "./logger";
+const log = createLogger("routes-name-processor");
+
 
 // Get the directory name
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -57,7 +60,7 @@ function loadQueue() {
     const raw = fs.readFileSync(PENDING_FILE);
     return JSON.parse(raw.toString());
   } catch (error: any) {
-    console.error('Error loading pending profiles:', error);
+    log.error({ err: error }, 'Error loading pending profiles');
     return [];
   }
 }
@@ -69,7 +72,7 @@ function saveQueue(queue: any[]) {
   try {
     fs.writeFileSync(PENDING_FILE, JSON.stringify(queue, null, 2));
   } catch (error: any) {
-    console.error('Error saving pending profiles:', error);
+    log.error({ err: error }, 'Error saving pending profiles');
   }
 }
 
@@ -184,7 +187,7 @@ export function registerNameProcessorRoutes(app: Express) {
       
       res.status(201).json(result);
     } catch (error: any) {
-      console.error("Error processing name:", error);
+      log.error({ err: error }, "Error processing name");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -200,7 +203,7 @@ export function registerNameProcessorRoutes(app: Express) {
       const profiles = nameProcessor.getPendingProfiles();
       res.json(profiles);
     } catch (error: any) {
-      console.error("Error fetching pending profiles:", error);
+      log.error({ err: error }, "Error fetching pending profiles");
       res.status(500).json({ error: "Failed to fetch pending profiles" });
     }
   });
@@ -221,7 +224,7 @@ export function registerNameProcessorRoutes(app: Express) {
       
       res.json(result);
     } catch (error: any) {
-      console.error("Error updating profile status:", error);
+      log.error({ err: error }, "Error updating profile status");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -244,7 +247,7 @@ export function registerNameProcessorRoutes(app: Express) {
       
       res.json(result);
     } catch (error: any) {
-      console.error("Error deleting profile:", error);
+      log.error({ err: error }, "Error deleting profile");
       res.status(500).json({ error: "Failed to delete profile" });
     }
   });

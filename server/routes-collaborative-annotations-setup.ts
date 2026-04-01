@@ -2,6 +2,9 @@ import { Server as HttpServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { collaborativeAnnotationsStorage } from './storage-collaborative-annotations';
 import { getAuthenticatedUserFromRequest } from './auth';
+import { createLogger } from "./logger";
+const log = createLogger("routes-collaborative-annotations-setup");
+
 
 // Define message types
 type MessageType = 
@@ -47,10 +50,10 @@ const broadcastToDocument = (documentId: number, message: WsMessage, excludeSock
 export const setupWebsocketServer = (httpServer: HttpServer) => {
   const wss = new WebSocketServer({ server: httpServer, path: '/ws/annotations' });
 
-  console.log('WebSocket server for annotations initialized');
+  log.info('WebSocket server for annotations initialized');
 
   wss.on('connection', async (ws, req) => {
-    console.log('Client connected to annotation WebSocket');
+    log.info('Client connected to annotation WebSocket');
 
     const authenticatedUser = await getAuthenticatedUserFromRequest(req);
     if (!authenticatedUser) {
@@ -71,7 +74,7 @@ export const setupWebsocketServer = (httpServer: HttpServer) => {
         const data = JSON.parse(message.toString()) as WsMessage;
         
         if (!data.type || !data.documentId) {
-          console.error('Invalid message format:', data);
+          log.error({ err: data }, 'Invalid message format');
           return;
         }
         
@@ -145,7 +148,7 @@ export const setupWebsocketServer = (httpServer: HttpServer) => {
                 userId
               });
             } catch (error: any) {
-              console.error('Failed to create annotation:', error);
+              log.error({ err: error }, 'Failed to create annotation');
             }
             break;
             
@@ -153,14 +156,14 @@ export const setupWebsocketServer = (httpServer: HttpServer) => {
             // Update annotation in database
             try {
               if (!payload.id) {
-                console.error('Missing annotation ID in update request');
+                log.error('Missing annotation ID in update request');
                 return;
               }
               
               // Check if user can modify this annotation
               const annotation = await collaborativeAnnotationsStorage.getAnnotationById(payload.id);
               if (!annotation) {
-                console.error('Annotation not found:', payload.id);
+                log.error({ err: payload.id }, 'Annotation not found');
                 return;
               }
               
@@ -168,7 +171,7 @@ export const setupWebsocketServer = (httpServer: HttpServer) => {
               if (annotation.userId !== userId) {
                 const userRole = await collaborativeAnnotationsStorage.getCollaboratorRole(documentId, userId);
                 if (!userRole || userRole !== 'admin') {
-                  console.error('User does not have permission to update annotation');
+                  log.error('User does not have permission to update annotation');
                   return;
                 }
               }
@@ -188,7 +191,7 @@ export const setupWebsocketServer = (httpServer: HttpServer) => {
                 });
               }
             } catch (error: any) {
-              console.error('Failed to update annotation:', error);
+              log.error({ err: error }, 'Failed to update annotation');
             }
             break;
             
@@ -196,14 +199,14 @@ export const setupWebsocketServer = (httpServer: HttpServer) => {
             // Delete annotation from database
             try {
               if (!payload.id) {
-                console.error('Missing annotation ID in delete request');
+                log.error('Missing annotation ID in delete request');
                 return;
               }
               
               // Check if user can delete this annotation
               const annotation = await collaborativeAnnotationsStorage.getAnnotationById(payload.id);
               if (!annotation) {
-                console.error('Annotation not found:', payload.id);
+                log.error({ err: payload.id }, 'Annotation not found');
                 return;
               }
               
@@ -211,7 +214,7 @@ export const setupWebsocketServer = (httpServer: HttpServer) => {
               if (annotation.userId !== userId) {
                 const userRole = await collaborativeAnnotationsStorage.getCollaboratorRole(documentId, userId);
                 if (!userRole || userRole !== 'admin') {
-                  console.error('User does not have permission to delete annotation');
+                  log.error('User does not have permission to delete annotation');
                   return;
                 }
               }
@@ -228,7 +231,7 @@ export const setupWebsocketServer = (httpServer: HttpServer) => {
                 });
               }
             } catch (error: any) {
-              console.error('Failed to delete annotation:', error);
+              log.error({ err: error }, 'Failed to delete annotation');
             }
             break;
             
@@ -236,7 +239,7 @@ export const setupWebsocketServer = (httpServer: HttpServer) => {
             // Add reaction to annotation
             try {
               if (!payload.annotationId || !payload.reactionType) {
-                console.error('Missing required fields in reaction request');
+                log.error('Missing required fields in reaction request');
                 return;
               }
               
@@ -254,7 +257,7 @@ export const setupWebsocketServer = (httpServer: HttpServer) => {
                 userId
               });
             } catch (error: any) {
-              console.error('Failed to add reaction:', error);
+              log.error({ err: error }, 'Failed to add reaction');
             }
             break;
             
@@ -272,15 +275,15 @@ export const setupWebsocketServer = (httpServer: HttpServer) => {
             break;
             
           default:
-            console.warn('Unknown message type:', type);
+            log.warn({ detail: type }, 'Unknown message type');
         }
       } catch (error: any) {
-        console.error('WebSocket message error:', error);
+        log.error({ err: error }, 'WebSocket message error');
       }
     });
     
     authedSocket.on('close', () => {
-      console.log('Client disconnected from annotation WebSocket');
+      log.info('Client disconnected from annotation WebSocket');
       
       // Clean up all document connections for this client
       clientDocuments.forEach(documentId => {
@@ -296,7 +299,7 @@ export const setupWebsocketServer = (httpServer: HttpServer) => {
     });
     
     authedSocket.on('error', (error) => {
-      console.error('WebSocket error:', error);
+      log.error({ err: error }, 'WebSocket error');
     });
   });
 

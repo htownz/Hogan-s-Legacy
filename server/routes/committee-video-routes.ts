@@ -6,6 +6,9 @@ import { CustomRequest } from "../types";
 import { eq, and, inArray } from "drizzle-orm";
 import { committees, committeeMeetings, bills } from "@shared/schema";
 import committeeVideoProcessor from "../services/committee-video-processor";
+import { createLogger } from "../logger";
+const log = createLogger("committee-video-routes");
+
 
 const router = Router();
 
@@ -35,11 +38,11 @@ router.get("/committee-meetings/:id/summary", isAuthenticated, async (req: Custo
       const summary = JSON.parse(meeting.summaryJson);
       return res.json(summary);
     } catch (error: any) {
-      console.error("Error parsing meeting summary JSON:", error);
+      log.error({ err: error }, "Error parsing meeting summary JSON");
       return res.status(500).json({ error: "Failed to parse meeting summary" });
     }
   } catch (error: any) {
-    console.error("Error fetching committee meeting summary:", error);
+    log.error({ err: error }, "Error fetching committee meeting summary");
     res.status(500).json({ error: "Failed to fetch committee meeting summary" });
   }
 });
@@ -67,7 +70,7 @@ router.get("/committee-meetings/:id/process-status", isAuthenticated, async (req
       lastUpdated: meeting.lastUpdated?.toISOString() || new Date().toISOString()
     });
   } catch (error: any) {
-    console.error("Error fetching processing status:", error);
+    log.error({ err: error }, "Error fetching processing status");
     res.status(500).json({ error: "Failed to fetch processing status" });
   }
 });
@@ -107,10 +110,10 @@ router.post("/committee-meetings/:id/process-video", isAuthenticated, async (req
     // Start processing in background
     committeeVideoProcessor.processVideo(meeting, meeting.committee)
       .then(() => {
-        console.log(`Successfully processed video for meeting ${meetingId}`);
+        log.info(`Successfully processed video for meeting ${meetingId}`);
       })
       .catch((err) => {
-        console.error(`Error processing video for meeting ${meetingId}:`, err);
+        log.error({ err: err }, `Error processing video for meeting ${meetingId}`);
         // Update status to failed
         db.update(committeeMeetings)
           .set({ 
@@ -119,10 +122,10 @@ router.post("/committee-meetings/:id/process-video", isAuthenticated, async (req
           })
           .where(eq(committeeMeetings.id, meetingId))
           .then(() => {
-            console.log(`Updated meeting ${meetingId} status to failed`);
+            log.info(`Updated meeting ${meetingId} status to failed`);
           })
           .catch((updateErr) => {
-            console.error(`Failed to update meeting ${meetingId} status:`, updateErr);
+            log.error({ err: updateErr }, `Failed to update meeting ${meetingId} status`);
           });
       });
     
@@ -132,7 +135,7 @@ router.post("/committee-meetings/:id/process-video", isAuthenticated, async (req
       message: "Video processing started" 
     });
   } catch (error: any) {
-    console.error("Error starting video processing:", error);
+    log.error({ err: error }, "Error starting video processing");
     res.status(500).json({ error: "Failed to start video processing" });
   }
 });
@@ -166,11 +169,11 @@ router.get("/committee-meetings/:id/video-segments", isAuthenticated, async (req
       }
       return res.json(summary.videoSegments);
     } catch (error: any) {
-      console.error("Error parsing meeting summary JSON:", error);
+      log.error({ err: error }, "Error parsing meeting summary JSON");
       return res.status(500).json({ error: "Failed to parse meeting summary" });
     }
   } catch (error: any) {
-    console.error("Error fetching video segments:", error);
+    log.error({ err: error }, "Error fetching video segments");
     res.status(500).json({ error: "Failed to fetch video segments" });
   }
 });
@@ -210,11 +213,11 @@ router.get("/committee-meetings/:id/bill/:billId/speaker-segments", isAuthentica
       
       return res.json(billDiscussion.speakerSegments);
     } catch (error: any) {
-      console.error("Error parsing meeting summary JSON:", error);
+      log.error({ err: error }, "Error parsing meeting summary JSON");
       return res.status(500).json({ error: "Failed to parse meeting summary" });
     }
   } catch (error: any) {
-    console.error("Error fetching speaker segments:", error);
+    log.error({ err: error }, "Error fetching speaker segments");
     res.status(500).json({ error: "Failed to fetch speaker segments" });
   }
 });
@@ -256,11 +259,11 @@ router.get("/committee-meetings/:id/impact-assessments", isAuthenticated, async 
       
       return res.json(impactAssessments);
     } catch (error: any) {
-      console.error("Error parsing meeting summary JSON:", error);
+      log.error({ err: error }, "Error parsing meeting summary JSON");
       return res.status(500).json({ error: "Failed to parse meeting summary" });
     }
   } catch (error: any) {
-    console.error("Error fetching impact assessments:", error);
+    log.error({ err: error }, "Error fetching impact assessments");
     res.status(500).json({ error: "Failed to fetch impact assessments" });
   }
 });
@@ -303,11 +306,11 @@ router.get("/committee-meetings/:id/testimony-sentiment", isAuthenticated, async
       
       return res.json(sentimentAnalysis);
     } catch (error: any) {
-      console.error("Error parsing meeting summary JSON:", error);
+      log.error({ err: error }, "Error parsing meeting summary JSON");
       return res.status(500).json({ error: "Failed to parse meeting summary" });
     }
   } catch (error: any) {
-    console.error("Error fetching testimony sentiment analysis:", error);
+    log.error({ err: error }, "Error fetching testimony sentiment analysis");
     res.status(500).json({ error: "Failed to fetch testimony sentiment analysis" });
   }
 });

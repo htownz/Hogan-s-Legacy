@@ -5,6 +5,9 @@ import { CustomRequest } from "../types";
 import { z } from "zod";
 import { civicActionStorage } from "../storage-civic-actions";
 import { insertCivicActionSchema, insertUserCivicActionSchema } from "../../shared/schema";
+import { createLogger } from "../logger";
+const log = createLogger("civic-actions-routes");
+
 
 export function registerCivicActionRoutes(app: Express) {
   // Get quick actions
@@ -13,7 +16,7 @@ export function registerCivicActionRoutes(app: Express) {
       const actions = await civicActionStorage.getQuickActions();
       res.json(actions);
     } catch (error: any) {
-      console.error("Error fetching quick actions:", error);
+      log.error({ err: error }, "Error fetching quick actions");
       res.status(500).json({ error: "Failed to fetch quick actions" });
     }
   });
@@ -25,7 +28,7 @@ export function registerCivicActionRoutes(app: Express) {
       const actions = await civicActionStorage.getActionsWithCreatorInfo(limit);
       res.json(actions);
     } catch (error: any) {
-      console.error("Error fetching civic actions:", error);
+      log.error({ err: error }, "Error fetching civic actions");
       res.status(500).json({ error: "Failed to fetch civic actions" });
     }
   });
@@ -37,7 +40,7 @@ export function registerCivicActionRoutes(app: Express) {
       const actions = await civicActionStorage.getActionsByType(actionType);
       res.json(actions);
     } catch (error: any) {
-      console.error("Error fetching actions by type:", error);
+      log.error({ err: error }, "Error fetching actions by type");
       res.status(500).json({ error: "Failed to fetch actions" });
     }
   });
@@ -49,7 +52,7 @@ export function registerCivicActionRoutes(app: Express) {
       const actions = await civicActionStorage.getActionsByBillId(billId);
       res.json(actions);
     } catch (error: any) {
-      console.error("Error fetching bill actions:", error);
+      log.error({ err: error }, "Error fetching bill actions");
       res.status(500).json({ error: "Failed to fetch actions" });
     }
   });
@@ -65,7 +68,7 @@ export function registerCivicActionRoutes(app: Express) {
       const actions = await civicActionStorage.searchActions(query);
       res.json(actions);
     } catch (error: any) {
-      console.error("Error searching actions:", error);
+      log.error({ err: error }, "Error searching actions");
       res.status(500).json({ error: "Failed to search actions" });
     }
   });
@@ -80,7 +83,7 @@ export function registerCivicActionRoutes(app: Express) {
       }
       res.json(action);
     } catch (error: any) {
-      console.error("Error fetching action:", error);
+      log.error({ err: error }, "Error fetching action");
       res.status(500).json({ error: "Failed to fetch action" });
     }
   });
@@ -92,7 +95,7 @@ export function registerCivicActionRoutes(app: Express) {
       const participants = await civicActionStorage.getActionParticipants(parseInt(id));
       res.json(participants);
     } catch (error: any) {
-      console.error("Error fetching action participants:", error);
+      log.error({ err: error }, "Error fetching action participants");
       res.status(500).json({ error: "Failed to fetch participants" });
     }
   });
@@ -112,7 +115,7 @@ export function registerCivicActionRoutes(app: Express) {
       const action = await civicActionStorage.createAction(validatedData);
       res.status(201).json(action);
     } catch (error: any) {
-      console.error("Error creating civic action:", error);
+      log.error({ err: error }, "Error creating civic action");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -145,7 +148,7 @@ export function registerCivicActionRoutes(app: Express) {
       
       res.json(updatedAction);
     } catch (error: any) {
-      console.error("Error updating civic action:", error);
+      log.error({ err: error }, "Error updating civic action");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -178,7 +181,7 @@ export function registerCivicActionRoutes(app: Express) {
         res.status(500).json({ error: "Failed to delete action" });
       }
     } catch (error: any) {
-      console.error("Error deleting civic action:", error);
+      log.error({ err: error }, "Error deleting civic action");
       res.status(500).json({ error: "Failed to delete civic action" });
     }
   });
@@ -193,7 +196,7 @@ export function registerCivicActionRoutes(app: Express) {
       const userActions = await civicActionStorage.getUserActionsByUserId(req.session.userId);
       res.json(userActions);
     } catch (error: any) {
-      console.error("Error fetching user civic actions:", error);
+      log.error({ err: error }, "Error fetching user civic actions");
       res.status(500).json({ error: "Failed to fetch user actions" });
     }
   });
@@ -230,7 +233,7 @@ export function registerCivicActionRoutes(app: Express) {
       const userAction = await civicActionStorage.createUserAction(validatedData);
       res.status(201).json(userAction);
     } catch (error: any) {
-      console.error("Error joining civic action:", error);
+      log.error({ err: error }, "Error joining civic action");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -261,7 +264,7 @@ export function registerCivicActionRoutes(app: Express) {
       
       res.json(completedAction);
     } catch (error: any) {
-      console.error("Error completing civic action:", error);
+      log.error({ err: error }, "Error completing civic action");
       res.status(500).json({ error: "Failed to complete civic action" });
     }
   });

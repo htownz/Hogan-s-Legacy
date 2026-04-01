@@ -1,5 +1,8 @@
 import { Router } from 'express';
 import { scoutBot } from './services/scout-bot-framework';
+import { createLogger } from "./logger";
+const log = createLogger("routes-scout-bot-framework");
+
 
 const router = Router();
 
@@ -19,7 +22,7 @@ router.post('/investigate', async (req, res) => {
       data: result
     });
   } catch (error: any) {
-    console.error('Investigation failed:', error);
+    log.error({ err: error }, 'Investigation failed');
     res.status(500).json({ 
       error: 'Investigation failed',
       details: error instanceof Error ? error.message : 'Unknown error'
@@ -43,7 +46,7 @@ router.post('/analyze-entity', async (req, res) => {
       data: result
     });
   } catch (error: any) {
-    console.error('Entity analysis failed:', error);
+    log.error({ err: error }, 'Entity analysis failed');
     res.status(500).json({ 
       error: 'Entity analysis failed',
       details: error instanceof Error ? error.message : 'Unknown error'

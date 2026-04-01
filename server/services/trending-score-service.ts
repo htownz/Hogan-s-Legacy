@@ -9,6 +9,9 @@ import {
 } from '@shared/schema';
 import { billAnnotations } from '@shared/schema-annotations';
 import { InsertTrendingBillMetric, trendingBillMetrics } from '@shared/schema-trending';
+import { createLogger } from "../logger";
+const log = createLogger("trending-score-service");
+
 
 /**
  * Calculate trending score for a bill based on various engagement metrics
@@ -25,7 +28,7 @@ export async function calculateTrendingScore(billId: string): Promise<InsertTren
       .limit(1);
 
     if (!bill) {
-      console.error(`Bill ${billId} not found`);
+      log.error(`Bill ${billId} not found`);
       return null;
     }
 
@@ -92,7 +95,7 @@ export async function calculateTrendingScore(billId: string): Promise<InsertTren
       historicalScores
     };
   } catch (error: any) {
-    console.error('Error calculating trending score:', error);
+    log.error({ err: error }, 'Error calculating trending score');
     return null;
   }
 }

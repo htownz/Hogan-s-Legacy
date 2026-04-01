@@ -1,6 +1,9 @@
 // @ts-nocheck
 import cron from 'node-cron';
 import { LiveDataIntegrationService } from './live-data-integration-service';
+import { createLogger } from "../logger";
+const log = createLogger("production-data-sync");
+
 
 export class ProductionDataSyncService {
   private liveDataService: LiveDataIntegrationService;
@@ -17,12 +20,12 @@ export class ProductionDataSyncService {
   // Start automated sync schedules
   public startProductionSync() {
     if (this.isRunning) {
-      console.log('Production sync already running');
+      log.info('Production sync already running');
       return;
     }
 
     this.isRunning = true;
-    console.log('🚀 Starting production data sync schedules...');
+    log.info('🚀 Starting production data sync schedules...');
 
     // Texas Ethics Commission - Every 4 hours
     cron.schedule('0 */4 * * *', async () => {
@@ -47,20 +50,20 @@ export class ProductionDataSyncService {
       await this.syncWithRetry('legiscan', () => this.syncLegiScanData());
     });
 
-    console.log('✅ Production sync schedules activated');
+    log.info('✅ Production sync schedules activated');
   }
 
   // Sync with automatic retry logic
   private async syncWithRetry(source: string, syncFunction: () => Promise<any>, attempt = 1): Promise<boolean> {
     try {
-      console.log(`📡 Starting ${source} sync (attempt ${attempt})`);
+      log.info(`📡 Starting ${source} sync (attempt ${attempt})`);
       
       const result = await syncFunction();
       
       if (result) {
         this.lastSyncTimes[source] = new Date();
         this.errorCounts[source] = 0;
-        console.log(`✅ ${source} sync completed successfully`);
+        log.info(`✅ ${source} sync completed successfully`);
         return true;
       } else {
         throw new Error(`${source} sync returned empty result`);
@@ -68,14 +71,14 @@ export class ProductionDataSyncService {
       
     } catch (error: any) {
       this.errorCounts[source] = (this.errorCounts[source] || 0) + 1;
-      console.error(`❌ ${source} sync failed (attempt ${attempt}):`, error);
+      log.error({ err: error }, `❌ ${source} sync failed (attempt ${attempt})`);
       
       if (attempt < this.maxRetries) {
-        console.log(`🔄 Retrying ${source} sync in ${this.retryDelay / 1000} seconds...`);
+        log.info(`🔄 Retrying ${source} sync in ${this.retryDelay / 1000} seconds...`);
         await this.delay(this.retryDelay * attempt); // Exponential backoff
         return this.syncWithRetry(source, syncFunction, attempt + 1);
       } else {
-        console.error(`💥 ${source} sync failed after ${this.maxRetries} attempts`);
+        log.error(`💥 ${source} sync failed after ${this.maxRetries} attempts`);
         await this.notifyFailure(source, error);
         return false;
       }
@@ -88,7 +91,7 @@ export class ProductionDataSyncService {
       const result = await this.liveDataService.syncTexasEthicsCommission();
       return result?.success ? result : null;
     } catch (error: any) {
-      console.error('Texas Ethics Commission sync error:', error);
+      log.error({ err: error }, 'Texas Ethics Commission sync error');
       throw error;
     }
   }
@@ -98,7 +101,7 @@ export class ProductionDataSyncService {
       const result = await this.liveDataService.syncFECData();
       return result?.success ? result : null;
     } catch (error: any) {
-      console.error('FEC data sync error:', error);
+      log.error({ err: error }, 'FEC data sync error');
       throw error;
     }
   }
@@ -108,7 +111,7 @@ export class ProductionDataSyncService {
       const result = await this.liveDataService.syncTexasLegislature();
       return result?.success ? result : null;
     } catch (error: any) {
-      console.error('Texas Legislature sync error:', error);
+      log.error({ err: error }, 'Texas Legislature sync error');
       throw error;
     }
   }
@@ -118,7 +121,7 @@ export class ProductionDataSyncService {
       const result = await this.liveDataService.syncLegiScanAPI();
       return result?.success ? result : null;
     } catch (error: any) {
-      console.error('LegiScan API sync error:', error);
+      log.error({ err: error }, 'LegiScan API sync error');
       throw error;
     }
   }
@@ -145,7 +148,7 @@ export class ProductionDataSyncService {
 
   private async notifyFailure(source: string, error: any) {
     // Log critical failure for monitoring
-    console.error(`🚨 CRITICAL: ${source} sync failed permanently:`, {
+    log.error(`🚨 CRITICAL: ${source} sync failed permanently:`, {
       source,
       error: error.message,
       timestamp: new Date().toISOString(),
@@ -168,7 +171,7 @@ export class ProductionDataSyncService {
 
   // Force immediate sync of all sources
   public async forceFullSync(): Promise<{ [key: string]: boolean }> {
-    console.log('🔄 Starting forced full sync of all data sources...');
+    log.info('🔄 Starting forced full sync of all data sources...');
     
     const results = await Promise.allSettled([
       this.syncWithRetry('texas-ethics', () => this.syncTexasEthicsData()),
@@ -184,13 +187,13 @@ export class ProductionDataSyncService {
       syncResults[sources[index]] = result.status === 'fulfilled' && result.value === true;
     });
 
-    console.log('📊 Full sync completed:', syncResults);
+    log.info({ detail: syncResults }, '📊 Full sync completed');
     return syncResults;
   }
 
   public stopSync() {
     this.isRunning = false;
-    console.log('⏹️ Production data sync stopped');
+    log.info('⏹️ Production data sync stopped');
   }
 }
 

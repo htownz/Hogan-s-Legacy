@@ -10,6 +10,9 @@ import {
 import { isAuthenticated } from './auth';
 import { CustomRequest } from './types';
 import { z } from 'zod';
+import { createLogger } from "./logger";
+const log = createLogger("routes-feed");
+
 
 const feedStorage = new FeedStorage();
 
@@ -29,7 +32,7 @@ export function registerFeedRoutes(app: Express): void {
       
       res.status(200).json(feed);
     } catch (error: any) {
-      console.error('[GET /api/feed]', error);
+      log.error({ err: error }, '[GET /api/feed]');
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -47,7 +50,7 @@ export function registerFeedRoutes(app: Express): void {
       
       res.status(200).json(feed);
     } catch (error: any) {
-      console.error('[GET /api/feed/personalized]', error);
+      log.error({ err: error }, '[GET /api/feed/personalized]');
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -65,7 +68,7 @@ export function registerFeedRoutes(app: Express): void {
       
       res.status(200).json(feed);
     } catch (error: any) {
-      console.error(`[GET /api/feed/type/${req.params.type}]`, error);
+      log.error({ err: error }, `[GET /api/feed/type/${req.params.type}]`);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -81,7 +84,7 @@ export function registerFeedRoutes(app: Express): void {
       
       res.status(200).json(posts);
     } catch (error: any) {
-      console.error('[GET /api/feed/featured]', error);
+      log.error({ err: error }, '[GET /api/feed/featured]');
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -104,7 +107,7 @@ export function registerFeedRoutes(app: Express): void {
       
       res.status(200).json(results);
     } catch (error: any) {
-      console.error('[GET /api/feed/search]', error);
+      log.error({ err: error }, '[GET /api/feed/search]');
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -127,7 +130,7 @@ export function registerFeedRoutes(app: Express): void {
       
       res.status(200).json(posts);
     } catch (error: any) {
-      console.error('[GET /api/feed/tags]', error);
+      log.error({ err: error }, '[GET /api/feed/tags]');
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -147,7 +150,7 @@ export function registerFeedRoutes(app: Express): void {
       
       res.status(200).json(post);
     } catch (error: any) {
-      console.error(`[GET /api/feed/posts/${req.params.id}]`, error);
+      log.error({ err: error }, `[GET /api/feed/posts/${req.params.id}]`);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -172,7 +175,7 @@ export function registerFeedRoutes(app: Express): void {
         return res.status(400).json({ error: error.errors });
       }
       
-      console.error('[POST /api/feed/posts]', error);
+      log.error({ err: error }, '[POST /api/feed/posts]');
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -205,7 +208,7 @@ export function registerFeedRoutes(app: Express): void {
         return res.status(400).json({ error: error.errors });
       }
       
-      console.error(`[PATCH /api/feed/posts/${req.params.id}]`, error);
+      log.error({ err: error }, `[PATCH /api/feed/posts/${req.params.id}]`);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -232,7 +235,7 @@ export function registerFeedRoutes(app: Express): void {
       
       res.status(204).send();
     } catch (error: any) {
-      console.error(`[DELETE /api/feed/posts/${req.params.id}]`, error);
+      log.error({ err: error }, `[DELETE /api/feed/posts/${req.params.id}]`);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -250,7 +253,7 @@ export function registerFeedRoutes(app: Express): void {
       
       res.status(200).json(comments);
     } catch (error: any) {
-      console.error(`[GET /api/feed/posts/${req.params.id}/comments]`, error);
+      log.error({ err: error }, `[GET /api/feed/posts/${req.params.id}/comments]`);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -284,7 +287,7 @@ export function registerFeedRoutes(app: Express): void {
         return res.status(400).json({ error: error.errors });
       }
       
-      console.error(`[POST /api/feed/posts/${req.params.id}/comments]`, error);
+      log.error({ err: error }, `[POST /api/feed/posts/${req.params.id}/comments]`);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -302,7 +305,7 @@ export function registerFeedRoutes(app: Express): void {
       
       res.status(200).json(replies);
     } catch (error: any) {
-      console.error(`[GET /api/feed/comments/${req.params.id}/replies]`, error);
+      log.error({ err: error }, `[GET /api/feed/comments/${req.params.id}/replies]`);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -336,7 +339,7 @@ export function registerFeedRoutes(app: Express): void {
         return res.status(400).json({ error: error.errors });
       }
       
-      console.error(`[PATCH /api/feed/comments/${req.params.id}]`, error);
+      log.error({ err: error }, `[PATCH /api/feed/comments/${req.params.id}]`);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -364,7 +367,7 @@ export function registerFeedRoutes(app: Express): void {
       
       res.status(204).send();
     } catch (error: any) {
-      console.error(`[DELETE /api/feed/comments/${req.params.id}]`, error);
+      log.error({ err: error }, `[DELETE /api/feed/comments/${req.params.id}]`);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -380,7 +383,7 @@ export function registerFeedRoutes(app: Express): void {
       
       res.status(200).json(reactions);
     } catch (error: any) {
-      console.error(`[GET /api/feed/posts/${req.params.id}/reactions]`, error);
+      log.error({ err: error }, `[GET /api/feed/posts/${req.params.id}/reactions]`);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -397,7 +400,7 @@ export function registerFeedRoutes(app: Express): void {
       
       res.status(200).json(reaction || { type: null });
     } catch (error: any) {
-      console.error(`[GET /api/feed/posts/${req.params.id}/reactions/me]`, error);
+      log.error({ err: error }, `[GET /api/feed/posts/${req.params.id}/reactions/me]`);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -424,7 +427,7 @@ export function registerFeedRoutes(app: Express): void {
         return res.status(400).json({ error: error.errors });
       }
       
-      console.error(`[POST /api/feed/posts/${req.params.id}/reactions]`, error);
+      log.error({ err: error }, `[POST /api/feed/posts/${req.params.id}/reactions]`);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -440,7 +443,7 @@ export function registerFeedRoutes(app: Express): void {
       
       res.status(200).json(interests || { topics: [], representatives: [], locations: [], committees: [] });
     } catch (error: any) {
-      console.error('[GET /api/feed/interests]', error);
+      log.error({ err: error }, '[GET /api/feed/interests]');
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -465,7 +468,7 @@ export function registerFeedRoutes(app: Express): void {
         return res.status(400).json({ error: error.errors });
       }
       
-      console.error('[POST /api/feed/interests]', error);
+      log.error({ err: error }, '[POST /api/feed/interests]');
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -490,7 +493,7 @@ export function registerFeedRoutes(app: Express): void {
         return res.status(400).json({ error: error.errors });
       }
       
-      console.error('[POST /api/feed/interactions]', error);
+      log.error({ err: error }, '[POST /api/feed/interactions]');
       res.status(500).json({ error: 'Internal server error' });
     }
   });

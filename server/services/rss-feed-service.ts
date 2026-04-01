@@ -8,6 +8,9 @@ import {
 } from "@shared/schema-legislative-updates";
 import { db } from "../db";
 import { eq, or, ilike } from "drizzle-orm";
+import { createLogger } from "../logger";
+const log = createLogger("rss-feed-service");
+
 
 // RSS Feed URLs
 const RSS_FEEDS = [
@@ -102,7 +105,7 @@ async function fetchRssFeed(url: string, category: string, sourceName: string) {
     const parsedXml = await parseStringPromise(response.data);
     
     if (!parsedXml.rss || !parsedXml.rss.channel || !parsedXml.rss.channel[0].item) {
-      console.log(`No items found in RSS feed: ${url}`);
+      log.info(`No items found in RSS feed: ${url}`);
       return [];
     }
     
@@ -130,14 +133,14 @@ async function fetchRssFeed(url: string, category: string, sourceName: string) {
     
     return updates;
   } catch (error: any) {
-    console.error(`Error fetching RSS feed from ${url}:`, error);
+    log.error({ err: error }, `Error fetching RSS feed from ${url}`);
     return [];
   }
 }
 
 // Function to refresh RSS feeds
 export async function refreshRssFeeds() {
-  console.log("Starting RSS feed update");
+  log.info("Starting RSS feed update");
   
   try {
     let totalUpdates = 0;
@@ -166,35 +169,35 @@ export async function refreshRssFeeds() {
               totalUpdates++;
             }
           } catch (error: any) {
-            console.error("Error saving individual update:", error);
+            log.error({ err: error }, "Error saving individual update");
           }
         }
       } catch (feedError: any) {
-        console.error(`Error processing feed ${feed.url}:`, feedError);
+        log.error({ err: feedError }, `Error processing feed ${feed.url}`);
       }
     }
     
-    console.log(`RSS feed update completed. Added ${totalUpdates} new updates`);
+    log.info(`RSS feed update completed. Added ${totalUpdates} new updates`);
     return totalUpdates;
   } catch (error: any) {
-    console.error("Error refreshing RSS feeds:", error);
+    log.error({ err: error }, "Error refreshing RSS feeds");
     throw error;
   }
 }
 
 // Function to schedule periodic refresh
 export function scheduleRssFeedRefresh(intervalMinutes = 60) {
-  console.log(`RSS feed refresh temporarily disabled to fix server issues`);
+  log.info(`RSS feed refresh temporarily disabled to fix server issues`);
   
   // Disabled initial refresh
   // refreshRssFeeds().catch(error => {
-  //   console.error("Error in initial RSS feed refresh:", error);
+  //   log.error({ err: error }, "Error in initial RSS feed refresh");
   // });
   
   // Scheduled refreshes (disabled)
   // setInterval(() => {
   //   refreshRssFeeds().catch(error => {
-  //     console.error("Error in scheduled RSS feed refresh:", error);
+  //     log.error({ err: error }, "Error in scheduled RSS feed refresh");
   //   });
   // }, intervalMinutes * 60 * 1000);
 }

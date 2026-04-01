@@ -1,6 +1,9 @@
 import express from 'express';
 import multer from 'multer';
 import { legiScanDataImporter } from './services/legiscan-data-importer';
+import { createLogger } from "./logger";
+const log = createLogger("routes-legiscan-importer");
+
 
 const router = express.Router();
 
@@ -25,7 +28,7 @@ const upload = multer({
  */
 router.post('/api/legiscan/upload', upload.array('files'), async (req, res) => {
   try {
-    console.log('📁 Processing LegiScan file upload...');
+    log.info('📁 Processing LegiScan file upload...');
     
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({
@@ -57,7 +60,7 @@ router.post('/api/legiscan/upload', upload.array('files'), async (req, res) => {
       }
     }
 
-    console.log(`✅ Uploaded ${uploadResults.filter(r => r.success).length} files successfully`);
+    log.info(`✅ Uploaded ${uploadResults.filter(r => r.success).length} files successfully`);
 
     res.json({
       success: true,
@@ -66,7 +69,7 @@ router.post('/api/legiscan/upload', upload.array('files'), async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Upload error:', error.message);
+    log.error({ err: error.message }, '❌ Upload error');
     res.status(500).json({
       success: false,
       message: error.message
@@ -79,11 +82,11 @@ router.post('/api/legiscan/upload', upload.array('files'), async (req, res) => {
  */
 router.post('/api/legiscan/import', async (req, res) => {
   try {
-    console.log('🚀 Starting LegiScan data import...');
+    log.info('🚀 Starting LegiScan data import...');
     
     const results = await legiScanDataImporter.importLegiScanData();
     
-    console.log(`✅ Import completed: ${results.billsImported} bills, ${results.legislatorsImported} legislators`);
+    log.info(`✅ Import completed: ${results.billsImported} bills, ${results.legislatorsImported} legislators`);
     
     res.json({
       success: results.success,
@@ -98,7 +101,7 @@ router.post('/api/legiscan/import', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Import error:', error.message);
+    log.error({ err: error.message }, '❌ Import error');
     res.status(500).json({
       success: false,
       message: error.message
@@ -119,7 +122,7 @@ router.get('/api/legiscan/stats', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Stats error:', error.message);
+    log.error({ err: error.message }, '❌ Stats error');
     res.status(500).json({
       success: false,
       message: error.message

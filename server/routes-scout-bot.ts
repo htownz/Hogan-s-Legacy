@@ -26,6 +26,9 @@ import {
   insertScoutBotMediaMentionSchema,
   insertScoutBotProfileSchema,
 } from "../shared/schema-scout-bot";
+import { createLogger } from "./logger";
+const log = createLogger("routes-scout-bot");
+
 
 /**
  * Register Scout Bot API routes
@@ -52,7 +55,7 @@ export function registerScoutBotRoutes(app: Express) {
         },
       });
     } catch (error: any) {
-      console.error("Error fetching scout bot profiles:", error);
+      log.error({ err: error }, "Error fetching scout bot profiles");
       res.status(500).json({ error: "Failed to fetch scout bot profiles" });
     }
   });
@@ -81,7 +84,7 @@ export function registerScoutBotRoutes(app: Express) {
         },
       });
     } catch (error: any) {
-      console.error("Error searching scout bot profiles:", error);
+      log.error({ err: error }, "Error searching scout bot profiles");
       res.status(500).json({ error: "Failed to search scout bot profiles" });
     }
   });
@@ -94,7 +97,7 @@ export function registerScoutBotRoutes(app: Express) {
       const statistics = await getScoutBotStatistics();
       res.json(statistics);
     } catch (error: any) {
-      console.error("Error fetching scout bot statistics:", error);
+      log.error({ err: error }, "Error fetching scout bot statistics");
       res.status(500).json({ error: "Failed to fetch scout bot statistics" });
     }
   });
@@ -113,7 +116,7 @@ export function registerScoutBotRoutes(app: Express) {
       
       res.json(result);
     } catch (error: any) {
-      console.error("Error fetching scout bot profile:", error);
+      log.error({ err: error }, "Error fetching scout bot profile");
       res.status(500).json({ error: "Failed to fetch scout bot profile" });
     }
   });
@@ -128,7 +131,7 @@ export function registerScoutBotRoutes(app: Express) {
       const profile = await createScoutBotProfile(validatedData);
       res.status(201).json(profile);
     } catch (error: any) {
-      console.error("Error creating scout bot profile:", error);
+      log.error({ err: error }, "Error creating scout bot profile");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -156,7 +159,7 @@ export function registerScoutBotRoutes(app: Express) {
       const updatedProfile = await updateScoutBotProfile(id, validatedData);
       res.json(updatedProfile);
     } catch (error: any) {
-      console.error("Error updating scout bot profile:", error);
+      log.error({ err: error }, "Error updating scout bot profile");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -190,7 +193,7 @@ export function registerScoutBotRoutes(app: Express) {
       
       res.json(updatedProfile);
     } catch (error: any) {
-      console.error("Error updating scout bot profile status:", error);
+      log.error({ err: error }, "Error updating scout bot profile status");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -219,7 +222,7 @@ export function registerScoutBotRoutes(app: Express) {
         res.status(500).json({ error: "Failed to delete scout bot profile" });
       }
     } catch (error: any) {
-      console.error("Error deleting scout bot profile:", error);
+      log.error({ err: error }, "Error deleting scout bot profile");
       res.status(500).json({ error: "Failed to delete scout bot profile" });
     }
   });
@@ -240,7 +243,7 @@ export function registerScoutBotRoutes(app: Express) {
       const affiliations = await getScoutBotAffiliations(id);
       res.json(affiliations);
     } catch (error: any) {
-      console.error("Error fetching scout bot affiliations:", error);
+      log.error({ err: error }, "Error fetching scout bot affiliations");
       res.status(500).json({ error: "Failed to fetch scout bot affiliations" });
     }
   });
@@ -265,7 +268,7 @@ export function registerScoutBotRoutes(app: Express) {
       const affiliation = await addScoutBotAffiliation(validatedData);
       res.status(201).json(affiliation);
     } catch (error: any) {
-      console.error("Error adding scout bot affiliation:", error);
+      log.error({ err: error }, "Error adding scout bot affiliation");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -292,7 +295,7 @@ export function registerScoutBotRoutes(app: Express) {
       
       res.json(updatedAffiliation);
     } catch (error: any) {
-      console.error("Error updating scout bot affiliation:", error);
+      log.error({ err: error }, "Error updating scout bot affiliation");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -314,7 +317,7 @@ export function registerScoutBotRoutes(app: Express) {
         res.status(404).json({ error: "Scout Bot affiliation not found" });
       }
     } catch (error: any) {
-      console.error("Error deleting scout bot affiliation:", error);
+      log.error({ err: error }, "Error deleting scout bot affiliation");
       res.status(500).json({ error: "Failed to delete scout bot affiliation" });
     }
   });
@@ -335,7 +338,7 @@ export function registerScoutBotRoutes(app: Express) {
       const mediaMentions = await getScoutBotMediaMentions(id);
       res.json(mediaMentions);
     } catch (error: any) {
-      console.error("Error fetching scout bot media mentions:", error);
+      log.error({ err: error }, "Error fetching scout bot media mentions");
       res.status(500).json({ error: "Failed to fetch scout bot media mentions" });
     }
   });
@@ -360,7 +363,7 @@ export function registerScoutBotRoutes(app: Express) {
       const mediaMention = await addScoutBotMediaMention(validatedData);
       res.status(201).json(mediaMention);
     } catch (error: any) {
-      console.error("Error adding scout bot media mention:", error);
+      log.error({ err: error }, "Error adding scout bot media mention");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -387,7 +390,7 @@ export function registerScoutBotRoutes(app: Express) {
       
       res.json(updatedMediaMention);
     } catch (error: any) {
-      console.error("Error updating scout bot media mention:", error);
+      log.error({ err: error }, "Error updating scout bot media mention");
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -409,7 +412,7 @@ export function registerScoutBotRoutes(app: Express) {
         res.status(404).json({ error: "Scout Bot media mention not found" });
       }
     } catch (error: any) {
-      console.error("Error deleting scout bot media mention:", error);
+      log.error({ err: error }, "Error deleting scout bot media mention");
       res.status(500).json({ error: "Failed to delete scout bot media mention" });
     }
   });

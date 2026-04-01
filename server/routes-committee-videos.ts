@@ -8,6 +8,9 @@ import { eq, desc, and } from 'drizzle-orm';
 import { isAuthenticated } from './auth';
 import { CustomRequest } from './types';
 import { analyzeCommitteeVideo } from './services/committee-video-analyzer';
+import { createLogger } from "./logger";
+const log = createLogger("routes-committee-videos");
+
 
 // Validation schema for committee video analysis request
 const videoAnalysisSchema = z.object({
@@ -64,7 +67,7 @@ export function registerCommitteeVideoRoutes(app: Express): void {
       
       res.json(meetings);
     } catch (error: any) {
-      console.error("Error fetching committee meetings:", error);
+      log.error({ err: error }, "Error fetching committee meetings");
       res.status(500).json({ message: "Error fetching committee meetings" });
     }
   });
@@ -87,7 +90,7 @@ export function registerCommitteeVideoRoutes(app: Express): void {
       
       res.json(meeting);
     } catch (error: any) {
-      console.error("Error fetching committee meeting:", error);
+      log.error({ err: error }, "Error fetching committee meeting");
       res.status(500).json({ message: "Error fetching committee meeting" });
     }
   });
@@ -133,7 +136,7 @@ export function registerCommitteeVideoRoutes(app: Express): void {
       
       res.json(filteredSegments);
     } catch (error: any) {
-      console.error("Error fetching meeting segments:", error);
+      log.error({ err: error }, "Error fetching meeting segments");
       res.status(500).json({ message: "Error fetching meeting segments" });
     }
   });
@@ -198,10 +201,10 @@ export function registerCommitteeVideoRoutes(app: Express): void {
             })
             .where(eq(committeeMeetings.id, meetingId));
             
-          console.log(`Successfully analyzed video for meeting ${meetingId}`);
+          log.info(`Successfully analyzed video for meeting ${meetingId}`);
         })
         .catch(async (error) => {
-          console.error(`Error analyzing video for meeting ${meetingId}:`, error);
+          log.error({ err: error }, `Error analyzing video for meeting ${meetingId}`);
           
           // Update status to failed
           await db.update(committeeMeetings)
@@ -221,7 +224,7 @@ export function registerCommitteeVideoRoutes(app: Express): void {
         status: "processing"
       });
     } catch (error: any) {
-      console.error("Error initiating video analysis:", error);
+      log.error({ err: error }, "Error initiating video analysis");
       return res.status(500).json({ 
         message: "Failed to initiate video analysis",
         error: error instanceof Error ? error.message : "Unknown error"
@@ -307,7 +310,7 @@ export function registerCommitteeVideoRoutes(app: Express): void {
         publicTestimonyPercentage: Math.round(publicTestimonyPercentage)
       });
     } catch (error: any) {
-      console.error("Error fetching segment statistics:", error);
+      log.error({ err: error }, "Error fetching segment statistics");
       res.status(500).json({ message: "Error fetching segment statistics" });
     }
   });
@@ -402,7 +405,7 @@ export function registerCommitteeVideoRoutes(app: Express): void {
         results: formattedResults
       });
     } catch (error: any) {
-      console.error("Error searching committee meeting segments:", error);
+      log.error({ err: error }, "Error searching committee meeting segments");
       res.status(500).json({ message: "Error searching committee meeting segments" });
     }
   });

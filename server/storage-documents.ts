@@ -21,6 +21,9 @@ import {
 import { and, eq, sql, desc, asc, like, isNull, inArray, or } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 import { s3Service } from "./aws/s3Service";
+import { createLogger } from "./logger";
+const log = createLogger("storage-documents");
+
 
 /**
  * Document Storage Interface
@@ -142,7 +145,7 @@ class DocumentStorage implements IDocumentStorage {
     try {
       await s3Service.deleteFile(document.fileKey);
     } catch (error: any) {
-      console.error('Error deleting file from S3:', error);
+      log.error({ err: error }, 'Error deleting file from S3');
       // Continue anyway to delete the database record
     }
 

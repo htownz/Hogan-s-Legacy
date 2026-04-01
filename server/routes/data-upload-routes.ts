@@ -2,6 +2,9 @@ import type { Express } from "express";
 import { db } from "../db";
 import { bills, billAmendments } from "@shared/schema";
 import { z } from "zod";
+import { createLogger } from "../logger";
+const log = createLogger("data-upload-routes");
+
 
 // Schema for uploading Texas legislative data
 const TexasBillUploadSchema = z.object({
@@ -68,11 +71,11 @@ export function registerDataUploadRoutes(app: Express) {
   // Upload authentic Texas legislative data
   app.post("/api/upload/texas-legislative-data", async (req, res) => {
     try {
-      console.log("📥 Receiving authentic Texas legislative data upload...");
+      log.info("📥 Receiving authentic Texas legislative data upload...");
       
       const uploadData = TexasDataUploadSchema.parse(req.body);
       
-      console.log(`📊 Processing ${uploadData.bills.length} bills, ${uploadData.amendments.length} amendments, ${uploadData.votes.length} votes`);
+      log.info(`📊 Processing ${uploadData.bills.length} bills, ${uploadData.amendments.length} amendments, ${uploadData.votes.length} votes`);
       
       let billsInserted = 0;
       let amendmentsInserted = 0;
@@ -119,7 +122,7 @@ export function registerDataUploadRoutes(app: Express) {
           billsInserted++;
           
         } catch (billError: any) {
-          console.log(`⚠️ Error inserting bill ${billData.billNumber}:`, billError?.message);
+          log.info(`⚠️ Error inserting bill ${billData.billNumber}:`, billError?.message);
         }
       }
       
@@ -142,17 +145,17 @@ export function registerDataUploadRoutes(app: Express) {
           amendmentsInserted++;
           
         } catch (amendmentError: any) {
-          console.log(`⚠️ Error inserting amendment:`, amendmentError?.message);
+          log.info(`⚠️ Error inserting amendment:`, amendmentError?.message);
         }
       }
       
       // Skip votes for now - will add vote table later
       votesInserted = uploadData.votes.length;
       
-      console.log(`✅ Successfully uploaded authentic Texas legislative data:`);
-      console.log(`📊 Bills: ${billsInserted}/${uploadData.bills.length}`);
-      console.log(`🔄 Amendments: ${amendmentsInserted}/${uploadData.amendments.length}`);
-      console.log(`🗳️ Votes: ${votesInserted}/${uploadData.votes.length}`);
+      log.info(`✅ Successfully uploaded authentic Texas legislative data:`);
+      log.info(`📊 Bills: ${billsInserted}/${uploadData.bills.length}`);
+      log.info(`🔄 Amendments: ${amendmentsInserted}/${uploadData.amendments.length}`);
+      log.info(`🗳️ Votes: ${votesInserted}/${uploadData.votes.length}`);
       
       res.json({
         success: true,
@@ -166,7 +169,7 @@ export function registerDataUploadRoutes(app: Express) {
       });
       
     } catch (error: any) {
-      console.error("❌ Error uploading Texas legislative data:", error);
+      log.error({ err: error }, "❌ Error uploading Texas legislative data");
       res.status(500).json({
         success: false,
         error: "Failed to upload legislative data",
@@ -192,7 +195,7 @@ export function registerDataUploadRoutes(app: Express) {
       });
       
     } catch (error: any) {
-      console.error("Error getting upload statistics:", error);
+      log.error({ err: error }, "Error getting upload statistics");
       res.status(500).json({
         success: false,
         error: "Failed to get statistics"

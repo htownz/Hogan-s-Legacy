@@ -1,6 +1,9 @@
 import express from 'express';
 import { Request, Response } from 'express';
 import { comprehensiveTexasScraper } from './services/comprehensive-texas-scraper';
+import { createLogger } from "./logger";
+const log = createLogger("routes-comprehensive-texas-scraper");
+
 
 const router = express.Router();
 
@@ -12,7 +15,7 @@ const router = express.Router();
 // Start comprehensive data collection
 router.post('/api/texas-scraper/collect-all', async (req: Request, res: Response) => {
   try {
-    console.log('🚀 Starting comprehensive Texas Legislature data collection...');
+    log.info('🚀 Starting comprehensive Texas Legislature data collection...');
     
     const result = await comprehensiveTexasScraper.performComprehensiveCollection();
     
@@ -45,7 +48,7 @@ router.post('/api/texas-scraper/collect-all', async (req: Request, res: Response
     });
 
   } catch (error: any) {
-    console.error('❌ Error in comprehensive collection:', error.message);
+    log.error({ err: error.message }, '❌ Error in comprehensive collection');
     res.status(500).json({
       success: false,
       error: 'Failed to collect comprehensive Texas legislative data',
@@ -58,7 +61,7 @@ router.post('/api/texas-scraper/collect-all', async (req: Request, res: Response
 // Get scraper status and capabilities
 router.get('/api/texas-scraper/status', async (req: Request, res: Response) => {
   try {
-    console.log('📊 Checking comprehensive Texas scraper status...');
+    log.info('📊 Checking comprehensive Texas scraper status...');
     
     res.json({
       success: true,
@@ -98,7 +101,7 @@ router.get('/api/texas-scraper/status', async (req: Request, res: Response) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Error checking scraper status:', error.message);
+    log.error({ err: error.message }, '❌ Error checking scraper status');
     res.status(500).json({
       success: false,
       error: 'Failed to check scraper status',
@@ -109,5 +112,5 @@ router.get('/api/texas-scraper/status', async (req: Request, res: Response) => {
 
 export function registerComprehensiveTexasScraperRoutes(app: express.Application) {
   app.use(router);
-  console.log('🏛️ Comprehensive Texas Legislature Scraper routes registered successfully!');
+  log.info('🏛️ Comprehensive Texas Legislature Scraper routes registered successfully!');
 }

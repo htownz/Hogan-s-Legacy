@@ -11,6 +11,9 @@ import {
   type BillSuggestionComment,
   type InsertBillSuggestionComment
 } from "@shared/schema-community-suggestions";
+import { createLogger } from "./logger";
+const log = createLogger("storage-community-suggestions");
+
 
 class CommunityStorage {
   // ===== SUGGESTIONS =====
@@ -140,7 +143,7 @@ class CommunityStorage {
       
       return true;
     } catch (error: any) {
-      console.error('Error deleting suggestion:', error);
+      log.error({ err: error }, 'Error deleting suggestion');
       return false;
     }
   }
@@ -201,7 +204,7 @@ class CommunityStorage {
       
       return true;
     } catch (error: any) {
-      console.error('Error removing upvote:', error);
+      log.error({ err: error }, 'Error removing upvote');
       return false;
     }
   }
@@ -301,7 +304,7 @@ class CommunityStorage {
       
       return true;
     } catch (error: any) {
-      console.error('Error deleting comment:', error);
+      log.error({ err: error }, 'Error deleting comment');
       return false;
     }
   }

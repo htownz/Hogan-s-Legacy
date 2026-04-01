@@ -9,6 +9,9 @@ import {
   InsertSentimentTrigger,
   InsertUserSentimentVote
 } from '../shared/schema-sentiment';
+import { createLogger } from "./logger";
+const log = createLogger("storage-sentiment");
+
 
 /**
  * Interface for sentiment visualization storage operations
@@ -74,7 +77,7 @@ export class SentimentStorage implements ISentimentStorage {
       const result = await pool.query(query, queryParams);
       return result.rows;
     } catch (error: any) {
-      console.error('Error in getBillSentimentSnapshots:', error);
+      log.error({ err: error }, 'Error in getBillSentimentSnapshots');
       return [];
     }
   }
@@ -90,7 +93,7 @@ export class SentimentStorage implements ISentimentStorage {
       const result = await pool.query(query, [id]);
       return result.rows.length > 0 ? result.rows[0] : undefined;
     } catch (error: any) {
-      console.error('Error in getBillSentimentSnapshotById:', error);
+      log.error({ err: error }, 'Error in getBillSentimentSnapshotById');
       return undefined;
     }
   }
@@ -138,7 +141,7 @@ export class SentimentStorage implements ISentimentStorage {
       
       return result.rows[0];
     } catch (error: any) {
-      console.error('Error in createBillSentimentSnapshot:', error);
+      log.error({ err: error }, 'Error in createBillSentimentSnapshot');
       throw error;
     }
   }
@@ -186,7 +189,7 @@ export class SentimentStorage implements ISentimentStorage {
       const result = await pool.query(query, queryParams);
       return result.rows;
     } catch (error: any) {
-      console.error('Error in getDemographicSentimentBreakdowns:', error);
+      log.error({ err: error }, 'Error in getDemographicSentimentBreakdowns');
       return [];
     }
   }
@@ -202,7 +205,7 @@ export class SentimentStorage implements ISentimentStorage {
       const result = await pool.query(query, [id]);
       return result.rows.length > 0 ? result.rows[0] : undefined;
     } catch (error: any) {
-      console.error('Error in getDemographicSentimentBreakdownById:', error);
+      log.error({ err: error }, 'Error in getDemographicSentimentBreakdownById');
       return undefined;
     }
   }
@@ -241,7 +244,7 @@ export class SentimentStorage implements ISentimentStorage {
       
       return result.rows[0];
     } catch (error: any) {
-      console.error('Error in createDemographicSentimentBreakdown:', error);
+      log.error({ err: error }, 'Error in createDemographicSentimentBreakdown');
       throw error;
     }
   }
@@ -274,7 +277,7 @@ export class SentimentStorage implements ISentimentStorage {
       const result = await pool.query(query, queryParams);
       return result.rows;
     } catch (error: any) {
-      console.error('Error in getSentimentTriggers:', error);
+      log.error({ err: error }, 'Error in getSentimentTriggers');
       return [];
     }
   }
@@ -290,7 +293,7 @@ export class SentimentStorage implements ISentimentStorage {
       const result = await pool.query(query, [id]);
       return result.rows.length > 0 ? result.rows[0] : undefined;
     } catch (error: any) {
-      console.error('Error in getSentimentTriggerById:', error);
+      log.error({ err: error }, 'Error in getSentimentTriggerById');
       return undefined;
     }
   }
@@ -332,7 +335,7 @@ export class SentimentStorage implements ISentimentStorage {
       
       return result.rows[0];
     } catch (error: any) {
-      console.error('Error in createSentimentTrigger:', error);
+      log.error({ err: error }, 'Error in createSentimentTrigger');
       throw error;
     }
   }
@@ -358,7 +361,7 @@ export class SentimentStorage implements ISentimentStorage {
       const result = await pool.query(query, queryParams);
       return result.rows;
     } catch (error: any) {
-      console.error('Error in getUserSentimentVotes:', error);
+      log.error({ err: error }, 'Error in getUserSentimentVotes');
       return [];
     }
   }
@@ -374,7 +377,7 @@ export class SentimentStorage implements ISentimentStorage {
       const result = await pool.query(query, [id]);
       return result.rows.length > 0 ? result.rows[0] : undefined;
     } catch (error: any) {
-      console.error('Error in getUserSentimentVoteById:', error);
+      log.error({ err: error }, 'Error in getUserSentimentVoteById');
       return undefined;
     }
   }
@@ -425,7 +428,7 @@ export class SentimentStorage implements ISentimentStorage {
       
       return result.rows[0];
     } catch (error: any) {
-      console.error('Error in createUserSentimentVote:', error);
+      log.error({ err: error }, 'Error in createUserSentimentVote');
       throw error;
     }
   }
@@ -468,7 +471,7 @@ export class SentimentStorage implements ISentimentStorage {
       const result = await pool.query(query, queryParams);
       return result.rows.length > 0 ? result.rows[0] : undefined;
     } catch (error: any) {
-      console.error('Error in updateUserSentimentVote:', error);
+      log.error({ err: error }, 'Error in updateUserSentimentVote');
       return undefined;
     }
   }
@@ -491,7 +494,7 @@ export class SentimentStorage implements ISentimentStorage {
         communityEngagement: snapshot.communityEngagement
       }));
     } catch (error: any) {
-      console.error('Error in getBillSentimentOverTime:', error);
+      log.error({ err: error }, 'Error in getBillSentimentOverTime');
       return [];
     }
   }
@@ -522,7 +525,7 @@ export class SentimentStorage implements ISentimentStorage {
         values: groupedBreakdowns[group]
       }));
     } catch (error: any) {
-      console.error('Error in getDemographicSentimentComparison:', error);
+      log.error({ err: error }, 'Error in getDemographicSentimentComparison');
       return [];
     }
   }
@@ -554,7 +557,7 @@ export class SentimentStorage implements ISentimentStorage {
       
       return correlations;
     } catch (error: any) {
-      console.error('Error in getSentimentCorrelations:', error);
+      log.error({ err: error }, 'Error in getSentimentCorrelations');
       return {
         triggerImpact: [],
         sentimentTrends: {}

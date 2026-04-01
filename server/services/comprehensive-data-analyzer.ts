@@ -7,6 +7,9 @@
 
 import { storage } from '../storage';
 import Anthropic from '@anthropic-ai/sdk';
+import { createLogger } from "../logger";
+const log = createLogger("comprehensive-data-analyzer");
+
 
 interface BillAnalysis {
   billId: string;
@@ -71,7 +74,7 @@ export class ComprehensiveDataAnalyzer {
 
   constructor() {
     if (!process.env.ANTHROPIC_API_KEY) {
-      console.warn('⚠️ ANTHROPIC_API_KEY not found - AI analysis will be limited');
+      log.warn('⚠️ ANTHROPIC_API_KEY not found - AI analysis will be limited');
       return;
     }
     
@@ -89,7 +92,7 @@ export class ComprehensiveDataAnalyzer {
       throw new Error(`Bill ${billId} not found`);
     }
 
-    console.log(`🔍 Starting comprehensive analysis for bill: ${bill.title}`);
+    log.info(`🔍 Starting comprehensive analysis for bill: ${bill.title}`);
 
     // Analyze bill language with AI
     const languageAnalysis = await this.analyzeBillLanguage(bill);
@@ -147,11 +150,11 @@ Provide analysis in JSON format:
       const content = response.content[0];
       if (content.type === 'text') {
         const analysis = JSON.parse(content.text);
-        console.log(`✅ AI analysis completed for bill: ${bill.title}`);
+        log.info(`✅ AI analysis completed for bill: ${bill.title}`);
         return analysis;
       }
     } catch (error: any) {
-      console.warn(`⚠️ AI analysis failed for bill ${bill.id}:`, error);
+      log.warn({ detail: error }, `⚠️ AI analysis failed for bill ${bill.id}`);
       return this.getBasicLanguageAnalysis(bill);
     }
 
@@ -307,7 +310,7 @@ Provide analysis in JSON format:
         }));
       }
     } catch (error: any) {
-      console.log(`ℹ️ No amendments found for bill ${billId}`);
+      log.info(`ℹ️ No amendments found for bill ${billId}`);
     }
 
     return []; // No amendments found
@@ -356,7 +359,7 @@ Provide analysis in JSON format:
         );
       }
     } catch (error: any) {
-      console.log(`ℹ️ Campaign finance analysis limited for bill ${bill.id}`);
+      log.info(`ℹ️ Campaign finance analysis limited for bill ${bill.id}`);
     }
 
     return connections;
@@ -471,7 +474,7 @@ Provide analysis in JSON format:
       throw new Error(`Legislator ${legislatorId} not found`);
     }
 
-    console.log(`🔍 Starting comprehensive analysis for legislator: ${legislator.name}`);
+    log.info(`🔍 Starting comprehensive analysis for legislator: ${legislator.name}`);
 
     // Analyze voting patterns
     const votingPatterns = await this.analyzeVotingPatterns(legislatorId);
@@ -522,7 +525,7 @@ Provide analysis in JSON format:
         keyIssues
       };
     } catch (error: any) {
-      console.log(`ℹ️ Voting pattern analysis limited for legislator ${legislatorId}`);
+      log.info(`ℹ️ Voting pattern analysis limited for legislator ${legislatorId}`);
       return {
         partyAlignment: 0,
         independentVotes: 0,
@@ -593,7 +596,7 @@ Provide analysis in JSON format:
         expenditures: [] // Would need additional data source for expenditures
       };
     } catch (error: any) {
-      console.log(`ℹ️ Campaign finance analysis limited for legislator ${legislatorId}`);
+      log.info(`ℹ️ Campaign finance analysis limited for legislator ${legislatorId}`);
       return {
         topDonors: [],
         industryBreakdown: [],
@@ -678,7 +681,7 @@ Provide analysis in JSON format:
         bipartisanEfforts
       };
     } catch (error: any) {
-      console.log(`ℹ️ Bill sponsorship analysis limited for legislator ${legislatorId}`);
+      log.info(`ℹ️ Bill sponsorship analysis limited for legislator ${legislatorId}`);
       return {
         totalBills: 0,
         passageRate: 0,

@@ -2,6 +2,9 @@
 import { Request, Response } from "express";
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
+import { createLogger } from "./logger";
+const log = createLogger("routes-amendment-playground");
+
 
 // Mock amendments data - in production this would be stored in database
 let mockAmendments = [
@@ -61,7 +64,7 @@ export function registerAmendmentPlaygroundRoutes(app: any) {
       
       res.json(amendments);
     } catch (error: any) {
-      console.error("Error fetching amendments:", error);
+      log.error({ err: error }, "Error fetching amendments");
       res.status(500).json({ error: "Failed to fetch amendments" });
     }
   });
@@ -106,7 +109,7 @@ export function registerAmendmentPlaygroundRoutes(app: any) {
 
       res.status(201).json(newAmendment);
     } catch (error: any) {
-      console.error("Error creating amendment:", error);
+      log.error({ err: error }, "Error creating amendment");
       res.status(500).json({ error: "Failed to create amendment" });
     }
   });
@@ -138,7 +141,7 @@ export function registerAmendmentPlaygroundRoutes(app: any) {
 
       res.json(mockAmendments[amendmentIndex]);
     } catch (error: any) {
-      console.error("Error voting on amendment:", error);
+      log.error({ err: error }, "Error voting on amendment");
       res.status(500).json({ error: "Failed to vote on amendment" });
     }
   });
@@ -175,7 +178,7 @@ export function registerAmendmentPlaygroundRoutes(app: any) {
 
       res.status(201).json(newComment);
     } catch (error: any) {
-      console.error("Error adding comment:", error);
+      log.error({ err: error }, "Error adding comment");
       res.status(500).json({ error: "Failed to add comment" });
     }
   });
@@ -204,7 +207,7 @@ export function registerAmendmentPlaygroundRoutes(app: any) {
 
       res.json(mockAmendments[amendmentIndex]);
     } catch (error: any) {
-      console.error("Error updating amendment status:", error);
+      log.error({ err: error }, "Error updating amendment status");
       res.status(500).json({ error: "Failed to update amendment status" });
     }
   });
@@ -222,7 +225,7 @@ export function registerAmendmentPlaygroundRoutes(app: any) {
 
       res.json(amendment);
     } catch (error: any) {
-      console.error("Error fetching amendment:", error);
+      log.error({ err: error }, "Error fetching amendment");
       res.status(500).json({ error: "Failed to fetch amendment" });
     }
   });
@@ -270,7 +273,7 @@ export function registerAmendmentPlaygroundRoutes(app: any) {
 
       res.json(suggestions);
     } catch (error: any) {
-      console.error("Error generating AI suggestions:", error);
+      log.error({ err: error }, "Error generating AI suggestions");
       res.status(500).json({ error: "Failed to generate AI suggestions" });
     }
   });
@@ -305,7 +308,7 @@ export function registerAmendmentPlaygroundRoutes(app: any) {
 
       res.json(stats);
     } catch (error: any) {
-      console.error("Error fetching amendment stats:", error);
+      log.error({ err: error }, "Error fetching amendment stats");
       res.status(500).json({ error: "Failed to fetch amendment statistics" });
     }
   });

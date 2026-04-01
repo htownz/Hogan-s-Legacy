@@ -2,14 +2,17 @@ import type { Express } from "express";
 import { texasLegislatureOnlineCollector } from "./services/texas-legislature-online-collector";
 import { texasGovernmentConnectors } from "./services/texas-government-api-connectors";
 import { aiPoweredAlerts } from "./services/ai-powered-alerts";
+import { createLogger } from "./logger";
+const log = createLogger("routes-real-time-alerts");
+
 
 export function registerRealTimeAlertsRoutes(app: Express) {
-  console.log("🚨 Setting up real-time legislative alert system...");
+  log.info("🚨 Setting up real-time legislative alert system...");
 
   // Real-time legislative alerts endpoint with AI enhancements
   app.get('/api/alerts/real-time-legislative', async (req, res) => {
     try {
-      console.log("🔔 Fetching AI-enhanced real-time legislative alerts...");
+      log.info("🔔 Fetching AI-enhanced real-time legislative alerts...");
       
       const rawAlerts = await generateRealTimeAlerts();
       const enhancedAlerts = await aiPoweredAlerts.enhanceAlertsWithAI(rawAlerts);
@@ -29,7 +32,7 @@ export function registerRealTimeAlertsRoutes(app: Express) {
         aiEnhanced: true
       });
     } catch (error: any) {
-      console.error('Real-time alerts error:', error);
+      log.error({ err: error }, 'Real-time alerts error');
       res.status(500).json({ error: 'Failed to fetch real-time alerts' });
     }
   });
@@ -37,7 +40,7 @@ export function registerRealTimeAlertsRoutes(app: Express) {
   // AI-powered personalized alert feed
   app.post('/api/alerts/personalized-feed', async (req, res) => {
     try {
-      console.log("🎯 Generating AI-powered personalized alert feed...");
+      log.info("🎯 Generating AI-powered personalized alert feed...");
       
       const userPreferences = req.body.preferences || {};
       const personalizedAlerts = await aiPoweredAlerts.generatePersonalizedAlertFeed(userPreferences);
@@ -49,7 +52,7 @@ export function registerRealTimeAlertsRoutes(app: Express) {
         generatedAt: new Date().toISOString()
       });
     } catch (error: any) {
-      console.error('Personalized alerts error:', error);
+      log.error({ err: error }, 'Personalized alerts error');
       res.status(500).json({ error: 'Failed to generate personalized alerts' });
     }
   });
@@ -57,7 +60,7 @@ export function registerRealTimeAlertsRoutes(app: Express) {
   // AI smart insights dashboard with advanced analytics
   app.get('/api/alerts/smart-insights', async (req, res) => {
     try {
-      console.log("📊 Generating AI-powered legislative insights...");
+      log.info("📊 Generating AI-powered legislative insights...");
       
       const alertHistory = await generateRealTimeAlerts();
       const insights = await aiPoweredAlerts.generateSmartAlertInsights(alertHistory);
@@ -74,7 +77,7 @@ export function registerRealTimeAlertsRoutes(app: Express) {
         generatedAt: new Date().toISOString()
       });
     } catch (error: any) {
-      console.error('Smart insights error:', error);
+      log.error({ err: error }, 'Smart insights error');
       res.status(500).json({ error: 'Failed to generate smart insights' });
     }
   });
@@ -82,7 +85,7 @@ export function registerRealTimeAlertsRoutes(app: Express) {
   // Advanced AI predictive analysis endpoint
   app.get('/api/alerts/predictive-analysis', async (req, res) => {
     try {
-      console.log("🔮 Running advanced AI predictive analysis...");
+      log.info("🔮 Running advanced AI predictive analysis...");
       
       const alertHistory = await generateRealTimeAlerts();
       const predictions = await aiPoweredAlerts.predictiveAlertAnalysis(alertHistory);
@@ -93,7 +96,7 @@ export function registerRealTimeAlertsRoutes(app: Express) {
         generatedAt: new Date().toISOString()
       });
     } catch (error: any) {
-      console.error('Predictive analysis error:', error);
+      log.error({ err: error }, 'Predictive analysis error');
       res.status(500).json({ error: 'Failed to run predictive analysis' });
     }
   });
@@ -101,7 +104,7 @@ export function registerRealTimeAlertsRoutes(app: Express) {
   // AI sentiment analysis endpoint
   app.get('/api/alerts/sentiment-analysis', async (req, res) => {
     try {
-      console.log("😊 Analyzing legislative sentiment with AI...");
+      log.info("😊 Analyzing legislative sentiment with AI...");
       
       const alertHistory = await generateRealTimeAlerts();
       const sentiment = await aiPoweredAlerts.sentimentAnalysisOfAlerts(alertHistory);
@@ -112,7 +115,7 @@ export function registerRealTimeAlertsRoutes(app: Express) {
         generatedAt: new Date().toISOString()
       });
     } catch (error: any) {
-      console.error('Sentiment analysis error:', error);
+      log.error({ err: error }, 'Sentiment analysis error');
       res.status(500).json({ error: 'Failed to analyze sentiment' });
     }
   });
@@ -120,7 +123,7 @@ export function registerRealTimeAlertsRoutes(app: Express) {
   // AI alert clustering endpoint
   app.get('/api/alerts/intelligent-clustering', async (req, res) => {
     try {
-      console.log("🧩 AI clustering alerts by intelligence...");
+      log.info("🧩 AI clustering alerts by intelligence...");
       
       const alertHistory = await generateRealTimeAlerts();
       const clusters = await aiPoweredAlerts.intelligentAlertClustering(alertHistory);
@@ -131,7 +134,7 @@ export function registerRealTimeAlertsRoutes(app: Express) {
         generatedAt: new Date().toISOString()
       });
     } catch (error: any) {
-      console.error('Alert clustering error:', error);
+      log.error({ err: error }, 'Alert clustering error');
       res.status(500).json({ error: 'Failed to cluster alerts' });
     }
   });
@@ -139,7 +142,7 @@ export function registerRealTimeAlertsRoutes(app: Express) {
   // Committee meeting alerts
   app.get('/api/alerts/committee-meetings', async (req, res) => {
     try {
-      console.log("📅 Checking for urgent committee meeting updates...");
+      log.info("📅 Checking for urgent committee meeting updates...");
       
       const meetingAlerts = await generateCommitteeMeetingAlerts();
       
@@ -149,7 +152,7 @@ export function registerRealTimeAlertsRoutes(app: Express) {
         collectedAt: new Date().toISOString()
       });
     } catch (error: any) {
-      console.error('Committee meeting alerts error:', error);
+      log.error({ err: error }, 'Committee meeting alerts error');
       res.status(500).json({ error: 'Failed to fetch committee meeting alerts' });
     }
   });
@@ -157,7 +160,7 @@ export function registerRealTimeAlertsRoutes(app: Express) {
   // Bill status alerts
   app.get('/api/alerts/bill-updates', async (req, res) => {
     try {
-      console.log("📋 Monitoring bill status changes...");
+      log.info("📋 Monitoring bill status changes...");
       
       const billAlerts = await generateBillStatusAlerts();
       
@@ -167,7 +170,7 @@ export function registerRealTimeAlertsRoutes(app: Express) {
         collectedAt: new Date().toISOString()
       });
     } catch (error: any) {
-      console.error('Bill status alerts error:', error);
+      log.error({ err: error }, 'Bill status alerts error');
       res.status(500).json({ error: 'Failed to fetch bill status alerts' });
     }
   });
@@ -175,7 +178,7 @@ export function registerRealTimeAlertsRoutes(app: Express) {
   // Voting schedule alerts
   app.get('/api/alerts/voting-schedule', async (req, res) => {
     try {
-      console.log("🗳️ Checking for scheduled votes and deadlines...");
+      log.info("🗳️ Checking for scheduled votes and deadlines...");
       
       const voteAlerts = await generateVotingScheduleAlerts();
       
@@ -185,17 +188,17 @@ export function registerRealTimeAlertsRoutes(app: Express) {
         collectedAt: new Date().toISOString()
       });
     } catch (error: any) {
-      console.error('Voting schedule alerts error:', error);
+      log.error({ err: error }, 'Voting schedule alerts error');
       res.status(500).json({ error: 'Failed to fetch voting schedule alerts' });
     }
   });
 
-  console.log("🚨 Real-time legislative alert routes registered successfully!");
+  log.info("🚨 Real-time legislative alert routes registered successfully!");
 }
 
 // Generate comprehensive real-time alerts from authentic Texas sources
 async function generateRealTimeAlerts() {
-  console.log("🔍 Analyzing Texas Legislature for real-time developments...");
+  log.info("🔍 Analyzing Texas Legislature for real-time developments...");
   
   try {
     // Collect latest legislative data
@@ -272,11 +275,11 @@ async function generateRealTimeAlerts() {
       });
     }
 
-    console.log(`✅ Generated ${alerts.length} real-time alerts from authentic Texas Legislature data`);
+    log.info(`✅ Generated ${alerts.length} real-time alerts from authentic Texas Legislature data`);
     return alerts;
 
   } catch (error: any) {
-    console.error('Error generating real-time alerts:', error);
+    log.error({ err: error }, 'Error generating real-time alerts');
     
     // Return structured alerts based on authentic Texas Legislature patterns
     return [
@@ -309,7 +312,7 @@ async function generateRealTimeAlerts() {
 }
 
 async function generateCommitteeMeetingAlerts() {
-  console.log("📅 Generating committee meeting alerts from Texas Legislature...");
+  log.info("📅 Generating committee meeting alerts from Texas Legislature...");
   
   try {
     const meetingData = await texasLegislatureOnlineCollector.collectCommitteeMeetings();
@@ -327,13 +330,13 @@ async function generateCommitteeMeetingAlerts() {
       isRead: false
     }));
   } catch (error: any) {
-    console.error('Error generating committee meeting alerts:', error);
+    log.error({ err: error }, 'Error generating committee meeting alerts');
     return [];
   }
 }
 
 async function generateBillStatusAlerts() {
-  console.log("📋 Monitoring bill status changes...");
+  log.info("📋 Monitoring bill status changes...");
   
   // This would connect to authentic bill tracking systems
   return [
@@ -353,7 +356,7 @@ async function generateBillStatusAlerts() {
 }
 
 async function generateVotingScheduleAlerts() {
-  console.log("🗳️ Checking voting schedules and deadlines...");
+  log.info("🗳️ Checking voting schedules and deadlines...");
   
   // This would connect to authentic voting calendars
   return [

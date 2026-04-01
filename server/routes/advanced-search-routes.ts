@@ -4,6 +4,9 @@ import { db } from '../db';
 import { eq, like, and, or, desc, asc, inArray, gte, lte, sql } from 'drizzle-orm';
 import { bills } from '../../shared/schema';
 import OpenAI from 'openai';
+import { createLogger } from "../logger";
+const log = createLogger("advanced-search-routes");
+
 
 // Initialize OpenAI client if API key is available
 const openai = process.env.OPENAI_API_KEY 
@@ -214,7 +217,7 @@ export function registerAdvancedSearchRoutes(app: Express): void {
             }
           });
         } catch (error: any) {
-          console.error('Semantic search error:', error);
+          log.error({ err: error }, 'Semantic search error');
           return res.status(500).json({ 
             error: 'An error occurred during semantic search', 
             details: error instanceof Error ? error.message : String(error)
@@ -278,7 +281,7 @@ export function registerAdvancedSearchRoutes(app: Express): void {
         });
       }
     } catch (error: any) {
-      console.error('Search error:', error);
+      log.error({ err: error }, 'Search error');
       return res.status(500).json({ 
         error: 'An error occurred while processing the search', 
         details: error instanceof Error ? error.message : String(error)
@@ -299,7 +302,7 @@ export function registerAdvancedSearchRoutes(app: Express): void {
         searchId: Date.now().toString()
       });
     } catch (error: any) {
-      console.error('Error saving search:', error);
+      log.error({ err: error }, 'Error saving search');
       return res.status(500).json({
         error: 'Failed to save search',
         details: error instanceof Error ? error.message : String(error)

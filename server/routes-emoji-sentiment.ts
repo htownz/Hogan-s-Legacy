@@ -9,6 +9,9 @@ import Anthropic from '@anthropic-ai/sdk';
 import { db } from './db';
 import { bills, legislators } from '@shared/schema';
 import { eq } from 'drizzle-orm';
+import { createLogger } from "./logger";
+const log = createLogger("routes-emoji-sentiment");
+
 
 const router = Router();
 
@@ -117,7 +120,7 @@ Focus on providing accurate, helpful analysis that makes legislative content mor
     };
 
   } catch (error: any) {
-    console.error('Error analyzing text with AI:', error);
+    log.error({ err: error }, 'Error analyzing text with AI');
     
     // Return fallback analysis with neutral emojis
     return {
@@ -192,7 +195,7 @@ ${bill.fullText ? `Full Text: ${bill.fullText.substring(0, 5000)}` : ''}
     res.json(result);
 
   } catch (error: any) {
-    console.error('Error in emoji sentiment analysis:', error);
+    log.error({ err: error }, 'Error in emoji sentiment analysis');
     res.status(500).json({ 
       message: 'Failed to analyze bill sentiment',
       error: 'ANALYSIS_ERROR'
@@ -233,7 +236,7 @@ router.post('/emoji-sentiment-analysis/custom', async (req, res) => {
     res.json(result);
 
   } catch (error: any) {
-    console.error('Error in custom text sentiment analysis:', error);
+    log.error({ err: error }, 'Error in custom text sentiment analysis');
     res.status(500).json({ 
       message: 'Failed to analyze text sentiment',
       error: 'ANALYSIS_ERROR'
@@ -296,7 +299,7 @@ Chamber: ${bill.chamber}
           ...analysis
         });
       } catch (error: any) {
-        console.error(`Error analyzing bill ${bill.id}:`, error);
+        log.error({ err: error }, `Error analyzing bill ${bill.id}`);
         // Continue with other bills even if one fails
       }
     }
@@ -304,7 +307,7 @@ Chamber: ${bill.chamber}
     res.json({ analyses });
 
   } catch (error: any) {
-    console.error('Error in batch sentiment analysis:', error);
+    log.error({ err: error }, 'Error in batch sentiment analysis');
     res.status(500).json({ 
       message: 'Failed to analyze bills sentiment',
       error: 'BATCH_ANALYSIS_ERROR'
@@ -342,7 +345,7 @@ router.get('/emoji-sentiment-analysis/trending', async (req, res) => {
     res.json(trendingData);
 
   } catch (error: any) {
-    console.error('Error getting trending sentiment data:', error);
+    log.error({ err: error }, 'Error getting trending sentiment data');
     res.status(500).json({ 
       message: 'Failed to get trending data',
       error: 'TRENDING_ERROR'

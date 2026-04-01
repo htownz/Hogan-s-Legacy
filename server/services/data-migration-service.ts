@@ -1,6 +1,9 @@
 // @ts-nocheck
 import { db } from '../db';
 import { sql } from 'drizzle-orm';
+import { createLogger } from "../logger";
+const log = createLogger("data-migration-service");
+
 
 export interface MigrationStep {
   id: string;
@@ -50,20 +53,20 @@ export class DataMigrationService {
 
   // Execute all pending migrations
   async runMigrations(): Promise<void> {
-    console.log('🚀 Starting data migration process...');
+    log.info('🚀 Starting data migration process...');
     
     for (const migration of this.migrations) {
       try {
-        console.log(`📋 Executing migration: ${migration.description}`);
+        log.info(`📋 Executing migration: ${migration.description}`);
         await migration.execute();
-        console.log(`✅ Migration completed: ${migration.id}`);
+        log.info(`✅ Migration completed: ${migration.id}`);
       } catch (error: any) {
-        console.error(`❌ Migration failed: ${migration.id}`, error);
+        log.error({ err: error }, `❌ Migration failed: ${migration.id}`);
         throw error;
       }
     }
     
-    console.log('🎉 All migrations completed successfully!');
+    log.info('🎉 All migrations completed successfully!');
   }
 
   // Validate data source connections
@@ -102,24 +105,24 @@ export class DataMigrationService {
 
   // Sync data from external sources
   async syncLiveData(): Promise<void> {
-    console.log('🔄 Starting live data synchronization...');
+    log.info('🔄 Starting live data synchronization...');
     
     const activeSources = this.dataSources.filter(s => s.isActive);
     
     for (const source of activeSources) {
       try {
-        console.log(`📡 Syncing data from: ${source.name}`);
+        log.info(`📡 Syncing data from: ${source.name}`);
         await this.syncFromSource(source);
         
         // Update last sync timestamp
         source.lastSync = new Date();
-        console.log(`✅ Successfully synced: ${source.name}`);
+        log.info(`✅ Successfully synced: ${source.name}`);
       } catch (error: any) {
-        console.error(`❌ Sync failed for: ${source.name}`, error);
+        log.error({ err: error }, `❌ Sync failed for: ${source.name}`);
       }
     }
     
-    console.log('🎉 Live data synchronization completed!');
+    log.info('🎉 Live data synchronization completed!');
   }
 
   // Sync data from a specific source
@@ -135,7 +138,7 @@ export class DataMigrationService {
         await this.syncTexasLegislatureData(source);
         break;
       default:
-        console.warn(`No sync handler for source: ${source.name}`);
+        log.warn(`No sync handler for source: ${source.name}`);
     }
   }
 
@@ -150,7 +153,7 @@ export class DataMigrationService {
     const data = await response.json();
     
     if (data.status === 'OK') {
-      console.log(`📊 LegiScan returned ${data.sessionlist?.length || 0} sessions`);
+      log.info(`📊 LegiScan returned ${data.sessionlist?.length || 0} sessions`);
       // Process and store session data
       await this.processLegiScanSessions(data.sessionlist || []);
     }
@@ -159,7 +162,7 @@ export class DataMigrationService {
   // Sync Texas Ethics Commission data
   private async syncTECData(source: DataSource): Promise<void> {
     // TEC data processing - implement based on available endpoints
-    console.log('📊 Processing TEC data feeds...');
+    log.info('📊 Processing TEC data feeds...');
     
     // This would integrate with TEC's data exports
     // Implementation depends on TEC's data format and availability
@@ -167,7 +170,7 @@ export class DataMigrationService {
 
   // Sync Texas Legislature API data
   private async syncTexasLegislatureData(source: DataSource): Promise<void> {
-    console.log('📊 Processing Texas Legislature API data...');
+    log.info('📊 Processing Texas Legislature API data...');
     
     // Fetch current session bills and updates
     // Implementation depends on API structure
@@ -194,7 +197,7 @@ export class DataMigrationService {
             is_current = EXCLUDED.is_current
         `);
       } catch (error: any) {
-        console.error('Failed to process session:', session.session_id, error);
+        log.error('Failed to process session:', session.session_id, error);
       }
     }
   }
@@ -223,7 +226,7 @@ export class DataMigrationService {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
     
-    console.log(`🧹 Cleaning up data older than ${daysToKeep} days...`);
+    log.info(`🧹 Cleaning up data older than ${daysToKeep} days...`);
     
     try {
       // Clean up old search logs
@@ -238,9 +241,9 @@ export class DataMigrationService {
         WHERE created_at < ${cutoffDate.toISOString()}
       `);
       
-      console.log('✅ Data cleanup completed');
+      log.info('✅ Data cleanup completed');
     } catch (error: any) {
-      console.error('❌ Data cleanup failed:', error);
+      log.error({ err: error }, '❌ Data cleanup failed');
       throw error;
     }
   }

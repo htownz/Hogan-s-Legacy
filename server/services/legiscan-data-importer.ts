@@ -1,6 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { storage } from '../storage';
+import { createLogger } from "../logger";
+const log = createLogger("legiscan-data-importer");
+
 
 /**
  * LegiScan Data Importer
@@ -106,7 +109,7 @@ class LegiScanDataImporter {
     };
 
     try {
-      console.log('📋 Starting LegiScan data import...');
+      log.info('📋 Starting LegiScan data import...');
 
       // Ensure uploads directory exists
       if (!fs.existsSync(this.uploadsDir)) {
@@ -118,9 +121,9 @@ class LegiScanDataImporter {
         const bills = await this.importBills();
         results.data.bills = bills;
         results.billsImported = bills.length;
-        console.log(`✅ Imported ${bills.length} bills from LegiScan`);
+        log.info(`✅ Imported ${bills.length} bills from LegiScan`);
       } catch (error: any) {
-        console.error('❌ Error importing bills:', error.message);
+        log.error({ err: error.message }, '❌ Error importing bills');
         results.errors.push(`Bills: ${error.message}`);
       }
 
@@ -129,16 +132,16 @@ class LegiScanDataImporter {
         const legislators = await this.importLegislators();
         results.data.legislators = legislators;
         results.legislatorsImported = legislators.length;
-        console.log(`✅ Imported ${legislators.length} legislators from LegiScan`);
+        log.info(`✅ Imported ${legislators.length} legislators from LegiScan`);
       } catch (error: any) {
-        console.error('❌ Error importing legislators:', error.message);
+        log.error({ err: error.message }, '❌ Error importing legislators');
         results.errors.push(`Legislators: ${error.message}`);
       }
 
-      console.log(`🎉 LegiScan import completed: ${results.billsImported} bills, ${results.legislatorsImported} legislators`);
+      log.info(`🎉 LegiScan import completed: ${results.billsImported} bills, ${results.legislatorsImported} legislators`);
 
     } catch (error: any) {
-      console.error('❌ LegiScan data import failed:', error.message);
+      log.error({ err: error.message }, '❌ LegiScan data import failed');
       results.success = false;
       results.errors.push(error.message);
     }
@@ -160,7 +163,7 @@ class LegiScanDataImporter {
         file.toLowerCase().endsWith('.json')
       );
 
-      console.log(`📋 Found ${billFiles.length} bill files to import`);
+      log.info(`📋 Found ${billFiles.length} bill files to import`);
 
       for (const file of billFiles) {
         try {
@@ -184,12 +187,12 @@ class LegiScanDataImporter {
           }
 
         } catch (error: any) {
-          console.warn(`⚠️ Could not process bill file ${file}: ${error.message}`);
+          log.warn(`⚠️ Could not process bill file ${file}: ${error.message}`);
         }
       }
 
     } catch (error: any) {
-      console.error('❌ Error reading bill files:', error.message);
+      log.error({ err: error.message }, '❌ Error reading bill files');
       throw error;
     }
 
@@ -212,7 +215,7 @@ class LegiScanDataImporter {
         file.toLowerCase().endsWith('.json')
       );
 
-      console.log(`👥 Found ${legislatorFiles.length} legislator files to import`);
+      log.info(`👥 Found ${legislatorFiles.length} legislator files to import`);
 
       for (const file of legislatorFiles) {
         try {
@@ -234,12 +237,12 @@ class LegiScanDataImporter {
           }
 
         } catch (error: any) {
-          console.warn(`⚠️ Could not process legislator file ${file}: ${error.message}`);
+          log.warn(`⚠️ Could not process legislator file ${file}: ${error.message}`);
         }
       }
 
     } catch (error: any) {
-      console.error('❌ Error reading legislator files:', error.message);
+      log.error({ err: error.message }, '❌ Error reading legislator files');
       throw error;
     }
 
@@ -339,7 +342,7 @@ class LegiScanDataImporter {
     
     fs.writeFileSync(filePath, file.buffer);
     
-    console.log(`📁 Saved uploaded file: ${fileName}`);
+    log.info(`📁 Saved uploaded file: ${fileName}`);
     return filePath;
   }
 
@@ -385,7 +388,7 @@ class LegiScanDataImporter {
       };
 
     } catch (error: any) {
-      console.error('❌ Error getting import stats:', error.message);
+      log.error({ err: error.message }, '❌ Error getting import stats');
       return { totalFiles: 0, billFiles: 0, legislatorFiles: 0, lastImport: null };
     }
   }
@@ -393,4 +396,4 @@ class LegiScanDataImporter {
 
 export const legiScanDataImporter = new LegiScanDataImporter();
 
-console.log('📋 LegiScan Data Importer initialized');
+log.info('📋 LegiScan Data Importer initialized');

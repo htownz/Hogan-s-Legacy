@@ -10,6 +10,9 @@ import { User as UserType } from "@shared/schema";
 import createMemoryStore from "memorystore";
 import connectPgSimple from "connect-pg-simple";
 import { CustomRequest } from "./types";
+import { createLogger } from "./logger";
+const log = createLogger("auth");
+
 
 declare global {
   namespace Express {
@@ -238,7 +241,7 @@ export async function getAuthenticatedUserFromRequest(req: IncomingMessage): Pro
   try {
     return await resolveUserFromSessionId(sid);
   } catch (error: any) {
-    console.error("Error resolving authenticated user from request cookie:", error);
+    log.error({ err: error }, "Error resolving authenticated user from request cookie");
     return null;
   }
 }
@@ -253,7 +256,7 @@ export async function verifyToken(token: string): Promise<UserType | null> {
 
     return await resolveUserFromSessionId(sid);
   } catch (error: any) {
-    console.error('Error verifying token:', error);
+    log.error({ err: error }, 'Error verifying token');
     return null;
   }
 }

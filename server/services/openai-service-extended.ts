@@ -3,6 +3,9 @@ import { db } from "../db";
 import { billSummaries } from "@shared/schema-bill-summaries";
 import { bills } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import { createLogger } from "../logger";
+const log = createLogger("openai-service-extended");
+
 
 // Initialize OpenAI client (The newest OpenAI model is "gpt-4o" which was released May 13, 2024)
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -97,7 +100,7 @@ export async function generatePersonalImpactAssessment(
       impactAreas: jsonResponse.impactAreas || []
     };
   } catch (error: any) {
-    console.error("Error generating impact assessment:", error);
+    log.error({ err: error }, "Error generating impact assessment");
     const errorMessage = error instanceof Error ? error.message : String(error);
     throw new Error(`Failed to generate impact assessment: ${errorMessage}`);
   }
@@ -200,7 +203,7 @@ export async function generateBillComparison(
       comparisonDate: new Date()
     };
   } catch (error: any) {
-    console.error("Error generating bill comparison:", error);
+    log.error({ err: error }, "Error generating bill comparison");
     const errorMessage = error instanceof Error ? error.message : String(error);
     throw new Error(`Failed to generate bill comparison: ${errorMessage}`);
   }

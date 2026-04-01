@@ -15,6 +15,9 @@ import {
 } from "../shared/schema-user-interests";
 import { bills } from "../shared/schema";
 import { generatePersonalizedRecommendation, inferUserDemographics } from "./services/recommendation-service";
+import { createLogger } from "./logger";
+const log = createLogger("storage-recommendations");
+
 
 // User interests management
 export async function getUserInterests(userId: number) {
@@ -313,7 +316,7 @@ export async function generateRecommendationsForUser(userId: number) {
       
       recommendations.push(insertedRecs[0]);
     } catch (error: any) {
-      console.error(`Error generating recommendation for bill ${bill.id}:`, error);
+      log.error({ err: error }, `Error generating recommendation for bill ${bill.id}`);
       // Continue with next bill if one fails
     }
   }

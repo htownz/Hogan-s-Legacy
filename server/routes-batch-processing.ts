@@ -10,6 +10,9 @@ import {
   getBatchOperationStatus,
   getBatchOperationResults
 } from './services/batch-processing-service';
+import { createLogger } from "./logger";
+const log = createLogger("routes-batch-processing");
+
 
 const router = express.Router();
 
@@ -74,7 +77,7 @@ router.post('/summaries', isAuthenticated, async (req: Request, res: Response) =
       status: 'in_progress'
     });
   } catch (error: any) {
-    console.error('Error starting batch bill summary:', error);
+    log.error({ err: error }, 'Error starting batch bill summary');
     res.status(400).json({ 
       error: 'Failed to start batch processing', 
       message: error.message || 'Unknown error' 
@@ -97,7 +100,7 @@ router.post('/comparisons', isAuthenticated, async (req: Request, res: Response)
       status: 'in_progress'
     });
   } catch (error: any) {
-    console.error('Error starting batch bill comparison:', error);
+    log.error({ err: error }, 'Error starting batch bill comparison');
     res.status(400).json({ 
       error: 'Failed to start batch processing', 
       message: error.message || 'Unknown error' 
@@ -120,7 +123,7 @@ router.post('/impacts', isAuthenticated, async (req: Request, res: Response) => 
       status: 'in_progress'
     });
   } catch (error: any) {
-    console.error('Error starting batch legislative impact analysis:', error);
+    log.error({ err: error }, 'Error starting batch legislative impact analysis');
     res.status(400).json({ 
       error: 'Failed to start batch processing', 
       message: error.message || 'Unknown error' 
@@ -143,7 +146,7 @@ router.post('/documents', isAuthenticated, async (req: Request, res: Response) =
       status: 'in_progress'
     });
   } catch (error: any) {
-    console.error('Error starting batch document ingestion:', error);
+    log.error({ err: error }, 'Error starting batch document ingestion');
     res.status(400).json({ 
       error: 'Failed to start batch processing', 
       message: error.message || 'Unknown error' 
@@ -170,7 +173,7 @@ router.get('/status/:batchId', isAuthenticated, async (req: Request, res: Respon
     
     res.json(status);
   } catch (error: any) {
-    console.error('Error getting batch operation status:', error);
+    log.error({ err: error }, 'Error getting batch operation status');
     res.status(500).json({ 
       error: 'Failed to get batch operation status', 
       message: error.message || 'Unknown error' 
@@ -200,7 +203,7 @@ router.get('/results/:batchId', isAuthenticated, async (req: Request, res: Respo
     
     res.json(results);
   } catch (error: any) {
-    console.error('Error getting batch operation results:', error);
+    log.error({ err: error }, 'Error getting batch operation results');
     res.status(500).json({ 
       error: 'Failed to get batch operation results', 
       message: error.message || 'Unknown error' 
@@ -213,7 +216,7 @@ router.get('/results/:batchId', isAuthenticated, async (req: Request, res: Respo
  */
 export function registerBatchProcessingRoutes(app: express.Express) {
   app.use('/api/batch', router);
-  console.log('Batch processing routes registered');
+  log.info('Batch processing routes registered');
   return router;
 }
 

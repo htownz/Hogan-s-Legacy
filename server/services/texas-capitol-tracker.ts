@@ -29,6 +29,9 @@ import {
   insertCapitolNoticeSchema,
   insertCommitteeScheduleSchema
 } from '@shared/schema-capitol';
+import { createLogger } from "../logger";
+const log = createLogger("texas-capitol-tracker");
+
 
 // Cache of the last check time for different sections
 interface LastCheckTimes {
@@ -56,7 +59,7 @@ const contentHashCache: ContentCache = {};
  */
 async function checkMainPage(): Promise<void> {
   try {
-    console.log('Checking Texas Capitol main page for updates...');
+    log.info('Checking Texas Capitol main page for updates...');
     const response = await axios.get('https://capitol.texas.gov/');
     const $ = cheerio.load(response.data);
     
@@ -89,7 +92,7 @@ async function checkMainPage(): Promise<void> {
     
     lastCheckTimes.mainPage = new Date();
   } catch (error: any) {
-    console.error('Error checking Texas Capitol main page:', error);
+    log.error({ err: error }, 'Error checking Texas Capitol main page');
   }
 }
 
@@ -98,7 +101,7 @@ async function checkMainPage(): Promise<void> {
  */
 async function checkBillActions(): Promise<void> {
   try {
-    console.log('Checking for Texas Capitol bill actions...');
+    log.info('Checking for Texas Capitol bill actions...');
     
     // Get list of bills we're tracking
     const trackedBills = await db.query.bills.findMany({
@@ -151,7 +154,7 @@ async function checkBillActions(): Promise<void> {
     
     lastCheckTimes.billActions = new Date();
   } catch (error: any) {
-    console.error('Error checking Texas Capitol bill actions:', error);
+    log.error({ err: error }, 'Error checking Texas Capitol bill actions');
   }
 }
 
@@ -160,7 +163,7 @@ async function checkBillActions(): Promise<void> {
  */
 async function checkCommitteeSchedule(): Promise<void> {
   try {
-    console.log('Checking for Texas Capitol committee schedule updates...');
+    log.info('Checking for Texas Capitol committee schedule updates...');
     
     // Check both House and Senate committee schedules
     const chamberUrls = [
@@ -218,7 +221,7 @@ async function checkCommitteeSchedule(): Promise<void> {
     
     lastCheckTimes.committeeSchedule = new Date();
   } catch (error: any) {
-    console.error('Error checking Texas Capitol committee schedule:', error);
+    log.error({ err: error }, 'Error checking Texas Capitol committee schedule');
   }
 }
 
@@ -227,7 +230,7 @@ async function checkCommitteeSchedule(): Promise<void> {
  */
 async function checkNotices(): Promise<void> {
   try {
-    console.log('Checking for Texas Capitol notices...');
+    log.info('Checking for Texas Capitol notices...');
     
     const response = await axios.get('https://capitol.texas.gov/MnuNotices.aspx');
     const $ = cheerio.load(response.data);
@@ -260,7 +263,7 @@ async function checkNotices(): Promise<void> {
     
     lastCheckTimes.notices = new Date();
   } catch (error: any) {
-    console.error('Error checking Texas Capitol notices:', error);
+    log.error({ err: error }, 'Error checking Texas Capitol notices');
   }
 }
 
@@ -269,7 +272,7 @@ async function checkNotices(): Promise<void> {
  */
 async function checkAmendments(): Promise<void> {
   try {
-    console.log('Checking for Texas Capitol amendments and fiscal notes...');
+    log.info('Checking for Texas Capitol amendments and fiscal notes...');
     
     // Get list of bills we're tracking
     const trackedBills = await db.query.bills.findMany({
@@ -319,7 +322,7 @@ async function checkAmendments(): Promise<void> {
     
     lastCheckTimes.amendments = new Date();
   } catch (error: any) {
-    console.error('Error checking Texas Capitol amendments and fiscal notes:', error);
+    log.error({ err: error }, 'Error checking Texas Capitol amendments and fiscal notes');
   }
 }
 
@@ -328,7 +331,7 @@ async function checkAmendments(): Promise<void> {
  */
 export async function scanTexasCapitolWebsite(): Promise<void> {
   try {
-    console.log('Starting full scan of Texas Capitol website...');
+    log.info('Starting full scan of Texas Capitol website...');
     
     await checkMainPage();
     await checkBillActions();
@@ -336,9 +339,9 @@ export async function scanTexasCapitolWebsite(): Promise<void> {
     await checkNotices();
     await checkAmendments();
     
-    console.log('Completed scan of Texas Capitol website');
+    log.info('Completed scan of Texas Capitol website');
   } catch (error: any) {
-    console.error('Error in Texas Capitol website scan:', error);
+    log.error({ err: error }, 'Error in Texas Capitol website scan');
   }
 }
 
@@ -378,9 +381,9 @@ async function storeCapitolUpdate(update: any): Promise<void> {
     // Store in database
     await db.insert(capitolUpdates).values(validatedData);
     
-    console.log(`Stored new Capitol update: ${update.title}`);
+    log.info(`Stored new Capitol update: ${update.title}`);
   } catch (error: any) {
-    console.error('Error storing Capitol update:', error);
+    log.error({ err: error }, 'Error storing Capitol update');
   }
 }
 
@@ -423,9 +426,9 @@ async function storeCommitteeMeeting(meeting: any): Promise<void> {
     // Store in database
     await db.insert(committeeSchedules).values(validatedData);
     
-    console.log(`Stored new committee meeting: ${meeting.chamber} ${meeting.committee}`);
+    log.info(`Stored new committee meeting: ${meeting.chamber} ${meeting.committee}`);
   } catch (error: any) {
-    console.error('Error storing committee meeting:', error);
+    log.error({ err: error }, 'Error storing committee meeting');
   }
 }
 
@@ -462,9 +465,9 @@ async function storeCapitolNotice(notice: any): Promise<void> {
     // Store in database
     await db.insert(capitolNotices).values(validatedData);
     
-    console.log(`Stored new Capitol notice: ${notice.title}`);
+    log.info(`Stored new Capitol notice: ${notice.title}`);
   } catch (error: any) {
-    console.error('Error storing Capitol notice:', error);
+    log.error({ err: error }, 'Error storing Capitol notice');
   }
 }
 
@@ -558,27 +561,27 @@ function detectNoticeCategory(title: string, content: string): string {
  * Initialize scheduled scans of Texas Capitol website
  */
 export function initTexasCapitolTracker(): void {
-  console.log('Setting up scheduled Texas Capitol website scans...');
+  log.info('Setting up scheduled Texas Capitol website scans...');
   
   // Initial scan
   setTimeout(() => {
     scanTexasCapitolWebsite().catch(error => {
-      console.error("Error in initial Texas Capitol scan:", error);
+      log.error({ err: error }, "Error in initial Texas Capitol scan");
     });
   }, 15000); // Delay initial scan to allow server to fully start
   
   // Schedule regular scans (every 30 minutes)
   nodeCron.schedule('*/30 * * * *', async () => {
-    console.log('Running scheduled scan of Texas Capitol website...');
+    log.info('Running scheduled scan of Texas Capitol website...');
     try {
       await scanTexasCapitolWebsite();
-      console.log('Completed scheduled scan of Texas Capitol website');
+      log.info('Completed scheduled scan of Texas Capitol website');
     } catch (error: any) {
-      console.error('Error in scheduled Texas Capitol scan:', error);
+      log.error({ err: error }, 'Error in scheduled Texas Capitol scan');
     }
   });
   
-  console.log('Texas Capitol tracker initialized');
+  log.info('Texas Capitol tracker initialized');
 }
 
 export default {

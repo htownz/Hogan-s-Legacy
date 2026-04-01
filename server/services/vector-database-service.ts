@@ -4,6 +4,9 @@ import { OpenAI } from 'openai';
 import { Document } from 'langchain/document';
 import fs from 'fs';
 import path from 'path';
+import { createLogger } from "../logger";
+const log = createLogger("vector-database-service");
+
 
 // Initialize OpenAI for embeddings and completions
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -34,13 +37,13 @@ let localEmbeddings: EmbeddedDocument[] = [];
 export async function initializeVectorStore() {
   try {
     if (!process.env.PINECONE_API_KEY || !process.env.PINECONE_ENVIRONMENT) {
-      console.warn('Pinecone credentials not found. Using local embeddings storage.');
+      log.warn('Pinecone credentials not found. Using local embeddings storage.');
       // Initialize local embeddings from file if it exists
       try {
         if (fs.existsSync(LOCAL_EMBEDDINGS_PATH)) {
           const data = fs.readFileSync(LOCAL_EMBEDDINGS_PATH, 'utf8');
           localEmbeddings = JSON.parse(data);
-          console.log(`Loaded ${localEmbeddings.length} embeddings from local storage`);
+          log.info(`Loaded ${localEmbeddings.length} embeddings from local storage`);
         } else {
           // Create directory if it doesn't exist
           const dir = path.dirname(LOCAL_EMBEDDINGS_PATH);
@@ -52,7 +55,7 @@ export async function initializeVectorStore() {
           localEmbeddings = [];
         }
       } catch (fileError: any) {
-        console.error('Error initializing local embeddings storage:', fileError);
+        log.error({ err: fileError }, 'Error initializing local embeddings storage');
         localEmbeddings = [];
       }
       return false;
@@ -68,21 +71,21 @@ export async function initializeVectorStore() {
     
     // Verify connection by fetching stats
     const stats = await pineconeIndex.describeIndexStats();
-    console.log(`Connected to Pinecone index: ${PINECONE_INDEX_NAME}`);
-    console.log(`Vector count: ${stats.totalVectorCount}`);
+    log.info(`Connected to Pinecone index: ${PINECONE_INDEX_NAME}`);
+    log.info(`Vector count: ${stats.totalVectorCount}`);
     
-    console.log('Vector database initialized successfully');
+    log.info('Vector database initialized successfully');
     return true;
   } catch (error: any) {
-    console.error('Failed to initialize vector database:', error);
-    console.warn('Falling back to local embeddings storage...');
+    log.error({ err: error }, 'Failed to initialize vector database');
+    log.warn('Falling back to local embeddings storage...');
     
     // Initialize local embeddings from file if it exists
     try {
       if (fs.existsSync(LOCAL_EMBEDDINGS_PATH)) {
         const data = fs.readFileSync(LOCAL_EMBEDDINGS_PATH, 'utf8');
         localEmbeddings = JSON.parse(data);
-        console.log(`Loaded ${localEmbeddings.length} embeddings from local storage`);
+        log.info(`Loaded ${localEmbeddings.length} embeddings from local storage`);
       } else {
         // Create directory if it doesn't exist
         const dir = path.dirname(LOCAL_EMBEDDINGS_PATH);
@@ -94,7 +97,7 @@ export async function initializeVectorStore() {
         localEmbeddings = [];
       }
     } catch (fileError: any) {
-      console.error('Error initializing local embeddings storage:', fileError);
+      log.error({ err: fileError }, 'Error initializing local embeddings storage');
       localEmbeddings = [];
     }
     
@@ -133,12 +136,12 @@ export async function addDocumentsToVectorStore(
           metadata: doc.metadata || {}
         });
       } catch (embeddingError: any) {
-        console.error(`Error generating embedding for document ${doc.id}:`, embeddingError);
+        log.error({ err: embeddingError }, `Error generating embedding for document ${doc.id}`);
       }
     }
     
     if (embeddedDocuments.length === 0) {
-      console.error('No valid embeddings could be generated');
+      log.error('No valid embeddings could be generated');
       return false;
     }
     
@@ -160,7 +163,7 @@ export async function addDocumentsToVectorStore(
         await pineconeIndex.upsert(batch);
       }
       
-      console.log(`Added ${embeddedDocuments.length} documents to Pinecone`);
+      log.info(`Added ${embeddedDocuments.length} documents to Pinecone`);
     } else {
       // Fallback to local storage
       for (const doc of embeddedDocuments) {
@@ -175,12 +178,12 @@ export async function addDocumentsToVectorStore(
       
       // Save to file
       fs.writeFileSync(LOCAL_EMBEDDINGS_PATH, JSON.stringify(localEmbeddings), 'utf8');
-      console.log(`Added ${embeddedDocuments.length} documents to local storage`);
+      log.info(`Added ${embeddedDocuments.length} documents to local storage`);
     }
     
     return true;
   } catch (error: any) {
-    console.error('Error adding documents to vector store:', error);
+    log.error({ err: error }, 'Error adding documents to vector store');
     return false;
   }
 }
@@ -253,7 +256,7 @@ export async function querySimilarDocuments(query: string, limit = 5, filters?: 
       return results;
     }
   } catch (error: any) {
-    console.error('Error querying vector store:', error);
+    log.error({ err: error }, 'Error querying vector store');
     return [];
   }
 }
@@ -410,7 +413,7 @@ export async function generateRAGResponse(query: string, documentLimit = 5) {
       };
     }
   } catch (error: any) {
-    console.error('Error generating RAG response:', error);
+    log.error({ err: error }, 'Error generating RAG response');
     
     // Provide a fallback response
     return {

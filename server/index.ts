@@ -7,15 +7,17 @@ import { registerTestDataRoutes } from "./routes-test-data";
 import { setupVite, serveStatic, log } from "./vite";
 import { SERVER_CONFIG } from "./config";
 import { productionStartup } from "./services/production-startup";
+import { createLogger } from "./logger";
+const pinoLog = createLogger("index");
 
 // Handle unhandled promise rejections for deployment stability
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  pinoLog.error({ err: reason }, 'Unhandled Rejection at:', promise, 'reason');
   // Don't exit the process in production
 });
 
 process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
+  pinoLog.error({ err: error }, 'Uncaught Exception');
   // Don't exit the process in production - let deployment continue
 });
 
@@ -132,7 +134,7 @@ function setupPortForwarding(internalPort: number): void {
 
     // Handle errors in the proxy request
     proxyReq.on('error', (error) => {
-      console.error('Proxy Request Error:', error);
+      pinoLog.error({ err: error }, 'Proxy Request Error');
       res.writeHead(500);
       res.end('Proxy Error: ' + error.message);
     });
@@ -182,7 +184,7 @@ function setupPortForwarding(internalPort: number): void {
       const message = err.message || "Internal Server Error";
 
       res.status(status).json({ message });
-      console.error(err); // Log error but don't throw it to prevent process crash
+      pinoLog.error(err); // Log error but don't throw it to prevent process crash
     });
 
     // importantly only setup vite in development and after
@@ -239,7 +241,7 @@ function setupPortForwarding(internalPort: number): void {
         log(`Set up port forwarding from port 80 to internal port ${PORT}`);
       } catch (error: any) {
         log(`Failed to set up port forwarding: ${(error as Error).message}`);
-        console.error('Port forwarding error:', error);
+        pinoLog.error({ err: error }, 'Port forwarding error');
       }
 
       // Initialize bill tracking service
@@ -250,11 +252,11 @@ function setupPortForwarding(internalPort: number): void {
           log('Bill tracking service initialized successfully');
         }).catch(error => {
           log('Failed to initialize bill tracking service: ' + (error as Error).message);
-          console.error('Bill tracking service error:', error);
+          pinoLog.error({ err: error }, 'Bill tracking service error');
         });
       } catch (error: any) {
         log('Failed to initialize bill tracking service: ' + (error as Error).message);
-        console.error('Bill tracking service error:', error);
+        pinoLog.error({ err: error }, 'Bill tracking service error');
       }
     }).on('error', (err) => {
       clearTimeout(startupTimeout);
@@ -268,12 +270,12 @@ function setupPortForwarding(internalPort: number): void {
         log('Please check no other servers are running and restart the Replit workflow.');
       } else {
         log('FATAL ERROR: Server could not start for an unknown reason.');
-        console.error(err);
+        pinoLog.error(err);
       }
     });
   } catch (error: any) {
     log('FATAL ERROR: Failed during server initialization');
-    console.error(error);
+    pinoLog.error(error);
   }
 })();
 // Import directly from tecProcessor since it's an ES module

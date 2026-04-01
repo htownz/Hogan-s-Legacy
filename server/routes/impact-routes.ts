@@ -20,6 +20,9 @@ import { eq, and } from "drizzle-orm";
 
 // Import CustomRequest from types file instead of redefining
 import { CustomRequest } from "../types";
+import { createLogger } from "../logger";
+const log = createLogger("impact-routes");
+
 
 // Initialize impact storage
 const impactStorage = new DatabaseImpactStorage();
@@ -78,7 +81,7 @@ export function registerImpactRoutes(app: Express) {
       // Return the existing impact summary
       return res.status(200).json({ impactSummary: bill.impactSummary });
     } catch (error: any) {
-      console.error("Error fetching impact summary:", error);
+      log.error({ err: error }, "Error fetching impact summary");
       return res.status(500).json({ message: "Failed to fetch impact summary" });
     }
   });
@@ -109,7 +112,7 @@ export function registerImpactRoutes(app: Express) {
         needsGeneration: true 
       });
     } catch (error: any) {
-      console.error("Error fetching personal impact assessment:", error);
+      log.error({ err: error }, "Error fetching personal impact assessment");
       return res.status(500).json({ message: "Failed to fetch personal impact assessment" });
     }
   });
@@ -121,7 +124,7 @@ export function registerImpactRoutes(app: Express) {
       const assessments = await impactStorage.getPersonalImpactAssessmentsByUser(userId);
       return res.status(200).json(assessments);
     } catch (error: any) {
-      console.error("Error fetching personal impact assessments:", error);
+      log.error({ err: error }, "Error fetching personal impact assessments");
       return res.status(500).json({ message: "Failed to fetch personal impact assessments" });
     }
   });
@@ -176,7 +179,7 @@ export function registerImpactRoutes(app: Express) {
       
       return res.status(201).json(newAssessment);
     } catch (error: any) {
-      console.error("Error generating personal impact assessment:", error);
+      log.error({ err: error }, "Error generating personal impact assessment");
       return res.status(500).json({ message: "Failed to generate personal impact assessment" });
     }
   });
@@ -212,7 +215,7 @@ export function registerImpactRoutes(app: Express) {
       
       return res.status(200).json(updatedAssessment);
     } catch (error: any) {
-      console.error("Error updating personal impact assessment:", error);
+      log.error({ err: error }, "Error updating personal impact assessment");
       return res.status(500).json({ message: "Failed to update personal impact assessment" });
     }
   });
@@ -245,7 +248,7 @@ export function registerImpactRoutes(app: Express) {
         return res.status(500).json({ message: "Failed to delete personal impact assessment" });
       }
     } catch (error: any) {
-      console.error("Error deleting personal impact assessment:", error);
+      log.error({ err: error }, "Error deleting personal impact assessment");
       return res.status(500).json({ message: "Failed to delete personal impact assessment" });
     }
   });
@@ -281,7 +284,7 @@ export function registerImpactRoutes(app: Express) {
       
       return res.status(200).json(analysis);
     } catch (error: any) {
-      console.error("Error analyzing bill for points of order:", error);
+      log.error({ err: error }, "Error analyzing bill for points of order");
       return res.status(500).json({ message: "Failed to analyze bill for points of order" });
     }
   });

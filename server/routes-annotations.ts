@@ -9,6 +9,9 @@ import {
   insertAnnotationTagSchema
 } from '../shared/schema-annotations';
 import { actionCircleStorage } from './storage-action-circle';
+import { createLogger } from "./logger";
+const log = createLogger("routes-annotations");
+
 
 /**
  * Register annotation API routes
@@ -91,7 +94,7 @@ export function registerAnnotationRoutes(app: Express): void {
       const annotations = await annotationStorage.getAnnotations(options);
       res.json(annotations);
     } catch (error: any) {
-      console.error('Error getting annotations:', error);
+      log.error({ err: error }, 'Error getting annotations');
       res.status(500).json({ error: 'Failed to retrieve annotations' });
     }
   });
@@ -145,7 +148,7 @@ export function registerAnnotationRoutes(app: Express): void {
       
       res.json(annotation);
     } catch (error: any) {
-      console.error('Error getting annotation:', error);
+      log.error({ err: error }, 'Error getting annotation');
       res.status(500).json({ error: 'Failed to retrieve annotation' });
     }
   });
@@ -186,7 +189,7 @@ export function registerAnnotationRoutes(app: Express): void {
       const annotation = await annotationStorage.createAnnotation(data);
       res.status(201).json(annotation);
     } catch (error: any) {
-      console.error('Error creating annotation:', error);
+      log.error({ err: error }, 'Error creating annotation');
       res.status(500).json({ error: 'Failed to create annotation' });
     }
   });
@@ -239,7 +242,7 @@ export function registerAnnotationRoutes(app: Express): void {
       
       res.json(updatedAnnotation);
     } catch (error: any) {
-      console.error('Error updating annotation:', error);
+      log.error({ err: error }, 'Error updating annotation');
       res.status(500).json({ error: 'Failed to update annotation' });
     }
   });
@@ -266,7 +269,7 @@ export function registerAnnotationRoutes(app: Express): void {
       await annotationStorage.deleteAnnotation(Number(id));
       res.json({ message: 'Annotation deleted successfully' });
     } catch (error: any) {
-      console.error('Error deleting annotation:', error);
+      log.error({ err: error }, 'Error deleting annotation');
       res.status(500).json({ error: 'Failed to delete annotation' });
     }
   });
@@ -281,7 +284,7 @@ export function registerAnnotationRoutes(app: Express): void {
       const statistics = await annotationStorage.getAnnotationStatistics(billId);
       res.json(statistics);
     } catch (error: any) {
-      console.error('Error getting annotation statistics:', error);
+      log.error({ err: error }, 'Error getting annotation statistics');
       res.status(500).json({ error: 'Failed to retrieve annotation statistics' });
     }
   });
@@ -301,7 +304,7 @@ export function registerAnnotationRoutes(app: Express): void {
       
       res.json(topSections);
     } catch (error: any) {
-      console.error('Error getting top annotated sections:', error);
+      log.error({ err: error }, 'Error getting top annotated sections');
       res.status(500).json({ error: 'Failed to retrieve top annotated sections' });
     }
   });
@@ -321,7 +324,7 @@ export function registerAnnotationRoutes(app: Express): void {
       
       res.json(mostDiscussed);
     } catch (error: any) {
-      console.error('Error getting most discussed annotations:', error);
+      log.error({ err: error }, 'Error getting most discussed annotations');
       res.status(500).json({ error: 'Failed to retrieve most discussed annotations' });
     }
   });
@@ -336,7 +339,7 @@ export function registerAnnotationRoutes(app: Express): void {
       const replies = await annotationStorage.getReplies(Number(id));
       res.json(replies);
     } catch (error: any) {
-      console.error('Error getting replies:', error);
+      log.error({ err: error }, 'Error getting replies');
       res.status(500).json({ error: 'Failed to retrieve replies' });
     }
   });
@@ -396,7 +399,7 @@ export function registerAnnotationRoutes(app: Express): void {
       const reply = await annotationStorage.createReply(data);
       res.status(201).json(reply);
     } catch (error: any) {
-      console.error('Error creating reply:', error);
+      log.error({ err: error }, 'Error creating reply');
       res.status(500).json({ error: 'Failed to create reply' });
     }
   });
@@ -434,7 +437,7 @@ export function registerAnnotationRoutes(app: Express): void {
       const updatedReply = await annotationStorage.updateReply(Number(id), validatedData.data);
       res.json(updatedReply);
     } catch (error: any) {
-      console.error('Error updating reply:', error);
+      log.error({ err: error }, 'Error updating reply');
       res.status(500).json({ error: 'Failed to update reply' });
     }
   });
@@ -462,7 +465,7 @@ export function registerAnnotationRoutes(app: Express): void {
       await annotationStorage.deleteReply(Number(id));
       res.json({ message: 'Reply deleted successfully' });
     } catch (error: any) {
-      console.error('Error deleting reply:', error);
+      log.error({ err: error }, 'Error deleting reply');
       res.status(500).json({ error: 'Failed to delete reply' });
     }
   });
@@ -483,7 +486,7 @@ export function registerAnnotationRoutes(app: Express): void {
       const reactions = await annotationStorage.getReactions(options);
       res.json(reactions);
     } catch (error: any) {
-      console.error('Error getting reactions:', error);
+      log.error({ err: error }, 'Error getting reactions');
       res.status(500).json({ error: 'Failed to retrieve reactions' });
     }
   });
@@ -549,7 +552,7 @@ export function registerAnnotationRoutes(app: Express): void {
       const reaction = await annotationStorage.createReaction(data);
       res.status(201).json(reaction);
     } catch (error: any) {
-      console.error('Error creating reaction:', error);
+      log.error({ err: error }, 'Error creating reaction');
       res.status(500).json({ error: 'Failed to create reaction' });
     }
   });
@@ -577,7 +580,7 @@ export function registerAnnotationRoutes(app: Express): void {
       await annotationStorage.deleteReaction(Number(id));
       res.json({ message: 'Reaction deleted successfully' });
     } catch (error: any) {
-      console.error('Error deleting reaction:', error);
+      log.error({ err: error }, 'Error deleting reaction');
       res.status(500).json({ error: 'Failed to delete reaction' });
     }
   });
@@ -592,7 +595,7 @@ export function registerAnnotationRoutes(app: Express): void {
       const tags = await annotationStorage.getTags(Number(id));
       res.json(tags);
     } catch (error: any) {
-      console.error('Error getting tags:', error);
+      log.error({ err: error }, 'Error getting tags');
       res.status(500).json({ error: 'Failed to retrieve tags' });
     }
   });
@@ -651,7 +654,7 @@ export function registerAnnotationRoutes(app: Express): void {
       const tag = await annotationStorage.createTag(data);
       res.status(201).json(tag);
     } catch (error: any) {
-      console.error('Error creating tag:', error);
+      log.error({ err: error }, 'Error creating tag');
       res.status(500).json({ error: 'Failed to create tag' });
     }
   });
@@ -683,7 +686,7 @@ export function registerAnnotationRoutes(app: Express): void {
       await annotationStorage.deleteTag(Number(id));
       res.json({ message: 'Tag deleted successfully' });
     } catch (error: any) {
-      console.error('Error deleting tag:', error);
+      log.error({ err: error }, 'Error deleting tag');
       res.status(500).json({ error: 'Failed to delete tag' });
     }
   });

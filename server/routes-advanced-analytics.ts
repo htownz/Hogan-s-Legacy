@@ -8,6 +8,9 @@ import { Router } from 'express';
 import { db } from './db';
 import { bills, legislators } from '@shared/schema';
 import { eq, sql, desc, asc, and, gte, lte, count, avg } from 'drizzle-orm';
+import { createLogger } from "./logger";
+const log = createLogger("routes-advanced-analytics");
+
 
 const router = Router();
 
@@ -105,7 +108,7 @@ router.get('/advanced-analytics/overview', async (req, res) => {
     res.json(metrics);
 
   } catch (error: any) {
-    console.error('Error fetching analytics overview:', error);
+    log.error({ err: error }, 'Error fetching analytics overview');
     res.status(500).json({ 
       message: 'Failed to fetch analytics overview',
       error: 'ANALYTICS_ERROR'
@@ -158,7 +161,7 @@ router.get('/advanced-analytics/trends', async (req, res) => {
     res.json(monthlyTrends);
 
   } catch (error: any) {
-    console.error('Error fetching trends data:', error);
+    log.error({ err: error }, 'Error fetching trends data');
     res.status(500).json({ 
       message: 'Failed to fetch trends data',
       error: 'TRENDS_ERROR'
@@ -260,7 +263,7 @@ router.get('/advanced-analytics/predictions', async (req, res) => {
     res.json(predictions.slice(0, 5)); // Return top 5 predictions
 
   } catch (error: any) {
-    console.error('Error generating predictions:', error);
+    log.error({ err: error }, 'Error generating predictions');
     res.status(500).json({ 
       message: 'Failed to generate predictions',
       error: 'PREDICTION_ERROR'
@@ -348,7 +351,7 @@ router.get('/advanced-analytics/topics', async (req, res) => {
     res.json(topicsWithAnalysis);
 
   } catch (error: any) {
-    console.error('Error fetching topics analysis:', error);
+    log.error({ err: error }, 'Error fetching topics analysis');
     res.status(500).json({ 
       message: 'Failed to fetch topics analysis',
       error: 'TOPICS_ERROR'
@@ -415,7 +418,7 @@ router.get('/advanced-analytics/performance', async (req, res) => {
     res.json(performanceMetrics);
 
   } catch (error: any) {
-    console.error('Error fetching performance data:', error);
+    log.error({ err: error }, 'Error fetching performance data');
     res.status(500).json({ 
       message: 'Failed to fetch performance data',
       error: 'PERFORMANCE_ERROR'
@@ -467,7 +470,7 @@ router.get('/advanced-analytics/party-breakdown', async (req, res) => {
     res.json(partyBreakdown);
 
   } catch (error: any) {
-    console.error('Error fetching party breakdown:', error);
+    log.error({ err: error }, 'Error fetching party breakdown');
     res.status(500).json({ 
       message: 'Failed to fetch party breakdown',
       error: 'PARTY_ERROR'

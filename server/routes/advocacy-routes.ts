@@ -1,5 +1,8 @@
 import { Router } from 'express';
 import { CustomRequest } from '../types';
+import { createLogger } from "../logger";
+const log = createLogger("advocacy-routes");
+
 
 export function registerAdvocacyRoutes(app: Router) {
   // Get action templates
@@ -29,7 +32,7 @@ export function registerAdvocacyRoutes(app: Router) {
       
       res.json(templates);
     } catch (error: any) {
-      console.error('Error getting advocacy templates:', error);
+      log.error({ err: error }, 'Error getting advocacy templates');
       res.status(500).json({ error: 'Failed to get advocacy templates' });
     }
   });
@@ -81,7 +84,7 @@ export function registerAdvocacyRoutes(app: Router) {
       
       res.json(filteredReps);
     } catch (error: any) {
-      console.error('Error getting representatives:', error);
+      log.error({ err: error }, 'Error getting representatives');
       res.status(500).json({ error: 'Failed to get representatives' });
     }
   });
@@ -115,9 +118,9 @@ export function registerAdvocacyRoutes(app: Router) {
       
       // In a real implementation, this would send the message using the appropriate service
       // For now, just log it and return success
-      console.log(`Sending ${method} message to:`, recipients);
-      console.log('Subject:', subject);
-      console.log('Message:', message);
+      log.info({ detail: recipients }, `Sending ${method} message to`);
+      log.info({ detail: subject }, 'Subject');
+      log.info({ detail: message }, 'Message');
       
       // Record the advocacy action for the user
       // In a real implementation, this would be stored in a database
@@ -127,7 +130,7 @@ export function registerAdvocacyRoutes(app: Router) {
         message: `Your message has been sent to ${recipients.length} recipient(s)` 
       });
     } catch (error: any) {
-      console.error('Error sending advocacy message:', error);
+      log.error({ err: error }, 'Error sending advocacy message');
       res.status(500).json({ error: 'Failed to send advocacy message' });
     }
   });
@@ -171,7 +174,7 @@ export function registerAdvocacyRoutes(app: Router) {
       
       res.json(advocacyHistory);
     } catch (error: any) {
-      console.error('Error getting advocacy history:', error);
+      log.error({ err: error }, 'Error getting advocacy history');
       res.status(500).json({ error: 'Failed to get advocacy history' });
     }
   });
@@ -199,7 +202,7 @@ export function registerAdvocacyRoutes(app: Router) {
       
       res.json(impactMetrics);
     } catch (error: any) {
-      console.error('Error getting advocacy impact metrics:', error);
+      log.error({ err: error }, 'Error getting advocacy impact metrics');
       res.status(500).json({ error: 'Failed to get advocacy impact metrics' });
     }
   });

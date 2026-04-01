@@ -1,4 +1,7 @@
 import { LRUCache } from 'lru-cache';
+import { createLogger } from "../logger";
+const log = createLogger("production-cache");
+
 
 export class ProductionCacheService {
   private cache: LRUCache<string, any>;
@@ -56,7 +59,7 @@ export class ProductionCacheService {
   public invalidateDataSource(source: string): void {
     const keys = Array.from(this.cache.keys()).filter(key => key.includes(source));
     keys.forEach(key => this.cache.delete(key));
-    console.log(`🗑️ Invalidated ${keys.length} cache entries for ${source}`);
+    log.info(`🗑️ Invalidated ${keys.length} cache entries for ${source}`);
   }
 
   // Get cache statistics
@@ -76,7 +79,7 @@ export class ProductionCacheService {
     this.cache.clear();
     this.hitCount = 0;
     this.missCount = 0;
-    console.log('🗑️ All cache cleared');
+    log.info('🗑️ All cache cleared');
   }
 }
 

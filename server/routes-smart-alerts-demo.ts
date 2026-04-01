@@ -1,5 +1,8 @@
 import { Router } from 'express';
 import { generateSmartAlert, generateDemoAlerts } from './services/smart-alerts-demo';
+import { createLogger } from "./logger";
+const log = createLogger("routes-smart-alerts-demo");
+
 
 const router = Router();
 
@@ -21,7 +24,7 @@ router.post('/generate', async (req, res) => {
     const result = await generateSmartAlert(billId, changeType, previousStatus, newStatus);
     return res.json(result);
   } catch (error: any) {
-    console.error('Error generating smart alert:', error);
+    log.error({ err: error }, 'Error generating smart alert');
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -44,7 +47,7 @@ router.get('/demo', async (req, res) => {
       }
     });
   } catch (error: any) {
-    console.error('Error getting demo alerts:', error);
+    log.error({ err: error }, 'Error getting demo alerts');
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -64,7 +67,7 @@ router.get('/user', async (req, res) => {
       data: []
     });
   } catch (error: any) {
-    console.error('Error getting user alerts:', error);
+    log.error({ err: error }, 'Error getting user alerts');
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -74,7 +77,7 @@ router.get('/user', async (req, res) => {
 
 export function registerSmartAlertsRoutes(app: any) {
   app.use('/api/smart-alerts', router);
-  console.log('Smart Bill Alerts demo routes registered');
+  log.info('Smart Bill Alerts demo routes registered');
 }
 
 export default router;

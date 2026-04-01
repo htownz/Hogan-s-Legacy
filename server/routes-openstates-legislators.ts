@@ -1,6 +1,9 @@
 import express from 'express';
 import { Request, Response } from 'express';
 import { openStatesLegislatorsAPI } from './services/openstates-legislators-api';
+import { createLogger } from "./logger";
+const log = createLogger("routes-openstates-legislators");
+
 
 const router = express.Router();
 
@@ -12,7 +15,7 @@ const router = express.Router();
 // Collect all Texas legislators from OpenStates API
 router.post('/api/openstates-legislators/collect', async (req: Request, res: Response) => {
   try {
-    console.log('🚀 Starting OpenStates Texas legislators collection...');
+    log.info('🚀 Starting OpenStates Texas legislators collection...');
     
     const result = await openStatesLegislatorsAPI.performLegislatorsDataCollection();
     
@@ -33,7 +36,7 @@ router.post('/api/openstates-legislators/collect', async (req: Request, res: Res
     });
 
   } catch (error: any) {
-    console.error('❌ Error in OpenStates legislators collection:', error.message);
+    log.error({ err: error.message }, '❌ Error in OpenStates legislators collection');
     res.status(500).json({
       success: false,
       error: 'Failed to collect Texas legislators from OpenStates',
@@ -46,7 +49,7 @@ router.post('/api/openstates-legislators/collect', async (req: Request, res: Res
 // Get collection status
 router.get('/api/openstates-legislators/status', async (req: Request, res: Response) => {
   try {
-    console.log('📊 Checking OpenStates legislators collection status...');
+    log.info('📊 Checking OpenStates legislators collection status...');
     
     res.json({
       success: true,
@@ -69,7 +72,7 @@ router.get('/api/openstates-legislators/status', async (req: Request, res: Respo
     });
 
   } catch (error: any) {
-    console.error('❌ Error checking status:', error.message);
+    log.error({ err: error.message }, '❌ Error checking status');
     res.status(500).json({
       success: false,
       error: 'Failed to check status',
@@ -83,7 +86,7 @@ router.get('/api/openstates-legislators/:id', async (req: Request, res: Response
   try {
     const { id } = req.params;
     
-    console.log(`👤 Fetching legislator details for ID: ${id}`);
+    log.info(`👤 Fetching legislator details for ID: ${id}`);
     
     const legislator = await openStatesLegislatorsAPI.fetchLegislatorDetails(id);
     
@@ -103,7 +106,7 @@ router.get('/api/openstates-legislators/:id', async (req: Request, res: Response
     });
 
   } catch (error: any) {
-    console.error(`❌ Error fetching legislator ${req.params.id}:`, error.message);
+    log.error({ err: error.message }, `❌ Error fetching legislator ${req.params.id}`);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch legislator details',
@@ -114,5 +117,5 @@ router.get('/api/openstates-legislators/:id', async (req: Request, res: Response
 
 export function registerOpenStatesLegislatorsRoutes(app: express.Application) {
   app.use(router);
-  console.log('🏛️ OpenStates Legislators API routes registered successfully!');
+  log.info('🏛️ OpenStates Legislators API routes registered successfully!');
 }

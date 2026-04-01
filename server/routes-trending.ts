@@ -7,6 +7,9 @@ import { isAuthenticated } from './auth';
 import { CustomRequest } from './types';
 import { computePassageProbability } from './services/passage-probability-service';
 import { calculateTrendingScore } from './services/trending-score-service';
+import { createLogger } from "./logger";
+const log = createLogger("routes-trending");
+
 
 // Route validation schemas
 const billIdParamSchema = z.object({
@@ -39,7 +42,7 @@ export function registerTrendingRoutes(app: Express): void {
       
       res.json(probability);
     } catch (error: any) {
-      console.error('Error getting bill passage probability:', error);
+      log.error({ err: error }, 'Error getting bill passage probability');
       res.status(500).json({ message: 'Failed to fetch passage probability' });
     }
   });
@@ -54,7 +57,7 @@ export function registerTrendingRoutes(app: Express): void {
       
       res.json(probabilities);
     } catch (error: any) {
-      console.error('Error getting passage probabilities for multiple bills:', error);
+      log.error({ err: error }, 'Error getting passage probabilities for multiple bills');
       res.status(500).json({ message: 'Failed to fetch passage probabilities' });
     }
   });
@@ -69,7 +72,7 @@ export function registerTrendingRoutes(app: Express): void {
       
       res.json(result);
     } catch (error: any) {
-      console.error('Error creating/updating passage probability:', error);
+      log.error({ err: error }, 'Error creating/updating passage probability');
       res.status(500).json({ message: 'Failed to create/update passage probability' });
     }
   });
@@ -89,7 +92,7 @@ export function registerTrendingRoutes(app: Express): void {
       const result = await trendingStorage.createOrUpdateBillPassageProbability(probabilityData);
       res.json(result);
     } catch (error: any) {
-      console.error('Error generating passage probability:', error);
+      log.error({ err: error }, 'Error generating passage probability');
       res.status(500).json({ message: 'Failed to generate passage probability' });
     }
   });
@@ -108,7 +111,7 @@ export function registerTrendingRoutes(app: Express): void {
       
       res.json(metrics);
     } catch (error: any) {
-      console.error('Error getting bill trending metrics:', error);
+      log.error({ err: error }, 'Error getting bill trending metrics');
       res.status(500).json({ message: 'Failed to fetch trending metrics' });
     }
   });
@@ -123,7 +126,7 @@ export function registerTrendingRoutes(app: Express): void {
       
       res.json(metrics);
     } catch (error: any) {
-      console.error('Error getting trending metrics for multiple bills:', error);
+      log.error({ err: error }, 'Error getting trending metrics for multiple bills');
       res.status(500).json({ message: 'Failed to fetch trending metrics' });
     }
   });
@@ -138,7 +141,7 @@ export function registerTrendingRoutes(app: Express): void {
       
       res.json(result);
     } catch (error: any) {
-      console.error('Error creating/updating trending metrics:', error);
+      log.error({ err: error }, 'Error creating/updating trending metrics');
       res.status(500).json({ message: 'Failed to create/update trending metrics' });
     }
   });
@@ -158,7 +161,7 @@ export function registerTrendingRoutes(app: Express): void {
       const result = await trendingStorage.createOrUpdateBillTrendingMetrics(trendingData);
       res.json(result);
     } catch (error: any) {
-      console.error('Error generating trending metrics:', error);
+      log.error({ err: error }, 'Error generating trending metrics');
       res.status(500).json({ message: 'Failed to generate trending metrics' });
     }
   });
@@ -173,7 +176,7 @@ export function registerTrendingRoutes(app: Express): void {
       
       res.json(bills);
     } catch (error: any) {
-      console.error('Error fetching most likely to pass bills:', error);
+      log.error({ err: error }, 'Error fetching most likely to pass bills');
       res.status(500).json({ message: 'Failed to fetch most likely to pass bills' });
     }
   });
@@ -188,7 +191,7 @@ export function registerTrendingRoutes(app: Express): void {
       
       res.json(bills);
     } catch (error: any) {
-      console.error('Error fetching least likely to pass bills:', error);
+      log.error({ err: error }, 'Error fetching least likely to pass bills');
       res.status(500).json({ message: 'Failed to fetch least likely to pass bills' });
     }
   });
@@ -203,7 +206,7 @@ export function registerTrendingRoutes(app: Express): void {
       
       res.json(bills);
     } catch (error: any) {
-      console.error('Error fetching bills with rising momentum:', error);
+      log.error({ err: error }, 'Error fetching bills with rising momentum');
       res.status(500).json({ message: 'Failed to fetch bills with rising momentum' });
     }
   });
@@ -218,7 +221,7 @@ export function registerTrendingRoutes(app: Express): void {
       
       res.json(bills);
     } catch (error: any) {
-      console.error('Error fetching top trending bills:', error);
+      log.error({ err: error }, 'Error fetching top trending bills');
       res.status(500).json({ message: 'Failed to fetch top trending bills' });
     }
   });

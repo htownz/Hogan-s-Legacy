@@ -15,6 +15,9 @@ import {
   insertInfluencerDonationSchema,
   insertInfluenceHeatmapDataSchema
 } from '../shared/schema-power-influencers';
+import { createLogger } from "./logger";
+const log = createLogger("routes-power-influencers");
+
 
 /**
  * Register Power Influencers API routes
@@ -45,7 +48,7 @@ export function registerPowerInfluencersRoutes(app: Express): void {
       
       res.status(200).json(influencers);
     } catch (error: any) {
-      console.error('Error fetching power influencers:', error);
+      log.error({ err: error }, 'Error fetching power influencers');
       res.status(500).json({ message: 'Error fetching power influencers' });
     }
   });
@@ -63,7 +66,7 @@ export function registerPowerInfluencersRoutes(app: Express): void {
       const results = await powerInfluencersStorage.searchPowerInfluencers(query);
       res.status(200).json(results);
     } catch (error: any) {
-      console.error('Error searching power influencers:', error);
+      log.error({ err: error }, 'Error searching power influencers');
       res.status(500).json({ message: 'Error searching power influencers' });
     }
   });
@@ -85,7 +88,7 @@ export function registerPowerInfluencersRoutes(app: Express): void {
       
       res.status(200).json(influencer);
     } catch (error: any) {
-      console.error(`Error fetching power influencer ${req.params.id}:`, error);
+      log.error({ err: error }, `Error fetching power influencer ${req.params.id}`);
       res.status(500).json({ message: 'Error fetching power influencer' });
     }
   });
@@ -109,7 +112,7 @@ export function registerPowerInfluencersRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         res.status(400).json({ message: 'Invalid input', errors: error.errors });
       } else {
-        console.error('Error creating power influencer:', error);
+        log.error({ err: error }, 'Error creating power influencer');
         res.status(500).json({ message: 'Error creating power influencer' });
       }
     }
@@ -143,7 +146,7 @@ export function registerPowerInfluencersRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         res.status(400).json({ message: 'Invalid input', errors: error.errors });
       } else {
-        console.error(`Error updating power influencer ${req.params.id}:`, error);
+        log.error({ err: error }, `Error updating power influencer ${req.params.id}`);
         res.status(500).json({ message: 'Error updating power influencer' });
       }
     }
@@ -171,7 +174,7 @@ export function registerPowerInfluencersRoutes(app: Express): void {
       
       res.status(204).end();
     } catch (error: any) {
-      console.error(`Error deleting power influencer ${req.params.id}:`, error);
+      log.error({ err: error }, `Error deleting power influencer ${req.params.id}`);
       res.status(500).json({ message: 'Error deleting power influencer' });
     }
   });
@@ -197,7 +200,7 @@ export function registerPowerInfluencersRoutes(app: Express): void {
         return res.status(404).json({ message: 'Power influencer not found' });
       }
     } catch (error: any) {
-      console.error(`Error fetching influencer card data ${req.params.id}:`, error);
+      log.error({ err: error }, `Error fetching influencer card data ${req.params.id}`);
       res.status(500).json({ message: 'Error fetching influencer card data' });
     }
   });
@@ -214,7 +217,7 @@ export function registerPowerInfluencersRoutes(app: Express): void {
       const consultants = await powerInfluencersStorage.getAllConsultants();
       res.status(200).json(consultants);
     } catch (error: any) {
-      console.error('Error fetching consultants:', error);
+      log.error({ err: error }, 'Error fetching consultants');
       res.status(500).json({ message: 'Error fetching consultants' });
     }
   });
@@ -236,7 +239,7 @@ export function registerPowerInfluencersRoutes(app: Express): void {
       
       res.status(200).json(consultant);
     } catch (error: any) {
-      console.error(`Error fetching consultant ${req.params.id}:`, error);
+      log.error({ err: error }, `Error fetching consultant ${req.params.id}`);
       res.status(500).json({ message: 'Error fetching consultant' });
     }
   });
@@ -269,7 +272,7 @@ export function registerPowerInfluencersRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         res.status(400).json({ message: 'Invalid input', errors: error.errors });
       } else {
-        console.error('Error creating consultant:', error);
+        log.error({ err: error }, 'Error creating consultant');
         res.status(500).json({ message: 'Error creating consultant' });
       }
     }
@@ -303,7 +306,7 @@ export function registerPowerInfluencersRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         res.status(400).json({ message: 'Invalid input', errors: error.errors });
       } else {
-        console.error(`Error updating consultant ${req.params.id}:`, error);
+        log.error({ err: error }, `Error updating consultant ${req.params.id}`);
         res.status(500).json({ message: 'Error updating consultant' });
       }
     }
@@ -327,7 +330,7 @@ export function registerPowerInfluencersRoutes(app: Express): void {
       const clients = await powerInfluencersStorage.getConsultantClientsByConsultantId(id);
       res.status(200).json(clients);
     } catch (error: any) {
-      console.error(`Error fetching consultant clients ${req.params.id}:`, error);
+      log.error({ err: error }, `Error fetching consultant clients ${req.params.id}`);
       res.status(500).json({ message: 'Error fetching consultant clients' });
     }
   });
@@ -363,7 +366,7 @@ export function registerPowerInfluencersRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         res.status(400).json({ message: 'Invalid input', errors: error.errors });
       } else {
-        console.error(`Error adding consultant client ${req.params.id}:`, error);
+        log.error({ err: error }, `Error adding consultant client ${req.params.id}`);
         res.status(500).json({ message: 'Error adding consultant client' });
       }
     }
@@ -387,7 +390,7 @@ export function registerPowerInfluencersRoutes(app: Express): void {
       const campaigns = await powerInfluencersStorage.getConsultantCampaignsByConsultantId(id);
       res.status(200).json(campaigns);
     } catch (error: any) {
-      console.error(`Error fetching consultant campaigns ${req.params.id}:`, error);
+      log.error({ err: error }, `Error fetching consultant campaigns ${req.params.id}`);
       res.status(500).json({ message: 'Error fetching consultant campaigns' });
     }
   });
@@ -423,7 +426,7 @@ export function registerPowerInfluencersRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         res.status(400).json({ message: 'Invalid input', errors: error.errors });
       } else {
-        console.error(`Error adding consultant campaign ${req.params.id}:`, error);
+        log.error({ err: error }, `Error adding consultant campaign ${req.params.id}`);
         res.status(500).json({ message: 'Error adding consultant campaign' });
       }
     }
@@ -441,7 +444,7 @@ export function registerPowerInfluencersRoutes(app: Express): void {
       const megaInfluencers = await powerInfluencersStorage.getAllMegaInfluencers();
       res.status(200).json(megaInfluencers);
     } catch (error: any) {
-      console.error('Error fetching mega influencers:', error);
+      log.error({ err: error }, 'Error fetching mega influencers');
       res.status(500).json({ message: 'Error fetching mega influencers' });
     }
   });
@@ -463,7 +466,7 @@ export function registerPowerInfluencersRoutes(app: Express): void {
       
       res.status(200).json(megaInfluencer);
     } catch (error: any) {
-      console.error(`Error fetching mega influencer ${req.params.id}:`, error);
+      log.error({ err: error }, `Error fetching mega influencer ${req.params.id}`);
       res.status(500).json({ message: 'Error fetching mega influencer' });
     }
   });
@@ -496,7 +499,7 @@ export function registerPowerInfluencersRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         res.status(400).json({ message: 'Invalid input', errors: error.errors });
       } else {
-        console.error('Error creating mega influencer:', error);
+        log.error({ err: error }, 'Error creating mega influencer');
         res.status(500).json({ message: 'Error creating mega influencer' });
       }
     }
@@ -530,7 +533,7 @@ export function registerPowerInfluencersRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         res.status(400).json({ message: 'Invalid input', errors: error.errors });
       } else {
-        console.error(`Error updating mega influencer ${req.params.id}:`, error);
+        log.error({ err: error }, `Error updating mega influencer ${req.params.id}`);
         res.status(500).json({ message: 'Error updating mega influencer' });
       }
     }
@@ -562,7 +565,7 @@ export function registerPowerInfluencersRoutes(app: Express): void {
       
       res.status(200).json(influencerRecords);
     } catch (error: any) {
-      console.error(`Error fetching bill influence for ${req.params.billId}:`, error);
+      log.error({ err: error }, `Error fetching bill influence for ${req.params.billId}`);
       res.status(500).json({ message: 'Error fetching bill influence data' });
     }
   });
@@ -589,7 +592,7 @@ export function registerPowerInfluencersRoutes(app: Express): void {
       
       res.status(200).json(influencerRecords);
     } catch (error: any) {
-      console.error(`Error fetching topic influence for ${req.params.topic}:`, error);
+      log.error({ err: error }, `Error fetching topic influence for ${req.params.topic}`);
       res.status(500).json({ message: 'Error fetching topic influence data' });
     }
   });
@@ -607,7 +610,7 @@ export function registerPowerInfluencersRoutes(app: Express): void {
       const records = await powerInfluencersStorage.getBillInfluenceRecordsByInfluencerId(id);
       res.status(200).json(records);
     } catch (error: any) {
-      console.error(`Error fetching bill influence records for influencer ${req.params.id}:`, error);
+      log.error({ err: error }, `Error fetching bill influence records for influencer ${req.params.id}`);
       res.status(500).json({ message: 'Error fetching bill influence records' });
     }
   });
@@ -629,7 +632,7 @@ export function registerPowerInfluencersRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         res.status(400).json({ message: 'Invalid input', errors: error.errors });
       } else {
-        console.error('Error creating bill influence record:', error);
+        log.error({ err: error }, 'Error creating bill influence record');
         res.status(500).json({ message: 'Error creating bill influence record' });
       }
     }
@@ -652,7 +655,7 @@ export function registerPowerInfluencersRoutes(app: Express): void {
       const donations = await powerInfluencersStorage.getInfluencerDonationsByInfluencerId(id);
       res.status(200).json(donations);
     } catch (error: any) {
-      console.error(`Error fetching donations for influencer ${req.params.id}:`, error);
+      log.error({ err: error }, `Error fetching donations for influencer ${req.params.id}`);
       res.status(500).json({ message: 'Error fetching influencer donations' });
     }
   });
@@ -674,7 +677,7 @@ export function registerPowerInfluencersRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         res.status(400).json({ message: 'Invalid input', errors: error.errors });
       } else {
-        console.error('Error creating influencer donation:', error);
+        log.error({ err: error }, 'Error creating influencer donation');
         res.status(500).json({ message: 'Error creating influencer donation' });
       }
     }
@@ -697,7 +700,7 @@ export function registerPowerInfluencersRoutes(app: Express): void {
       const connections = await powerInfluencersStorage.getInfluencerConnectionsByInfluencerId(id);
       res.status(200).json(connections);
     } catch (error: any) {
-      console.error(`Error fetching connections for influencer ${req.params.id}:`, error);
+      log.error({ err: error }, `Error fetching connections for influencer ${req.params.id}`);
       res.status(500).json({ message: 'Error fetching influencer connections' });
     }
   });
@@ -719,7 +722,7 @@ export function registerPowerInfluencersRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         res.status(400).json({ message: 'Invalid input', errors: error.errors });
       } else {
-        console.error('Error creating influencer connection:', error);
+        log.error({ err: error }, 'Error creating influencer connection');
         res.status(500).json({ message: 'Error creating influencer connection' });
       }
     }
@@ -748,7 +751,7 @@ export function registerPowerInfluencersRoutes(app: Express): void {
       const network = await powerInfluencersStorage.getInfluencerNetworkByInfluencerId(id, depth);
       res.status(200).json(network);
     } catch (error: any) {
-      console.error(`Error fetching network for influencer ${req.params.id}:`, error);
+      log.error({ err: error }, `Error fetching network for influencer ${req.params.id}`);
       res.status(500).json({ message: 'Error fetching influencer network' });
     }
   });
@@ -770,7 +773,7 @@ export function registerPowerInfluencersRoutes(app: Express): void {
       const topInfluencers = await powerInfluencersStorage.getTopInfluencersByDonationAmount(limit);
       res.status(200).json(topInfluencers);
     } catch (error: any) {
-      console.error('Error fetching top influencers by donation:', error);
+      log.error({ err: error }, 'Error fetching top influencers by donation');
       res.status(500).json({ message: 'Error fetching top influencers' });
     }
   });
@@ -788,7 +791,7 @@ export function registerPowerInfluencersRoutes(app: Express): void {
       const topConsultants = await powerInfluencersStorage.getMostInfluentialConsultantsBySuccessRate(limit);
       res.status(200).json(topConsultants);
     } catch (error: any) {
-      console.error('Error fetching top consultants by success rate:', error);
+      log.error({ err: error }, 'Error fetching top consultants by success rate');
       res.status(500).json({ message: 'Error fetching top consultants' });
     }
   });
@@ -806,7 +809,7 @@ export function registerPowerInfluencersRoutes(app: Express): void {
       const influencers = await powerInfluencersStorage.getInfluencersByLegislatorId(legislatorId);
       res.status(200).json(influencers);
     } catch (error: any) {
-      console.error(`Error fetching influencers for legislator ${req.params.legislatorId}:`, error);
+      log.error({ err: error }, `Error fetching influencers for legislator ${req.params.legislatorId}`);
       res.status(500).json({ message: 'Error fetching influencers for legislator' });
     }
   });

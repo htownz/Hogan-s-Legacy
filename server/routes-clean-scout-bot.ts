@@ -1,5 +1,8 @@
 import { Router } from 'express';
 import { workingScoutBot } from './services/working-scout-bot';
+import { createLogger } from "./logger";
+const log = createLogger("routes-clean-scout-bot");
+
 
 const router = Router();
 
@@ -27,7 +30,7 @@ router.post('/research', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('Research error:', error);
+    log.error({ err: error }, 'Research error');
     res.status(500).json({
       error: 'Research failed',
       message: error instanceof Error ? error.message : 'Unknown error'
@@ -52,7 +55,7 @@ router.post('/analyze-entity', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('Entity analysis error:', error);
+    log.error({ err: error }, 'Entity analysis error');
     res.status(500).json({
       error: 'Entity analysis failed',
       message: error instanceof Error ? error.message : 'Unknown error'
@@ -81,7 +84,7 @@ router.post('/ethics-scan', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('Ethics scan error:', error);
+    log.error({ err: error }, 'Ethics scan error');
     res.status(500).json({
       error: 'Ethics scan failed',
       message: error instanceof Error ? error.message : 'Unknown error'

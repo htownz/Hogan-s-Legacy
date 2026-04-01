@@ -3,6 +3,9 @@ import OpenAI from "openai";
 import { db } from "../db";
 import { bills, legislativeRules, pointsOfOrder } from "@shared/schema";
 import { eq, desc, sql } from "drizzle-orm";
+import { createLogger } from "../logger";
+const log = createLogger("enhanced-bill-poo-analyzer");
+
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -50,9 +53,9 @@ export class EnhancedBillPOOAnalyzer {
       // Initialize rule patterns
       await this.loadRulePatterns();
       this.initialized = true;
-      console.log("Enhanced Bill Point of Order Analyzer initialized with rule patterns.");
+      log.info("Enhanced Bill Point of Order Analyzer initialized with rule patterns.");
     } catch (error: any) {
-      console.error("Error initializing Enhanced Bill Point of Order Analyzer:", error);
+      log.error({ err: error }, "Error initializing Enhanced Bill Point of Order Analyzer");
     }
   }
 
@@ -129,7 +132,7 @@ Return the results as a JSON array of patterns in this format:
       
       if (Array.isArray(extractedPatterns.patterns)) {
         this.rulePatterns = extractedPatterns.patterns;
-        console.log(`Loaded ${this.rulePatterns.length} rule patterns for analysis.`);
+        log.info(`Loaded ${this.rulePatterns.length} rule patterns for analysis.`);
       } else {
         // Add some default patterns if extraction failed
         this.rulePatterns = [
@@ -157,7 +160,7 @@ Return the results as a JSON array of patterns in this format:
         ];
       }
     } catch (error: any) {
-      console.error("Error loading rule patterns:", error);
+      log.error({ err: error }, "Error loading rule patterns");
       
       // Use default patterns as fallback
       this.rulePatterns = [
@@ -329,7 +332,7 @@ If no potential points of order are identified, return an empty array.
           };
         }
       } catch (error: any) {
-        console.error("Error parsing OpenAI response for bill analysis:", error);
+        log.error({ err: error }, "Error parsing OpenAI response for bill analysis");
         return {
           billId,
           analysis: [{
@@ -342,7 +345,7 @@ If no potential points of order are identified, return an empty array.
         };
       }
     } catch (error: any) {
-      console.error(`Error analyzing bill ${billId}:`, error);
+      log.error({ err: error }, `Error analyzing bill ${billId}`);
       return {
         billId,
         analysis: [{
@@ -448,7 +451,7 @@ If no potential points of order are identified, the potentialIssues array should
       const responseText = completion.choices[0].message.content || "{}";
       return JSON.parse(responseText);
     } catch (error: any) {
-      console.error(`Error analyzing amendment for bill ${billId}:`, error);
+      log.error({ err: error }, `Error analyzing amendment for bill ${billId}`);
       return {
         success: false,
         error: `Analysis error: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -493,7 +496,7 @@ If no potential points of order are identified, the potentialIssues array should
         recentTrends: pointsOfOrderData.slice(0, 10)
       };
     } catch (error: any) {
-      console.error("Error getting points of order patterns:", error);
+      log.error({ err: error }, "Error getting points of order patterns");
       return {
         error: "Failed to retrieve points of order patterns"
       };

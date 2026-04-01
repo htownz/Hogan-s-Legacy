@@ -1,5 +1,8 @@
 import OpenAI from 'openai';
 import { legiscanService } from './legiscan-service';
+import { createLogger } from "../logger";
+const log = createLogger("smart-alerts-enhanced-service");
+
 
 // Initialize OpenAI client
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -58,7 +61,7 @@ export async function generateSmartAlert(
   changeDetails: any
 ): Promise<{ success: boolean; data?: SmartAlert; error?: string }> {
   try {
-    console.log(`Generating smart alert for bill ${billId}, change: ${changeType}`);
+    log.info(`Generating smart alert for bill ${billId}, change: ${changeType}`);
 
     // Get current bill details
     const billDetails = await legiscanService.getBill(billId);
@@ -199,7 +202,7 @@ Create a comprehensive alert with context, impact analysis, and actionable next 
         expiresAt: calculateExpirationDate(alertData.urgency)
       };
 
-      console.log(`Smart alert generated successfully for bill ${billId}`);
+      log.info(`Smart alert generated successfully for bill ${billId}`);
       return {
         success: true,
         data: alert
@@ -212,7 +215,7 @@ Create a comprehensive alert with context, impact analysis, and actionable next 
     };
 
   } catch (error: any) {
-    console.error('Error generating smart alert:', error);
+    log.error({ err: error }, 'Error generating smart alert');
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -230,7 +233,7 @@ export async function processAlertAction(
   data?: any
 ): Promise<{ success: boolean; result?: any; error?: string }> {
   try {
-    console.log(`Processing alert action: ${action} for alert ${alertId}`);
+    log.info(`Processing alert action: ${action} for alert ${alertId}`);
 
     switch (action) {
       case 'contact_representative':
@@ -255,7 +258,7 @@ export async function processAlertAction(
         };
     }
   } catch (error: any) {
-    console.error('Error processing alert action:', error);
+    log.error({ err: error }, 'Error processing alert action');
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -391,7 +394,7 @@ export async function getUserAlerts(
       data: []
     };
   } catch (error: any) {
-    console.error('Error getting user alerts:', error);
+    log.error({ err: error }, 'Error getting user alerts');
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -408,12 +411,12 @@ export async function markAlertAsRead(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // This would update the alert in the database
-    console.log(`Marking alert ${alertId} as read for user ${userId}`);
+    log.info(`Marking alert ${alertId} as read for user ${userId}`);
     return {
       success: true
     };
   } catch (error: any) {
-    console.error('Error marking alert as read:', error);
+    log.error({ err: error }, 'Error marking alert as read');
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'

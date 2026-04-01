@@ -7,6 +7,9 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
 import { z } from 'zod';
+import { createLogger } from "./logger";
+const log = createLogger("routes-scout-bot-ai");
+
 
 // Define upload storage
 const storage = multer.diskStorage({
@@ -57,7 +60,7 @@ export default function setupScoutBotAiRoutes(app: express.Express) {
         });
       }
       
-      console.log(`🤖 Scout Bot analyzing legislator: ${legislatorName} for issue: ${targetIssue}`);
+      log.info(`🤖 Scout Bot analyzing legislator: ${legislatorName} for issue: ${targetIssue}`);
       
       // Get authentic legislator data from your OpenStates collection
       const { db } = await import('./db');
@@ -90,7 +93,7 @@ export default function setupScoutBotAiRoutes(app: express.Express) {
       });
       
     } catch (error: any) {
-      console.error('Error in Scout Bot legislator analysis:', error);
+      log.error({ err: error }, 'Error in Scout Bot legislator analysis');
       res.status(500).json({
         error: 'Failed to analyze legislator',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -110,7 +113,7 @@ export default function setupScoutBotAiRoutes(app: express.Express) {
         });
       }
       
-      console.log(`🎯 Scout Bot targeting bills with keywords: ${billKeywords}`);
+      log.info(`🎯 Scout Bot targeting bills with keywords: ${billKeywords}`);
       
       // Find relevant bills from your authentic LegiScan collection
       const { db } = await import('./db');
@@ -147,7 +150,7 @@ export default function setupScoutBotAiRoutes(app: express.Express) {
       });
       
     } catch (error: any) {
-      console.error('Error in Scout Bot bill targeting:', error);
+      log.error({ err: error }, 'Error in Scout Bot bill targeting');
       res.status(500).json({
         error: 'Failed to analyze bill targeting',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -167,7 +170,7 @@ export default function setupScoutBotAiRoutes(app: express.Express) {
         });
       }
       
-      console.log(`📊 Scout Bot analyzing District ${district} ${chamber} impact for ${issueArea}`);
+      log.info(`📊 Scout Bot analyzing District ${district} ${chamber} impact for ${issueArea}`);
       
       // Get district legislators from authentic data
       const { storage } = await import('./storage');
@@ -189,7 +192,7 @@ export default function setupScoutBotAiRoutes(app: express.Express) {
       });
       
     } catch (error: any) {
-      console.error('Error in Scout Bot district analysis:', error);
+      log.error({ err: error }, 'Error in Scout Bot district analysis');
       res.status(500).json({
         error: 'Failed to analyze district impact',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -209,7 +212,7 @@ export default function setupScoutBotAiRoutes(app: express.Express) {
         });
       }
       
-      console.log(`💡 Scout Bot generating personalized advocacy strategy for District ${userDistrict}`);
+      log.info(`💡 Scout Bot generating personalized advocacy strategy for District ${userDistrict}`);
       
       // Get user's district legislators from authentic data
       const { storage } = await import('./storage');
@@ -238,7 +241,7 @@ export default function setupScoutBotAiRoutes(app: express.Express) {
       });
       
     } catch (error: any) {
-      console.error('Error generating advocacy strategy:', error);
+      log.error({ err: error }, 'Error generating advocacy strategy');
       res.status(500).json({
         error: 'Failed to generate advocacy strategy',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -269,7 +272,7 @@ export default function setupScoutBotAiRoutes(app: express.Express) {
         enrichedFiling
       });
     } catch (error: any) {
-      console.error('Error enriching filing:', error);
+      log.error({ err: error }, 'Error enriching filing');
       return res.status(500).json({
         error: 'Failed to enrich filing',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -304,7 +307,7 @@ export default function setupScoutBotAiRoutes(app: express.Express) {
         result
       });
     } catch (error: any) {
-      console.error('Error categorizing and enriching filing:', error);
+      log.error({ err: error }, 'Error categorizing and enriching filing');
       return res.status(500).json({
         error: 'Failed to categorize and enrich filing',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -334,7 +337,7 @@ export default function setupScoutBotAiRoutes(app: express.Express) {
         enrichedFilings
       });
     } catch (error: any) {
-      console.error('Error batch enriching filings:', error);
+      log.error({ err: error }, 'Error batch enriching filings');
       return res.status(500).json({
         error: 'Failed to batch enrich filings',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -360,7 +363,7 @@ export default function setupScoutBotAiRoutes(app: express.Express) {
       
       // Trigger background processing
       // This is done asynchronously, so we don't wait for it to complete
-      processTecFilings().catch(err => console.error('Error processing TEC filings:', err));
+      processTecFilings().catch(err => log.error({ err: err }, 'Error processing TEC filings'));
       
       return res.json({
         success: true,
@@ -368,7 +371,7 @@ export default function setupScoutBotAiRoutes(app: express.Express) {
         files: fileDetails
       });
     } catch (error: any) {
-      console.error('Error uploading files:', error);
+      log.error({ err: error }, 'Error uploading files');
       return res.status(500).json({
         error: 'Failed to upload files',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -392,14 +395,14 @@ export default function setupScoutBotAiRoutes(app: express.Express) {
         const inputFilesRaw = await fs.readdir(dataDir);
         inputFiles = inputFilesRaw.filter(f => f.endsWith('.json'));
       } catch (err: any) {
-        console.log('Input directory does not exist or cannot be read');
+        log.info('Input directory does not exist or cannot be read');
       }
       
       try {
         const outputFilesRaw = await fs.readdir(outputDir);
         outputFiles = outputFilesRaw.filter(f => f.endsWith('.json'));
       } catch (err: any) {
-        console.log('Output directory does not exist or cannot be read');
+        log.info('Output directory does not exist or cannot be read');
       }
       
       return res.json({
@@ -410,7 +413,7 @@ export default function setupScoutBotAiRoutes(app: express.Express) {
         processingActive: global.scoutBotProcessingActive || false
       });
     } catch (error: any) {
-      console.error('Error getting processing status:', error);
+      log.error({ err: error }, 'Error getting processing status');
       return res.status(500).json({
         error: 'Failed to get processing status',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -418,5 +421,5 @@ export default function setupScoutBotAiRoutes(app: express.Express) {
     }
   });
   
-  console.log('Scout Bot AI routes registered');
+  log.info('Scout Bot AI routes registered');
 }

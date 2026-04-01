@@ -5,6 +5,9 @@ import { isAuthenticated } from "./auth";
 import { isAdmin } from "./middleware/auth-middleware";
 import { CustomRequest } from "./types";
 import { z } from "zod";
+import { createLogger } from "./logger";
+const log = createLogger("routes-civic-terms");
+
 
 /**
  * Register civic terms API routes
@@ -18,7 +21,7 @@ export function registerCivicTermsRoutes(app: Express): void {
       const terms = await civicTermsStorage.getAllCivicTerms();
       res.json(terms);
     } catch (error: any) {
-      console.error("Error getting civic terms:", error);
+      log.error({ err: error }, "Error getting civic terms");
       res.status(500).json({ error: "Failed to get civic terms" });
     }
   });
@@ -40,7 +43,7 @@ export function registerCivicTermsRoutes(app: Express): void {
 
       res.json(term);
     } catch (error: any) {
-      console.error("Error getting civic term:", error);
+      log.error({ err: error }, "Error getting civic term");
       res.status(500).json({ error: "Failed to get civic term" });
     }
   });
@@ -54,7 +57,7 @@ export function registerCivicTermsRoutes(app: Express): void {
       const terms = await civicTermsStorage.getCivicTermsByCategory(category);
       res.json(terms);
     } catch (error: any) {
-      console.error("Error getting civic terms by category:", error);
+      log.error({ err: error }, "Error getting civic terms by category");
       res.status(500).json({ error: "Failed to get civic terms by category" });
     }
   });
@@ -68,7 +71,7 @@ export function registerCivicTermsRoutes(app: Express): void {
       const terms = await civicTermsStorage.getCivicTermsByDifficulty(difficulty);
       res.json(terms);
     } catch (error: any) {
-      console.error("Error getting civic terms by difficulty:", error);
+      log.error({ err: error }, "Error getting civic terms by difficulty");
       res.status(500).json({ error: "Failed to get civic terms by difficulty" });
     }
   });
@@ -86,7 +89,7 @@ export function registerCivicTermsRoutes(app: Express): void {
       const terms = await civicTermsStorage.searchCivicTerms(query);
       res.json(terms);
     } catch (error: any) {
-      console.error("Error searching civic terms:", error);
+      log.error({ err: error }, "Error searching civic terms");
       res.status(500).json({ error: "Failed to search civic terms" });
     }
   });
@@ -103,7 +106,7 @@ export function registerCivicTermsRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
-      console.error("Error creating civic term:", error);
+      log.error({ err: error }, "Error creating civic term");
       res.status(500).json({ error: "Failed to create civic term" });
     }
   });
@@ -130,7 +133,7 @@ export function registerCivicTermsRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
-      console.error("Error updating civic term:", error);
+      log.error({ err: error }, "Error updating civic term");
       res.status(500).json({ error: "Failed to update civic term" });
     }
   });
@@ -152,7 +155,7 @@ export function registerCivicTermsRoutes(app: Express): void {
 
       res.status(204).send();
     } catch (error: any) {
-      console.error("Error deleting civic term:", error);
+      log.error({ err: error }, "Error deleting civic term");
       res.status(500).json({ error: "Failed to delete civic term" });
     }
   });
@@ -169,7 +172,7 @@ export function registerCivicTermsRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
-      console.error("Error tracking term appearance:", error);
+      log.error({ err: error }, "Error tracking term appearance");
       res.status(500).json({ error: "Failed to track term appearance" });
     }
   });
@@ -187,7 +190,7 @@ export function registerCivicTermsRoutes(app: Express): void {
       const relatedTerms = await civicTermsStorage.getRelatedTerms(id);
       res.json(relatedTerms);
     } catch (error: any) {
-      console.error("Error getting related terms:", error);
+      log.error({ err: error }, "Error getting related terms");
       res.status(500).json({ error: "Failed to get related terms" });
     }
   });

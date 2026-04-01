@@ -6,6 +6,9 @@
 
 import { Router } from 'express';
 import { storage } from './storage';
+import { createLogger } from "./logger";
+const log = createLogger("routes-social-auth");
+
 
 const router = Router();
 
@@ -69,7 +72,7 @@ router.post('/google', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('Google auth error:', error);
+    log.error({ err: error }, 'Google auth error');
     res.status(500).json({
       success: false,
       message: 'Google authentication failed',
@@ -137,7 +140,7 @@ router.post('/facebook', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('Facebook auth error:', error);
+    log.error({ err: error }, 'Facebook auth error');
     res.status(500).json({
       success: false,
       message: 'Facebook authentication failed',
@@ -205,7 +208,7 @@ router.post('/twitter', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('Twitter auth error:', error);
+    log.error({ err: error }, 'Twitter auth error');
     res.status(500).json({
       success: false,
       message: 'Twitter authentication failed',
@@ -273,7 +276,7 @@ router.post('/github', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('GitHub auth error:', error);
+    log.error({ err: error }, 'GitHub auth error');
     res.status(500).json({
       success: false,
       message: 'GitHub authentication failed',
@@ -341,7 +344,7 @@ router.post('/apple', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('Apple auth error:', error);
+    log.error({ err: error }, 'Apple auth error');
     res.status(500).json({
       success: false,
       message: 'Apple authentication failed',
@@ -389,7 +392,7 @@ router.get('/config', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('Config error:', error);
+    log.error({ err: error }, 'Config error');
     res.status(500).json({
       success: false,
       message: 'Failed to fetch configuration',
@@ -430,7 +433,7 @@ router.post('/link-account', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('Account linking error:', error);
+    log.error({ err: error }, 'Account linking error');
     res.status(500).json({
       success: false,
       message: 'Failed to link account',

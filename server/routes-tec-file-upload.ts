@@ -8,6 +8,9 @@ import { v4 as uuidv4 } from "uuid";
 import crypto from "crypto";
 import { tecUploadStorage } from "./storage-tec-uploads";
 import { processTECReports } from "./tecProcessorWrapper.js";
+import { createLogger } from "./logger";
+const log = createLogger("routes-tec-file-upload");
+
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -101,7 +104,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     if (options.processImmediately) {
       // Start processing in background
       processTECFile(fileUpload.id, req.file.path).catch(error => {
-        console.error(`Error processing TEC file ${fileUpload.id}:`, error);
+        log.error({ err: error }, `Error processing TEC file ${fileUpload.id}`);
       });
     }
     
@@ -113,7 +116,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
         'File uploaded successfully'
     });
   } catch (error: any) {
-    console.error('Error uploading TEC file:', error);
+    log.error({ err: error }, 'Error uploading TEC file');
     res.status(500).json({ error: 'Failed to upload file' });
   }
 });
@@ -129,7 +132,7 @@ router.get('/uploads', async (req, res) => {
     const uploads = await tecUploadStorage.getFileUploadsByUserId(userId);
     res.json(uploads);
   } catch (error: any) {
-    console.error('Error retrieving user uploads:', error);
+    log.error({ err: error }, 'Error retrieving user uploads');
     res.status(500).json({ error: 'Failed to retrieve uploads' });
   }
 });
@@ -150,7 +153,7 @@ router.get('/uploads/:id', async (req, res) => {
     
     res.json(fileUpload);
   } catch (error: any) {
-    console.error('Error retrieving file upload:', error);
+    log.error({ err: error }, 'Error retrieving file upload');
     res.status(500).json({ error: 'Failed to retrieve file upload' });
   }
 });
@@ -184,7 +187,7 @@ router.post('/uploads/:id/process', async (req, res) => {
     
     // Start processing in background
     processTECFile(fileUpload.id, filePath).catch(error => {
-      console.error(`Error processing TEC file ${fileUpload.id}:`, error);
+      log.error({ err: error }, `Error processing TEC file ${fileUpload.id}`);
     });
     
     res.json({
@@ -193,7 +196,7 @@ router.post('/uploads/:id/process', async (req, res) => {
       message: 'Processing started'
     });
   } catch (error: any) {
-    console.error('Error starting file processing:', error);
+    log.error({ err: error }, 'Error starting file processing');
     res.status(500).json({ error: 'Failed to start processing' });
   }
 });
@@ -221,7 +224,7 @@ router.get('/uploads/:id/moderation', async (req, res) => {
     
     res.json(moderationItems);
   } catch (error: any) {
-    console.error('Error retrieving moderation queue:', error);
+    log.error({ err: error }, 'Error retrieving moderation queue');
     res.status(500).json({ error: 'Failed to retrieve moderation queue' });
   }
 });
@@ -242,7 +245,7 @@ router.get('/moderation/pending', async (req, res) => {
       offset
     });
   } catch (error: any) {
-    console.error('Error retrieving pending moderation:', error);
+    log.error({ err: error }, 'Error retrieving pending moderation');
     res.status(500).json({ error: 'Failed to retrieve pending moderation items' });
   }
 });
@@ -258,7 +261,7 @@ router.get('/moderation/:id', async (req, res) => {
     
     res.json(moderationItem);
   } catch (error: any) {
-    console.error('Error retrieving moderation item:', error);
+    log.error({ err: error }, 'Error retrieving moderation item');
     res.status(500).json({ error: 'Failed to retrieve moderation item' });
   }
 });
@@ -301,7 +304,7 @@ router.post('/moderation/:id/approve', async (req, res) => {
       message: 'Moderation item approved'
     });
   } catch (error: any) {
-    console.error('Error approving moderation item:', error);
+    log.error({ err: error }, 'Error approving moderation item');
     res.status(500).json({ error: 'Failed to approve moderation item' });
   }
 });
@@ -342,7 +345,7 @@ router.post('/moderation/:id/reject', async (req, res) => {
       message: 'Moderation item rejected'
     });
   } catch (error: any) {
-    console.error('Error rejecting moderation item:', error);
+    log.error({ err: error }, 'Error rejecting moderation item');
     res.status(500).json({ error: 'Failed to reject moderation item' });
   }
 });
@@ -390,9 +393,9 @@ async function processTECFile(fileId: string, filePath: string): Promise<void> {
     // Mark as completed
     await tecUploadStorage.updateFileUploadStatus(fileId, 'completed');
     
-    console.log(`TEC file ${fileId} processing completed successfully`);
+    log.info(`TEC file ${fileId} processing completed successfully`);
   } catch (error: any) {
-    console.error(`Error processing TEC file ${fileId}:`, error);
+    log.error({ err: error }, `Error processing TEC file ${fileId}`);
     // Mark as failed with error message
     await tecUploadStorage.updateFileUploadStatus(
       fileId, 

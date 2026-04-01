@@ -9,6 +9,9 @@ import { isAuthenticated } from "./auth";
 import type { CustomRequest } from "./types";
 import { enhancedBillPOOAnalyzer } from "./services/enhanced-bill-poo-analyzer";
 import { pointsOfOrder, legislativeRules } from "@shared/schema";
+import { createLogger } from "./logger";
+const log = createLogger("routes-points-of-order-stats");
+
 
 /**
  * Register routes for points of order statistics and trends
@@ -75,7 +78,7 @@ export function registerPointsOfOrderStatsRoutes(app: Express): void {
         byRuleReference,
       });
     } catch (error: any) {
-      console.error("Error fetching points of order statistics:", error);
+      log.error({ err: error }, "Error fetching points of order statistics");
       res.status(500).json({ message: "Error fetching statistics" });
     }
   });
@@ -171,7 +174,7 @@ export function registerPointsOfOrderStatsRoutes(app: Express): void {
         typeSuccessRate
       });
     } catch (error: any) {
-      console.error("Error fetching points of order trends:", error);
+      log.error({ err: error }, "Error fetching points of order trends");
       res.status(500).json({ message: "Error fetching trends" });
     }
   });
@@ -193,7 +196,7 @@ export function registerPointsOfOrderStatsRoutes(app: Express): void {
       
       res.status(200).json({ ruleReferences });
     } catch (error: any) {
-      console.error("Error fetching rule references:", error);
+      log.error({ err: error }, "Error fetching rule references");
       res.status(500).json({ message: "Error fetching rule references" });
     }
   });

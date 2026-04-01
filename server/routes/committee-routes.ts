@@ -5,6 +5,9 @@ import { committees, committeeMeetings } from "@shared/schema";
 import { db } from "../db";
 import committeeVideoProcessor from "../services/committee-video-processor";
 import { isAuthenticated } from "../auth";
+import { createLogger } from "../logger";
+const log = createLogger("committee-routes");
+
 
 const router = express.Router();
 
@@ -16,7 +19,7 @@ router.get("/committees", async (req, res) => {
     });
     res.json(allCommittees);
   } catch (error: any) {
-    console.error("Error fetching committees:", error);
+    log.error({ err: error }, "Error fetching committees");
     res.status(500).json({ error: "Failed to fetch committees" });
   }
 });
@@ -40,7 +43,7 @@ router.get("/committees/:id", async (req, res) => {
     
     res.json(committee);
   } catch (error: any) {
-    console.error("Error fetching committee:", error);
+    log.error({ err: error }, "Error fetching committee");
     res.status(500).json({ error: "Failed to fetch committee" });
   }
 });
@@ -61,7 +64,7 @@ router.get("/committees/:id/meetings", async (req, res) => {
     
     res.json(meetings);
   } catch (error: any) {
-    console.error("Error fetching committee meetings:", error);
+    log.error({ err: error }, "Error fetching committee meetings");
     res.status(500).json({ error: "Failed to fetch committee meetings" });
   }
 });
@@ -74,7 +77,7 @@ router.get("/committee-meetings", async (req, res) => {
     });
     res.json(allMeetings);
   } catch (error: any) {
-    console.error("Error fetching committee meetings:", error);
+    log.error({ err: error }, "Error fetching committee meetings");
     res.status(500).json({ error: "Failed to fetch committee meetings" });
   }
 });
@@ -91,7 +94,7 @@ router.get("/committee-meetings/upcoming", async (req, res) => {
     
     res.json(upcomingMeetings);
   } catch (error: any) {
-    console.error("Error fetching upcoming committee meetings:", error);
+    log.error({ err: error }, "Error fetching upcoming committee meetings");
     res.status(500).json({ error: "Failed to fetch upcoming committee meetings" });
   }
 });
@@ -123,7 +126,7 @@ router.get("/committee-meetings/:id", async (req, res) => {
       committee: committee,
     });
   } catch (error: any) {
-    console.error("Error fetching committee meeting:", error);
+    log.error({ err: error }, "Error fetching committee meeting");
     res.status(500).json({ error: "Failed to fetch committee meeting" });
   }
 });
@@ -140,7 +143,7 @@ router.get("/committee-meetings/upcoming", async (req, res) => {
     
     res.json(upcomingMeetings);
   } catch (error: any) {
-    console.error("Error fetching upcoming committee meetings:", error);
+    log.error({ err: error }, "Error fetching upcoming committee meetings");
     res.status(500).json({ error: "Failed to fetch upcoming committee meetings" });
   }
 });
@@ -178,7 +181,7 @@ router.get("/committee-meetings/:id/summary", async (req, res) => {
       lastUpdated: meeting.summaryLastUpdated
     });
   } catch (error: any) {
-    console.error("Error fetching meeting summary:", error);
+    log.error({ err: error }, "Error fetching meeting summary");
     res.status(500).json({ error: "Failed to fetch meeting summary" });
   }
 });
@@ -231,7 +234,7 @@ router.post("/committee-meetings/:id/process-video", isAuthenticated, async (req
       res.status(500).json({ error: "Failed to start video processing" });
     }
   } catch (error: any) {
-    console.error("Error starting video processing:", error);
+    log.error({ err: error }, "Error starting video processing");
     res.status(500).json({ error: "Failed to start video processing" });
   }
 });
@@ -263,7 +266,7 @@ router.get("/committee-meetings/:id/process-status", async (req, res) => {
       lastUpdated: meeting.summaryLastUpdated
     });
   } catch (error: any) {
-    console.error("Error checking processing status:", error);
+    log.error({ err: error }, "Error checking processing status");
     res.status(500).json({ error: "Failed to check processing status" });
   }
 });

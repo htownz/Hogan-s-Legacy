@@ -5,6 +5,9 @@ import { db } from "./db";
 import { eq } from "drizzle-orm";
 import { legislators } from "@shared/schema";
 import { OpenAI } from "openai";
+import { createLogger } from "./logger";
+const log = createLogger("routes-legislator-advanced");
+
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -38,7 +41,7 @@ export async function getLegislatorNews(req: Request, res: Response) {
     
     res.json(newsArticles);
   } catch (error: any) {
-    console.error("Error fetching legislator news:", error);
+    log.error({ err: error }, "Error fetching legislator news");
     res.status(500).json({ error: "Failed to fetch legislator news articles" });
   }
 }
@@ -66,7 +69,7 @@ export async function getLegislatorDistrict(req: Request, res: Response) {
     
     res.json(districtData);
   } catch (error: any) {
-    console.error("Error fetching district data:", error);
+    log.error({ err: error }, "Error fetching district data");
     res.status(500).json({ error: "Failed to fetch district data" });
   }
 }
@@ -93,7 +96,7 @@ export async function getLegislatorConstituents(req: Request, res: Response) {
     
     res.json(constituentData);
   } catch (error: any) {
-    console.error("Error fetching constituent data:", error);
+    log.error({ err: error }, "Error fetching constituent data");
     res.status(500).json({ error: "Failed to fetch constituent data" });
   }
 }
@@ -120,7 +123,7 @@ export async function getLegislatorFinance(req: Request, res: Response) {
     
     res.json(financeData);
   } catch (error: any) {
-    console.error("Error fetching finance data:", error);
+    log.error({ err: error }, "Error fetching finance data");
     res.status(500).json({ error: "Failed to fetch finance data" });
   }
 }
@@ -147,7 +150,7 @@ export async function getLegislatorVotingHistory(req: Request, res: Response) {
     
     res.json(votingHistory);
   } catch (error: any) {
-    console.error("Error fetching voting history:", error);
+    log.error({ err: error }, "Error fetching voting history");
     res.status(500).json({ error: "Failed to fetch voting history" });
   }
 }
@@ -174,7 +177,7 @@ export async function getLegislatorEthics(req: Request, res: Response) {
     
     res.json(ethicsData);
   } catch (error: any) {
-    console.error("Error fetching ethics data:", error);
+    log.error({ err: error }, "Error fetching ethics data");
     res.status(500).json({ error: "Failed to fetch ethics data" });
   }
 }
@@ -215,7 +218,7 @@ export async function getLegislatorAiSummary(req: Request, res: Response) {
       
     res.json({ aiSummary: summary });
   } catch (error: any) {
-    console.error("Error generating AI summary:", error);
+    log.error({ err: error }, "Error generating AI summary");
     res.status(500).json({ error: "Failed to generate AI summary" });
   }
 }
@@ -518,7 +521,7 @@ async function generateAiSummaryForLegislator(legislator: any) {
   try {
     // Check if OpenAI API key is available
     if (!process.env.OPENAI_API_KEY) {
-      console.warn("OpenAI API key not available. Returning generic summary.");
+      log.warn("OpenAI API key not available. Returning generic summary.");
       return generateGenericSummary(legislator);
     }
     
@@ -548,7 +551,7 @@ async function generateAiSummaryForLegislator(legislator: any) {
     
     return completion.choices[0].message.content.trim();
   } catch (error: any) {
-    console.error("Error generating AI summary:", error);
+    log.error({ err: error }, "Error generating AI summary");
     return generateGenericSummary(legislator);
   }
 }

@@ -1,5 +1,8 @@
 import { Router } from 'express';
 import { liveDataIntegrationService } from './services/live-data-integration-service';
+import { createLogger } from "./logger";
+const log = createLogger("routes-live-data");
+
 
 const router = Router();
 
@@ -12,7 +15,7 @@ router.get('/sources/status', async (req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (error: any) {
-    console.error('Data sources status error:', error);
+    log.error({ err: error }, 'Data sources status error');
     res.status(500).json({ error: 'Failed to get data sources status' });
   }
 });
@@ -23,7 +26,7 @@ router.get('/api-keys/validate', async (req, res) => {
     const validation = await liveDataIntegrationService.validateApiKeys();
     res.json(validation);
   } catch (error: any) {
-    console.error('API keys validation error:', error);
+    log.error({ err: error }, 'API keys validation error');
     res.status(500).json({ error: 'Failed to validate API keys' });
   }
 });
@@ -38,7 +41,7 @@ router.post('/sync/legiscan', async (req, res) => {
       message: 'LegiScan data synced successfully'
     });
   } catch (error: any) {
-    console.error('LegiScan sync error:', error);
+    log.error({ err: error }, 'LegiScan sync error');
     res.status(500).json({ 
       success: false,
       error: error.message,
@@ -57,7 +60,7 @@ router.post('/sync/fec', async (req, res) => {
       message: 'FEC campaign finance data synced successfully'
     });
   } catch (error: any) {
-    console.error('FEC sync error:', error);
+    log.error({ err: error }, 'FEC sync error');
     res.status(500).json({ 
       success: false,
       error: error.message,
@@ -76,7 +79,7 @@ router.post('/sync/congress', async (req, res) => {
       message: 'Congress.gov data synced successfully'
     });
   } catch (error: any) {
-    console.error('Congress.gov sync error:', error);
+    log.error({ err: error }, 'Congress.gov sync error');
     res.status(500).json({ 
       success: false,
       error: error.message,
@@ -95,7 +98,7 @@ router.post('/sync/texas-legislature', async (req, res) => {
       message: 'Texas Legislature Online data synced successfully'
     });
   } catch (error: any) {
-    console.error('Texas Legislature sync error:', error);
+    log.error({ err: error }, 'Texas Legislature sync error');
     res.status(500).json({ 
       success: false,
       error: error.message,
@@ -114,7 +117,7 @@ router.post('/sync/ethics', async (req, res) => {
       message: 'Texas Ethics Commission data synced successfully'
     });
   } catch (error: any) {
-    console.error('Texas Ethics sync error:', error);
+    log.error({ err: error }, 'Texas Ethics sync error');
     res.status(500).json({ 
       success: false,
       error: error.message,
@@ -133,7 +136,7 @@ router.post('/sync/all', async (req, res) => {
       message: `Synced ${results.successful.length} sources successfully, ${results.failed.length} failed`
     });
   } catch (error: any) {
-    console.error('All sources sync error:', error);
+    log.error({ err: error }, 'All sources sync error');
     res.status(500).json({ 
       success: false,
       error: error.message,
@@ -155,7 +158,7 @@ router.get('/status', async (req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (error: any) {
-    console.error('Status error:', error);
+    log.error({ err: error }, 'Status error');
     res.status(500).json({ 
       status: 'Error',
       error: error.message,
@@ -166,5 +169,5 @@ router.get('/status', async (req, res) => {
 
 export function registerLiveDataRoutes(app: any) {
   app.use('/api/live-data', router);
-  console.log('📊 Live data integration routes registered successfully!');
+  log.info('📊 Live data integration routes registered successfully!');
 }

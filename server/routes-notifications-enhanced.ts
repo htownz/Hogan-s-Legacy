@@ -2,6 +2,9 @@ import { Router } from "express";
 import { z } from "zod";
 import { notificationService } from "./services/notification-service";
 import { smartAlertsStorage } from "./storage-smart-alerts";
+import { createLogger } from "./logger";
+const log = createLogger("routes-notifications-enhanced");
+
 
 const router = Router();
 
@@ -18,7 +21,7 @@ router.post("/api/notifications/test", async (req, res) => {
       userId
     });
   } catch (error: any) {
-    console.error("Failed to send test notification:", error);
+    log.error({ err: error }, "Failed to send test notification");
     res.status(500).json({
       success: false,
       error: "Failed to send test notification"
@@ -54,7 +57,7 @@ router.post("/api/notifications/send", async (req, res) => {
       payload
     });
   } catch (error: any) {
-    console.error("Failed to send notification:", error);
+    log.error({ err: error }, "Failed to send notification");
     res.status(500).json({
       success: false,
       error: "Failed to send notification"
@@ -91,7 +94,7 @@ router.post("/api/notifications/broadcast/:billId", async (req, res) => {
       updateType: payload.updateType
     });
   } catch (error: any) {
-    console.error("Failed to broadcast bill update:", error);
+    log.error({ err: error }, "Failed to broadcast bill update");
     res.status(500).json({
       success: false,
       error: "Failed to broadcast bill update"
@@ -110,7 +113,7 @@ router.get("/api/notifications/stats/:userId", async (req, res) => {
       stats
     });
   } catch (error: any) {
-    console.error("Failed to get notification stats:", error);
+    log.error({ err: error }, "Failed to get notification stats");
     res.status(500).json({
       success: false,
       error: "Failed to get notification stats"
@@ -135,7 +138,7 @@ router.get("/api/notifications/preferences/:userId", async (req, res) => {
       }
     });
   } catch (error: any) {
-    console.error("Failed to get alert preferences:", error);
+    log.error({ err: error }, "Failed to get alert preferences");
     res.status(500).json({
       success: false,
       error: "Failed to get alert preferences"
@@ -166,7 +169,7 @@ router.put("/api/notifications/preferences/:userId", async (req, res) => {
       preferences: updated
     });
   } catch (error: any) {
-    console.error("Failed to update alert preferences:", error);
+    log.error({ err: error }, "Failed to update alert preferences");
     res.status(500).json({
       success: false,
       error: "Failed to update alert preferences"
@@ -186,7 +189,7 @@ router.put("/api/notifications/read/:alertId", async (req, res) => {
       message: "Alert marked as read"
     });
   } catch (error: any) {
-    console.error("Failed to mark alert as read:", error);
+    log.error({ err: error }, "Failed to mark alert as read");
     res.status(500).json({
       success: false,
       error: "Failed to mark alert as read"
@@ -205,7 +208,7 @@ router.get("/api/notifications/unread/:userId", async (req, res) => {
       unreadCount: count
     });
   } catch (error: any) {
-    console.error("Failed to get unread count:", error);
+    log.error({ err: error }, "Failed to get unread count");
     res.status(500).json({
       success: false,
       error: "Failed to get unread count"
@@ -265,7 +268,7 @@ router.post("/api/notifications/simulate-update", async (req, res) => {
       updateType: randomUpdate.type
     });
   } catch (error: any) {
-    console.error("Failed to simulate update:", error);
+    log.error({ err: error }, "Failed to simulate update");
     res.status(500).json({
       success: false,
       error: "Failed to simulate update"

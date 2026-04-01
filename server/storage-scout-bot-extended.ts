@@ -31,6 +31,9 @@ import {
   scoutBotPacLeadership,
 } from "../shared/schema-scout-bot-extended";
 import { scoutBotProfiles } from "../shared/schema-scout-bot";
+import { createLogger } from "./logger";
+const log = createLogger("storage-scout-bot-extended");
+
 
 /**
  * Extended Scout Bot Profile Management
@@ -68,7 +71,7 @@ export const updateProfileTransparencyMetrics = async (
       
     return !!updated;
   } catch (error: any) {
-    console.error("Error updating profile transparency metrics:", error);
+    log.error({ err: error }, "Error updating profile transparency metrics");
     return false;
   }
 };

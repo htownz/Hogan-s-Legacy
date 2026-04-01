@@ -1,5 +1,8 @@
 // @ts-nocheck
 import openai from './openai';
+import { createLogger } from "../logger";
+const log = createLogger("multimodal-service");
+
 
 /**
  * Service for analyzing images, generating images, and multimodal interactions
@@ -58,7 +61,7 @@ export class MultimodalService {
         };
       } catch (parseError: any) {
         // If not valid JSON, return the text content as analysis
-        console.warn("Couldn't parse JSON from OpenAI response, using text analysis", parseError);
+        log.warn({ detail: parseError }, "Couldn't parse JSON from OpenAI response, using text analysis");
         return {
           analysis: content,
           tags: [],
@@ -67,7 +70,7 @@ export class MultimodalService {
         };
       }
     } catch (error: any) {
-      console.error("Error analyzing image:", error);
+      log.error({ err: error }, "Error analyzing image");
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       throw new Error(`Failed to analyze image: ${errorMessage}`);
     }
@@ -98,7 +101,7 @@ export class MultimodalService {
         ...(response.data[0].revised_prompt ? { revisedPrompt: response.data[0].revised_prompt } : {})
       } as { url: string, revisedPrompt?: string };
     } catch (error: any) {
-      console.error("Error generating image:", error);
+      log.error({ err: error }, "Error generating image");
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       throw new Error(`Failed to generate image: ${errorMessage}`);
     }
@@ -143,7 +146,7 @@ export class MultimodalService {
         keyThemes: result.keyThemes || []
       };
     } catch (error: any) {
-      console.error("Error analyzing sentiment:", error);
+      log.error({ err: error }, "Error analyzing sentiment");
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       throw new Error(`Failed to analyze sentiment: ${errorMessage}`);
     }
@@ -226,14 +229,14 @@ export class MultimodalService {
         try {
           result.structuredData = JSON.parse(content);
         } catch (parseError: any) {
-          console.warn("Failed to parse JSON from structured data extraction", parseError);
+          log.warn({ detail: parseError }, "Failed to parse JSON from structured data extraction");
           result.structuredData = { raw: content };
         }
       }
 
       return result;
     } catch (error: any) {
-      console.error("Error extracting document information:", error);
+      log.error({ err: error }, "Error extracting document information");
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       throw new Error(`Failed to extract document information: ${errorMessage}`);
     }
@@ -292,7 +295,7 @@ export class MultimodalService {
       try {
         return JSON.parse(content);
       } catch (parseError: any) {
-        console.warn("Failed to parse JSON from comparison response", parseError);
+        log.warn({ detail: parseError }, "Failed to parse JSON from comparison response");
         return {
           comparison: content,
           similarities: [],
@@ -300,7 +303,7 @@ export class MultimodalService {
         };
       }
     } catch (error: any) {
-      console.error("Error comparing items:", error);
+      log.error({ err: error }, "Error comparing items");
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       throw new Error(`Failed to compare items: ${errorMessage}`);
     }
@@ -354,7 +357,7 @@ export class MultimodalService {
         segments: data.segments
       };
     } catch (error: any) {
-      console.error("Error transcribing audio:", error);
+      log.error({ err: error }, "Error transcribing audio");
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       throw new Error(`Failed to transcribe audio: ${errorMessage}`);
     }

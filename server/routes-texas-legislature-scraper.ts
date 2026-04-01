@@ -3,6 +3,9 @@ import express from 'express';
 import { Request, Response } from 'express';
 import { texasLegislatureScraper } from './services/texas-legislature-scraper';
 import { storage } from './storage';
+import { createLogger } from "./logger";
+const log = createLogger("routes-texas-legislature-scraper");
+
 
 const router = express.Router();
 
@@ -16,7 +19,7 @@ router.post('/api/texas-legislature/scrape', async (req: Request, res: Response)
   try {
     const { limit = 50 } = req.body;
     
-    console.log(`🚀 Starting Texas Legislature Online data collection (limit: ${limit})...`);
+    log.info(`🚀 Starting Texas Legislature Online data collection (limit: ${limit})...`);
     
     // Perform the web scraping
     const bills = await texasLegislatureScraper.performOneTimeDataCollection(limit);
@@ -40,7 +43,7 @@ router.post('/api/texas-legislature/scrape', async (req: Request, res: Response)
     });
 
   } catch (error: any) {
-    console.error('❌ Error in Texas Legislature scraping:', error.message);
+    log.error({ err: error.message }, '❌ Error in Texas Legislature scraping');
     res.status(500).json({
       success: false,
       error: 'Failed to scrape Texas Legislature Online',
@@ -53,7 +56,7 @@ router.post('/api/texas-legislature/scrape', async (req: Request, res: Response)
 // Get current session information from Texas Legislature Online
 router.get('/api/texas-legislature/session-info', async (req: Request, res: Response) => {
   try {
-    console.log('📊 Fetching current Texas legislative session information...');
+    log.info('📊 Fetching current Texas legislative session information...');
     
     const sessionInfo = await texasLegislatureScraper.getCurrentSessionNumber();
     
@@ -66,7 +69,7 @@ router.get('/api/texas-legislature/session-info', async (req: Request, res: Resp
     });
 
   } catch (error: any) {
-    console.error('❌ Error fetching session info:', error.message);
+    log.error({ err: error.message }, '❌ Error fetching session info');
     res.status(500).json({
       success: false,
       error: 'Failed to fetch session information',
@@ -80,7 +83,7 @@ router.get('/api/texas-legislature/bill/:billId', async (req: Request, res: Resp
   try {
     const { billId } = req.params;
     
-    console.log(`🔍 Scraping specific bill ${billId} from TLO...`);
+    log.info(`🔍 Scraping specific bill ${billId} from TLO...`);
     
     const sessionNumber = await texasLegislatureScraper.getCurrentSessionNumber();
     const bill = await texasLegislatureScraper.scrapeBillDetails(billId, sessionNumber);
@@ -102,7 +105,7 @@ router.get('/api/texas-legislature/bill/:billId', async (req: Request, res: Resp
     });
 
   } catch (error: any) {
-    console.error(`❌ Error scraping bill ${req.params.billId}:`, error.message);
+    log.error({ err: error.message }, `❌ Error scraping bill ${req.params.billId}`);
     res.status(500).json({
       success: false,
       error: 'Failed to scrape bill',
@@ -114,7 +117,7 @@ router.get('/api/texas-legislature/bill/:billId', async (req: Request, res: Resp
 // Get scraping status and statistics
 router.get('/api/texas-legislature/status', async (req: Request, res: Response) => {
   try {
-    console.log('📈 Checking Texas Legislature scraping status...');
+    log.info('📈 Checking Texas Legislature scraping status...');
     
     // Get statistics from database
     const totalBills = await storage.getBillCount();
@@ -135,7 +138,7 @@ router.get('/api/texas-legislature/status', async (req: Request, res: Response) 
     });
 
   } catch (error: any) {
-    console.error('❌ Error checking scraping status:', error.message);
+    log.error({ err: error.message }, '❌ Error checking scraping status');
     res.status(500).json({
       success: false,
       error: 'Failed to check scraping status',
@@ -146,5 +149,5 @@ router.get('/api/texas-legislature/status', async (req: Request, res: Response) 
 
 export function registerTexasLegislatureScraperRoutes(app: express.Application) {
   app.use(router);
-  console.log('🏛️ Texas Legislature Online scraper routes registered successfully!');
+  log.info('🏛️ Texas Legislature Online scraper routes registered successfully!');
 }

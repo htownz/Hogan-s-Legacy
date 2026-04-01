@@ -5,6 +5,9 @@ import { users } from '../../shared/schema';
 import { emotionThemeService } from '../services/emotion-theme-service';
 import { eq } from 'drizzle-orm';
 import { ThemeRecommendation, UserThemePreferences } from '../../shared/types';
+import { createLogger } from "../logger";
+const log = createLogger("emotion-theme-routes");
+
 
 // Type for authenticated request with user ID
 interface CustomRequest extends express.Request {
@@ -35,7 +38,7 @@ router.get('/bill/:billId', async (req, res) => {
     const theme = await emotionThemeService.getBillThemeRecommendation(billId);
     res.json(theme);
   } catch (error: any) {
-    console.error('Error getting bill theme:', error);
+    log.error({ err: error }, 'Error getting bill theme');
     res.status(500).json({ error: 'Failed to get theme recommendation' });
   }
 });
@@ -54,7 +57,7 @@ router.get('/committee/:committeeId', async (req, res) => {
     const theme = await emotionThemeService.getCommitteeThemeRecommendation(committeeId);
     res.json(theme);
   } catch (error: any) {
-    console.error('Error getting committee theme:', error);
+    log.error({ err: error }, 'Error getting committee theme');
     res.status(500).json({ error: 'Failed to get theme recommendation' });
   }
 });
@@ -91,7 +94,7 @@ router.get('/preferences', isAuthenticated, async (req: CustomRequest, res) => {
     
     res.json(preferences);
   } catch (error: any) {
-    console.error('Error getting theme preferences:', error);
+    log.error({ err: error }, 'Error getting theme preferences');
     res.status(500).json({ error: 'Failed to get theme preferences' });
   }
 });
@@ -140,7 +143,7 @@ router.post('/preferences', isAuthenticated, async (req: CustomRequest, res) => 
     
     res.json({ success: true });
   } catch (error: any) {
-    console.error('Error updating theme preferences:', error);
+    log.error({ err: error }, 'Error updating theme preferences');
     res.status(500).json({ error: 'Failed to update theme preferences' });
   }
 });

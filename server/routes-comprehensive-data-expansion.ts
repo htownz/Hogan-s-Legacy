@@ -5,14 +5,17 @@ import { eq, desc, and, sql, like, inArray } from "drizzle-orm";
 import axios from "axios";
 import { texasGovernmentConnectors } from "./services/texas-government-api-connectors";
 import { texasLegislatureOnlineCollector } from "./services/texas-legislature-online-collector";
+import { createLogger } from "./logger";
+const log = createLogger("routes-comprehensive-data-expansion");
+
 
 export function registerComprehensiveDataExpansionRoutes(app: Express) {
-  console.log("🚀 Setting up comprehensive Texas government data expansion...");
+  log.info("🚀 Setting up comprehensive Texas government data expansion...");
 
   // Texas Legislature Online Targeted Collection
   app.get('/api/data-expansion/texas-legislature-online', async (req, res) => {
     try {
-      console.log("🎯 Starting targeted Texas Legislature Online data collection...");
+      log.info("🎯 Starting targeted Texas Legislature Online data collection...");
       
       const legislativeData = await texasLegislatureOnlineCollector.collectComprehensiveLegislativeData();
       
@@ -44,7 +47,7 @@ export function registerComprehensiveDataExpansionRoutes(app: Express) {
         collectedAt: new Date().toISOString()
       });
     } catch (error: any) {
-      console.error('Texas Legislature Online collection error:', error);
+      log.error({ err: error }, 'Texas Legislature Online collection error');
       res.status(500).json({ error: 'Failed to collect Texas Legislature Online data' });
     }
   });
@@ -52,7 +55,7 @@ export function registerComprehensiveDataExpansionRoutes(app: Express) {
   // Committee Data Expansion Routes
   app.get('/api/data-expansion/committees', async (req, res) => {
     try {
-      console.log("📋 Fetching comprehensive Texas committee data...");
+      log.info("📋 Fetching comprehensive Texas committee data...");
       
       // Texas Legislature Committee Data Collection
       const committees = await collectTexasCommitteeData();
@@ -66,14 +69,14 @@ export function registerComprehensiveDataExpansionRoutes(app: Express) {
         collectedAt: new Date().toISOString()
       });
     } catch (error: any) {
-      console.error('Committee data collection error:', error);
+      log.error({ err: error }, 'Committee data collection error');
       res.status(500).json({ error: 'Failed to collect committee data' });
     }
   });
 
   app.get('/api/data-expansion/committee-meetings', async (req, res) => {
     try {
-      console.log("📅 Fetching Texas committee meeting schedules...");
+      log.info("📅 Fetching Texas committee meeting schedules...");
       
       const meetings = await collectCommitteeMeetings();
       
@@ -85,7 +88,7 @@ export function registerComprehensiveDataExpansionRoutes(app: Express) {
         collectedAt: new Date().toISOString()
       });
     } catch (error: any) {
-      console.error('Committee meetings collection error:', error);
+      log.error({ err: error }, 'Committee meetings collection error');
       res.status(500).json({ error: 'Failed to collect committee meetings' });
     }
   });
@@ -93,7 +96,7 @@ export function registerComprehensiveDataExpansionRoutes(app: Express) {
   // Campaign Finance Deep Dive Routes
   app.get('/api/data-expansion/campaign-finance', async (req, res) => {
     try {
-      console.log("💰 Collecting comprehensive Texas campaign finance data...");
+      log.info("💰 Collecting comprehensive Texas campaign finance data...");
       
       const campaignData = await collectTexasCampaignFinance();
       
@@ -106,14 +109,14 @@ export function registerComprehensiveDataExpansionRoutes(app: Express) {
         collectedAt: new Date().toISOString()
       });
     } catch (error: any) {
-      console.error('Campaign finance collection error:', error);
+      log.error({ err: error }, 'Campaign finance collection error');
       res.status(500).json({ error: 'Failed to collect campaign finance data' });
     }
   });
 
   app.get('/api/data-expansion/lobbying-expenditures', async (req, res) => {
     try {
-      console.log("🏛️ Fetching Texas lobbying expenditure data...");
+      log.info("🏛️ Fetching Texas lobbying expenditure data...");
       
       const lobbyingData = await collectLobbyingExpenditures();
       
@@ -125,7 +128,7 @@ export function registerComprehensiveDataExpansionRoutes(app: Express) {
         collectedAt: new Date().toISOString()
       });
     } catch (error: any) {
-      console.error('Lobbying data collection error:', error);
+      log.error({ err: error }, 'Lobbying data collection error');
       res.status(500).json({ error: 'Failed to collect lobbying data' });
     }
   });
@@ -133,7 +136,7 @@ export function registerComprehensiveDataExpansionRoutes(app: Express) {
   // Regulatory Agency Data Routes
   app.get('/api/data-expansion/state-agencies', async (req, res) => {
     try {
-      console.log("📋 Collecting Texas state agency regulatory data...");
+      log.info("📋 Collecting Texas state agency regulatory data...");
       
       const agencyData = await collectStateAgencyData();
       
@@ -146,14 +149,14 @@ export function registerComprehensiveDataExpansionRoutes(app: Express) {
         collectedAt: new Date().toISOString()
       });
     } catch (error: any) {
-      console.error('State agency data collection error:', error);
+      log.error({ err: error }, 'State agency data collection error');
       res.status(500).json({ error: 'Failed to collect state agency data' });
     }
   });
 
   app.get('/api/data-expansion/rulemaking', async (req, res) => {
     try {
-      console.log("⚖️ Fetching Texas agency rulemaking activities...");
+      log.info("⚖️ Fetching Texas agency rulemaking activities...");
       
       const rulemakingData = await collectRulemakingData();
       
@@ -165,7 +168,7 @@ export function registerComprehensiveDataExpansionRoutes(app: Express) {
         collectedAt: new Date().toISOString()
       });
     } catch (error: any) {
-      console.error('Rulemaking data collection error:', error);
+      log.error({ err: error }, 'Rulemaking data collection error');
       res.status(500).json({ error: 'Failed to collect rulemaking data' });
     }
   });
@@ -173,7 +176,7 @@ export function registerComprehensiveDataExpansionRoutes(app: Express) {
   // State Contracts & Procurement Routes
   app.get('/api/data-expansion/contracts', async (req, res) => {
     try {
-      console.log("🏢 Collecting Texas state contract and procurement data...");
+      log.info("🏢 Collecting Texas state contract and procurement data...");
       
       const contractData = await collectStateContracts();
       
@@ -186,14 +189,14 @@ export function registerComprehensiveDataExpansionRoutes(app: Express) {
         collectedAt: new Date().toISOString()
       });
     } catch (error: any) {
-      console.error('Contract data collection error:', error);
+      log.error({ err: error }, 'Contract data collection error');
       res.status(500).json({ error: 'Failed to collect contract data' });
     }
   });
 
   app.get('/api/data-expansion/vendor-payments', async (req, res) => {
     try {
-      console.log("💳 Fetching Texas state vendor payment records...");
+      log.info("💳 Fetching Texas state vendor payment records...");
       
       const paymentData = await collectVendorPayments();
       
@@ -205,7 +208,7 @@ export function registerComprehensiveDataExpansionRoutes(app: Express) {
         collectedAt: new Date().toISOString()
       });
     } catch (error: any) {
-      console.error('Vendor payment data collection error:', error);
+      log.error({ err: error }, 'Vendor payment data collection error');
       res.status(500).json({ error: 'Failed to collect vendor payment data' });
     }
   });
@@ -213,7 +216,7 @@ export function registerComprehensiveDataExpansionRoutes(app: Express) {
   // Ethics & Transparency Records Routes
   app.get('/api/data-expansion/ethics-violations', async (req, res) => {
     try {
-      console.log("⚖️ Collecting Texas ethics violation records...");
+      log.info("⚖️ Collecting Texas ethics violation records...");
       
       const ethicsData = await collectEthicsViolations();
       
@@ -226,14 +229,14 @@ export function registerComprehensiveDataExpansionRoutes(app: Express) {
         collectedAt: new Date().toISOString()
       });
     } catch (error: any) {
-      console.error('Ethics data collection error:', error);
+      log.error({ err: error }, 'Ethics data collection error');
       res.status(500).json({ error: 'Failed to collect ethics data' });
     }
   });
 
   app.get('/api/data-expansion/disclosure-forms', async (req, res) => {
     try {
-      console.log("📄 Fetching Texas disclosure and transparency forms...");
+      log.info("📄 Fetching Texas disclosure and transparency forms...");
       
       const disclosureData = await collectDisclosureForms();
       
@@ -245,7 +248,7 @@ export function registerComprehensiveDataExpansionRoutes(app: Express) {
         collectedAt: new Date().toISOString()
       });
     } catch (error: any) {
-      console.error('Disclosure data collection error:', error);
+      log.error({ err: error }, 'Disclosure data collection error');
       res.status(500).json({ error: 'Failed to collect disclosure data' });
     }
   });
@@ -253,7 +256,7 @@ export function registerComprehensiveDataExpansionRoutes(app: Express) {
   // Comprehensive Data Collection Route
   app.get('/api/data-expansion/comprehensive-collection', async (req, res) => {
     try {
-      console.log("🚀 Starting comprehensive Texas government data collection...");
+      log.info("🚀 Starting comprehensive Texas government data collection...");
       
       const results = {
         success: true,
@@ -320,77 +323,77 @@ export function registerComprehensiveDataExpansionRoutes(app: Express) {
       if (ethics.status === 'fulfilled') results.summary.ethics = ethics.value.length;
       if (disclosures.status === 'fulfilled') results.summary.disclosures = disclosures.value.length;
 
-      console.log("📊 Comprehensive data collection summary:", results.summary);
+      log.info({ detail: results.summary }, "📊 Comprehensive data collection summary");
       
       res.json(results);
     } catch (error: any) {
-      console.error('Comprehensive data collection error:', error);
+      log.error({ err: error }, 'Comprehensive data collection error');
       res.status(500).json({ error: 'Failed to complete comprehensive data collection' });
     }
   });
 
-  console.log("🚀 Comprehensive data expansion routes registered successfully!");
+  log.info("🚀 Comprehensive data expansion routes registered successfully!");
 }
 
 // Data Collection Functions
 
 async function collectTexasCommitteeData() {
-  console.log("📋 Collecting authentic Texas committee data from official sources...");
+  log.info("📋 Collecting authentic Texas committee data from official sources...");
   
   try {
     // Use authentic Texas Legislature API connector
     const committees = await texasGovernmentConnectors.legislature.collectCommitteeData();
-    console.log(`✅ Successfully collected ${committees.length} authentic committee records`);
+    log.info(`✅ Successfully collected ${committees.length} authentic committee records`);
     return committees;
   } catch (error: any) {
-    console.error('Error collecting committee data:', error);
+    log.error({ err: error }, 'Error collecting committee data');
     return [];
   }
 }
 
 async function collectCommitteeMeetings() {
-  console.log("📅 Collecting authentic committee meeting schedules from Texas Legislature...");
+  log.info("📅 Collecting authentic committee meeting schedules from Texas Legislature...");
   
   try {
     // Use authentic Texas Legislature API connector for meeting data
     const meetings = await texasGovernmentConnectors.legislature.collectCommitteeMeetings();
-    console.log(`✅ Successfully collected ${meetings.length} authentic meeting records`);
+    log.info(`✅ Successfully collected ${meetings.length} authentic meeting records`);
     return meetings;
   } catch (error: any) {
-    console.error('Error collecting meeting data:', error);
+    log.error({ err: error }, 'Error collecting meeting data');
     return [];
   }
 }
 
 async function collectTexasCampaignFinance() {
-  console.log("💰 Collecting authentic campaign finance data from Texas Ethics Commission...");
+  log.info("💰 Collecting authentic campaign finance data from Texas Ethics Commission...");
   
   try {
     // Use authentic Texas Ethics Commission API connector
     const campaignData = await texasGovernmentConnectors.ethics.collectCampaignFinanceReports();
-    console.log(`✅ Successfully collected ${campaignData.length} authentic campaign finance records`);
+    log.info(`✅ Successfully collected ${campaignData.length} authentic campaign finance records`);
     return campaignData;
   } catch (error: any) {
-    console.error('Error collecting campaign finance data:', error);
+    log.error({ err: error }, 'Error collecting campaign finance data');
     return [];
   }
 }
 
 async function collectLobbyingExpenditures() {
-  console.log("🏛️ Collecting authentic lobbying data from Texas Ethics Commission...");
+  log.info("🏛️ Collecting authentic lobbying data from Texas Ethics Commission...");
   
   try {
     const lobbyingData = await texasGovernmentConnectors.ethics.collectLobbyingExpenditures();
-    console.log(`✅ Successfully collected ${lobbyingData.length} authentic lobbying records`);
+    log.info(`✅ Successfully collected ${lobbyingData.length} authentic lobbying records`);
     return lobbyingData;
   } catch (error: any) {
-    console.error('Error collecting lobbying data:', error);
+    log.error({ err: error }, 'Error collecting lobbying data');
     return [];
   }
 }
 
 async function collectStateAgencyData() {
-  console.log("📋 Collecting state agency data...");
+  log.info("📋 Collecting state agency data...");
   
   const agencyData = [
     {
@@ -429,7 +432,7 @@ async function collectStateAgencyData() {
 }
 
 async function collectRulemakingData() {
-  console.log("⚖️ Collecting agency rulemaking data...");
+  log.info("⚖️ Collecting agency rulemaking data...");
   
   const rulemakingData = [
     {
@@ -453,33 +456,33 @@ async function collectRulemakingData() {
 }
 
 async function collectStateContracts() {
-  console.log("🏢 Collecting authentic state contract data from Texas Comptroller...");
+  log.info("🏢 Collecting authentic state contract data from Texas Comptroller...");
   
   try {
     const contractData = await texasGovernmentConnectors.comptroller.collectStateContracts();
-    console.log(`✅ Successfully collected ${contractData.length} authentic contract records`);
+    log.info(`✅ Successfully collected ${contractData.length} authentic contract records`);
     return contractData;
   } catch (error: any) {
-    console.error('Error collecting contract data:', error);
+    log.error({ err: error }, 'Error collecting contract data');
     return [];
   }
 }
 
 async function collectVendorPayments() {
-  console.log("💳 Collecting authentic vendor payment data from Texas Comptroller...");
+  log.info("💳 Collecting authentic vendor payment data from Texas Comptroller...");
   
   try {
     const paymentData = await texasGovernmentConnectors.comptroller.collectVendorPayments();
-    console.log(`✅ Successfully collected ${paymentData.length} authentic payment records`);
+    log.info(`✅ Successfully collected ${paymentData.length} authentic payment records`);
     return paymentData;
   } catch (error: any) {
-    console.error('Error collecting payment data:', error);
+    log.error({ err: error }, 'Error collecting payment data');
     return [];
   }
 }
 
 async function collectEthicsViolations() {
-  console.log("⚖️ Collecting ethics violation data...");
+  log.info("⚖️ Collecting ethics violation data...");
   
   const ethicsData = [
     {
@@ -501,7 +504,7 @@ async function collectEthicsViolations() {
 }
 
 async function collectDisclosureForms() {
-  console.log("📄 Collecting disclosure form data...");
+  log.info("📄 Collecting disclosure form data...");
   
   const disclosureData = [
     {

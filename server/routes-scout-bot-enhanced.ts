@@ -1,5 +1,8 @@
 import express from 'express';
 import { advancedScoutBot } from './services/advanced-scout-bot.js';
+import { createLogger } from "./logger";
+const log = createLogger("routes-scout-bot-enhanced");
+
 
 const router = express.Router();
 
@@ -25,7 +28,7 @@ router.post('/api/scout-bot/extract-entities', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('Entity extraction error:', error);
+    log.error({ err: error }, 'Entity extraction error');
     res.status(500).json({ 
       error: 'Entity extraction failed',
       details: 'Please ensure you have proper API keys configured'
@@ -63,7 +66,7 @@ router.post('/api/scout-bot/research', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('Advanced research error:', error);
+    log.error({ err: error }, 'Advanced research error');
     res.status(500).json({ 
       error: 'Research analysis failed',
       details: 'Please ensure you have proper API keys configured'
@@ -95,7 +98,7 @@ router.post('/api/scout-bot/analyze-network', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('Network analysis error:', error);
+    log.error({ err: error }, 'Network analysis error');
     res.status(500).json({ 
       error: 'Network analysis failed',
       details: 'Please ensure you have proper API keys configured'
@@ -129,7 +132,7 @@ router.post('/api/scout-bot/scan-ethics', async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('Ethics scanning error:', error);
+    log.error({ err: error }, 'Ethics scanning error');
     res.status(500).json({ 
       error: 'Ethics scanning failed',
       details: 'Please ensure you have proper API keys configured'

@@ -4,6 +4,9 @@ import { db } from "./db";
 import { bills, legislators } from "@shared/schema";
 import { eq, desc, and, sql, like, inArray } from "drizzle-orm";
 import Anthropic from '@anthropic-ai/sdk';
+import { createLogger } from "./logger";
+const log = createLogger("routes-ux-enhancements");
+
 
 // the newest Anthropic model is "claude-3-7-sonnet-20250219" which was released February 24, 2025
 const anthropic = new Anthropic({
@@ -11,7 +14,7 @@ const anthropic = new Anthropic({
 });
 
 export function registerUXEnhancementRoutes(app: Express) {
-  console.log("🎯 Setting up enhanced user experience routes...");
+  log.info("🎯 Setting up enhanced user experience routes...");
 
   // Voice Search Routes
   app.post('/api/voice-search/analyze', async (req, res) => {
@@ -50,7 +53,7 @@ export function registerUXEnhancementRoutes(app: Express) {
         confidence: analysis.confidence || 85
       });
     } catch (error: any) {
-      console.error('Voice search analysis error:', error);
+      log.error({ err: error }, 'Voice search analysis error');
       res.status(500).json({ error: 'Failed to analyze voice search' });
     }
   });
@@ -88,7 +91,7 @@ export function registerUXEnhancementRoutes(app: Express) {
 
       res.json(formattedResults);
     } catch (error: any) {
-      console.error('Voice search error:', error);
+      log.error({ err: error }, 'Voice search error');
       res.status(500).json({ error: 'Failed to search bills' });
     }
   });
@@ -126,7 +129,7 @@ export function registerUXEnhancementRoutes(app: Express) {
         userSavedCount: savedBills.length
       });
     } catch (error: any) {
-      console.error('Mobile dashboard error:', error);
+      log.error({ err: error }, 'Mobile dashboard error');
       res.status(500).json({ error: 'Failed to load mobile dashboard' });
     }
   });
@@ -140,7 +143,7 @@ export function registerUXEnhancementRoutes(app: Express) {
 
       res.json(trendingBills);
     } catch (error: any) {
-      console.error('Trending bills error:', error);
+      log.error({ err: error }, 'Trending bills error');
       res.status(500).json({ error: 'Failed to fetch trending bills' });
     }
   });
@@ -155,7 +158,7 @@ export function registerUXEnhancementRoutes(app: Express) {
 
       res.json(recommendations);
     } catch (error: any) {
-      console.error('Recommendations error:', error);
+      log.error({ err: error }, 'Recommendations error');
       res.status(500).json({ error: 'Failed to fetch recommendations' });
     }
   });
@@ -199,7 +202,7 @@ export function registerUXEnhancementRoutes(app: Express) {
 
       res.json(personalizedRecommendations);
     } catch (error: any) {
-      console.error('Personalized recommendations error:', error);
+      log.error({ err: error }, 'Personalized recommendations error');
       res.status(500).json({ error: 'Failed to generate personalized recommendations' });
     }
   });
@@ -240,7 +243,7 @@ export function registerUXEnhancementRoutes(app: Express) {
 
       res.json(insights);
     } catch (error: any) {
-      console.error('Recommendation insights error:', error);
+      log.error({ err: error }, 'Recommendation insights error');
       res.status(500).json({ error: 'Failed to generate insights' });
     }
   });
@@ -251,11 +254,11 @@ export function registerUXEnhancementRoutes(app: Express) {
       
       // Store user preferences (mock implementation)
       // In production, this would save to user preferences table
-      console.log('Saving user preferences:', preferences);
+      log.info({ detail: preferences }, 'Saving user preferences');
       
       res.json({ success: true, message: 'Preferences updated successfully' });
     } catch (error: any) {
-      console.error('Update preferences error:', error);
+      log.error({ err: error }, 'Update preferences error');
       res.status(500).json({ error: 'Failed to update preferences' });
     }
   });
@@ -265,11 +268,11 @@ export function registerUXEnhancementRoutes(app: Express) {
       const { billId, action, score } = req.body;
       
       // Record user feedback for improving recommendations
-      console.log('Recording feedback:', { billId, action, score });
+      log.info({ billId, action, score }, 'Recording feedback');
       
       res.json({ success: true, message: 'Feedback recorded successfully' });
     } catch (error: any) {
-      console.error('Feedback recording error:', error);
+      log.error({ err: error }, 'Feedback recording error');
       res.status(500).json({ error: 'Failed to record feedback' });
     }
   });
@@ -319,7 +322,7 @@ export function registerUXEnhancementRoutes(app: Express) {
         timestamp: new Date().toISOString()
       });
     } catch (error: any) {
-      console.error('AI analysis error:', error);
+      log.error({ err: error }, 'AI analysis error');
       res.status(500).json({ error: 'Failed to perform AI analysis' });
     }
   });
@@ -330,11 +333,11 @@ export function registerUXEnhancementRoutes(app: Express) {
       const { action, billId, duration, metadata } = req.body;
       
       // Track user engagement for personalization
-      console.log('Tracking engagement:', { action, billId, duration, metadata });
+      log.info({ action, billId, duration, metadata }, 'Tracking engagement');
       
       res.json({ success: true, message: 'Engagement tracked successfully' });
     } catch (error: any) {
-      console.error('Engagement tracking error:', error);
+      log.error({ err: error }, 'Engagement tracking error');
       res.status(500).json({ error: 'Failed to track engagement' });
     }
   });
@@ -365,10 +368,10 @@ export function registerUXEnhancementRoutes(app: Express) {
 
       res.json(notifications);
     } catch (error: any) {
-      console.error('Smart notifications error:', error);
+      log.error({ err: error }, 'Smart notifications error');
       res.status(500).json({ error: 'Failed to fetch notifications' });
     }
   });
 
-  console.log("🎯 Enhanced user experience routes registered successfully!");
+  log.info("🎯 Enhanced user experience routes registered successfully!");
 }

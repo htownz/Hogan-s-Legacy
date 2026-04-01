@@ -4,6 +4,9 @@ import { insertCivicActionSchema, insertCivicActionTypeSchema, insertQuickAction
 import { z } from 'zod';
 import { isAuthenticated } from './auth';
 import { CustomRequest } from './types';
+import { createLogger } from "./logger";
+const log = createLogger("routes-civic-actions");
+
 
 /**
  * Register civic action API routes
@@ -17,7 +20,7 @@ export function registerCivicActionRoutes(app: Express): void {
       const actionTypes = await civicActionStorage.getCivicActionTypes();
       res.status(200).json(actionTypes);
     } catch (error: any) {
-      console.error('Error fetching civic action types:', error);
+      log.error({ err: error }, 'Error fetching civic action types');
       res.status(500).json({ message: 'Failed to fetch civic action types' });
     }
   });
@@ -31,7 +34,7 @@ export function registerCivicActionRoutes(app: Express): void {
       const actionTypes = await civicActionStorage.getCivicActionTypesByCategory(category);
       res.status(200).json(actionTypes);
     } catch (error: any) {
-      console.error(`Error fetching civic action types for category ${req.params.category}:`, error);
+      log.error({ err: error }, `Error fetching civic action types for category ${req.params.category}`);
       res.status(500).json({ message: 'Failed to fetch civic action types by category' });
     }
   });
@@ -53,7 +56,7 @@ export function registerCivicActionRoutes(app: Express): void {
       
       res.status(200).json(actionType);
     } catch (error: any) {
-      console.error(`Error fetching civic action type with ID ${req.params.id}:`, error);
+      log.error({ err: error }, `Error fetching civic action type with ID ${req.params.id}`);
       res.status(500).json({ message: 'Failed to fetch civic action type' });
     }
   });
@@ -67,7 +70,7 @@ export function registerCivicActionRoutes(app: Express): void {
       const newActionType = await civicActionStorage.createCivicActionType(actionTypeData);
       res.status(201).json(newActionType);
     } catch (error: any) {
-      console.error('Error creating civic action type:', error);
+      log.error({ err: error }, 'Error creating civic action type');
       res.status(500).json({ message: 'Failed to create civic action type' });
     }
   });
@@ -93,7 +96,7 @@ export function registerCivicActionRoutes(app: Express): void {
       const actions = await civicActionStorage.getCivicActions(userId, options);
       res.status(200).json(actions);
     } catch (error: any) {
-      console.error('Error fetching user civic actions:', error);
+      log.error({ err: error }, 'Error fetching user civic actions');
       res.status(500).json({ message: 'Failed to fetch civic actions' });
     }
   });
@@ -117,7 +120,7 @@ export function registerCivicActionRoutes(app: Express): void {
       const newAction = await civicActionStorage.createCivicAction(validatedData);
       res.status(201).json(newAction);
     } catch (error: any) {
-      console.error('Error creating civic action:', error);
+      log.error({ err: error }, 'Error creating civic action');
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: 'Invalid data format', errors: error.errors });
       }
@@ -155,7 +158,7 @@ export function registerCivicActionRoutes(app: Express): void {
       const updatedAction = await civicActionStorage.completeCivicAction(actionId, result);
       res.status(200).json(updatedAction);
     } catch (error: any) {
-      console.error(`Error completing civic action ${req.params.id}:`, error);
+      log.error({ err: error }, `Error completing civic action ${req.params.id}`);
       res.status(500).json({ message: 'Failed to complete civic action' });
     }
   });
@@ -169,7 +172,7 @@ export function registerCivicActionRoutes(app: Express): void {
       const shortcuts = await civicActionStorage.getQuickActionShortcuts(location);
       res.status(200).json(shortcuts);
     } catch (error: any) {
-      console.error(`Error fetching shortcuts for location ${req.params.location}:`, error);
+      log.error({ err: error }, `Error fetching shortcuts for location ${req.params.location}`);
       res.status(500).json({ message: 'Failed to fetch quick action shortcuts' });
     }
   });
@@ -183,7 +186,7 @@ export function registerCivicActionRoutes(app: Express): void {
       const newShortcut = await civicActionStorage.createQuickActionShortcut(shortcutData);
       res.status(201).json(newShortcut);
     } catch (error: any) {
-      console.error('Error creating quick action shortcut:', error);
+      log.error({ err: error }, 'Error creating quick action shortcut');
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: 'Invalid data format', errors: error.errors });
       }
@@ -210,7 +213,7 @@ export function registerCivicActionRoutes(app: Express): void {
       const interaction = await civicActionStorage.recordQuickActionInteraction(validatedData);
       res.status(201).json(interaction);
     } catch (error: any) {
-      console.error('Error recording quick action interaction:', error);
+      log.error({ err: error }, 'Error recording quick action interaction');
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: 'Invalid data format', errors: error.errors });
       }
@@ -231,7 +234,7 @@ export function registerCivicActionRoutes(app: Express): void {
       const stats = await civicActionStorage.getUserActionStats(userId);
       res.status(200).json(stats);
     } catch (error: any) {
-      console.error('Error fetching civic action stats:', error);
+      log.error({ err: error }, 'Error fetching civic action stats');
       res.status(500).json({ message: 'Failed to fetch civic action statistics' });
     }
   });
@@ -245,7 +248,7 @@ export function registerCivicActionRoutes(app: Express): void {
       const popularActions = await civicActionStorage.getPopularActions(limit);
       res.status(200).json(popularActions);
     } catch (error: any) {
-      console.error('Error fetching popular civic actions:', error);
+      log.error({ err: error }, 'Error fetching popular civic actions');
       res.status(500).json({ message: 'Failed to fetch popular actions' });
     }
   });
@@ -258,7 +261,7 @@ export function registerCivicActionRoutes(app: Express): void {
       const completionRates = await civicActionStorage.getActionCompletionRateByType();
       res.status(200).json(completionRates);
     } catch (error: any) {
-      console.error('Error fetching civic action completion rates:', error);
+      log.error({ err: error }, 'Error fetching civic action completion rates');
       res.status(500).json({ message: 'Failed to fetch action completion rates' });
     }
   });

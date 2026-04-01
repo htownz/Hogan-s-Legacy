@@ -1,5 +1,8 @@
 import { OpenAI } from 'openai';
 import { tecFilingTypes } from '@shared/schema-ethics';
+import { createLogger } from "../logger";
+const log = createLogger("scout-bot-enrichment");
+
 
 // Initialize the OpenAI client
 const openai = new OpenAI({
@@ -84,7 +87,7 @@ Respond in JSON format with these keys:
       enrichmentSuccessful: true
     };
   } catch (error: any) {
-    console.error("Filing enrichment failed:", error);
+    log.error({ err: error }, "Filing enrichment failed");
     return {
       inferredRole: "",
       summary: "",

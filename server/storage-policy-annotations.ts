@@ -9,6 +9,9 @@ import {
   InsertAnnotationReply,
   users
 } from "../shared/schema";
+import { createLogger } from "./logger";
+const log = createLogger("storage-policy-annotations");
+
 
 /**
  * Interface for Policy Annotation storage operations
@@ -111,7 +114,7 @@ export class DatabasePolicyAnnotationStorage implements IPolicyAnnotationStorage
         .where(eq(policyAnnotations.id, id));
       return true;
     } catch (error: any) {
-      console.error("Error deleting annotation:", error);
+      log.error({ err: error }, "Error deleting annotation");
       return false;
     }
   }
@@ -151,7 +154,7 @@ export class DatabasePolicyAnnotationStorage implements IPolicyAnnotationStorage
         .where(eq(annotationReplies.id, id));
       return true;
     } catch (error: any) {
-      console.error("Error deleting reply:", error);
+      log.error({ err: error }, "Error deleting reply");
       return false;
     }
   }
