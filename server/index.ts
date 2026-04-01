@@ -1,12 +1,11 @@
 import express, { type Request, Response, NextFunction } from "express";
-import session from "express-session";
 import cors from "cors";
 import * as net from 'net';
 import * as http from 'http';
 import { registerRoutes } from "./routes";
 import { registerTestDataRoutes } from "./routes-test-data";
 import { setupVite, serveStatic, log } from "./vite";
-import { SERVER_CONFIG, AUTH_CONFIG } from "./config";
+import { SERVER_CONFIG } from "./config";
 import { productionStartup } from "./services/production-startup";
 
 // Handle unhandled promise rejections for deployment stability
@@ -44,18 +43,6 @@ app.options('*', (req, res) => {
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-
-// Setup express-session using centralized configuration
-app.use(session({
-  secret: AUTH_CONFIG.SESSION_SECRET,
-  resave: false,
-  saveUninitialized: false,
-  cookie: { 
-    secure: AUTH_CONFIG.COOKIE_SECURE,
-    maxAge: AUTH_CONFIG.COOKIE_MAX_AGE,
-    sameSite: 'none' // Enable cross-site cookies for Replit's domain setup
-  }
-}));
 
 // Add health check endpoint - this is essential for Replit to verify the server is up
 app.get('/health', (req, res) => {

@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import { storage } from "./storage";
 import { User as UserType } from "@shared/schema";
 import createMemoryStore from "memorystore";
+import connectPgSimple from "connect-pg-simple";
 import { CustomRequest } from "./types";
 
 declare global {
@@ -15,6 +16,47 @@ declare global {
 }
 
 const MemoryStore = createMemoryStore(session);
+const PostgresSessionStore = connectPgSimple(session);
+
+function resolveSessionSecret(): string {
+  const configured = process.env.SESSION_SECRET?.trim();
+  if (configured) return configured;
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("SESSION_SECRET must be set in production");
+  }
+
+  return "dev-secret-key-change-in-production";
+}
+
+function buildSessionStore(): session.Store {
+  const env = process.env.NODE_ENV;
+  const databaseUrl = process.env.DATABASE_URL?.trim();
+
+  // Keep tests fully in-memory to avoid introducing external DB coupling.
+  if (env === "test") {
+    return new MemoryStore({
+      checkPeriod: 86400000,
+    });
+  }
+
+  if (databaseUrl) {
+    return new PostgresSessionStore({
+      conString: databaseUrl,
+      tableName: "user_sessions",
+      createTableIfMissing: true,
+      pruneSessionInterval: 60 * 15,
+    });
+  }
+
+  if (env === "production") {
+    throw new Error("DATABASE_URL must be set in production for persistent session storage");
+  }
+
+  return new MemoryStore({
+    checkPeriod: 86400000,
+  });
+}
 
 // Password hashing function
 export async function hashPassword(password: string): Promise<string> {
@@ -33,12 +75,10 @@ export async function verifyPassword(
 export function setupAuth(app: Express) {
   // Session setup
   const sessionSettings: session.SessionOptions = {
-    secret: process.env.SESSION_SECRET || "act-up-secret-key",
+    secret: resolveSessionSecret(),
     resave: false,
     saveUninitialized: false,
-    store: new MemoryStore({
-      checkPeriod: 86400000, // prune expired entries every 24h
-    }),
+    store: buildSessionStore(),
     cookie: {
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
       secure: process.env.NODE_ENV === "production",
