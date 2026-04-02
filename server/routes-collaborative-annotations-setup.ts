@@ -1,7 +1,7 @@
 import { Server as HttpServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { collaborativeAnnotationsStorage } from './storage-collaborative-annotations';
-import { getAuthenticatedUserFromRequest } from './auth';
+import { authenticateWebSocket, startHeartbeat } from './websocket-auth';
 import { createLogger } from "./logger";
 const log = createLogger("routes-collaborative-annotations-setup");
 
@@ -55,16 +55,15 @@ export const setupWebsocketServer = (httpServer: HttpServer) => {
   wss.on('connection', async (ws, req) => {
     log.info('Client connected to annotation WebSocket');
 
-    const authenticatedUser = await getAuthenticatedUserFromRequest(req);
-    if (!authenticatedUser) {
-      ws.close(1008, 'Authentication required');
-      return;
-    }
+    const auth = await authenticateWebSocket(ws, req);
+    if (!auth) return;
+    
+    const stopHeartbeat = startHeartbeat(ws);
 
     const authedSocket = ws as AuthenticatedSocket;
-    authedSocket.userId = authenticatedUser.id;
-    authedSocket.username = authenticatedUser.username;
-    authedSocket.displayName = authenticatedUser.displayName || authenticatedUser.name || null;
+    authedSocket.userId = auth.user.id;
+    authedSocket.username = auth.user.username;
+    authedSocket.displayName = auth.user.displayName || auth.user.name || null;
     
     // Store document IDs this socket is connected to
     const clientDocuments = new Set<number>();
@@ -283,6 +282,7 @@ export const setupWebsocketServer = (httpServer: HttpServer) => {
     });
     
     authedSocket.on('close', () => {
+      stopHeartbeat();
       log.info('Client disconnected from annotation WebSocket');
       
       // Clean up all document connections for this client

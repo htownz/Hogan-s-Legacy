@@ -85,7 +85,7 @@ import contextualBillAnalysisRoutes from "./routes-contextual-bill-analysis";
 import { initializeCollaborativeWebsockets } from "./websocket-collaborative";
 import { initializeCollaborativeBillWebSockets } from "./websocket-collaborative-bill";
 // import collaborativeAnnotationsRoutes from "./routes-collaborative-annotations"; // H8: unused
-import { setupWebsocketServer } from "./routes-collaborative-annotations-setup";
+import { authenticateWebSocket, startHeartbeat } from "./websocket-auth";
 import { registerFeedRoutes } from "./routes-feed";
 import { registerLearningRoutes } from "./routes-learning";
 import { rssFeedService } from "./services/rss-feed-service";
@@ -1614,16 +1614,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       wss.on('connection', async (ws: WebSocket, req) => {
         log.info('New WebSocket connection established for collaborative annotations');
 
-        const authenticatedUser = await getAuthenticatedUserFromRequest(req);
-        if (!authenticatedUser) {
-          ws.close(1008, 'Authentication required');
-          return;
-        }
+        const auth = await authenticateWebSocket(ws, req);
+        if (!auth) return;
         
+        const stopHeartbeat = startHeartbeat(ws);
         const clientId = uuidv4();
         let documentId: number | null = null;
-        const userId = authenticatedUser.id;
-        const username = authenticatedUser.displayName || authenticatedUser.username;
+        const userId = auth.user.id;
+        const username = auth.user.displayName || auth.user.username;
         
         // Client is now connected
         connectedClients.set(clientId, { ws, documentId, userId });
@@ -1710,6 +1708,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Handle disconnections
         ws.on('close', () => {
           log.info('WebSocket connection closed for collaborative annotations');
+          stopHeartbeat();
           
           // If client was in a document, notify others
           if (documentId && userId) {

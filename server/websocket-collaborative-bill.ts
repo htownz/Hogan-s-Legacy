@@ -2,7 +2,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { v4 as uuidv4 } from 'uuid';
 import { Server } from 'http';
 import { collaborativeStorage } from './storage-collaborative';
-import { getAuthenticatedUserFromRequest } from './auth';
+import { authenticateWebSocket, startHeartbeat } from './websocket-auth';
 import { createLogger } from "./logger";
 const log = createLogger("websocket-collaborative-bill");
 
@@ -495,11 +495,10 @@ export function initializeCollaborativeBillWebSockets(httpServer: Server) {
     wss.on('connection', async (ws: WebSocket, req) => {
       log.info('New WebSocket connection established for collaborative bill editing');
 
-      const authenticatedUser = await getAuthenticatedUserFromRequest(req);
-      if (!authenticatedUser) {
-        ws.close(1008, 'Authentication required');
-        return;
-      }
+      const auth = await authenticateWebSocket(ws, req);
+      if (!auth) return;
+      
+      const stopHeartbeat = startHeartbeat(ws);
       
       // Generate unique ID for this client
       const clientId = uuidv4();
@@ -509,9 +508,9 @@ export function initializeCollaborativeBillWebSockets(httpServer: Server) {
         id: clientId,
         ws,
         sessionId: null,
-        userId: authenticatedUser.id,
-        username: authenticatedUser.username,
-        displayName: authenticatedUser.displayName || authenticatedUser.name || null,
+        userId: auth.user.id,
+        username: auth.user.username,
+        displayName: auth.user.displayName || auth.user.name || null,
         color: null
       };
       
@@ -575,6 +574,7 @@ export function initializeCollaborativeBillWebSockets(httpServer: Server) {
       
       // Handle disconnection
       ws.on('close', () => {
+        stopHeartbeat();
         log.info(`Client ${clientId} disconnected`);
         
         // If client was in a session, remove them
