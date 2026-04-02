@@ -22,7 +22,9 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+import { DB_CONFIG } from './config';
+
+export const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: DB_CONFIG.POOL_SIZE });
 export const db = drizzle({ 
   client: pool, 
   schema: {

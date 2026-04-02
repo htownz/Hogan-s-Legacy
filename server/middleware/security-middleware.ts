@@ -1,19 +1,18 @@
-// @ts-nocheck
 import { Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
 import { createLogger } from '../logger';
 
 const log = createLogger('security');
 
-// Content Security Policy middleware
+// M4: Tightened Content Security Policy — removed unsafe-eval
 export const contentSecurityPolicy = (req: Request, res: Response, next: NextFunction) => {
   res.setHeader(
     'Content-Security-Policy',
     "default-src 'self'; " +
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vitejs.dev; " +
+    "script-src 'self' 'unsafe-inline' https://vitejs.dev; " +
     "style-src 'self' 'unsafe-inline'; " +
     "img-src 'self' data: https:; " +
-    "connect-src 'self' https://api.legiscan.com https://api.openai.com; " +
+    "connect-src 'self' https://api.legiscan.com https://api.openai.com wss:; " +
     "font-src 'self' data:; " +
     "frame-ancestors 'none'; " +
     "base-uri 'self';"
@@ -209,7 +208,7 @@ export const auditLogger = (req: Request, res: Response, next: NextFunction) => 
       ip: req.ip,
       userAgent: req.get('User-Agent'),
       origin: req.get('Origin'),
-      userId: req.user?.id || 'anonymous',
+      userId: (req as any).user?.id || (req as any).session?.userId || 'anonymous',
       requestId: req.get('X-Request-ID') || 'unknown'
     };
 

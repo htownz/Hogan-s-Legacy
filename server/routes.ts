@@ -61,9 +61,7 @@ import { registerComprehensiveTexasScraperRoutes } from "./routes-comprehensive-
 import { registerEnhancedTexasScraperRoutes } from "./routes-enhanced-texas-scraper";
 import databasePersistenceRoutes from "./routes-database-persistence";
 import notificationsEnhancedRoutes from "./routes-notifications-enhanced";
-// Enhanced AI routes temporarily disabled for platform stability
-// import enhancedAIRoutes from "./routes-enhanced-ai";
-// import enhancedAISuiteRoutes from "./routes-enhanced-ai-suite";
+// H8: Enhanced AI imports removed — modules disabled for platform stability
 import { applySafetyStandards } from "./middleware/safety-standards-middleware";
 import { registerBatchProcessingRoutes } from "./routes-batch-processing";
 import multimodalAnalysisRoutes from "./routes-multimodal-analysis";
@@ -86,7 +84,7 @@ import collaborativeRoutes from "./routes-collaborative";
 import contextualBillAnalysisRoutes from "./routes-contextual-bill-analysis";
 import { initializeCollaborativeWebsockets } from "./websocket-collaborative";
 import { initializeCollaborativeBillWebSockets } from "./websocket-collaborative-bill";
-// import collaborativeAnnotationsRoutes from "./routes-collaborative-annotations";
+// import collaborativeAnnotationsRoutes from "./routes-collaborative-annotations"; // H8: unused
 import { setupWebsocketServer } from "./routes-collaborative-annotations-setup";
 import { registerFeedRoutes } from "./routes-feed";
 import { registerLearningRoutes } from "./routes-learning";
@@ -109,7 +107,6 @@ import { registerComprehensiveDataExpansionRoutes } from "./routes-comprehensive
 import { registerRealTimeAlertsRoutes } from "./routes-real-time-alerts";
 import { registerSocialSharingRoutes } from "./routes-social-sharing";
 import civicChatbotRoutes from "./routes-civic-chatbot";
-// Enhanced AI routes temporarily disabled for platform stability
 import { registerAmendmentPlaygroundRoutes } from "./routes-amendment-playground";
 import setupAdvancedAnalyticsRoutes from "./routes-advanced-analytics";
 import enhancedAnalyticsRoutes from "./routes-analytics-enhanced";
@@ -326,6 +323,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (err) {
         return res.status(500).json({ message: "Error logging out" });
       }
+      res.clearCookie("connect.sid");
       res.status(200).json({ message: "Logged out successfully" });
     });
   });
@@ -1412,20 +1410,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Initialize Texas Legislature scraper service
-  // Temporarily disabled to fix external connection issues
-  // initTexasLegislatureScraper();
-  
-  // Initialize live committee meeting scanner
-  // Temporarily disabled to fix external connection issues
-  // liveCommitteeStream.initLiveCommitteeMeetingScanner();
-  
-  // Initialize enhanced committee video analyzer
-  // Temporarily disabled to fix external connection issues
-  // enhancedCommitteeVideoAnalyzer.initEnhancedCommitteeVideoAnalyzer();
-  
-  // Initialize state agency tracker
-  // Temporarily disabled to fix external connection issues
-  // stateAgencyTracker.initStateAgencyTracker();
+  // TODO: Re-enable when external connection issues are resolved
+  // Requires: initTexasLegislatureScraper, liveCommitteeStream,
+  //           enhancedCommitteeVideoAnalyzer, stateAgencyTracker
   
   // Register state agency routes
   registerStateAgencyRoutes(app);
@@ -1476,21 +1463,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Register multimodal AI assistant routes
   registerMultimodalAssistantRoutes(app);
   
-  // Register enhanced AI routes with Anthropic and Pinecone
-  // Enhanced AI routes temporarily disabled for platform stability
-  // app.use(enhancedAIRoutes);
-  // app.use(enhancedAISuiteRoutes);
-  log.info("🤖 Enhanced AI routes registered with Anthropic and Pinecone!");
-
-  // Register community bill suggestions routes
-  // Note: routes-community-suggestions temporarily disabled due to schema conflicts
-  // app.use("/api/community", communitySuggestionsRoutes);
-  log.info("🏛️ Community bill suggestions routes temporarily disabled");
-
-  // Register advanced analysis routes with enhanced AI capabilities
-  // Note: routes-advanced-analysis temporarily disabled to resolve require conflicts
-  // app.use("/api/advanced-analysis", advancedAnalysisRoutes);
-  log.info("🧠 Advanced AI analysis routes temporarily disabled");
+  // TODO(H8): Enhanced AI routes (Anthropic/Pinecone) disabled for platform stability
+  // TODO(H8): Community suggestions disabled due to schema conflicts
+  // TODO(H8): Advanced analysis disabled due to require conflicts
   
   // Register batch processing routes for parallel operations
   registerBatchProcessingRoutes(app);
@@ -1498,8 +1473,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Register user feedback routes
   registerFeedbackRoutes(app);
   
-  // Register social sharing routes (temporarily disabled for deployment)
-  // registerSocialSharingRoutes(app);
+  // Register social sharing routes
+  // TODO(H8): Re-enable when deployment issues are resolved
   
   // Register Texas legislative data routes
   registerTexasDataRoutes(app);
@@ -1514,14 +1489,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api', emojiSentimentRoutes);
   log.info("😊 Emoji sentiment analysis routes registered successfully!");
   
-  // Temporarily disable RSS feed scheduler while fixing server issues
-  log.info("RSS feed scheduler temporarily disabled");
-  // try {
-  //   rssFeedService.scheduleRssFeedRefresh(30);
-  //   log.info("RSS feed scheduler initialized successfully");
-  // } catch (error: any) {
-  //   log.error({ err: error }, "Failed to initialize RSS feed scheduler");
-  // }
+  // TODO(H8): RSS feed scheduler disabled — re-enable when server issues resolved
   
   // Register debug routes
   registerDebugRoutes(app);
@@ -1605,10 +1573,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const setupSocialSharingRoutes = (await import('./routes-social-sharing')).default;
   setupSocialSharingRoutes(app);
   
-  // Register enhanced AI routes (temporarily disabled for server stability)
-  // const setupEnhancedAIRoutesModule = (await import('./routes-enhanced-ai')).default;
-  // setupEnhancedAIRoutesModule(app);
-  
+  // TODO(H8): Enhanced AI routes — disabled for server stability
+
   // Register enhanced analytics routes  
   log.info("📈 Setting up enhanced analytics with authentic data...");
   app.use("/api", enhancedAnalyticsRoutes);
@@ -1788,14 +1754,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
   
-  // Other WebSocket connections temporarily disabled to fix blank page issue
-  log.info("Other WebSocket connections temporarily disabled");
+  // TODO(H8): Other WebSocket connections disabled to fix blank page issue
   
   // Create WebSocket server for legislative updates on a distinct path to avoid conflicts
-  // const legislativeWss = new WebSocketServer({ server: httpServer, path: '/ws/legislative-updates' });
+  // TODO(H8): Re-enable when WebSocket stability is confirmed
   
   // Initialize collaborative editing WebSockets
-  // initializeCollaborativeWebsockets(httpServer);
+  // TODO(H8): Re-enable initializeCollaborativeWebsockets when ready
   
   // Initialize collaborative bill editing WebSockets
   initializeCollaborativeBillWebSockets(httpServer);
@@ -1803,68 +1768,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize collaborative annotations WebSockets
   setupCollaborativeAnnotationsWebSocket(httpServer);
   
-  // Handle WebSocket connections for legislative updates
-  // Temporarily disabled
-  // const legislativeWss = new WebSocketServer({ server: httpServer, path: '/ws/legislative-updates' });
-  // legislativeWss.on('connection', (ws: WebSocket) => {
-  //   log.info('New WebSocket connection established for legislative updates');
-  //   
-  //   // Send a welcome message
-  //   ws.send(JSON.stringify({ 
-  //     type: 'connection_established',
-  //     payload: { message: 'Connected to Act Up legislative updates service' }
-  //   }));
-  //   
-  //   // Handle incoming messages
-  //   ws.on('message', (message: string | Buffer | ArrayBuffer | Buffer[]) => {
-  //     try {
-  //       const data = JSON.parse(message.toString());
-  //       log.info({ detail: data }, 'Received message');
-  //       
-  //       // Handle different message types
-  //       if (data.type === 'track_bill') {
-  //         // Process bill tracking request
-  //         const { billId } = data.payload;
-  //         log.info(`Client tracking bill: ${billId}`);
-  //         
-  //         // Here you would typically store this tracking info and later send updates
-  //       }
-  //     } catch (error: any) {
-  //       log.error({ err: error }, 'Error processing WebSocket message');
-  //     }
-  //   });
-  //   
-  //   // Handle disconnections
-  //   ws.on('close', () => {
-  //     log.info('WebSocket connection closed for legislative updates');
-  //   });
-  //   
-  //   // Handle errors
-  //   ws.on('error', (error: Error) => {
-  //     log.error({ err: error }, 'WebSocket error in legislative updates');
-  //   });
-  // });
+  // TODO(H8): Legislative updates WebSocket — re-enable when ready
   
-  // Register Voice Search Routes with the HTTP server (after server creation)
-  // Temporarily disabled to fix blank page issue
-  // registerVoiceSearchRoutes(app, httpServer);
+  // TODO(H8): Voice Search Routes — disabled to fix blank page issue
   
-  // Schedule RSS feed updates (temporarily disabled)
-  log.info("RSS feed scheduler temporarily disabled");
-  // nodeCron.schedule("*/30 * * * *", async () => {
-  //   try {
-  //     log.info("Running scheduled RSS feed update");
-  //     await refreshRssFeeds();
-  //   } catch (error: any) {
-  //     log.error({ err: error }, "Error in scheduled RSS feed update");
-  //   }
-  // });
-  
-  // Initial fetch also disabled
-  log.info("Initial RSS feed fetch skipped");
-  // refreshRssFeeds().catch(error => {
-  //   log.error({ err: error }, "Error in initial RSS feed fetch");
-  // });
+  // TODO(H8): RSS feed scheduler (cron) — disabled for stability
   
   // Register LegiScan import routes
   app.use(legiScanRoutes);

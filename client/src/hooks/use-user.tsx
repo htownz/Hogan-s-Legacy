@@ -112,6 +112,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
     onSuccess: () => {
       queryClient.setQueryData(['/api/users/me'], null);
       setSuperUserRole(null);
+      // Clear any user-related data from localStorage
+      localStorage.removeItem('actupUser');
+      localStorage.removeItem('recentSearches');
       toast({
         title: 'Logged Out',
         description: 'You have been logged out successfully',

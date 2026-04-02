@@ -29,7 +29,7 @@ export const DB_CONFIG = {
   CONNECTION_STRING: process.env.DATABASE_URL || "",
   
   // Maximum pool size for database connections
-  POOL_SIZE: 10,
+  POOL_SIZE: Number(process.env.DB_POOL_SIZE) || 10,
 };
 
 // Session and authentication configuration
@@ -39,6 +39,9 @@ export const AUTH_CONFIG = {
     const secret = process.env.SESSION_SECRET?.trim();
     if (!secret && SERVER_CONFIG.IS_PRODUCTION) {
       throw new Error("SESSION_SECRET must be set in production");
+    }
+    if (!secret) {
+      console.warn("⚠️  SESSION_SECRET not set — using insecure default. Set SESSION_SECRET env var before deploying.");
     }
     return secret || "dev-secret-key-change-in-production";
   })(),

@@ -62,6 +62,49 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// H9: Request ID tracing — unique ID per request for log correlation
+import crypto from "crypto";
+app.use((req: Request, _res: Response, next: NextFunction) => {
+  const requestId = (req.headers['x-request-id'] as string) || crypto.randomUUID();
+  req.headers['x-request-id'] = requestId;
+  next();
+});
+
+// C2: CSRF Protection — double-submit cookie pattern
+function parseCookies(cookieHeader: string | undefined): Record<string, string> {
+  if (!cookieHeader) return {};
+  return Object.fromEntries(
+    cookieHeader.split(';').map(c => {
+      const [k, ...v] = c.trim().split('=');
+      return [k, decodeURIComponent(v.join('='))];
+    })
+  );
+}
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const cookies = parseCookies(req.headers.cookie);
+  // Skip CSRF for safe methods and health/API-token endpoints
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    // Issue a CSRF token cookie on safe requests if not present
+    if (!cookies['csrf-token']) {
+      const token = crypto.randomBytes(32).toString('hex');
+      res.cookie('csrf-token', token, {
+        httpOnly: false, // Client needs to read & send as header
+        secure: SERVER_CONFIG.IS_PRODUCTION,
+        sameSite: 'strict',
+        path: '/',
+      });
+    }
+    return next();
+  }
+  // For state-changing methods, validate double-submit
+  const cookieToken = cookies['csrf-token'];
+  const headerToken = req.headers['x-csrf-token'] as string | undefined;
+  if (!cookieToken || !headerToken || cookieToken !== headerToken) {
+    return res.status(403).json({ message: 'Invalid or missing CSRF token' });
+  }
+  next();
+});
+
 // Track degraded service state for health endpoint
 const serviceStatus: Record<string, { ok: boolean; error?: string }> = {};
 
@@ -208,15 +251,17 @@ function setupPortForwarding(internalPort: number): void {
     const server = await registerRoutes(app);
     registerTestDataRoutes(app);
 
-    app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
       const status = err.status || err.statusCode || 500;
+      const requestId = req.headers['x-request-id'] as string;
+      // H6: Consistent error response format with request ID tracing (H9)
       // Never leak internal error details to the client in production
       const message = SERVER_CONFIG.IS_PRODUCTION
         ? (status < 500 ? (err.message || "Request error") : "Internal Server Error")
         : (err.message || "Internal Server Error");
 
-      res.status(status).json({ message });
-      pinoLog.error(err); // Log full error internally
+      res.status(status).json({ message, ...(requestId && { requestId }) });
+      pinoLog.error({ err, requestId, method: req.method, path: req.path }, 'Request error');
     });
 
     // importantly only setup vite in development and after

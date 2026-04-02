@@ -7,6 +7,17 @@ import { createLogger } from '../logger';
 
 const log = createLogger('auth-middleware');
 
+// C7: Env-based admin IDs — deprecated pattern; migrate to DB-backed RBAC
+const _adminIdsWarningShown = (() => {
+  if (process.env.ADMIN_USER_IDS) {
+    console.warn("⚠️  ADMIN_USER_IDS set via env var — this is insecure and not auditable. Migrate to database-backed roles.");
+  }
+  if (process.env.MODERATOR_USER_IDS) {
+    console.warn("⚠️  MODERATOR_USER_IDS set via env var — this is insecure and not auditable. Migrate to database-backed roles.");
+  }
+  return true;
+})();
+
 function parseUserIdSet(raw: string | undefined): Set<number> {
   if (!raw) return new Set();
 
