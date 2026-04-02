@@ -863,6 +863,26 @@ export const learningMetrics = pgTable(
   }),
 );
 
+/** Scheduler run history — persisted job execution records */
+export const schedulerRuns = pgTable(
+  "policy_intel_scheduler_runs",
+  {
+    id: serial("id").primaryKey(),
+    jobName: varchar("job_name", { length: 128 }).notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }).notNull(),
+    durationMs: integer("duration_ms").notNull(),
+    status: varchar("status", { length: 16 }).notNull(),
+    summaryJson: jsonb("summary_json").$type<Record<string, unknown>>().notNull().default({}),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    finishedIdx: index("policy_intel_scheduler_runs_finished_idx").on(table.finishedAt),
+    jobFinishedIdx: index("policy_intel_scheduler_runs_job_finished_idx").on(table.jobName, table.finishedAt),
+  }),
+);
+
 export type PolicyIntelForecastSnapshot = typeof forecastSnapshots.$inferSelect;
 export type InsertPolicyIntelForecastSnapshot = typeof forecastSnapshots.$inferInsert;
 export type PolicyIntelBillOutcomeSnapshot = typeof billOutcomeSnapshots.$inferSelect;
@@ -877,6 +897,8 @@ export type PolicyIntelReplayRun = typeof replayRuns.$inferSelect;
 export type InsertPolicyIntelReplayRun = typeof replayRuns.$inferInsert;
 export type PolicyIntelReplayChunk = typeof replayChunks.$inferSelect;
 export type InsertPolicyIntelReplayChunk = typeof replayChunks.$inferInsert;
+export type PolicyIntelSchedulerRun = typeof schedulerRuns.$inferSelect;
+export type InsertPolicyIntelSchedulerRun = typeof schedulerRuns.$inferInsert;
 
 export type PolicyIntelWorkspace = typeof workspaces.$inferSelect;
 export type InsertPolicyIntelWorkspace = typeof workspaces.$inferInsert;

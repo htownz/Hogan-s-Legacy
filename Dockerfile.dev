@@ -8,7 +8,7 @@ RUN apk upgrade --no-cache \
     ffmpeg \
     postgresql-client
 
-RUN addgroup -g 1001 appgroup && adduser -S -u 1001 -G appgroup appuser
+RUN addgroup -g 1001 appgroup && adduser -S -u 1001 -G appgroup -s /bin/sh appuser
 
 WORKDIR /workspace
 
@@ -19,6 +19,7 @@ COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 COPY --chown=appuser:appgroup . .
+RUN chown appuser:appgroup /workspace
 
 USER appuser
 
