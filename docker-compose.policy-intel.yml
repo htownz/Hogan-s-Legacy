@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
-    command: npm run db:migrate:policy-intel
+    command: npm run db:push:policy-intel
     env_file:
       - ./.env.policy-intel
     restart: "no"
