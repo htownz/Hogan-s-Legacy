@@ -162,7 +162,22 @@ import {
   insertUserNetworkImpactSchema
 } from "@shared/schema";
 import { createLogger } from "./logger";
+import rateLimit from "express-rate-limit";
+import { RATE_LIMITS } from "./config";
 const log = createLogger("routes");
+
+// Rate limiter for authentication endpoints (login/register)
+const authRateLimit = rateLimit({
+  windowMs: RATE_LIMITS.AUTH_WINDOW_MS,
+  max: RATE_LIMITS.AUTH_MAX_REQUESTS,
+  message: {
+    message: "Too many authentication attempts. Please try again later.",
+    code: "AUTH_RATE_LIMIT_EXCEEDED",
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.ip || req.socket.remoteAddress || "unknown",
+});
 
 
 const policyIntelBridge = createPolicyIntelBridgeClient({
@@ -181,9 +196,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   setupAuth(app);
   
   // ---- AUTH ROUTES ----
-  app.post("/api/auth/register", async (req, res) => {
+  app.post("/api/auth/register", authRateLimit, async (req, res) => {
     try {
       const userData = insertUserSchema.parse(req.body);
+
+      // Password complexity validation
+      const pw = userData.password;
+      if (!pw || pw.length < 12) {
+        return res.status(400).json({
+          message: "Password must be at least 12 characters long",
+        });
+      }
+      if (!/[A-Z]/.test(pw) || !/[a-z]/.test(pw) || !/[0-9]/.test(pw)) {
+        return res.status(400).json({
+          message:
+            "Password must contain at least one uppercase letter, one lowercase letter, and one number",
+        });
+      }
       const newUser = await storage.createUser(userData);
       
       // Create default SuperUserRole as Advocate (level 1)
@@ -256,7 +285,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/auth/login", async (req: CustomRequest, res) => {
+  app.post("/api/auth/login", authRateLimit, async (req: CustomRequest, res) => {
     try {
       const { username, password } = req.body;
       const user = await storage.getUserByUsername(username);

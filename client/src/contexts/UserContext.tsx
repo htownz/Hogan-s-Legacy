@@ -10,17 +10,6 @@ interface UserContextType {
   logout: () => void;
 }
 
-const defaultUser: User = {
-  id: 1,
-  username: "sarahjohnson",
-  password: "password", // In a real app, we would never store passwords in context
-  name: "Sarah Johnson",
-  email: "sarah.johnson@example.com",
-  district: "TX-10",
-  profileImageUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
-  createdAt: new Date().toISOString()
-};
-
 const UserContext = createContext<UserContextType>({
   user: null,
   setUser: () => {},
@@ -30,26 +19,33 @@ const UserContext = createContext<UserContextType>({
 });
 
 export function UserProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(defaultUser); // Using default user for demo
+  const [user, setUser] = useState<User | null>(null);
 
   const login = async (username: string, password: string) => {
     try {
-      // In a real app, this would be an API call
-      // const response = await fetch("/api/login", { method: "POST", body: JSON.stringify({ username, password }) });
-      // const userData = await response.json();
-      // setUser(userData);
-
-      // For demo purposes, just set the default user
-      setUser(defaultUser);
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+        credentials: "include",
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || "Login failed");
+      }
+      const userData = await response.json();
+      // Never store password on the client
+      const { password: _, ...userWithoutPassword } = userData;
+      setUser(userWithoutPassword);
     } catch (error) {
       console.error("Login failed:", error);
-      throw new Error("Login failed");
+      throw error;
     }
   };
 
   const logout = () => {
-    // In a real app, this would be an API call
-    // fetch("/api/logout", { method: "POST" });
+    fetch("/api/auth/logout", { method: "POST", credentials: "include" })
+      .catch(() => {}); // Best-effort server-side logout
     setUser(null);
   };
 

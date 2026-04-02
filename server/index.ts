@@ -26,29 +26,58 @@ const app = express();
 // Trust the Replit proxy for secure cookies
 app.set('trust proxy', 1);
 
-// Enable CORS for all routes
-app.use(cors({
-  origin: true, // Allow any origin
-  credentials: true, // Allow cookies to be sent with requests
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
-}));
+// CORS configuration - restrict to known origins
+const ALLOWED_ORIGINS = [
+  // Local development
+  'http://localhost:5000',
+  'http://localhost:5173',
+  'http://localhost:3000',
+  // Replit domains
+  ...(process.env.REPLIT_DOMAIN ? [
+    `https://${process.env.REPLIT_DOMAIN}`,
+    `https://${process.env.REPLIT_DOMAIN}:443`,
+  ] : []),
+  // Additional trusted origins from environment
+  ...(process.env.CORS_ALLOWED_ORIGINS
+    ? process.env.CORS_ALLOWED_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
+    : []),
+];
 
-// Add specific CORS headers for preflight requests
-app.options('*', (req, res) => {
-  res.header('Access-Control-Allow-Origin', req.header('Origin') || '*');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept');
-  res.status(200).end();
-});
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (server-to-server, curl, mobile apps)
+    if (!origin) return callback(null, true);
+    if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    // In development, allow any localhost port
+    if (SERVER_CONFIG.IS_DEVELOPMENT && /^https?:\/\/localhost(:\d+)?$/.test(origin)) {
+      return callback(null, true);
+    }
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'X-CSRF-Token']
+}));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// Track degraded service state for health endpoint
+const serviceStatus: Record<string, { ok: boolean; error?: string }> = {};
+
 // Add health check endpoint - this is essential for Replit to verify the server is up
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok', message: 'Act Up server is running' });
+  const degradedServices = Object.entries(serviceStatus)
+    .filter(([, s]) => !s.ok)
+    .map(([name, s]) => ({ name, error: s.error }));
+
+  const status = degradedServices.length > 0 ? 'degraded' : 'ok';
+
+  res.status(200).json({
+    status,
+    message: 'Act Up server is running',
+    ...(degradedServices.length > 0 && { degradedServices }),
+  });
 });
 
 app.use((req, res, next) => {
@@ -181,10 +210,13 @@ function setupPortForwarding(internalPort: number): void {
 
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
       const status = err.status || err.statusCode || 500;
-      const message = err.message || "Internal Server Error";
+      // Never leak internal error details to the client in production
+      const message = SERVER_CONFIG.IS_PRODUCTION
+        ? (status < 500 ? (err.message || "Request error") : "Internal Server Error")
+        : (err.message || "Internal Server Error");
 
       res.status(status).json({ message });
-      pinoLog.error(err); // Log error but don't throw it to prevent process crash
+      pinoLog.error(err); // Log full error internally
     });
 
     // importantly only setup vite in development and after
@@ -249,12 +281,15 @@ function setupPortForwarding(internalPort: number): void {
         import('./services/bill-tracking-service').then(module => {
           const { billTrackingService } = module;
           billTrackingService.initialize();
+          serviceStatus['bill-tracking'] = { ok: true };
           log('Bill tracking service initialized successfully');
         }).catch(error => {
+          serviceStatus['bill-tracking'] = { ok: false, error: (error as Error).message };
           log('Failed to initialize bill tracking service: ' + (error as Error).message);
           pinoLog.error({ err: error }, 'Bill tracking service error');
         });
       } catch (error: any) {
+        serviceStatus['bill-tracking'] = { ok: false, error: (error as Error).message };
         log('Failed to initialize bill tracking service: ' + (error as Error).message);
         pinoLog.error({ err: error }, 'Bill tracking service error');
       }

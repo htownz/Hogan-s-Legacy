@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { HelmetProvider } from "react-helmet-async";
 import { Toaster } from "@/components/ui/toaster";
 import { UserProvider } from "./context/UserContext";
+import { AuthProvider } from "@/hooks/use-auth";
+import { ProtectedRoute } from "@/lib/protected-route";
 
 import HomePage from "./pages/modern-home";
 import TexasCampaignFinance from "./pages/texas-campaign-finance";
@@ -117,6 +119,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <HelmetProvider>
+      <AuthProvider>
       <UserProvider>
         <div className="min-h-screen flex flex-col">
           <ModernNavigation />
@@ -132,6 +135,7 @@ function App() {
               <Route path="/about" component={AboutPage} />
               <Route path="/onboarding" component={OnboardingPage} />
               <Route path="/timeline-demo" component={EnhancedTimelineDemoPage} />
+              <Route path="/timeline-demo-basic" component={TimelineDemoPage} />
               <Route path="/bills/:billId/summary" component={BillSummaryPage} />
               <Route path="/bills/:billId/timeline" component={BillTimelinePage} />
               <Route path="/bills/:id/annotate" component={BillAnnotatorPage} />
@@ -139,11 +143,13 @@ function App() {
               <Route path="/timeline-test" component={TimelineTestPage} />
               <Route path="/bills/:billId/enhanced-timeline" component={EnhancedTimelineView} />
               <Route path="/bills/:billId/real-time-timeline" component={RealTimeTimelinePage} />
-              <Route path="/legislative-map" component={LegislativeMapPage} />
-              <Route path="/voice-search" component={VoiceSearchPage} />
-              <Route path="/timeline-demo" component={TimelineDemoPage} />
+              <Route path="/legislative-map" component={LegislativeMapVisualization} />
+              <Route path="/legislative-map-basic" component={LegislativeMapPage} />
+              <Route path="/voice-search" component={VoiceBillSearch} />
+              <Route path="/voice-search-basic" component={VoiceSearchPage} />
               <Route path="/component-demo" component={ComponentDemoPage} />
-              <Route path="/dashboard" component={DashboardPage} />
+              <Route path="/dashboard" component={PersonalizedDashboard} />
+              <Route path="/dashboard-basic" component={DashboardPage} />
               <Route path="/digest" component={DigestPage} />
               <Route path="/legislator-advanced-profile/:id" component={LegislatorAdvancedProfilePage} />
               <Route path="/legislators/:id" component={LegislatorDetailPage} />
@@ -185,24 +191,21 @@ function App() {
               <Route path="/legislative-insights-demo" component={LegislativeInsightsDemoPage} />
               <Route path="/scout-bot-demo" component={ScoutBotDemo} />
               <Route path="/social-sharing" component={SocialSharingPage} />
-              <Route path="/advanced-analytics" component={AdvancedAnalyticsPage} />
+              <Route path="/advanced-analytics" component={AdvancedAnalyticsDashboard} />
+              <Route path="/advanced-analytics-basic" component={AdvancedAnalyticsPage} />
               <Route path="/legislative-intelligence" component={LegislativeIntelligenceDashboard} />
               <Route path="/amendment-playground" component={AmendmentPlaygroundPage} />
               <Route path="/login" component={SocialLoginPage} />
               <Route path="/auth/enhanced" component={EnhancedLoginPage} />
-              <Route path="/dashboard" component={PersonalizedDashboard} />
-              <Route path="/settings" component={UserCustomizationDashboard} />
+              <ProtectedRoute path="/settings" component={UserCustomizationDashboard} />
               <Route path="/policy-impact" component={PolicyImpactSimulator} />
               <Route path="/civic-learning" component={CivicLearningChatbot} />
-              <Route path="/legislative-map" component={LegislativeMapVisualization} />
               <Route path="/emoji-sentiment" component={BillEmojiSentimentAnalysis} />
-              <Route path="/advanced-analytics" component={AdvancedAnalyticsDashboard} />
-              <Route path="/voice-search" component={VoiceBillSearch} />
               <Route path="/mobile-dashboard" component={MobileOptimizedDashboard} />
               <Route path="/recommendations" component={PersonalizedRecommendations} />
               <Route path="/data-expansion" component={ComprehensiveDataExpansion} />
               <Route path="/texas-legislature-online" component={TexasLegislatureOnlineCollector} />
-              <Route path="/admin" component={AdminDashboard} />
+              <ProtectedRoute path="/admin" component={AdminDashboard} />
               <Route path="/enhanced-bill-suggestions" component={EnhancedBillSuggestionsPage} />
               <Route path="/bill-suggestions" component={BillSuggestionsPage} />
               <Route path="/legislative-updates" component={LegislativeUpdatesPage} />
@@ -213,8 +216,8 @@ function App() {
               <Route path="/texas/campaign-finance" component={EnhancedCampaignFinance} />
               <Route path="/animated-bill-demo" component={AnimatedBillDemo} />
               <Route path="/enhanced-search-demo" component={EnhancedSearchDemo} />
-          <Route path="/social-sharing-demo" component={SocialSharingDemo} />
-          <Route path="/enhanced-ai-demo" component={EnhancedAIDemo} />
+              <Route path="/social-sharing-demo" component={SocialSharingDemo} />
+              <Route path="/enhanced-ai-demo" component={EnhancedAIDemo} />
               <Route path="/" component={HomePage} />
             </Switch>
           </main>
@@ -223,6 +226,7 @@ function App() {
           <Toaster />
         </div>
       </UserProvider>
+      </AuthProvider>
       </HelmetProvider>
     </QueryClientProvider>
   );

@@ -9,14 +9,6 @@ export function ProtectedRoute({
   path: string;
   component: () => React.JSX.Element;
 }) {
-  // DEVELOPMENT MODE: Skip authentication check
-  const BYPASS_AUTH = true; // Set to false before production
-  
-  if (BYPASS_AUTH) {
-    return <Route path={path} component={Component} />;
-  }
-  
-  // Normal authentication flow for production
   const { user, isLoading } = useAuth();
 
   if (isLoading) {
