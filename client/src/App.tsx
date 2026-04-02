@@ -11,10 +11,7 @@ import { ProtectedRoute } from "@/lib/protected-route";
 import HomePage from "./pages/modern-home";
 import TexasCampaignFinance from "./pages/texas-campaign-finance";
 import EnhancedCampaignFinance from "./pages/enhanced-campaign-finance";
-import AnimatedBillDemo from "./pages/animated-bill-demo";
-import EnhancedSearchDemo from "./pages/enhanced-search-demo";
-import SocialSharingDemo from "./pages/social-sharing-demo";
-import EnhancedAIDemo from "./pages/enhanced-ai-demo";
+
 import BillDetail from "./pages/bill-detail";
 import LegislatorProfile from "./pages/legislator-profile";
 import ComprehensiveAnalysisDashboard from "./pages/comprehensive-analysis-dashboard";
@@ -26,17 +23,17 @@ import AdvancedSearchPage from "./pages/advanced-search";
 import LegislativeImpactPage from "./pages/legislative-impact";
 import AboutPage from "./pages/about";
 import OnboardingPage from "./pages/onboarding";
-import EnhancedTimelineDemoPage from "./pages/enhanced-timeline-demo";
+
 import BillSummaryPage from "./pages/bill-summary";
 import BillTimelinePage from "./pages/bill-timeline";
 import BillDetailPage from "./pages/bill-detail";
 import BillAnnotatorPage from "./pages/bill-annotator";
 import TimelineTestPage from "./pages/timeline-test";
 import EnhancedTimelineView from "./pages/enhanced-timeline-view";
-import TimelineDemoPage from "./pages/timeline-demo-page";
+
 import LegislativeMapPage from "./pages/legislative-map";
 import VoiceSearchPage from "./pages/voice-search";
-import ComponentDemoPage from "./pages/component-demo";
+
 import DashboardPage from "./pages/dashboard";
 import DigestPage from "./pages/digest";
 import LegislatorsPage from "./pages/legislators";
@@ -76,12 +73,10 @@ import LegislativeUpdatesPage from "./pages/legislative-updates";
 import LegislativePage from "./pages/LegislativePage";
 import EnhancedBillPage from "./pages/EnhancedBillPage";
 import EnhancedAISearchPage from "./pages/enhanced-ai-search";
-import EnhancedAISuiteDemoPage from "./pages/enhanced-ai-suite-demo";
+
 import BillSuggestionsPage from "./pages/community/bill-suggestions";
 import EnhancedBillSuggestionsPage from "./pages/community/enhanced-bill-suggestions";
-import BillAnalysisDemoPage from "./pages/bill-analysis-demo";
-import LegislativeInsightsDemoPage from "./pages/legislative-insights-demo";
-import ScoutBotDemo from "./pages/scout-bot-demo";
+
 import AdminDashboard from "./pages/admin-dashboard";
 import SocialSharingPage from "./pages/social-sharing";
 import AdvancedAnalyticsPage from "./pages/advanced-analytics";
@@ -134,8 +129,7 @@ function App() {
               <Route path="/legislative-impact" component={LegislativeImpactPage} />
               <Route path="/about" component={AboutPage} />
               <Route path="/onboarding" component={OnboardingPage} />
-              <Route path="/timeline-demo" component={EnhancedTimelineDemoPage} />
-              <Route path="/timeline-demo-basic" component={TimelineDemoPage} />
+
               <Route path="/bills/:billId/summary" component={BillSummaryPage} />
               <Route path="/bills/:billId/timeline" component={BillTimelinePage} />
               <Route path="/bills/:id/annotate" component={BillAnnotatorPage} />
@@ -147,7 +141,7 @@ function App() {
               <Route path="/legislative-map-basic" component={LegislativeMapPage} />
               <Route path="/voice-search" component={VoiceBillSearch} />
               <Route path="/voice-search-basic" component={VoiceSearchPage} />
-              <Route path="/component-demo" component={ComponentDemoPage} />
+
               <Route path="/dashboard" component={PersonalizedDashboard} />
               <Route path="/dashboard-basic" component={DashboardPage} />
               <Route path="/digest" component={DigestPage} />
@@ -186,10 +180,7 @@ function App() {
               <Route path="/enhanced-bill/:id" component={EnhancedBillPage} />
               <Route path="/enhanced-bill" component={EnhancedBillPage} />
               <Route path="/ai-search" component={EnhancedAISearchPage} />
-              <Route path="/enhanced-ai-suite" component={EnhancedAISuiteDemoPage} />
-              <Route path="/bill-analysis-demo" component={BillAnalysisDemoPage} />
-              <Route path="/legislative-insights-demo" component={LegislativeInsightsDemoPage} />
-              <Route path="/scout-bot-demo" component={ScoutBotDemo} />
+
               <Route path="/social-sharing" component={SocialSharingPage} />
               <Route path="/advanced-analytics" component={AdvancedAnalyticsDashboard} />
               <Route path="/advanced-analytics-basic" component={AdvancedAnalyticsPage} />
@@ -214,10 +205,7 @@ function App() {
               <Route path="/community/suggest" component={SuggestBillPage} />
               <Route path="/community" component={CommunityPage} />
               <Route path="/texas/campaign-finance" component={EnhancedCampaignFinance} />
-              <Route path="/animated-bill-demo" component={AnimatedBillDemo} />
-              <Route path="/enhanced-search-demo" component={EnhancedSearchDemo} />
-              <Route path="/social-sharing-demo" component={SocialSharingDemo} />
-              <Route path="/enhanced-ai-demo" component={EnhancedAIDemo} />
+
               <Route path="/" component={HomePage} />
             </Switch>
           </main>

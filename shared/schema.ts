@@ -206,6 +206,9 @@ export const users = pgTable("users", {
   emotionThemeIntensity: text("emotion_theme_intensity").default("moderate"), // 'subtle', 'moderate', 'strong'
   // Onboarding status
   onboardingCompleted: boolean("onboarding_completed").default(false),
+  // OAuth
+  oauthProvider: text("oauth_provider"), // 'google' | 'github' | null
+  oauthId: text("oauth_id"),             // provider-specific user ID
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -228,6 +231,8 @@ export const insertUserSchema = createInsertSchema(users).pick({
   themeColorOverride: true,
   emotionThemeIntensity: true,
   onboardingCompleted: true,
+  oauthProvider: true,
+  oauthId: true,
 });
 
 // ---- SUPER USER ROLES & PROGRESSION ----

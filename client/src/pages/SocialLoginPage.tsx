@@ -1,95 +1,89 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { useUser } from "@/hooks/use-user";
 import { 
   User, 
   Mail, 
   Lock, 
   Eye, 
   EyeOff,
-  MapPin,
   Users,
   Bell,
   Shield,
   Zap,
   CheckCircle,
-  ArrowRight,
-  UserPlus,
-  LogIn,
-  Github,
-  Twitter,
-  Apple,
-  Facebook
+  Github
 } from "lucide-react";
 import { FaGoogle } from "react-icons/fa";
 
 export default function SocialLoginPage() {
   const [, setLocation] = useLocation();
+  const { login, register, user } = useUser();
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
+  const [oauthConfig, setOauthConfig] = useState<{ google: boolean; github: boolean }>({ google: false, github: false });
   const [formData, setFormData] = useState({
     email: "",
     password: "",
     name: "",
-    district: "",
-    interests: [] as string[]
+    username: "",
   });
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) setLocation("/dashboard");
+  }, [user, setLocation]);
+
+  // Fetch available OAuth providers
+  useEffect(() => {
+    fetch("/api/auth/oauth/config")
+      .then((r) => r.ok ? r.json() : { google: false, github: false })
+      .then(setOauthConfig)
+      .catch(() => {});
+  }, []);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    setErrorMsg("");
   };
 
-  const handleInterestToggle = (interest: string) => {
-    setFormData(prev => ({
-      ...prev,
-      interests: prev.interests.includes(interest)
-        ? prev.interests.filter(i => i !== interest)
-        : [...prev.interests, interest]
-    }));
-  };
-
-  const handleSocialLogin = async (provider: string) => {
-    setIsLoading(provider);
-    
-    try {
-      // Simulate social login process
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // For demo purposes, redirect to dashboard
-      setLocation("/dashboard");
-    } catch (error) {
-      console.error(`${provider} login failed:`, error);
-    } finally {
-      setIsLoading("");
-    }
+  const handleSocialLogin = (provider: string) => {
+    // Real OAuth: navigate to the server-side redirect endpoint
+    window.location.href = `/api/auth/${provider}`;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading("email");
-    
+    setErrorMsg("");
+
     try {
-      // Simulate form submission
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (isLogin) {
+        // Use the real login API via the useUser hook
+        await login(formData.username || formData.email, formData.password);
+      } else {
+        // Use the real register API
+        await register({
+          username: formData.username || formData.email.split("@")[0],
+          password: formData.password,
+          email: formData.email,
+          name: formData.name,
+        });
+      }
       setLocation("/dashboard");
-    } catch (error) {
-      console.error("Form submission failed:", error);
+    } catch (error: any) {
+      setErrorMsg(error?.message || (isLogin ? "Invalid credentials" : "Registration failed"));
     } finally {
       setIsLoading("");
     }
   };
-
-  const civicInterests = [
-    "Education Policy", "Healthcare", "Transportation", "Environment", 
-    "Criminal Justice", "Economic Development", "Housing", "Immigration",
-    "Technology", "Agriculture"
-  ];
 
   const userBenefits = [
     {
@@ -115,36 +109,18 @@ export default function SocialLoginPage() {
   ];
 
   const socialProviders = [
-    {
+    ...(oauthConfig.google ? [{
       name: "Google",
       icon: <FaGoogle className="h-5 w-5" />,
       color: "bg-red-600 hover:bg-red-700",
       provider: "google"
-    },
-    {
-      name: "Facebook",
-      icon: <Facebook className="h-5 w-5" />,
-      color: "bg-blue-600 hover:bg-blue-700",
-      provider: "facebook"
-    },
-    {
-      name: "Twitter",
-      icon: <Twitter className="h-5 w-5" />,
-      color: "bg-sky-500 hover:bg-sky-600",
-      provider: "twitter"
-    },
-    {
+    }] : []),
+    ...(oauthConfig.github ? [{
       name: "GitHub",
       icon: <Github className="h-5 w-5" />,
       color: "bg-gray-800 hover:bg-gray-900",
       provider: "github"
-    },
-    {
-      name: "Apple",
-      icon: <Apple className="h-5 w-5" />,
-      color: "bg-black hover:bg-gray-900",
-      provider: "apple"
-    }
+    }] : []),
   ];
 
   return (
@@ -203,35 +179,32 @@ export default function SocialLoginPage() {
               </p>
 
               {/* Social Login Buttons */}
-              <div className="space-y-3">
-                {socialProviders.map((social) => (
-                  <Button
-                    key={social.provider}
-                    onClick={() => handleSocialLogin(social.provider)}
-                    disabled={isLoading !== ""}
-                    className={`w-full ${social.color} text-white font-medium py-3 transition-all`}
-                    size="lg"
-                  >
-                    {isLoading === social.provider ? (
-                      <div className="flex items-center gap-2">
-                        <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        Connecting...
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-3">
-                        {social.icon}
-                        Continue with {social.name}
-                      </div>
-                    )}
-                  </Button>
-                ))}
-              </div>
+              {socialProviders.length > 0 && (
+                <>
+                  <div className="space-y-3">
+                    {socialProviders.map((social) => (
+                      <Button
+                        key={social.provider}
+                        onClick={() => handleSocialLogin(social.provider)}
+                        disabled={isLoading !== ""}
+                        className={`w-full ${social.color} text-white font-medium py-3 transition-all`}
+                        size="lg"
+                      >
+                        <div className="flex items-center gap-3">
+                          {social.icon}
+                          Continue with {social.name}
+                        </div>
+                      </Button>
+                    ))}
+                  </div>
 
-              <div className="flex items-center gap-4 my-6">
-                <Separator className="flex-1 bg-white/20" />
-                <span className="text-blue-200 text-sm">or</span>
-                <Separator className="flex-1 bg-white/20" />
-              </div>
+                  <div className="flex items-center gap-4 my-6">
+                    <Separator className="flex-1 bg-white/20" />
+                    <span className="text-blue-200 text-sm">or</span>
+                    <Separator className="flex-1 bg-white/20" />
+                  </div>
+                </>
+              )}
 
               <div className="flex gap-1">
                 <Button
@@ -253,6 +226,12 @@ export default function SocialLoginPage() {
             
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
+                {errorMsg && (
+                  <div className="p-3 bg-red-500/20 border border-red-400/30 rounded-lg text-red-200 text-sm">
+                    {errorMsg}
+                  </div>
+                )}
+
                 {!isLogin && (
                   <div className="space-y-2">
                     <Label htmlFor="name" className="text-white">Full Name</Label>
@@ -272,20 +251,38 @@ export default function SocialLoginPage() {
                 )}
 
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="text-white">Email Address</Label>
+                  <Label htmlFor="username" className="text-white">Username</Label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-3 h-4 w-4 text-blue-400" />
+                    <User className="absolute left-3 top-3 h-4 w-4 text-blue-400" />
                     <Input
-                      id="email"
-                      type="email"
-                      placeholder="Enter your email"
-                      value={formData.email}
-                      onChange={(e) => handleInputChange("email", e.target.value)}
+                      id="username"
+                      type="text"
+                      placeholder="Enter your username"
+                      value={formData.username}
+                      onChange={(e) => handleInputChange("username", e.target.value)}
                       className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-blue-200"
                       required
                     />
                   </div>
                 </div>
+
+                {!isLogin && (
+                  <div className="space-y-2">
+                    <Label htmlFor="email" className="text-white">Email Address</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-3 h-4 w-4 text-blue-400" />
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="Enter your email"
+                        value={formData.email}
+                        onChange={(e) => handleInputChange("email", e.target.value)}
+                        className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-blue-200"
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="password" className="text-white">Password</Label>
@@ -312,51 +309,6 @@ export default function SocialLoginPage() {
                   </div>
                 </div>
 
-                {!isLogin && (
-                  <>
-                    <div className="space-y-2">
-                      <Label htmlFor="district" className="text-white">Texas Legislative District (Optional)</Label>
-                      <div className="relative">
-                        <MapPin className="absolute left-3 top-3 h-4 w-4 text-blue-400" />
-                        <Input
-                          id="district"
-                          type="text"
-                          placeholder="e.g., District 15, Austin, Harris County"
-                          value={formData.district}
-                          onChange={(e) => handleInputChange("district", e.target.value)}
-                          className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-blue-200"
-                        />
-                      </div>
-                      <p className="text-xs text-blue-300">
-                        Help us show you relevant bills and representatives
-                      </p>
-                    </div>
-
-                    <div className="space-y-3">
-                      <Label className="text-white">Civic Interests (Optional)</Label>
-                      <div className="grid grid-cols-2 gap-2">
-                        {civicInterests.map((interest) => (
-                          <Badge
-                            key={interest}
-                            variant={formData.interests.includes(interest) ? "default" : "secondary"}
-                            className={`cursor-pointer text-xs py-1 px-2 text-center justify-center transition-all ${
-                              formData.interests.includes(interest)
-                                ? "bg-blue-600 text-white"
-                                : "bg-white/10 text-blue-200 hover:bg-white/20"
-                            }`}
-                            onClick={() => handleInterestToggle(interest)}
-                          >
-                            {interest}
-                          </Badge>
-                        ))}
-                      </div>
-                      <p className="text-xs text-blue-300">
-                        Select topics you care about to receive personalized bill alerts
-                      </p>
-                    </div>
-                  </>
-                )}
-
                 <Button
                   type="submit"
                   disabled={isLoading !== ""}
@@ -369,20 +321,7 @@ export default function SocialLoginPage() {
                       {isLogin ? "Signing In..." : "Creating Account..."}
                     </div>
                   ) : (
-                    <>
-                      {isLogin ? (
-                        <>
-                          <LogIn className="h-5 w-5 mr-2" />
-                          Login to Dashboard
-                        </>
-                      ) : (
-                        <>
-                          <UserPlus className="h-5 w-5 mr-2" />
-                          Create Account
-                        </>
-                      )}
-                      <ArrowRight className="h-4 w-4 ml-2" />
-                    </>
+                    isLogin ? "Sign In" : "Create Account"
                   )}
                 </Button>
 

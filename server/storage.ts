@@ -50,7 +50,11 @@ import {
   type RepResponse, 
   type InsertRepResponse,
   type LegislativeSession, 
-  type InsertLegislativeSession
+  type InsertLegislativeSession,
+  tippingPointMetrics,
+  type TippingPointMetric,
+  userNetworkImpact,
+  type UserNetworkImpact
 } from "@shared/schema";
 
 import { 
@@ -170,6 +174,12 @@ export interface IStorage {
   // User rep tracking methods
   createUserRepTracking(tracking: InsertUserRepTracking): Promise<UserRepTracking>;
   getUserRepTracking(userId: number, repId: number): Promise<UserRepTracking | undefined>;
+  
+  // Tipping Point Metrics methods
+  getLatestTippingPointMetrics(): Promise<TippingPointMetric | undefined>;
+  
+  // User Network Impact methods
+  getUserNetworkImpactByUserId(userId: number): Promise<UserNetworkImpact | undefined>;
   
   // Ethics methods
   getAllLobbyists(options?: { limit?: number; offset?: number }): Promise<Lobbyist[]>;
@@ -1079,6 +1089,18 @@ export class DatabaseStorage implements IStorage {
       .returning();
     
     return updatedIndex || undefined;
+  }
+
+  // Tipping Point Metrics methods
+  async getLatestTippingPointMetrics(): Promise<TippingPointMetric | undefined> {
+    const [metric] = await db.select().from(tippingPointMetrics).orderBy(desc(tippingPointMetrics.lastUpdated));
+    return metric || undefined;
+  }
+
+  // User Network Impact methods
+  async getUserNetworkImpactByUserId(userId: number): Promise<UserNetworkImpact | undefined> {
+    const [impact] = await db.select().from(userNetworkImpact).where(eq(userNetworkImpact.userId, userId));
+    return impact || undefined;
   }
 }
 
