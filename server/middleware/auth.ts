@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { storage } from "../storage";
+import { superUserStorage } from "../storage-super-user";
 import { isUserAdminById } from "./auth-middleware";
 import { createLogger } from "../logger";
 
@@ -77,7 +78,8 @@ export const requireSuperUser = async (req: AuthenticatedRequest, res: Response,
   }
   
   try {
-    const superUserRole = await storage.getSuperUserRoleByUserId(userId);
+    const roles = await superUserStorage.getSuperUserRolesByUserId(userId);
+    const superUserRole = roles[0];
     
     if (!superUserRole) {
       return res.status(403).json({ message: "Forbidden: Super User access required" });

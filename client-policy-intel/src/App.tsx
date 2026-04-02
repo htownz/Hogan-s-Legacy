@@ -25,6 +25,9 @@ import { HearingMemoPage } from "./pages/HearingMemoPage";
 import { IntelligenceHubPage } from "./pages/IntelligenceHubPage";
 import { PowerNetworkPage } from "./pages/PowerNetworkPage";
 import { CommitteeIntelPage } from "./pages/CommitteeIntelPage";
+import { PredictionsPage } from "./pages/PredictionsPage";
+import { SessionPage } from "./pages/SessionPage";
+import { RelationshipsPage } from "./pages/RelationshipsPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
 function useMediaQuery(query: string): boolean {
@@ -60,6 +63,9 @@ const NAV_ITEMS = [
   { path: "/sources", label: "Sources" },
   { path: "/analytics", label: "Analytics" },
   { path: "/digest", label: "Digest" },
+  { path: "/predictions", label: "📊 Predictions" },
+  { path: "/session", label: "🗓️ Session Manager" },
+  { path: "/relationships", label: "🔗 Relationships" },
   { path: "/settings", label: "Settings" },
 ];
 
@@ -248,6 +254,9 @@ export function App() {
           <Route path="/analytics" component={AnalyticsPage} />
           <Route path="/digest" component={DigestPage} />
           <Route path="/settings" component={SettingsPage} />
+          <Route path="/predictions" component={PredictionsPage} />
+          <Route path="/session" component={SessionPage} />
+          <Route path="/relationships" component={RelationshipsPage} />
           <Route path="/client-alerts" component={ClientAlertPage} />
           <Route path="/weekly-report" component={WeeklyReportPage} />
           <Route path="/hearing-memo" component={HearingMemoPage} />

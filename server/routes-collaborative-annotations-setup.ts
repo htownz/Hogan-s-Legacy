@@ -238,7 +238,7 @@ export const setupWebsocketServer = (httpServer: HttpServer) => {
           case 'add_reaction':
             // Add reaction to annotation
             try {
-              if (!payload.annotationId || !payload.reactionType) {
+              if (!payload.annotationId || !payload.reaction) {
                 log.error('Missing required fields in reaction request');
                 return;
               }
@@ -246,7 +246,7 @@ export const setupWebsocketServer = (httpServer: HttpServer) => {
               const reaction = await collaborativeAnnotationsStorage.createAnnotationReaction({
                 annotationId: payload.annotationId,
                 userId,
-                reactionType: payload.reactionType
+                reaction: payload.reaction
               });
               
               // Broadcast to all clients viewing this document
@@ -271,7 +271,7 @@ export const setupWebsocketServer = (httpServer: HttpServer) => {
               },
               documentId,
               userId
-            }, ws);
+            }, authedSocket);
             break;
             
           default:

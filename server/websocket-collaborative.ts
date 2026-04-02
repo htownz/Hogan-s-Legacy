@@ -167,13 +167,14 @@ export function initializeCollaborativeWebsockets(server: http.Server) {
 
   // Set up interval to check for inactive connections
   const interval = setInterval(() => {
-    wss.clients.forEach((ws: CollaborativeClient) => {
-      if (!ws.isAlive) {
-        return ws.terminate();
+    wss.clients.forEach((ws) => {
+      const client = ws as CollaborativeClient;
+      if (!client.isAlive) {
+        return client.terminate();
       }
       
-      ws.isAlive = false;
-      ws.ping();
+      client.isAlive = false;
+      client.ping();
     });
   }, 30000); // Check every 30 seconds
 
@@ -244,7 +245,7 @@ async function handleJoin(ws: CollaborativeClient, message: WebSocketMessage) {
     }
     
     const sessionClientMap = sessionClients.get(sessionId);
-    sessionClientMap.set(userId, ws);
+    sessionClientMap!.set(userId, ws);
     
     // Get active participants
     const participants = await collaborativeStorage.getActiveParticipants(sessionId);

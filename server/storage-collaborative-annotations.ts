@@ -186,7 +186,7 @@ export class DatabaseCollaborativeAnnotationsStorage implements ICollaborativeAn
     );
 
     // If same reaction type, do nothing
-    if (existingReaction && existingReaction.reactionType === reaction.reactionType) {
+    if (existingReaction && existingReaction.reaction === reaction.reaction) {
       return existingReaction;
     }
     

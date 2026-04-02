@@ -250,9 +250,9 @@ export async function buildNetworkGraph(
       id,
       name: s?.name ?? `Stakeholder ${id}`,
       type: s?.type ?? "unknown",
-      party: (s?.metadata as any)?.party,
-      chamber: (s?.metadata as any)?.chamber,
-      role: (s?.metadata as any)?.role,
+      party: s?.party ?? undefined,
+      chamber: s?.chamber ?? undefined,
+      role: undefined,
       influence: Math.min(connCount * 10, 100),
       connectionCount: connCount,
     };
@@ -369,7 +369,7 @@ export async function getStakeholderDossier(
     .select()
     .from(stakeholderObservations)
     .where(eq(stakeholderObservations.stakeholderId, stakeholderId))
-    .orderBy(desc(stakeholderObservations.observedAt))
+    .orderBy(desc(stakeholderObservations.createdAt))
     .limit(20);
 
   // Load committee memberships
@@ -377,10 +377,7 @@ export async function getStakeholderDossier(
     .select()
     .from(committeeMembers)
     .where(
-      and(
-        eq(committeeMembers.workspaceId, workspaceId),
-        eq(committeeMembers.stakeholderId, stakeholderId),
-      ),
+      eq(committeeMembers.stakeholderId, stakeholderId),
     );
 
   // Bill connections via alerts mentioning this stakeholder
@@ -417,7 +414,7 @@ export async function getStakeholderDossier(
   const influenceScore = Math.min(
     100,
     rels.length * 5 +
-      committees.filter((c) => c.role === "chair" || c.role === "vice-chair")
+      committees.filter((c) => c.role === "chair" || c.role === "vice_chair")
         .length *
         20 +
       committees.length * 3 +
@@ -429,10 +426,10 @@ export async function getStakeholderDossier(
       id: s.id,
       name: s.name,
       type: s.type,
-      party: (s.metadata as any)?.party,
-      chamber: (s.metadata as any)?.chamber,
-      district: (s.metadata as any)?.district,
-      role: (s.metadata as any)?.role,
+      party: s.party ?? undefined,
+      chamber: s.chamber ?? undefined,
+      district: s.district ?? undefined,
+      role: undefined,
     },
     relationships: rels.map((r) => {
       const otherId =
@@ -452,9 +449,9 @@ export async function getStakeholderDossier(
       };
     }),
     observations: observations.map((o) => ({
-      type: o.observationType,
-      summary: o.summary,
-      date: o.observedAt.toISOString(),
+      type: o.confidence,
+      summary: o.observationText,
+      date: o.createdAt.toISOString(),
     })),
     committees: committees.map((c) => ({
       committee: c.committeeName,
@@ -475,10 +472,16 @@ export async function autoDiscoverRelationships(
   let created = 0;
 
   // 1. Committee co-membership → "committee_together"
-  const members = await policyIntelDb
+  const allWorkspaceStakeholders = await policyIntelDb
+    .select({ id: stakeholders.id })
+    .from(stakeholders)
+    .where(eq(stakeholders.workspaceId, workspaceId));
+  const wsStakeholderIds = new Set(allWorkspaceStakeholders.map((s) => s.id));
+
+  const members = (await policyIntelDb
     .select()
-    .from(committeeMembers)
-    .where(eq(committeeMembers.workspaceId, workspaceId));
+    .from(committeeMembers))
+    .filter((m) => wsStakeholderIds.has(m.stakeholderId));
 
   const committeeGroups = new Map<string, number[]>();
   for (const m of members) {

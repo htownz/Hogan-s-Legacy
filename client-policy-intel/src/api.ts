@@ -328,6 +328,89 @@ export const api = {
   getInfluenceMapReport: () => apiFetch<InfluenceMapReport>("/intelligence/influence-map"),
   getPowerNetworkReport: (force = false) => apiFetch<PowerNetworkReport>(`/intelligence/power-network${force ? "?force=true" : ""}`),
   getLegislationPredictions: (force = false) => apiFetch<LegislationPredictorReport>(`/intelligence/predictions${force ? "?force=true" : ""}`),
+
+  // ── Premium: Passage Predictions ──────────────────────────────────────
+  getPredictionDashboard: (workspaceId: number) =>
+    apiFetch<PredictionDashboard>(`/premium/predictions/dashboard?workspaceId=${workspaceId}`),
+  predictBillPassage: (workspaceId: number, billId: string, billTitle?: string) =>
+    apiFetch<PredictionResult>("/premium/predictions/predict", {
+      method: "POST",
+      body: JSON.stringify({ workspaceId, billId, billTitle }),
+    }),
+  predictBillPassageBatch: (workspaceId: number, billIds: string[]) =>
+    apiFetch<{ data: PredictionResult[]; total: number }>("/premium/predictions/batch", {
+      method: "POST",
+      body: JSON.stringify({ workspaceId, billIds }),
+    }),
+  autoDiscoverAndPredict: (workspaceId: number) =>
+    apiFetch<{ discovered: number; predicted: number }>("/premium/predictions/auto-discover", {
+      method: "POST",
+      body: JSON.stringify({ workspaceId }),
+    }),
+
+  // ── Premium: Client Profiles ──────────────────────────────────────────
+  getClientProfiles: (workspaceId: number) =>
+    apiFetch<{ data: ClientProfile[]; total: number }>(`/premium/clients?workspaceId=${workspaceId}`),
+  getClientProfile: (id: number) =>
+    apiFetch<ClientProfile>(`/premium/clients/${id}`),
+  createClientProfile: (data: Partial<ClientProfile>) =>
+    apiFetch<ClientProfile>("/premium/clients", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateClientProfile: (id: number, data: Partial<ClientProfile>) =>
+    apiFetch<ClientProfile>(`/premium/clients/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
+  // ── Premium: Executive Reports ────────────────────────────────────────
+  generateExecutiveReport: (workspaceId: number, period: "daily" | "weekly" | "monthly", clientProfileId?: number) =>
+    apiFetch<ExecutiveReport>("/premium/reports/executive", {
+      method: "POST",
+      body: JSON.stringify({ workspaceId, period, clientProfileId, includePredictions: true }),
+    }),
+
+  // ── Premium: Relationship Intelligence ────────────────────────────────
+  getRelationshipNetwork: (workspaceId: number, opts?: { minStrength?: number; types?: string }) =>
+    apiFetch<NetworkGraph>(`/premium/relationships/network?workspaceId=${workspaceId}${opts?.minStrength ? `&minStrength=${opts.minStrength}` : ""}${opts?.types ? `&types=${opts.types}` : ""}`),
+  getStakeholderDossier: (workspaceId: number, stakeholderId: number) =>
+    apiFetch<StakeholderDossier>(`/premium/relationships/dossier/${stakeholderId}?workspaceId=${workspaceId}`),
+  autoDiscoverRelationships: (workspaceId: number) =>
+    apiFetch<{ discovered: number; created: number }>("/premium/relationships/auto-discover", {
+      method: "POST",
+      body: JSON.stringify({ workspaceId }),
+    }),
+
+  // ── Premium: Session Lifecycle ────────────────────────────────────────
+  getSessionDashboard: (workspaceId: number) =>
+    apiFetch<SessionDashboard | { session: null }>(`/premium/session/dashboard?workspaceId=${workspaceId}`),
+  initializeSession: (workspaceId: number, sessionNumber?: number) =>
+    apiFetch<{ session: unknown; milestones: SessionMilestone[] }>("/premium/session/initialize", {
+      method: "POST",
+      body: JSON.stringify({ workspaceId, sessionNumber }),
+    }),
+  executePhaseTransition: (workspaceId: number, toPhase: string) =>
+    apiFetch<{ session: unknown; tasksCreated: number; milestonesCreated: number }>("/premium/session/transition", {
+      method: "POST",
+      body: JSON.stringify({ workspaceId, toPhase }),
+    }),
+  getPhaseTransitionPlan: (workspaceId: number, toPhase: string) =>
+    apiFetch<{ briefing: string; generatedTasks: unknown[]; milestones: unknown[] }>(`/premium/session/transition/plan?workspaceId=${workspaceId}&toPhase=${toPhase}`),
+
+  // ── Premium: Client Actions ───────────────────────────────────────────
+  getClientActions: (workspaceId: number, status?: string) =>
+    apiFetch<{ data: ClientAction[]; total: number }>(`/premium/actions?workspaceId=${workspaceId}${status ? `&status=${status}` : ""}`),
+  createClientAction: (data: Partial<ClientAction>) =>
+    apiFetch<ClientAction>("/premium/actions", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateClientAction: (id: number, data: Partial<ClientAction>) =>
+    apiFetch<ClientAction>(`/premium/actions/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
 };
 
 // ── Types ────────────────────────────────────────────────────────────────────

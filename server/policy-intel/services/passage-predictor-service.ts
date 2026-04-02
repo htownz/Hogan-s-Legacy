@@ -138,10 +138,7 @@ async function detectBillStage(
     .select()
     .from(sourceDocuments)
     .where(
-      and(
-        eq(sourceDocuments.workspaceId, workspaceId),
-        sql`${sourceDocuments.title} ILIKE ${"%" + normalizedBill + "%"}`,
-      ),
+      sql`${sourceDocuments.title} ILIKE ${"%" + normalizedBill + "%"}`,
     )
     .orderBy(desc(sourceDocuments.publishedAt))
     .limit(5);
@@ -207,10 +204,10 @@ async function analyzeSponsorStrength(
   const committees = await policyIntelDb
     .select()
     .from(committeeMembers)
-    .where(eq(committeeMembers.workspaceId, workspaceId));
+    .limit(200);
 
   const chairs = committees.filter(
-    (m) => m.role === "chair" || m.role === "vice-chair",
+    (m) => m.role === "chair" || m.role === "vice_chair",
   );
 
   if (chairs.length > 0) {

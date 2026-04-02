@@ -312,10 +312,10 @@ export async function generateExecutiveReport(
         .where(
           and(
             eq(activities.workspaceId, req.workspaceId),
-            gte(activities.timestamp, periodStart),
+            gte(activities.createdAt, periodStart),
           ),
         )
-        .orderBy(desc(activities.timestamp))
+        .orderBy(desc(activities.createdAt))
         .limit(50),
     ]);
 
@@ -415,9 +415,6 @@ export async function generateExecutiveReport(
       );
       if (a.whyItMatters) {
         sections.push(a.whyItMatters.split("\n")[0].slice(0, 500) + "\n");
-      }
-      if (a.suggestedAction) {
-        sections.push(`**Recommended Action:** ${a.suggestedAction}\n`);
       }
     }
   }
