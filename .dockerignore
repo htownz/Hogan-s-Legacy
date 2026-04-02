@@ -35,7 +35,6 @@ background
 *.txt
 vitest.config.ts
 drizzle.config.ts
-drizzle.policy-intel.config.ts
 legiscan-*.js
 openstates-*.js
 upload-*.js
