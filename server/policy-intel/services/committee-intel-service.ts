@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { and, asc, desc, eq, gte, ilike, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, or, sql } from "drizzle-orm";
 import * as cheerio from "cheerio";
 import { policyIntelDb } from "../db";
 import { safeErrorMessage } from "../security";
@@ -124,6 +124,15 @@ export interface CommitteeIntelPositionRow {
   invited: boolean;
 }
 
+export interface CommitteeIntelRollCallEntry {
+  name: string;
+  response: string;
+  matched: boolean;
+  stakeholderId: number | null;
+  party: string | null;
+  role: string | null;
+}
+
 export interface CommitteeIntelAnalysis {
   analyzedAt: string | null;
   summary: string;
@@ -131,6 +140,7 @@ export interface CommitteeIntelAnalysis {
   totalSignals: number;
   trackedEntities: number;
   invitedWitnessCount: number;
+  rollCall: CommitteeIntelRollCallEntry[];
   issueCoverage: CommitteeIntelIssueSummary[];
   keyMoments: CommitteeIntelMoment[];
   electedFocus: CommitteeIntelEntitySummary[];
@@ -824,7 +834,7 @@ function dayDifferenceFromDateKeys(left: string | null, right: string | null): n
 
 function normalizeCommitteeName(value: string | null | undefined): string {
   return normalizeText(value)
-    .replace(/\b(committee|subcommittee|joint|hearing|select|special|part|room|house|senate|on)\b/g, " ")
+    .replace(/\b(committee|subcommittee|joint|hearing|select|special|part|room|house|senate|on|and)\b/g, " ")
     .replace(/\b(i|ii|iii|iv|v)\b/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -1860,6 +1870,7 @@ function buildEmptyAnalysis(session: CommitteeIntelSessionRow, totalSegments = 0
     totalSignals,
     trackedEntities: 0,
     invitedWitnessCount: 0,
+    rollCall: [],
     issueCoverage: [],
     keyMoments: [],
     electedFocus: [],
@@ -1883,6 +1894,7 @@ function parseStoredAnalysis(session: CommitteeIntelSessionRow, segments: Commit
     totalSignals: typeof raw.totalSignals === "number" ? raw.totalSignals : signals.length,
     trackedEntities: typeof raw.trackedEntities === "number" ? raw.trackedEntities : 0,
     invitedWitnessCount: typeof raw.invitedWitnessCount === "number" ? raw.invitedWitnessCount : 0,
+    rollCall: Array.isArray(raw.rollCall) ? raw.rollCall as CommitteeIntelRollCallEntry[] : [],
     issueCoverage: Array.isArray(raw.issueCoverage) ? raw.issueCoverage as CommitteeIntelIssueSummary[] : [],
     keyMoments: Array.isArray(raw.keyMoments) ? raw.keyMoments as CommitteeIntelMoment[] : [],
     electedFocus: Array.isArray(raw.electedFocus) ? raw.electedFocus as CommitteeIntelEntitySummary[] : [],
@@ -2158,7 +2170,11 @@ async function loadStakeholderContext(session: CommitteeIntelSessionRow) {
       .from(committeeMembers)
       .innerJoin(stakeholders, eq(stakeholders.id, committeeMembers.stakeholderId))
       .where(and(
-        ilike(committeeMembers.committeeName, session.committee),
+        or(
+          ilike(committeeMembers.committeeName, session.committee),
+          ilike(committeeMembers.committeeName, session.committee.replace(/&/g, "and")),
+          ilike(committeeMembers.committeeName, session.committee.replace(/\band\b/g, "&")),
+        ),
         eq(committeeMembers.chamber, session.chamber),
       )),
   ]);
@@ -2178,23 +2194,129 @@ async function loadStakeholderContext(session: CommitteeIntelSessionRow) {
   };
 }
 
+function findMemberByLastName(
+  lastName: string,
+  committeeMemberMap: Map<string, CommitteeMemberLookupEntry>,
+): CommitteeMemberLookupEntry | null {
+  const normalizedLastName = normalizeText(lastName);
+  if (!normalizedLastName) return null;
+
+  for (const [, entry] of committeeMemberMap) {
+    const memberLastName = normalizeText(entry.name.split(" ").pop() ?? "");
+    if (memberLastName === normalizedLastName) return entry;
+  }
+
+  // Fuzzy: try prefix matching for Whisper misheard names (e.g., "Shortner" vs "Schwertner")
+  for (const [, entry] of committeeMemberMap) {
+    const memberLastName = normalizeText(entry.name.split(" ").pop() ?? "");
+    if (
+      memberLastName.length >= 4 &&
+      normalizedLastName.length >= 4 &&
+      (memberLastName.startsWith(normalizedLastName.slice(0, 4)) ||
+        normalizedLastName.startsWith(memberLastName.slice(0, 4)))
+    ) {
+      return entry;
+    }
+  }
+
+  return null;
+}
+
+function extractSpeakerFromTranscriptContext(
+  segment: CommitteeIntelSegmentRow,
+  committeeMemberMap: Map<string, CommitteeMemberLookupEntry>,
+): { speakerName: string | null; speakerRole: CommitteeIntelSpeakerRole | null } {
+  if (segment.speakerName?.trim()) {
+    return { speakerName: null, speakerRole: null };
+  }
+
+  const text = segment.transcriptText;
+
+  // Roll call pattern: "Senator X? Present/Here." or "Dean Zaffirini? Here."
+  const rollCallMatch = text.match(
+    /^(?:Senator|Sen\.?|Dean|Dr\.?|Mr\.?|Mrs\.?|Ms\.?)\s+([\w'-]+)\??\s*(?:Present|Here)\b/i,
+  );
+  if (rollCallMatch) {
+    const lastName = rollCallMatch[1];
+    const matched = findMemberByLastName(lastName, committeeMemberMap);
+    return {
+      speakerName: matched?.name ?? `Senator ${lastName}`,
+      speakerRole: "member",
+    };
+  }
+
+  // Committee coming to order or quorum established → chair speaking
+  if (/committee.*will come to order/i.test(text) || /^there being \d+ present,?\s*a quorum is established/i.test(text)) {
+    const chair = [...committeeMemberMap.values()].find((m) => m.role === "chair");
+    return {
+      speakerName: chair?.name ?? null,
+      speakerRole: "chair",
+    };
+  }
+
+  // "Thank you, Mr. Chairman" or "Thank you, Chairman" → a member speaking (not the chair)
+  if (/thank you,?\s*(?:mr\.?\s*)?chairman/i.test(text)) {
+    return { speakerName: null, speakerRole: "member" };
+  }
+
+  // Segment mentions a senator being recognized: "Senator Sparks and Senator Hagenboe..."
+  // Chair is introducing/recognizing members → chair speaking
+  if (/^(?:Senator|Sen\.?)\s+[\w'-]+\s+and\s+(?:Senator|Sen\.?)\s+[\w'-]+/i.test(text)) {
+    const chair = [...committeeMemberMap.values()].find((m) => m.role === "chair");
+    return { speakerName: chair?.name ?? null, speakerRole: "chair" };
+  }
+
+  // "I'm going to ask the new members" / "Before we begin" → chair
+  if (/^(?:before we begin|i'm going to ask|i will ask|let me recognize)/i.test(text)) {
+    const chair = [...committeeMemberMap.values()].find((m) => m.role === "chair");
+    return { speakerName: chair?.name ?? null, speakerRole: "chair" };
+  }
+
+  // "Welcome, sir" / "Thank you, Senator X" → chair acknowledging someone
+  if (/^(?:welcome,?\s*sir|thank you,?\s*senator)/i.test(text)) {
+    const chair = [...committeeMemberMap.values()].find((m) => m.role === "chair");
+    return { speakerName: chair?.name ?? null, speakerRole: "chair" };
+  }
+
+  // Chair procedural patterns: opening floor to witnesses, agenda items, hearing charges
+  if (/^(?:the chair (?:opens|recognizes)|with that,?\s*we'll begin|the plan is to hear|let the record reflect|so this is the|today we (?:will|are)|the committee has (?:dedicated|been)|members,?\s*(?:i wanted|welcome|we)|are there any remarks)/i.test(text)) {
+    const chair = [...committeeMemberMap.values()].find((m) => m.role === "chair");
+    return { speakerName: chair?.name ?? null, speakerRole: "chair" };
+  }
+
+  return { speakerName: null, speakerRole: null };
+}
+
 function deriveSegment(
   segment: CommitteeIntelSegmentRow,
   session: CommitteeIntelSessionRow,
-): Pick<CommitteeIntelSegmentRow, "speakerRole" | "summary" | "issueTagsJson" | "position" | "importance" | "invited" | "metadataJson"> {
+  committeeMemberMap?: Map<string, CommitteeMemberLookupEntry>,
+): Pick<CommitteeIntelSegmentRow, "speakerName" | "speakerRole" | "summary" | "issueTagsJson" | "position" | "importance" | "invited" | "metadataJson"> {
   const issueLabels = buildIssueLabelMap(session);
-  const speakerRole = determineSpeakerRole(segment.speakerRole, segment.speakerName, segment.affiliation, segment.transcriptText);
+
+  // Extract speaker from transcript context when Whisper didn't provide one
+  const extracted = committeeMemberMap
+    ? extractSpeakerFromTranscriptContext(segment, committeeMemberMap)
+    : { speakerName: null, speakerRole: null };
+  const speakerName = segment.speakerName?.trim() || extracted.speakerName || null;
+  const effectiveSegment = speakerName !== segment.speakerName
+    ? { ...segment, speakerName }
+    : segment;
+
+  const speakerRole = extracted.speakerRole
+    ?? determineSpeakerRole(effectiveSegment.speakerRole, speakerName, effectiveSegment.affiliation, effectiveSegment.transcriptText);
   const issueTagsJson = detectIssueTags(segment.transcriptText, session.focusTopicsJson);
   const position = determinePosition(segment.transcriptText, speakerRole);
   const invited = detectInvitedWitness(segment.transcriptText, speakerRole, segment.invited);
   const importance = scoreImportance(segment.transcriptText, speakerRole, issueTagsJson, position, invited);
-  const summary = summarizeSegment(segment.speakerName, segment.affiliation, issueTagsJson, position, issueLabels);
+  const summary = summarizeSegment(speakerName, segment.affiliation, issueTagsJson, position, issueLabels);
   const metadataJson = {
     ...(segment.metadataJson ?? {}),
     wordCount: normalizeText(segment.transcriptText).split(" ").filter(Boolean).length,
   } as Record<string, unknown>;
 
   return {
+    speakerName,
     speakerRole,
     summary,
     issueTagsJson,
@@ -2418,6 +2540,38 @@ async function mergeDuplicateFeedSegments(session: CommitteeIntelSessionRow): Pr
   }
 }
 
+function buildRollCall(
+  segments: CommitteeIntelSegmentRow[],
+  committeeMemberMap: Map<string, CommitteeMemberLookupEntry>,
+): CommitteeIntelRollCallEntry[] {
+  const rollCallPattern = /^(?:Senator|Sen\.?|Dean|Dr\.?|Mr\.?|Mrs\.?|Ms\.?)\s+([\w'-]+)\??\s*(Present|Here)\b/i;
+  const entries: CommitteeIntelRollCallEntry[] = [];
+  const seen = new Set<string>();
+
+  for (const segment of segments) {
+    const match = segment.transcriptText.match(rollCallPattern);
+    if (!match) continue;
+
+    const lastName = match[1];
+    const response = match[2];
+    const normalizedLast = normalizeText(lastName);
+    if (seen.has(normalizedLast)) continue;
+    seen.add(normalizedLast);
+
+    const member = findMemberByLastName(lastName, committeeMemberMap);
+    entries.push({
+      name: member?.name ?? `Senator ${lastName}`,
+      response: response.charAt(0).toUpperCase() + response.slice(1).toLowerCase(),
+      matched: member !== null,
+      stakeholderId: member?.stakeholderId ?? null,
+      party: member?.party ?? null,
+      role: member?.role ?? null,
+    });
+  }
+
+  return entries;
+}
+
 function buildAnalysis(
   session: CommitteeIntelSessionRow,
   segments: CommitteeIntelSegmentRow[],
@@ -2588,6 +2742,8 @@ function buildAnalysis(
     .sort((left, right) => right.mentionCount - left.mentionCount)
     .slice(0, 40);
 
+  const rollCall = buildRollCall(segments, committeeMemberMap);
+
   return {
     analyzedAt: new Date().toISOString(),
     summary: buildAnalysisSummary(session, issueCoverage, electedFocus, activeWitnesses, segments.length),
@@ -2595,6 +2751,7 @@ function buildAnalysis(
     totalSignals: signals.length,
     trackedEntities: entitySummaries.length,
     invitedWitnessCount: activeWitnesses.filter((entry) => entry.invited).length,
+    rollCall,
     issueCoverage,
     keyMoments,
     electedFocus,
@@ -2872,6 +3029,14 @@ export async function addCommitteeIntelSegment(
       .where(eq(committeeIntelSessions.id, sessionId));
   }
 
+  // Also transition linked hearing from "scheduled" when segments arrive
+  if (core.hearing && core.hearing.status === "scheduled") {
+    await policyIntelDb
+      .update(hearingEvents)
+      .set({ status: "in_progress", updatedAt: new Date() })
+      .where(eq(hearingEvents.id, core.hearing.id));
+  }
+
   return refreshCommitteeIntelSession(sessionId);
 }
 
@@ -2966,6 +3131,19 @@ export async function syncCommitteeIntelTranscriptFeed(
       .where(eq(committeeIntelSessions.id, sessionId));
 
     const detail = await refreshCommitteeIntelSession(sessionId);
+
+    // Auto-transition the linked hearing from "scheduled" to "in_progress" when segments arrive
+    if (
+      core.hearing &&
+      core.hearing.status === "scheduled" &&
+      (upsertResult.ingestedSegments > 0 || upsertResult.updatedSegments > 0)
+    ) {
+      await policyIntelDb
+        .update(hearingEvents)
+        .set({ status: "in_progress", updatedAt: new Date() })
+        .where(eq(hearingEvents.id, core.hearing.id));
+    }
+
     const completedAtDate = new Date();
     const completedAt = completedAtDate.toISOString();
     const durationMs = completedAtDate.getTime() - attemptStartedAt.getTime();
@@ -3166,10 +3344,11 @@ export async function refreshCommitteeIntelSession(sessionId: number): Promise<C
   const rawSegments = await loadSessionSegments(sessionId);
 
   const updatedSegments = await Promise.all(rawSegments.map(async (segment) => {
-    const derived = deriveSegment(segment, core.session);
+    const derived = deriveSegment(segment, core.session, committeeMemberMap);
     const [updated] = await policyIntelDb
       .update(committeeIntelSegments)
       .set({
+        speakerName: derived.speakerName,
         speakerRole: derived.speakerRole,
         summary: derived.summary,
         issueTagsJson: derived.issueTagsJson,
@@ -3231,6 +3410,14 @@ export async function refreshCommitteeIntelSession(sessionId: number): Promise<C
     })
     .where(eq(committeeIntelSessions.id, sessionId))
     .returning();
+
+  // Auto-transition linked hearing from "scheduled" when segments exist
+  if (core.hearing && core.hearing.status === "scheduled" && updatedSegments.length > 0) {
+    await policyIntelDb
+      .update(hearingEvents)
+      .set({ status: "in_progress", updatedAt: new Date() })
+      .where(eq(hearingEvents.id, core.hearing.id));
+  }
 
   return {
     session: updatedSession,
