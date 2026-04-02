@@ -947,3 +947,344 @@ export type PolicyIntelCommitteeIntelSegment = typeof committeeIntelSegments.$in
 export type InsertPolicyIntelCommitteeIntelSegment = typeof committeeIntelSegments.$inferInsert;
 export type PolicyIntelCommitteeIntelSignal = typeof committeeIntelSignals.$inferSelect;
 export type InsertPolicyIntelCommitteeIntelSignal = typeof committeeIntelSignals.$inferInsert;
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PREMIUM FEATURES: Client Management, Predictions, Reporting, Relationships
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── Client Profiles & Workspace Customization ───────────────────────────────
+
+export const clientProfiles = pgTable(
+  "policy_intel_client_profiles",
+  {
+    id: serial("id").primaryKey(),
+    workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    firmName: varchar("firm_name", { length: 255 }).notNull(),
+    contactName: varchar("contact_name", { length: 255 }),
+    contactEmail: varchar("contact_email", { length: 255 }),
+    contactPhone: varchar("contact_phone", { length: 64 }),
+    industry: varchar("industry", { length: 128 }),
+    priorityTopics: jsonb("priority_topics").$type<string[]>().notNull().default([]),
+    jurisdictions: jsonb("jurisdictions").$type<string[]>().notNull().default(["texas"]),
+    reportingPreferences: jsonb("reporting_preferences").$type<{
+      frequency: "daily" | "weekly" | "on_demand";
+      deliverableTypes: string[];
+      includePassageProbability: boolean;
+      includeStakeholderIntel: boolean;
+      brandColor?: string;
+      logoUrl?: string;
+    }>().notNull().default({
+      frequency: "weekly",
+      deliverableTypes: ["client_alert", "weekly_digest"],
+      includePassageProbability: true,
+      includeStakeholderIntel: true,
+    }),
+    scoringWeights: jsonb("scoring_weights").$type<{
+      procedural?: number;
+      relevance?: number;
+      stakeholder?: number;
+      actionability?: number;
+      timeliness?: number;
+      regime?: number;
+      escalateThreshold?: number;
+      archiveThreshold?: number;
+    }>(),
+    notificationChannels: jsonb("notification_channels").$type<{
+      email?: { enabled: boolean; recipients: string[] };
+      slack?: { enabled: boolean; webhookUrl: string };
+      sms?: { enabled: boolean; numbers: string[] };
+    }>().notNull().default({}),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    workspaceIdx: index("policy_intel_client_profiles_workspace_idx").on(table.workspaceId),
+  }),
+);
+
+// ── Bill Passage Predictions ────────────────────────────────────────────────
+
+export const passagePredictionEnum = pgEnum("policy_intel_passage_prediction", [
+  "likely_pass",
+  "lean_pass",
+  "toss_up",
+  "lean_fail",
+  "likely_fail",
+  "dead",
+]);
+
+export const passagePredictions = pgTable(
+  "policy_intel_passage_predictions",
+  {
+    id: serial("id").primaryKey(),
+    workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    billId: varchar("bill_id", { length: 64 }).notNull(),
+    billTitle: text("bill_title"),
+    prediction: passagePredictionEnum("prediction").notNull().default("toss_up"),
+    probability: doublePrecision("probability").notNull().default(0.5),
+    confidence: doublePrecision("confidence").notNull().default(0),
+    regime: varchar("regime", { length: 32 }).notNull().default("interim"),
+    currentStage: varchar("current_stage", { length: 128 }),
+    nextMilestone: varchar("next_milestone", { length: 255 }),
+    nextMilestoneDate: timestamp("next_milestone_date", { withTimezone: true }),
+    riskFactors: jsonb("risk_factors").$type<{
+      factor: string;
+      impact: "positive" | "negative" | "neutral";
+      weight: number;
+      detail: string;
+    }[]>().notNull().default([]),
+    supportSignals: jsonb("support_signals").$type<{
+      signal: string;
+      source: string;
+      strength: number;
+    }[]>().notNull().default([]),
+    oppositionSignals: jsonb("opposition_signals").$type<{
+      signal: string;
+      source: string;
+      strength: number;
+    }[]>().notNull().default([]),
+    historicalComps: jsonb("historical_comps").$type<{
+      billId: string;
+      session: string;
+      similarity: number;
+      outcome: string;
+    }[]>().notNull().default([]),
+    sponsorStrength: doublePrecision("sponsor_strength").default(0),
+    committeeAlignment: doublePrecision("committee_alignment").default(0),
+    previousProbability: doublePrecision("previous_probability"),
+    probabilityDelta: doublePrecision("probability_delta"),
+    lastUpdatedAt: timestamp("last_updated_at", { withTimezone: true }).defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    workspaceBillUnique: uniqueIndex("policy_intel_passage_predictions_ws_bill_idx").on(
+      table.workspaceId,
+      table.billId,
+    ),
+    predictionIdx: index("policy_intel_passage_predictions_prediction_idx").on(table.prediction),
+    probabilityIdx: index("policy_intel_passage_predictions_probability_idx").on(table.probability),
+  }),
+);
+
+// ── Relationship Intelligence (Influence Network) ───────────────────────────
+
+export const relationshipTypeEnum = pgEnum("policy_intel_relationship_type", [
+  "funds",
+  "lobbies_for",
+  "opposes",
+  "co_sponsors",
+  "staff_of",
+  "committee_together",
+  "testified_before",
+  "client_of",
+  "ally",
+  "adversary",
+]);
+
+export const relationships = pgTable(
+  "policy_intel_relationships",
+  {
+    id: serial("id").primaryKey(),
+    workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    fromStakeholderId: integer("from_stakeholder_id").notNull().references(() => stakeholders.id, { onDelete: "cascade" }),
+    toStakeholderId: integer("to_stakeholder_id").notNull().references(() => stakeholders.id, { onDelete: "cascade" }),
+    relationshipType: relationshipTypeEnum("relationship_type").notNull(),
+    strength: doublePrecision("strength").notNull().default(0.5),
+    evidenceSummary: text("evidence_summary"),
+    sourceDocumentIds: jsonb("source_document_ids").$type<number[]>().notNull().default([]),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    lastVerifiedAt: timestamp("last_verified_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    fromToUnique: uniqueIndex("policy_intel_relationships_from_to_type_idx").on(
+      table.fromStakeholderId,
+      table.toStakeholderId,
+      table.relationshipType,
+    ),
+    workspaceIdx: index("policy_intel_relationships_workspace_idx").on(table.workspaceId),
+    toIdx: index("policy_intel_relationships_to_idx").on(table.toStakeholderId),
+  }),
+);
+
+// ── Session Lifecycle Management ────────────────────────────────────────────
+
+export const sessionPhaseEnum = pgEnum("policy_intel_session_phase", [
+  "interim",
+  "pre_filing",
+  "filing_period",
+  "committee_hearings",
+  "floor_action",
+  "conference",
+  "enrollment",
+  "post_session",
+  "special_session",
+]);
+
+export const sessionMilestoneStatusEnum = pgEnum("policy_intel_session_milestone_status", [
+  "upcoming",
+  "in_progress",
+  "completed",
+  "missed",
+  "cancelled",
+]);
+
+export const legislativeSessions = pgTable(
+  "policy_intel_legislative_sessions",
+  {
+    id: serial("id").primaryKey(),
+    workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    sessionNumber: integer("session_number").notNull(),
+    sessionType: varchar("session_type", { length: 32 }).notNull().default("regular"),
+    startDate: timestamp("start_date", { withTimezone: true }).notNull(),
+    endDate: timestamp("end_date", { withTimezone: true }),
+    currentPhase: sessionPhaseEnum("current_phase").notNull().default("interim"),
+    isActive: boolean("is_active").notNull().default(true),
+    configJson: jsonb("config_json").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    workspaceSessionUnique: uniqueIndex("policy_intel_leg_sessions_ws_num_idx").on(
+      table.workspaceId,
+      table.sessionNumber,
+    ),
+  }),
+);
+
+export const sessionMilestones = pgTable(
+  "policy_intel_session_milestones",
+  {
+    id: serial("id").primaryKey(),
+    sessionId: integer("session_id").notNull().references(() => legislativeSessions.id, { onDelete: "cascade" }),
+    title: varchar("title", { length: 255 }).notNull(),
+    description: text("description"),
+    phase: sessionPhaseEnum("phase").notNull(),
+    dueDate: timestamp("due_date", { withTimezone: true }).notNull(),
+    status: sessionMilestoneStatusEnum("status").notNull().default("upcoming"),
+    assignee: varchar("assignee", { length: 255 }),
+    matterId: integer("matter_id").references(() => matters.id, { onDelete: "set null" }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    notesJson: jsonb("notes_json").$type<{ note: string; by: string; at: string }[]>().notNull().default([]),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    sessionPhaseIdx: index("policy_intel_session_milestones_session_phase_idx").on(
+      table.sessionId,
+      table.phase,
+    ),
+    dueDateIdx: index("policy_intel_session_milestones_due_date_idx").on(table.dueDate),
+  }),
+);
+
+// ── Client Report Templates ─────────────────────────────────────────────────
+
+export const reportTemplates = pgTable(
+  "policy_intel_report_templates",
+  {
+    id: serial("id").primaryKey(),
+    workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 255 }).notNull(),
+    type: deliverableTypeEnum("type").notNull(),
+    templateMarkdown: text("template_markdown").notNull(),
+    headerHtml: text("header_html"),
+    footerHtml: text("footer_html"),
+    brandConfig: jsonb("brand_config").$type<{
+      primaryColor: string;
+      accentColor: string;
+      logoUrl?: string;
+      firmName: string;
+      confidentialityNotice?: string;
+    }>().notNull().default({
+      primaryColor: "#1a365d",
+      accentColor: "#c53030",
+      firmName: "Grace & McEwan Consulting LLC",
+    }),
+    isDefault: boolean("is_default").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    workspaceTypeIdx: index("policy_intel_report_templates_ws_type_idx").on(
+      table.workspaceId,
+      table.type,
+    ),
+  }),
+);
+
+// ── Actionable Items / Client Actions ───────────────────────────────────────
+
+export const clientActionStatusEnum = pgEnum("policy_intel_client_action_status", [
+  "pending",
+  "in_progress",
+  "completed",
+  "deferred",
+  "cancelled",
+]);
+
+export const clientActionTypeEnum = pgEnum("policy_intel_client_action_type", [
+  "testimony_prep",
+  "legislator_meeting",
+  "position_letter",
+  "coalition_outreach",
+  "media_response",
+  "amendment_draft",
+  "fiscal_note_review",
+  "witness_coordination",
+  "client_briefing",
+  "strategy_pivot",
+  "opposition_research",
+  "grassroots_activation",
+]);
+
+export const clientActions = pgTable(
+  "policy_intel_client_actions",
+  {
+    id: serial("id").primaryKey(),
+    workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    matterId: integer("matter_id").references(() => matters.id, { onDelete: "set null" }),
+    issueRoomId: integer("issue_room_id").references(() => issueRooms.id, { onDelete: "set null" }),
+    alertId: integer("alert_id").references(() => alerts.id, { onDelete: "set null" }),
+    actionType: clientActionTypeEnum("action_type").notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    description: text("description"),
+    status: clientActionStatusEnum("status").notNull().default("pending"),
+    priority: issueRoomTaskPriorityEnum("priority").notNull().default("medium"),
+    assignee: varchar("assignee", { length: 255 }),
+    dueDate: timestamp("due_date", { withTimezone: true }),
+    relatedBillIds: jsonb("related_bill_ids").$type<string[]>().notNull().default([]),
+    stakeholderIds: jsonb("stakeholder_ids").$type<number[]>().notNull().default([]),
+    outcome: text("outcome"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    workspaceStatusIdx: index("policy_intel_client_actions_ws_status_idx").on(
+      table.workspaceId,
+      table.status,
+    ),
+    dueDateIdx: index("policy_intel_client_actions_due_date_idx").on(table.dueDate),
+    matterIdx: index("policy_intel_client_actions_matter_idx").on(table.matterId),
+  }),
+);
+
+// ── Type exports for premium tables ─────────────────────────────────────────
+
+export type PolicyIntelClientProfile = typeof clientProfiles.$inferSelect;
+export type InsertPolicyIntelClientProfile = typeof clientProfiles.$inferInsert;
+export type PolicyIntelPassagePrediction = typeof passagePredictions.$inferSelect;
+export type InsertPolicyIntelPassagePrediction = typeof passagePredictions.$inferInsert;
+export type PolicyIntelRelationship = typeof relationships.$inferSelect;
+export type InsertPolicyIntelRelationship = typeof relationships.$inferInsert;
+export type PolicyIntelLegislativeSession = typeof legislativeSessions.$inferSelect;
+export type InsertPolicyIntelLegislativeSession = typeof legislativeSessions.$inferInsert;
+export type PolicyIntelSessionMilestone = typeof sessionMilestones.$inferSelect;
+export type InsertPolicyIntelSessionMilestone = typeof sessionMilestones.$inferInsert;
+export type PolicyIntelReportTemplate = typeof reportTemplates.$inferSelect;
+export type InsertPolicyIntelReportTemplate = typeof reportTemplates.$inferInsert;
+export type PolicyIntelClientAction = typeof clientActions.$inferSelect;
+export type InsertPolicyIntelClientAction = typeof clientActions.$inferInsert;

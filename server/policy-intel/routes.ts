@@ -3154,5 +3154,480 @@ export function createPolicyIntelRouter() {
     }
   });
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // PREMIUM ROUTES — Bill Passage Predictions, Client Reporting,
+  //                   Relationship Intelligence, Session Lifecycle,
+  //                   Client Profiles & Actions
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // ── Bill Passage Predictions ──────────────────────────────────────────────
+
+  /**
+   * GET /premium/predictions/dashboard?workspaceId=N — Prediction dashboard overview
+   */
+  router.get("/premium/predictions/dashboard", async (req, res, next) => {
+    try {
+      const { getPredictionDashboard } = await import("./services/passage-predictor-service");
+      const workspaceId = parseId(req.query.workspaceId as string);
+      if (!workspaceId) return res.status(400).json({ error: "workspaceId required" });
+      const dashboard = await getPredictionDashboard(workspaceId);
+      res.json(dashboard);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * POST /premium/predictions/predict — Predict passage probability for a bill
+   * Body: { workspaceId, billId, billTitle?, forceRefresh? }
+   */
+  router.post("/premium/predictions/predict", async (req, res, next) => {
+    try {
+      const { predictBillPassage } = await import("./services/passage-predictor-service");
+      const { workspaceId, billId, billTitle, forceRefresh } = req.body;
+      if (!workspaceId || !billId) {
+        return res.status(400).json({ error: "workspaceId and billId required" });
+      }
+      const result = await predictBillPassage({ workspaceId, billId, billTitle, forceRefresh });
+      res.json(result);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * POST /premium/predictions/batch — Batch predict passage for multiple bills
+   * Body: { workspaceId, billIds: string[] }
+   */
+  router.post("/premium/predictions/batch", async (req, res, next) => {
+    try {
+      const { predictBillPassageBatch } = await import("./services/passage-predictor-service");
+      const { workspaceId, billIds } = req.body;
+      if (!workspaceId || !Array.isArray(billIds)) {
+        return res.status(400).json({ error: "workspaceId and billIds[] required" });
+      }
+      const results = await predictBillPassageBatch({ workspaceId, billIds });
+      res.json({ data: results, total: results.length });
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * POST /premium/predictions/auto-discover — Auto-discover bills from alerts and predict passage
+   * Body: { workspaceId }
+   */
+  router.post("/premium/predictions/auto-discover", async (req, res, next) => {
+    try {
+      const { autoDiscoverAndPredict } = await import("./services/passage-predictor-service");
+      const { workspaceId } = req.body;
+      if (!workspaceId) return res.status(400).json({ error: "workspaceId required" });
+      const result = await autoDiscoverAndPredict(workspaceId);
+      res.json(result);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  // ── Client Profiles ───────────────────────────────────────────────────────
+
+  /**
+   * GET /premium/clients?workspaceId=N — List client profiles
+   */
+  router.get("/premium/clients", async (req, res, next) => {
+    try {
+      const { listClientProfiles } = await import("./services/client-reporting-service");
+      const workspaceId = parseId(req.query.workspaceId as string);
+      if (!workspaceId) return res.status(400).json({ error: "workspaceId required" });
+      const clients = await listClientProfiles(workspaceId);
+      res.json({ data: clients, total: clients.length });
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * GET /premium/clients/:id — Get client profile
+   */
+  router.get("/premium/clients/:id", async (req, res, next) => {
+    try {
+      const { getClientProfile } = await import("./services/client-reporting-service");
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ error: "Invalid client id" });
+      const profile = await getClientProfile(id);
+      if (!profile) return res.status(404).json({ error: "Client profile not found" });
+      res.json(profile);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * POST /premium/clients — Create client profile
+   */
+  router.post("/premium/clients", async (req, res, next) => {
+    try {
+      const { createClientProfile } = await import("./services/client-reporting-service");
+      const profile = await createClientProfile(req.body);
+      res.status(201).json(profile);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * PATCH /premium/clients/:id — Update client profile
+   */
+  router.patch("/premium/clients/:id", async (req, res, next) => {
+    try {
+      const { updateClientProfile } = await import("./services/client-reporting-service");
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ error: "Invalid client id" });
+      const profile = await updateClientProfile(id, req.body);
+      res.json(profile);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  // ── Client Reports & Templates ────────────────────────────────────────────
+
+  /**
+   * GET /premium/templates?workspaceId=N&type=X — List report templates
+   */
+  router.get("/premium/templates", async (req, res, next) => {
+    try {
+      const { listReportTemplates } = await import("./services/client-reporting-service");
+      const workspaceId = parseId(req.query.workspaceId as string);
+      if (!workspaceId) return res.status(400).json({ error: "workspaceId required" });
+      const templates = await listReportTemplates(workspaceId, req.query.type as string);
+      res.json({ data: templates, total: templates.length });
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * POST /premium/templates — Create report template
+   */
+  router.post("/premium/templates", async (req, res, next) => {
+    try {
+      const { createReportTemplate } = await import("./services/client-reporting-service");
+      const template = await createReportTemplate(req.body);
+      res.status(201).json(template);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * PATCH /premium/templates/:id — Update report template
+   */
+  router.patch("/premium/templates/:id", async (req, res, next) => {
+    try {
+      const { updateReportTemplate } = await import("./services/client-reporting-service");
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ error: "Invalid template id" });
+      const template = await updateReportTemplate(id, req.body);
+      res.json(template);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * DELETE /premium/templates/:id — Delete report template
+   */
+  router.delete("/premium/templates/:id", async (req, res, next) => {
+    try {
+      const { deleteReportTemplate } = await import("./services/client-reporting-service");
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ error: "Invalid template id" });
+      await deleteReportTemplate(id);
+      res.status(204).end();
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * POST /premium/reports/executive — Generate executive intelligence report
+   * Body: { workspaceId, clientProfileId?, period: "daily"|"weekly"|"monthly", includePredictions?, includeStakeholderIntel? }
+   */
+  router.post("/premium/reports/executive", async (req, res, next) => {
+    try {
+      const { generateExecutiveReport } = await import("./services/client-reporting-service");
+      const report = await generateExecutiveReport(req.body);
+      res.status(201).json(report);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  // ── Relationship Intelligence ─────────────────────────────────────────────
+
+  /**
+   * GET /premium/relationships/network?workspaceId=N — Get the influence network graph
+   */
+  router.get("/premium/relationships/network", async (req, res, next) => {
+    try {
+      const { buildNetworkGraph } = await import("./services/relationship-intelligence-service");
+      const workspaceId = parseId(req.query.workspaceId as string);
+      if (!workspaceId) return res.status(400).json({ error: "workspaceId required" });
+      const focusStakeholderId = req.query.focusStakeholderId
+        ? parseId(req.query.focusStakeholderId as string)
+        : undefined;
+      const minStrength = req.query.minStrength
+        ? parseFloat(req.query.minStrength as string)
+        : undefined;
+      const relationshipTypes = req.query.types
+        ? (req.query.types as string).split(",")
+        : undefined;
+
+      const graph = await buildNetworkGraph(workspaceId, {
+        focusStakeholderId: focusStakeholderId ?? undefined,
+        relationshipTypes,
+        minStrength,
+      });
+      res.json(graph);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * GET /premium/relationships/dossier/:stakeholderId?workspaceId=N — Stakeholder dossier
+   */
+  router.get("/premium/relationships/dossier/:stakeholderId", async (req, res, next) => {
+    try {
+      const { getStakeholderDossier } = await import("./services/relationship-intelligence-service");
+      const workspaceId = parseId(req.query.workspaceId as string);
+      const stakeholderId = parseId(req.params.stakeholderId);
+      if (!workspaceId || !stakeholderId) {
+        return res.status(400).json({ error: "workspaceId and stakeholderId required" });
+      }
+      const dossier = await getStakeholderDossier(workspaceId, stakeholderId);
+      res.json(dossier);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * POST /premium/relationships — Create a relationship between stakeholders
+   */
+  router.post("/premium/relationships", async (req, res, next) => {
+    try {
+      const { createRelationship } = await import("./services/relationship-intelligence-service");
+      const rel = await createRelationship(req.body);
+      res.status(201).json(rel);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * GET /premium/relationships?workspaceId=N&stakeholderId=N — List relationships
+   */
+  router.get("/premium/relationships", async (req, res, next) => {
+    try {
+      const { listRelationships } = await import("./services/relationship-intelligence-service");
+      const workspaceId = parseId(req.query.workspaceId as string);
+      if (!workspaceId) return res.status(400).json({ error: "workspaceId required" });
+      const stakeholderId = req.query.stakeholderId
+        ? parseId(req.query.stakeholderId as string)
+        : undefined;
+      const rels = await listRelationships(workspaceId, stakeholderId ?? undefined);
+      res.json({ data: rels, total: rels.length });
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * POST /premium/relationships/auto-discover — Auto-discover relationships from existing data
+   * Body: { workspaceId }
+   */
+  router.post("/premium/relationships/auto-discover", async (req, res, next) => {
+    try {
+      const { autoDiscoverRelationships } = await import("./services/relationship-intelligence-service");
+      const { workspaceId } = req.body;
+      if (!workspaceId) return res.status(400).json({ error: "workspaceId required" });
+      const result = await autoDiscoverRelationships(workspaceId);
+      res.json(result);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  // ── Session Lifecycle Management ──────────────────────────────────────────
+
+  /**
+   * GET /premium/session/dashboard?workspaceId=N — Session lifecycle dashboard
+   */
+  router.get("/premium/session/dashboard", async (req, res, next) => {
+    try {
+      const { getSessionDashboard } = await import("./services/session-lifecycle-service");
+      const workspaceId = parseId(req.query.workspaceId as string);
+      if (!workspaceId) return res.status(400).json({ error: "workspaceId required" });
+      const dashboard = await getSessionDashboard(workspaceId);
+      if (!dashboard) {
+        return res.json({ message: "No active session. Initialize a session first.", session: null });
+      }
+      res.json(dashboard);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * POST /premium/session/initialize — Initialize a Texas legislative session with standard milestones
+   * Body: { workspaceId, sessionNumber? }
+   */
+  router.post("/premium/session/initialize", async (req, res, next) => {
+    try {
+      const { initializeTexasSession } = await import("./services/session-lifecycle-service");
+      const { workspaceId, sessionNumber } = req.body;
+      if (!workspaceId) return res.status(400).json({ error: "workspaceId required" });
+      const result = await initializeTexasSession(workspaceId, sessionNumber);
+      res.status(201).json(result);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * GET /premium/session/sessions?workspaceId=N — List all sessions
+   */
+  router.get("/premium/session/sessions", async (req, res, next) => {
+    try {
+      const { listSessions } = await import("./services/session-lifecycle-service");
+      const workspaceId = parseId(req.query.workspaceId as string);
+      if (!workspaceId) return res.status(400).json({ error: "workspaceId required" });
+      const sessions = await listSessions(workspaceId);
+      res.json({ data: sessions, total: sessions.length });
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * POST /premium/session/transition — Execute a phase transition with auto-generated tasks and milestones
+   * Body: { workspaceId, toPhase }
+   */
+  router.post("/premium/session/transition", async (req, res, next) => {
+    try {
+      const { executePhaseTransition } = await import("./services/session-lifecycle-service");
+      const { workspaceId, toPhase } = req.body;
+      if (!workspaceId || !toPhase) {
+        return res.status(400).json({ error: "workspaceId and toPhase required" });
+      }
+      const result = await executePhaseTransition(workspaceId, toPhase);
+      res.json(result);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * GET /premium/session/transition/plan?workspaceId=N&toPhase=X — Preview a phase transition plan
+   */
+  router.get("/premium/session/transition/plan", async (req, res, next) => {
+    try {
+      const { generatePhaseTransitionPlan } = await import("./services/session-lifecycle-service");
+      const workspaceId = parseId(req.query.workspaceId as string);
+      const toPhase = req.query.toPhase as string;
+      if (!workspaceId || !toPhase) {
+        return res.status(400).json({ error: "workspaceId and toPhase required" });
+      }
+      const plan = await generatePhaseTransitionPlan(workspaceId, toPhase);
+      res.json(plan);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  // ── Client Actions ────────────────────────────────────────────────────────
+
+  /**
+   * GET /premium/actions?workspaceId=N&status=X&assignee=X — List client actions
+   */
+  router.get("/premium/actions", async (req, res, next) => {
+    try {
+      const { listClientActions } = await import("./services/session-lifecycle-service");
+      const workspaceId = parseId(req.query.workspaceId as string);
+      if (!workspaceId) return res.status(400).json({ error: "workspaceId required" });
+      const actions = await listClientActions(workspaceId, {
+        status: req.query.status as string,
+        matterId: req.query.matterId ? parseId(req.query.matterId as string) ?? undefined : undefined,
+        assignee: req.query.assignee as string,
+      });
+      res.json({ data: actions, total: actions.length });
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * POST /premium/actions — Create a client action
+   */
+  router.post("/premium/actions", async (req, res, next) => {
+    try {
+      const { createClientAction } = await import("./services/session-lifecycle-service");
+      const action = await createClientAction(req.body);
+      res.status(201).json(action);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * PATCH /premium/actions/:id — Update a client action
+   */
+  router.patch("/premium/actions/:id", async (req, res, next) => {
+    try {
+      const { updateClientAction } = await import("./services/session-lifecycle-service");
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ error: "Invalid action id" });
+      const action = await updateClientAction(id, req.body);
+      res.json(action);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * GET /premium/session/milestones?sessionId=N — List milestones for a session
+   */
+  router.get("/premium/session/milestones", async (req, res, next) => {
+    try {
+      const { listMilestones } = await import("./services/session-lifecycle-service");
+      const sessionId = parseId(req.query.sessionId as string);
+      if (!sessionId) return res.status(400).json({ error: "sessionId required" });
+      const phase = req.query.phase as string | undefined;
+      const milestones = await listMilestones(sessionId, phase);
+      res.json({ data: milestones, total: milestones.length });
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  /**
+   * PATCH /premium/session/milestones/:id — Update milestone status
+   */
+  router.patch("/premium/session/milestones/:id", async (req, res, next) => {
+    try {
+      const { updateMilestoneStatus } = await import("./services/session-lifecycle-service");
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ error: "Invalid milestone id" });
+      const { status } = req.body;
+      if (!status) return res.status(400).json({ error: "status required" });
+      const milestone = await updateMilestoneStatus(id, status);
+      res.json(milestone);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
   return router;
 }

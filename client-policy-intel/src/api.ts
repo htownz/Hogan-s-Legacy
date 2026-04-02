@@ -1666,3 +1666,219 @@ export interface LegislationPredictorReport {
     avgPassageProbability: number;
   };
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PREMIUM FEATURE TYPES
+// ══════════════════════════════════════════════════════════════════════════════
+
+export interface PredictionResult {
+  billId: string;
+  billTitle: string | null;
+  prediction: string;
+  probability: number;
+  confidence: number;
+  regime: string;
+  currentStage: string | null;
+  nextMilestone: string | null;
+  nextMilestoneDate: string | null;
+  riskFactors: Array<{
+    factor: string;
+    impact: "positive" | "negative" | "neutral";
+    weight: number;
+    detail: string;
+  }>;
+  supportSignals: Array<{ signal: string; source: string; strength: number }>;
+  oppositionSignals: Array<{ signal: string; source: string; strength: number }>;
+  historicalComps: Array<{ billId: string; session: string; similarity: number; outcome: string }>;
+  sponsorStrength: number;
+  committeeAlignment: number;
+  trend: "improving" | "stable" | "declining" | null;
+  lastUpdatedAt: string;
+}
+
+export interface PredictionDashboard {
+  workspaceId: number;
+  totalTracked: number;
+  breakdown: {
+    likely_pass: number;
+    lean_pass: number;
+    toss_up: number;
+    lean_fail: number;
+    likely_fail: number;
+    dead: number;
+  };
+  topRisks: PredictionResult[];
+  topOpportunities: PredictionResult[];
+  recentChanges: Array<{
+    billId: string;
+    billTitle: string | null;
+    previousProbability: number;
+    currentProbability: number;
+    delta: number;
+    direction: "up" | "down";
+  }>;
+  analyzedAt: string;
+}
+
+export interface ClientProfile {
+  id: number;
+  workspaceId: number;
+  firmName: string;
+  contactName: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  industry: string | null;
+  priorityTopics: string[];
+  jurisdictions: string[];
+  reportingPreferences: {
+    frequency: string;
+    deliverableTypes: string[];
+    includePassageProbability: boolean;
+    includeStakeholderIntel: boolean;
+    brandColor?: string;
+    logoUrl?: string;
+  };
+  scoringWeights: Record<string, number> | null;
+  notificationChannels: Record<string, unknown>;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NetworkNode {
+  id: number;
+  name: string;
+  type: string;
+  party?: string;
+  chamber?: string;
+  role?: string;
+  influence: number;
+  connectionCount: number;
+}
+
+export interface NetworkEdge {
+  id: number;
+  fromId: number;
+  toId: number;
+  relationshipType: string;
+  strength: number;
+  evidence: string | null;
+}
+
+export interface NetworkGraph {
+  nodes: NetworkNode[];
+  edges: NetworkEdge[];
+  stats: {
+    totalNodes: number;
+    totalEdges: number;
+    avgConnections: number;
+    mostConnected: { name: string; connections: number } | null;
+    clusters: number;
+  };
+}
+
+export interface StakeholderDossier {
+  stakeholder: {
+    id: number;
+    name: string;
+    type: string;
+    party?: string;
+    chamber?: string;
+    district?: string;
+    role?: string;
+  };
+  relationships: Array<{
+    relatedStakeholder: { id: number; name: string; type: string };
+    type: string;
+    strength: number;
+    evidence: string | null;
+  }>;
+  observations: Array<{ type: string; summary: string; date: string }>;
+  committees: Array<{ committee: string; role: string; chamber: string }>;
+  billConnections: Array<{
+    billId: string;
+    role: string;
+    alert: { title: string; score: number } | null;
+  }>;
+  influenceScore: number;
+  reachability: number;
+}
+
+export interface SessionDashboard {
+  session: {
+    id: number;
+    sessionNumber: number;
+    sessionType: string;
+    startDate: string;
+    endDate: string | null;
+    currentPhase: string;
+    isActive: boolean;
+  };
+  currentPhase: string;
+  daysRemaining: number | null;
+  milestones: SessionMilestone[];
+  upcomingMilestones: SessionMilestone[];
+  overdueMilestones: SessionMilestone[];
+  activeActions: ClientAction[];
+  phaseGuidance: {
+    currentPhaseDescription: string;
+    nextPhase: string | null;
+    nextPhaseDate: string | null;
+    keyPriorities: string[];
+    warnings: string[];
+  };
+  stats: {
+    totalMilestones: number;
+    completedMilestones: number;
+    totalActions: number;
+    completedActions: number;
+    pendingActions: number;
+  };
+}
+
+export interface SessionMilestone {
+  id: number;
+  sessionId: number;
+  title: string;
+  description: string | null;
+  phase: string;
+  dueDate: string;
+  status: string;
+  assignee: string | null;
+  completedAt: string | null;
+}
+
+export interface ClientAction {
+  id: number;
+  workspaceId: number;
+  matterId: number | null;
+  issueRoomId: number | null;
+  alertId: number | null;
+  actionType: string;
+  title: string;
+  description: string | null;
+  status: string;
+  priority: string;
+  assignee: string | null;
+  dueDate: string | null;
+  relatedBillIds: string[];
+  stakeholderIds: number[];
+  outcome: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExecutiveReport {
+  deliverableId: number;
+  title: string;
+  bodyMarkdown: string;
+  generatedAt: string;
+  period: string;
+  stats: {
+    alertsProcessed: number;
+    billsTracked: number;
+    predictionsGenerated: number;
+    issueRoomsActive: number;
+  };
+}
