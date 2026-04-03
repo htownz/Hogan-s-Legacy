@@ -45,8 +45,8 @@ export const patternTypeEnum = pgEnum("pattern_type", [
 // Network connections between profiles
 export const scoutBotNetworkConnections = pgTable("scout_bot_network_connections", {
   id: uuid("id").primaryKey().notNull(),
-  source_profile_id: text("source_profile_id").notNull().references(() => scoutBotProfiles.id),
-  target_profile_id: text("target_profile_id").notNull().references(() => scoutBotProfiles.id),
+  source_profile_id: uuid("source_profile_id").notNull().references(() => scoutBotProfiles.id),
+  target_profile_id: uuid("target_profile_id").notNull().references(() => scoutBotProfiles.id),
   connection_type: text("connection_type").notNull(), // employer, donor, recipient, family_member, etc.
   strength: networkStrengthEnum("strength").default("moderate"),
   description: text("description"),
@@ -92,8 +92,8 @@ export const scoutBotInfluenceNetworks = pgTable("scout_bot_influence_networks",
 // Network members (profiles that are part of an influence network)
 export const scoutBotNetworkMembers = pgTable("scout_bot_network_members", {
   id: uuid("id").primaryKey().notNull(),
-  network_id: text("network_id").notNull().references(() => scoutBotInfluenceNetworks.id),
-  profile_id: text("profile_id").notNull().references(() => scoutBotProfiles.id),
+  network_id: uuid("network_id").notNull().references(() => scoutBotInfluenceNetworks.id),
+  profile_id: uuid("profile_id").notNull().references(() => scoutBotProfiles.id),
   role: text("role").notNull(), // central, peripheral, connector, etc.
   role_description: text("role_description"),
   joined_date: timestamp("joined_date"),
@@ -129,7 +129,7 @@ export const scoutBotInfluencePatterns = pgTable("scout_bot_influence_patterns",
 // Temporal influence (tracking changes in influence over time)
 export const scoutBotTemporalInfluence = pgTable("scout_bot_temporal_influence", {
   id: uuid("id").primaryKey().notNull(),
-  profile_id: text("profile_id").notNull().references(() => scoutBotProfiles.id),
+  profile_id: uuid("profile_id").notNull().references(() => scoutBotProfiles.id),
   time_period: text("time_period").notNull(), // e.g., "2023Q1", "2022H2", "2021"
   time_period_start: timestamp("time_period_start").notNull(),
   time_period_end: timestamp("time_period_end").notNull(),

@@ -59,8 +59,8 @@ export const scoutBotAdvancedAnalysis = pgTable("scout_bot_advanced_analysis", {
   data_reliability: dataReliabilityEnum("data_reliability").default("medium"),
   created_at: timestamp("created_at").defaultNow(),
   updated_at: timestamp("updated_at").defaultNow(),
-  related_network_id: text("related_network_id").references(() => scoutBotInfluenceNetworks.id),
-  related_pattern_id: text("related_pattern_id").references(() => scoutBotInfluencePatterns.id)
+  related_network_id: uuid("related_network_id").references(() => scoutBotInfluenceNetworks.id),
+  related_pattern_id: uuid("related_pattern_id").references(() => scoutBotInfluencePatterns.id)
 });
 
 // Historical trend analysis
@@ -93,7 +93,7 @@ export const scoutBotCrossDatasetAnomalies = pgTable("scout_bot_cross_dataset_an
   id: uuid("id").primaryKey().notNull(),
   anomaly_title: text("anomaly_title").notNull(),
   description: text("description").notNull(),
-  primary_entity_id: text("primary_entity_id").references(() => scoutBotProfiles.id),
+  primary_entity_id: uuid("primary_entity_id").references(() => scoutBotProfiles.id),
   involved_entities: json("involved_entities").$type<{ id: string, name: string, role: string }[]>(),
   datasets_involved: json("datasets_involved").$type<string[]>(),
   detection_method: text("detection_method").notNull(),

@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, jsonb, varchar, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, jsonb, varchar, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { relations } from "drizzle-orm";
 import { z } from "zod";
@@ -39,10 +39,10 @@ export const billSummaries = pgTable("bill_summaries", {
   processingStatus: varchar("processing_status", { length: 30 }).default("pending"), // pending, processing, completed, failed
   
   // Track usage
-  viewCount: serial("view_count").default(0),
+  viewCount: integer("view_count").default(0),
   lastViewed: timestamp("last_viewed"),
-  shareCount: serial("share_count").default(0),
-  downloadCount: serial("download_count").default(0),
+  shareCount: integer("share_count").default(0),
+  downloadCount: integer("download_count").default(0),
   
   // Timestamps
   createdAt: timestamp("created_at").defaultNow(),
