@@ -34,7 +34,8 @@ router.get("/me/role", async (req, res) => {
     if (!req.session.userId) {
       return res.status(401).json({ message: "Not authenticated" });
     }
-    const userRole = await superUserStorage.getSuperUserRoleByUserId(req.session.userId);
+    const userRoles = await superUserStorage.getSuperUserRolesByUserId(req.session.userId);
+    const userRole = userRoles[0];
     if (!userRole) {
       return res.status(404).json({ message: "User role not found" });
     }
@@ -93,7 +94,6 @@ router.put("/me/milestones/:id", async (req, res) => {
       .parse(req.body);
     const updatedMilestone = await superUserStorage.updateProgressionMilestone(
       milestoneId,
-      req.session.userId,
       milestoneData,
     );
     if (!updatedMilestone) {

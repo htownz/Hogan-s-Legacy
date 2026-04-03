@@ -46,7 +46,7 @@ router.post("/users/me/challenges/:challengeId", async (req, res) => {
     if (!challenge) {
       return res.status(404).json({ message: "Challenge not found" });
     }
-    const existingUserChallenge = await superUserStorage.getUserChallengeByChallengeId(
+    const existingUserChallenge = await superUserStorage.getUserChallengeByIds(
       req.session.userId,
       challengeId,
     );

@@ -128,8 +128,9 @@ router.post("/login", authRateLimit, async (req, res) => {
     // Store user in session
     (req.session as any).userId = user.id;
 
-    // Get user's role info
-    const userRole = await superUserStorage.getSuperUserRoleByUserId(user.id);
+    // Get user's role info (first role)
+    const userRoles = await superUserStorage.getSuperUserRolesByUserId(user.id);
+    const userRole = userRoles[0] ?? null;
 
     const { password: _, ...userWithoutPassword } = user;
 

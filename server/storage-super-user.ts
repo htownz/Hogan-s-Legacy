@@ -60,6 +60,7 @@ export interface ISuperUserStorage {
   createSuperUserChallenge(challenge: InsertSuperUserChallenge): Promise<SuperUserChallenge>;
   getUserChallengeByIds(userId: number, challengeId: number): Promise<UserChallenge | undefined>;
   getUserChallengeByChallengeId(challengeId: number): Promise<UserChallenge[]>;
+  getUserChallengesByUserId(userId: number): Promise<UserChallenge[]>;
   createUserChallenge(userChallenge: InsertUserChallenge): Promise<UserChallenge>;
   updateUserChallenge(userId: number, challengeId: number, userChallenge: Partial<InsertUserChallenge>): Promise<UserChallenge | undefined>;
   
@@ -311,6 +312,13 @@ export class DatabaseSuperUserStorage implements ISuperUserStorage {
       .select()
       .from(userChallenges).$dynamic()
       .where(eq(userChallenges.challengeId, challengeId));
+  }
+
+  async getUserChallengesByUserId(userId: number): Promise<UserChallenge[]> {
+    return db
+      .select()
+      .from(userChallenges).$dynamic()
+      .where(eq(userChallenges.userId, userId));
   }
 
   async createUserChallenge(userChallenge: InsertUserChallenge): Promise<UserChallenge> {

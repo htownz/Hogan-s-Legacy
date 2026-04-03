@@ -4,12 +4,22 @@
  */
 import { Router } from "express";
 import { isAuthenticated } from "../auth";
-import { PolicyIntelBridge } from "../services/policy-intel-bridge";
+import { createPolicyIntelBridgeClient } from "../services/policy-intel-bridge";
+import { POLICY_INTEL_CONFIG } from "../config";
 import { createLogger } from "../logger";
 
 const log = createLogger("routes-policy-intel-bridge");
 const router = Router();
-const policyIntelBridge = new PolicyIntelBridge();
+const policyIntelBridge = createPolicyIntelBridgeClient({
+  baseUrl: POLICY_INTEL_CONFIG.BASE_URL,
+  requestTimeoutMs: POLICY_INTEL_CONFIG.REQUEST_TIMEOUT_MS,
+  apiToken: POLICY_INTEL_CONFIG.API_TOKEN,
+  statusCacheTtlMs: POLICY_INTEL_CONFIG.STATUS_CACHE_TTL_MS,
+  briefingCacheTtlMs: POLICY_INTEL_CONFIG.BRIEFING_CACHE_TTL_MS,
+  automationCacheTtlMs: POLICY_INTEL_CONFIG.AUTOMATION_CACHE_TTL_MS,
+  automationEventsCacheTtlMs: POLICY_INTEL_CONFIG.AUTOMATION_EVENTS_CACHE_TTL_MS,
+  automationTriggerCooldownMs: POLICY_INTEL_CONFIG.AUTOMATION_TRIGGER_COOLDOWN_MS,
+});
 
 router.get("/status", isAuthenticated, async (req, res) => {
   const payload = await policyIntelBridge.getStatus({
