@@ -1,3 +1,5 @@
+import dotenv from "dotenv";
+dotenv.config({ override: true });
 import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors";
 import * as net from 'net';
