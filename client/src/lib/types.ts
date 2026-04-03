@@ -4,6 +4,7 @@ export interface User {
   username: string;
   email: string;
   name: string;
+  displayName?: string | null;
   district?: string;
   profileImageUrl?: string;
   createdAt?: string;

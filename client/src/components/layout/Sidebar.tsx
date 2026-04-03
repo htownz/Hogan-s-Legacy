@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { useUser } from "@/contexts/UserContext";
+import { useAuth } from "@/hooks/use-auth";
 import { useSuperUser } from "@/contexts/SuperUserContext";
 import { formatLevelDisplay } from "@/lib/utils/progressUtils";
 import { NAV_ITEMS } from "@/lib/constants";
@@ -9,7 +9,7 @@ import actUpLogo from "@assets/act-up-logo.png";
 
 export default function Sidebar() {
   const [location] = useLocation();
-  const { user } = useUser();
+  const { user } = useAuth();
   const { mainRole } = useSuperUser();
 
   return (

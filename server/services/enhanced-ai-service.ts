@@ -10,11 +10,19 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-const pinecone = new Pinecone({
-  apiKey: process.env.PINECONE_API_KEY!,
-});
+let pinecone: Pinecone | null = null;
+let index: ReturnType<Pinecone['index']> | null = null;
 
-const index = pinecone.index('llama-text-embed-v2-index');
+function getPineconeIndex() {
+  if (!process.env.PINECONE_API_KEY) {
+    throw new Error('PINECONE_API_KEY is not set');
+  }
+  if (!pinecone) {
+    pinecone = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
+    index = pinecone.index('llama-text-embed-v2-index');
+  }
+  return index!;
+}
 
 interface BillAnalysis {
   summary: string;
@@ -102,7 +110,7 @@ Please provide a JSON response with:
     try {
       // Create embedding for the search query using a simple approach
       // In production, you'd want to use the same embedding model as your indexed data
-      const searchResults = await index.query({
+      const searchResults = await getPineconeIndex().query({
         topK: limit,
         includeMetadata: true,
         vector: await this.createSimpleEmbedding(query)

@@ -2,8 +2,6 @@ import { useState, useEffect } from "react";
 import { MovementMetrics } from "@/lib/types";
 import { formatMovementPercentage, calculateProgressTowardsTarget } from "@/lib/utils/progressUtils";
 import { Button } from "@/components/ui/button";
-import { useUser } from "@/contexts/UserContext";
-
 interface StatCardProps {
   title: string;
   value: string | number;
@@ -31,7 +29,6 @@ function StatCard({ title, value, subText, className }: StatCardProps) {
 }
 
 export default function TippingPointProgress() {
-  const { user } = useUser();
   const [movementProgress, setMovementProgress] = useState<MovementMetrics>({
     id: 1,
     currentPercentage: 42, // 4.2%
