@@ -1,35 +1,36 @@
 import { Route, Switch, Link, useLocation } from "wouter";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react";
 import { api } from "./api";
-import { MattersPage } from "./pages/MattersPage";
-import { MatterDetailPage } from "./pages/MatterDetailPage";
-import { AlertQueuePage } from "./pages/AlertQueuePage";
-import { SourceDocsPage } from "./pages/SourceDocsPage";
-import { DigestPage } from "./pages/DigestPage";
-import { DashboardPage } from "./pages/DashboardPage";
-import { IssueRoomsPage } from "./pages/IssueRoomsPage";
-import { IssueRoomDetailPage } from "./pages/IssueRoomDetailPage";
-import { WatchlistsPage } from "./pages/WatchlistsPage";
-import { StakeholdersPage } from "./pages/StakeholdersPage";
-import { StakeholderDetailPage } from "./pages/StakeholderDetailPage";
-import { DeliverablesPage } from "./pages/DeliverablesPage";
-import { AnalyticsPage } from "./pages/AnalyticsPage";
-import { SettingsPage } from "./pages/SettingsPage";
-import { AlertDetailPage } from "./pages/AlertDetailPage";
-import { WatchlistDetailPage } from "./pages/WatchlistDetailPage";
-import { CalendarPage } from "./pages/CalendarPage";
-import { MobileAlertReviewPage } from "./pages/MobileAlertReviewPage";
-import { ClientAlertPage } from "./pages/ClientAlertPage";
-import { WeeklyReportPage } from "./pages/WeeklyReportPage";
-import { HearingMemoPage } from "./pages/HearingMemoPage";
-import { IntelligenceHubPage } from "./pages/IntelligenceHubPage";
-import { PowerNetworkPage } from "./pages/PowerNetworkPage";
-import { CommitteeIntelPage } from "./pages/CommitteeIntelPage";
-import { PredictionsPage } from "./pages/PredictionsPage";
-import { SessionPage } from "./pages/SessionPage";
-import { RelationshipsPage } from "./pages/RelationshipsPage";
-import { PolicyMarketPage } from "./pages/PolicyMarketPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+
+const DashboardPage = lazy(() => import("./pages/DashboardPage").then((mod) => ({ default: mod.DashboardPage })));
+const PolicyMarketPage = lazy(() => import("./pages/PolicyMarketPage").then((mod) => ({ default: mod.PolicyMarketPage })));
+const IntelligenceHubPage = lazy(() => import("./pages/IntelligenceHubPage").then((mod) => ({ default: mod.IntelligenceHubPage })));
+const PowerNetworkPage = lazy(() => import("./pages/PowerNetworkPage").then((mod) => ({ default: mod.PowerNetworkPage })));
+const CalendarPage = lazy(() => import("./pages/CalendarPage").then((mod) => ({ default: mod.CalendarPage })));
+const CommitteeIntelPage = lazy(() => import("./pages/CommitteeIntelPage").then((mod) => ({ default: mod.CommitteeIntelPage })));
+const MattersPage = lazy(() => import("./pages/MattersPage").then((mod) => ({ default: mod.MattersPage })));
+const MatterDetailPage = lazy(() => import("./pages/MatterDetailPage").then((mod) => ({ default: mod.MatterDetailPage })));
+const AlertQueuePage = lazy(() => import("./pages/AlertQueuePage").then((mod) => ({ default: mod.AlertQueuePage })));
+const AlertDetailPage = lazy(() => import("./pages/AlertDetailPage").then((mod) => ({ default: mod.AlertDetailPage })));
+const MobileAlertReviewPage = lazy(() => import("./pages/MobileAlertReviewPage").then((mod) => ({ default: mod.MobileAlertReviewPage })));
+const IssueRoomsPage = lazy(() => import("./pages/IssueRoomsPage").then((mod) => ({ default: mod.IssueRoomsPage })));
+const IssueRoomDetailPage = lazy(() => import("./pages/IssueRoomDetailPage").then((mod) => ({ default: mod.IssueRoomDetailPage })));
+const WatchlistsPage = lazy(() => import("./pages/WatchlistsPage").then((mod) => ({ default: mod.WatchlistsPage })));
+const WatchlistDetailPage = lazy(() => import("./pages/WatchlistDetailPage").then((mod) => ({ default: mod.WatchlistDetailPage })));
+const StakeholdersPage = lazy(() => import("./pages/StakeholdersPage").then((mod) => ({ default: mod.StakeholdersPage })));
+const StakeholderDetailPage = lazy(() => import("./pages/StakeholderDetailPage").then((mod) => ({ default: mod.StakeholderDetailPage })));
+const DeliverablesPage = lazy(() => import("./pages/DeliverablesPage").then((mod) => ({ default: mod.DeliverablesPage })));
+const SourceDocsPage = lazy(() => import("./pages/SourceDocsPage").then((mod) => ({ default: mod.SourceDocsPage })));
+const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage").then((mod) => ({ default: mod.AnalyticsPage })));
+const DigestPage = lazy(() => import("./pages/DigestPage").then((mod) => ({ default: mod.DigestPage })));
+const SettingsPage = lazy(() => import("./pages/SettingsPage").then((mod) => ({ default: mod.SettingsPage })));
+const PredictionsPage = lazy(() => import("./pages/PredictionsPage").then((mod) => ({ default: mod.PredictionsPage })));
+const SessionPage = lazy(() => import("./pages/SessionPage").then((mod) => ({ default: mod.SessionPage })));
+const RelationshipsPage = lazy(() => import("./pages/RelationshipsPage").then((mod) => ({ default: mod.RelationshipsPage })));
+const ClientAlertPage = lazy(() => import("./pages/ClientAlertPage").then((mod) => ({ default: mod.ClientAlertPage })));
+const WeeklyReportPage = lazy(() => import("./pages/WeeklyReportPage").then((mod) => ({ default: mod.WeeklyReportPage })));
+const HearingMemoPage = lazy(() => import("./pages/HearingMemoPage").then((mod) => ({ default: mod.HearingMemoPage })));
 
 function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(() =>
@@ -70,6 +71,23 @@ const NAV_ITEMS = [
   { path: "/relationships", label: "🔗 Relationships" },
   { path: "/settings", label: "Settings" },
 ];
+
+function RouteLoadingState() {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        minHeight: 240,
+        color: "#5f7086",
+        fontSize: 14,
+      }}
+    >
+      Loading page...
+    </div>
+  );
+}
 
 export function App() {
   const [location, setLocation] = useLocation();
@@ -232,41 +250,43 @@ export function App() {
           </div>
         )}
         <ErrorBoundary>
-        <Switch>
-          <Route path="/" component={DashboardPage} />
-          <Route path="/market" component={PolicyMarketPage} />
-          <Route path="/intelligence" component={IntelligenceHubPage} />
-          <Route path="/power-network" component={PowerNetworkPage} />
-          <Route path="/calendar" component={CalendarPage} />
-          <Route path="/committee-intel"><CommitteeIntelPage /></Route>
-          <Route path="/committee-intel/hearing/:id">{(params) => <CommitteeIntelPage hearingId={Number(params.id)} />}</Route>
-          <Route path="/committee-intel/session/:id">{(params) => <CommitteeIntelPage sessionId={Number(params.id)} />}</Route>
-          <Route path="/matters" component={MattersPage} />
-          <Route path="/matters/:id">{(params) => <MatterDetailPage id={Number(params.id)} />}</Route>
-          <Route path="/alerts" component={AlertQueuePage} />
-          <Route path="/alerts/:id" component={AlertDetailPage} />
-          <Route path="/review" component={MobileAlertReviewPage} />
-          <Route path="/issue-rooms" component={IssueRoomsPage} />
-          <Route path="/issue-rooms/:id">{(params) => <IssueRoomDetailPage id={Number(params.id)} />}</Route>
-          <Route path="/watchlists" component={WatchlistsPage} />
-          <Route path="/watchlists/:id" component={WatchlistDetailPage} />
-          <Route path="/stakeholders" component={StakeholdersPage} />
-          <Route path="/stakeholders/:id" component={StakeholderDetailPage} />
-          <Route path="/deliverables" component={DeliverablesPage} />
-          <Route path="/sources" component={SourceDocsPage} />
-          <Route path="/analytics" component={AnalyticsPage} />
-          <Route path="/digest" component={DigestPage} />
-          <Route path="/settings" component={SettingsPage} />
-          <Route path="/predictions" component={PredictionsPage} />
-          <Route path="/session" component={SessionPage} />
-          <Route path="/relationships" component={RelationshipsPage} />
-          <Route path="/client-alerts" component={ClientAlertPage} />
-          <Route path="/weekly-report" component={WeeklyReportPage} />
-          <Route path="/hearing-memo" component={HearingMemoPage} />
-          <Route>
-            <div style={{ padding: 40, textAlign: "center", color: "#888" }}>Page not found</div>
-          </Route>
-        </Switch>
+          <Suspense fallback={<RouteLoadingState />}>
+            <Switch>
+              <Route path="/" component={DashboardPage} />
+              <Route path="/market" component={PolicyMarketPage} />
+              <Route path="/intelligence" component={IntelligenceHubPage} />
+              <Route path="/power-network" component={PowerNetworkPage} />
+              <Route path="/calendar" component={CalendarPage} />
+              <Route path="/committee-intel"><CommitteeIntelPage /></Route>
+              <Route path="/committee-intel/hearing/:id">{(params) => <CommitteeIntelPage hearingId={Number(params.id)} />}</Route>
+              <Route path="/committee-intel/session/:id">{(params) => <CommitteeIntelPage sessionId={Number(params.id)} />}</Route>
+              <Route path="/matters" component={MattersPage} />
+              <Route path="/matters/:id">{(params) => <MatterDetailPage id={Number(params.id)} />}</Route>
+              <Route path="/alerts" component={AlertQueuePage} />
+              <Route path="/alerts/:id" component={AlertDetailPage} />
+              <Route path="/review" component={MobileAlertReviewPage} />
+              <Route path="/issue-rooms" component={IssueRoomsPage} />
+              <Route path="/issue-rooms/:id">{(params) => <IssueRoomDetailPage id={Number(params.id)} />}</Route>
+              <Route path="/watchlists" component={WatchlistsPage} />
+              <Route path="/watchlists/:id" component={WatchlistDetailPage} />
+              <Route path="/stakeholders" component={StakeholdersPage} />
+              <Route path="/stakeholders/:id" component={StakeholderDetailPage} />
+              <Route path="/deliverables" component={DeliverablesPage} />
+              <Route path="/sources" component={SourceDocsPage} />
+              <Route path="/analytics" component={AnalyticsPage} />
+              <Route path="/digest" component={DigestPage} />
+              <Route path="/settings" component={SettingsPage} />
+              <Route path="/predictions" component={PredictionsPage} />
+              <Route path="/session" component={SessionPage} />
+              <Route path="/relationships" component={RelationshipsPage} />
+              <Route path="/client-alerts" component={ClientAlertPage} />
+              <Route path="/weekly-report" component={WeeklyReportPage} />
+              <Route path="/hearing-memo" component={HearingMemoPage} />
+              <Route>
+                <div style={{ padding: 40, textAlign: "center", color: "#888" }}>Page not found</div>
+              </Route>
+            </Switch>
+          </Suspense>
         </ErrorBoundary>
       </main>
     </div>
