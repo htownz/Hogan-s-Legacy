@@ -28,6 +28,7 @@ import { CommitteeIntelPage } from "./pages/CommitteeIntelPage";
 import { PredictionsPage } from "./pages/PredictionsPage";
 import { SessionPage } from "./pages/SessionPage";
 import { RelationshipsPage } from "./pages/RelationshipsPage";
+import { PolicyMarketPage } from "./pages/PolicyMarketPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
 function useMediaQuery(query: string): boolean {
@@ -46,6 +47,7 @@ function useMediaQuery(query: string): boolean {
 
 const NAV_ITEMS = [
   { path: "/", label: "Dashboard" },
+  { path: "/market", label: "📈 Policy Market" },
   { path: "/intelligence", label: "🧠 Intelligence Hub" },
   { path: "/power-network", label: "🏛️ Power Network" },
   { path: "/calendar", label: "Calendar" },
@@ -232,6 +234,7 @@ export function App() {
         <ErrorBoundary>
         <Switch>
           <Route path="/" component={DashboardPage} />
+          <Route path="/market" component={PolicyMarketPage} />
           <Route path="/intelligence" component={IntelligenceHubPage} />
           <Route path="/power-network" component={PowerNetworkPage} />
           <Route path="/calendar" component={CalendarPage} />
