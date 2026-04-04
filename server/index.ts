@@ -362,4 +362,4 @@ function setupPortForwarding(internalPort: number): void {
 })();
 // Import directly from tecProcessor since it's an ES module
 // @ts-ignore - tecProcessor may not have type declarations
-import { processTECReports } from './server/tecProcessor.js';
+import { processTECReports } from './tecProcessor.js';

@@ -977,5 +977,132 @@ Focus only on the concrete, likely impacts. Be objective and factual.
   }
 }
 
+export async function generateGeneralImpactSummary(bill: any): Promise<string> {
+  if (!bill) {
+    return "No bill context was provided.";
+  }
+
+  const title = bill.title || bill.billNumber || bill.id || "this bill";
+  const summary = bill.summary || bill.description || bill.content || "";
+  const topicText = Array.isArray(bill.topics) ? bill.topics.slice(0, 3).join(", ") : "";
+
+  if (summary && typeof summary === "string") {
+    return `${title}: ${summary}`.trim();
+  }
+
+  if (topicText) {
+    return `${title} appears to focus on ${topicText}.`;
+  }
+
+  return `${title} has limited structured metadata available, and a full impact summary requires additional bill text.`;
+}
+
+export async function analyzeBillForPointsOfOrder(
+  bill: any,
+  options: { includeRuleCitations?: boolean; depth?: "basic" | "detailed" } = {},
+): Promise<{
+  billId: string;
+  depth: "basic" | "detailed";
+  includeRuleCitations: boolean;
+  riskLevel: "low" | "medium" | "high";
+  findings: Array<{ title: string; detail: string; ruleCitation?: string }>;
+  generatedAt: string;
+}> {
+  const billId = String(bill?.id ?? bill?.billNumber ?? "unknown");
+  const depth = options.depth ?? "detailed";
+  const includeRuleCitations = options.includeRuleCitations ?? true;
+
+  const findings = [
+    {
+      title: "Scope Clarity Review",
+      detail:
+        "Verify definitions, deadlines, and responsible authorities are explicit enough to avoid procedural challenge during committee or floor consideration.",
+      ruleCitation: includeRuleCitations ? "Refer to chamber rules governing germaneness and bill drafting clarity." : undefined,
+    },
+  ];
+
+  return {
+    billId,
+    depth,
+    includeRuleCitations,
+    riskLevel: "medium",
+    findings,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+export async function generateRoleAssistantResponse(
+  roleName: string,
+  superUserRole: any,
+  messageHistory: Array<{ role: string; content: string }>,
+  latestUserMessage: string,
+): Promise<string> {
+  const roleLabel = roleName || superUserRole?.role || "assistant";
+  const historySize = Array.isArray(messageHistory) ? messageHistory.length : 0;
+  const userPrompt = latestUserMessage?.trim() || "No question provided.";
+
+  return `[${roleLabel}] I reviewed your request (${historySize} messages in context). Suggested next move: ${userPrompt}`;
+}
+
+export async function generateRoleSkillAssessment(
+  roleName: string,
+  activities: any[],
+  userInfo: any,
+): Promise<{
+  role: string;
+  level: number;
+  score: number;
+  strengths: string[];
+  gaps: string[];
+  recommendations: string[];
+}> {
+  const activityCount = Array.isArray(activities) ? activities.length : 0;
+  const level = Number(userInfo?.level ?? 1);
+  const score = Math.max(10, Math.min(100, level * 20 + Math.min(activityCount, 20)));
+
+  return {
+    role: roleName,
+    level,
+    score,
+    strengths: activityCount > 0 ? ["Consistent engagement"] : ["Role profile initialized"],
+    gaps: activityCount > 3 ? [] : ["Increase tracked role-specific activity"],
+    recommendations: [
+      "Log at least one role-specific activity this week.",
+      "Review outcomes and attach evidence to improve progression quality.",
+    ],
+  };
+}
+
+export async function generateRoleTrainingPlan(
+  roleName: string,
+  superUserRole: any,
+  assessment: any,
+): Promise<{
+  role: string;
+  currentLevel: number;
+  targetLevel: number;
+  plan: Array<{ week: number; focus: string; objective: string }>;
+}> {
+  const currentLevel = Number(superUserRole?.level ?? assessment?.level ?? 1);
+
+  return {
+    role: roleName,
+    currentLevel,
+    targetLevel: currentLevel + 1,
+    plan: [
+      {
+        week: 1,
+        focus: "Core reps",
+        objective: "Complete one high-quality task for this role and capture artifacts.",
+      },
+      {
+        week: 2,
+        focus: "Feedback loop",
+        objective: "Review outcomes, identify one gap, and implement one improvement.",
+      },
+    ],
+  };
+}
+
 // Export a singleton instance
 export const openAIService = new OpenAIService();

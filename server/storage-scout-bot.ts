@@ -71,6 +71,22 @@ export const getScoutBotProfiles = async (
   return { profiles, total: Number(total) };
 };
 
+// Backward-compatible helper used by legacy routes.
+export const getProfiles = async (filters?: {
+  status?: string;
+  type?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<ScoutBotProfile[]> => {
+  const result = await getScoutBotProfiles(
+    filters?.status,
+    filters?.type,
+    filters?.limit ?? 200,
+    filters?.offset ?? 0,
+  );
+  return result.profiles;
+};
+
 export const searchScoutBotProfiles = async (
   searchTerm: string,
   limit = 20,
@@ -95,6 +111,29 @@ export const searchScoutBotProfiles = async (
   const [{ count: total }] = await countQuery;
 
   return { profiles, total: Number(total) };
+};
+
+// Backward-compatible helper used by legacy routes.
+export const searchProfiles = async (filters: {
+  name?: string;
+  type?: string;
+  status?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<ScoutBotProfile[]> => {
+  const name = (filters?.name ?? "").trim();
+
+  if (!name) {
+    return getProfiles(filters);
+  }
+
+  const result = await searchScoutBotProfiles(name, filters?.limit ?? 200, filters?.offset ?? 0);
+
+  return result.profiles.filter((profile) => {
+    if (filters?.type && profile.type !== filters.type) return false;
+    if (filters?.status && profile.status !== filters.status) return false;
+    return true;
+  });
 };
 
 export const updateScoutBotProfile = async (
@@ -160,6 +199,9 @@ export const getScoutBotAffiliations = async (
     .where(eq(scoutBotAffiliations.profile_id, profileId));
 };
 
+// Backward-compatible aliases used by legacy route modules.
+export const getProfileAffiliations = getScoutBotAffiliations;
+
 export const updateScoutBotAffiliation = async (
   id: string,
   data: Partial<InsertScoutBotAffiliation>
@@ -204,6 +246,9 @@ export const getScoutBotMediaMentions = async (
     .where(eq(scoutBotMediaMentions.profile_id, profileId))
     .orderBy(desc(scoutBotMediaMentions.date));
 };
+
+// Backward-compatible aliases used by legacy route modules.
+export const getProfileMediaMentions = getScoutBotMediaMentions;
 
 export const updateScoutBotMediaMention = async (
   id: string,

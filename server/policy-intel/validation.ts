@@ -222,7 +222,12 @@ export const createObservationSchema = z.object({
 
 export const createMeetingNoteSchema = z.object({
   noteText: z.string().min(1).max(10000),
-  meetingDate: z.string().datetime().optional().nullable(),
+  meetingDate: z
+    .string()
+    .datetime()
+    .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/))
+    .optional()
+    .nullable(),
   contactMethod: z.string().max(200).optional().nullable(),
   matterId: optionalPositiveInt.nullable(),
 });
