@@ -6645,7 +6645,7 @@ var createObservationSchema = z.object({
 });
 var createMeetingNoteSchema = z.object({
   noteText: z.string().min(1).max(1e4),
-  meetingDate: z.string().datetime().optional().nullable(),
+  meetingDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional().nullable(),
   contactMethod: z.string().max(200).optional().nullable(),
   matterId: optionalPositiveInt.nullable()
 });
@@ -14540,6 +14540,89 @@ function parseId(raw) {
   const n = Number(raw);
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
 }
+async function buildWorkspaceDigestPayload(workspaceId, weekParam) {
+  let weekStart;
+  let weekEnd;
+  if (weekParam && /^\d{4}-W\d{2}$/.test(weekParam)) {
+    const [yearStr, weekStr] = weekParam.split("-W");
+    const year = Number(yearStr);
+    const week = Number(weekStr);
+    const jan4 = new Date(year, 0, 4);
+    const dayOfWeek = jan4.getDay() || 7;
+    weekStart = new Date(jan4);
+    weekStart.setDate(jan4.getDate() - dayOfWeek + 1 + (week - 1) * 7);
+    weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 7);
+  } else {
+    const now = /* @__PURE__ */ new Date();
+    const dayOfWeek = now.getDay() || 7;
+    weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - dayOfWeek + 1);
+    weekStart.setHours(0, 0, 0, 0);
+    weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 7);
+  }
+  const weekAlerts = await policyIntelDb.select().from(alerts).where(
+    and18(
+      eq26(alerts.workspaceId, workspaceId),
+      gt2(alerts.createdAt, weekStart)
+    )
+  ).orderBy(desc20(alerts.relevanceScore));
+  const filteredAlerts = weekAlerts.filter((alert) => alert.createdAt < weekEnd);
+  const grouped = {};
+  for (const alert of filteredAlerts) {
+    const watchlistId = alert.watchlistId ?? 0;
+    if (!grouped[watchlistId]) {
+      grouped[watchlistId] = { watchlistId, alerts: [] };
+    }
+    grouped[watchlistId].alerts.push(alert);
+  }
+  const watchlistIds = Object.keys(grouped).map(Number).filter((id) => id > 0);
+  const watchlistRows = watchlistIds.length > 0 ? await policyIntelDb.select().from(watchlists).where(inArray8(watchlists.id, watchlistIds)) : [];
+  const watchlistNameMap = new Map(watchlistRows.map((watchlist) => [watchlist.id, watchlist.name]));
+  const sections = Object.values(grouped).map((group) => ({
+    watchlist: watchlistNameMap.get(group.watchlistId) ?? "Unlinked",
+    alertCount: group.alerts.length,
+    highPriority: group.alerts.filter((alert) => alert.relevanceScore >= 70).length,
+    alerts: group.alerts.map((alert) => ({
+      id: alert.id,
+      title: alert.title,
+      score: alert.relevanceScore,
+      status: alert.status,
+      whyItMatters: alert.whyItMatters
+    }))
+  }));
+  const weekActivities = await policyIntelDb.select().from(activities).where(
+    and18(
+      eq26(activities.workspaceId, workspaceId),
+      gt2(activities.createdAt, weekStart)
+    )
+  ).orderBy(desc20(activities.createdAt));
+  const filteredActivities = weekActivities.filter((activity) => activity.createdAt < weekEnd);
+  return {
+    workspace: workspaceId,
+    period: {
+      start: weekStart.toISOString(),
+      end: weekEnd.toISOString(),
+      week: weekParam ?? `${weekStart.getFullYear()}-W${String(Math.ceil((weekStart.getDate() + weekStart.getDay()) / 7)).padStart(2, "0")}`
+    },
+    summary: {
+      totalAlerts: filteredAlerts.length,
+      highPriority: filteredAlerts.filter((alert) => alert.relevanceScore >= 70).length,
+      pendingReview: filteredAlerts.filter((alert) => alert.status === "pending_review").length,
+      reviewed: filteredAlerts.filter((alert) => alert.status !== "pending_review").length,
+      activitiesLogged: filteredActivities.length
+    },
+    sections,
+    recentActivities: filteredActivities.slice(0, 20).map((activity) => ({
+      id: activity.id,
+      type: activity.type,
+      summary: activity.summary,
+      matterId: activity.matterId,
+      createdAt: activity.createdAt
+    }))
+  };
+}
 function createPolicyIntelRouter() {
   const router = Router();
   router.get("/health", async (_req, res) => {
@@ -15147,85 +15230,7 @@ function createPolicyIntelRouter() {
     try {
       const workspaceId = Number(req.params.id);
       const weekParam = req.query.week;
-      let weekStart;
-      let weekEnd;
-      if (weekParam && /^\d{4}-W\d{2}$/.test(weekParam)) {
-        const [yearStr, weekStr] = weekParam.split("-W");
-        const year = Number(yearStr);
-        const week = Number(weekStr);
-        const jan4 = new Date(year, 0, 4);
-        const dayOfWeek = jan4.getDay() || 7;
-        weekStart = new Date(jan4);
-        weekStart.setDate(jan4.getDate() - dayOfWeek + 1 + (week - 1) * 7);
-        weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 7);
-      } else {
-        const now = /* @__PURE__ */ new Date();
-        const dayOfWeek = now.getDay() || 7;
-        weekStart = new Date(now);
-        weekStart.setDate(now.getDate() - dayOfWeek + 1);
-        weekStart.setHours(0, 0, 0, 0);
-        weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 7);
-      }
-      const weekAlerts = await policyIntelDb.select().from(alerts).where(
-        and18(
-          eq26(alerts.workspaceId, workspaceId),
-          gt2(alerts.createdAt, weekStart)
-        )
-      ).orderBy(desc20(alerts.relevanceScore));
-      const filtered = weekAlerts.filter((a) => a.createdAt < weekEnd);
-      const grouped = {};
-      for (const alert of filtered) {
-        const wlId = alert.watchlistId ?? 0;
-        if (!grouped[wlId]) grouped[wlId] = { watchlistId: wlId, alerts: [] };
-        grouped[wlId].alerts.push(alert);
-      }
-      const wlIds = Object.keys(grouped).map(Number).filter((id) => id > 0);
-      const wlRows = wlIds.length > 0 ? await policyIntelDb.select().from(watchlists).where(inArray8(watchlists.id, wlIds)) : [];
-      const wlNameMap = new Map(wlRows.map((w) => [w.id, w.name]));
-      const sections = Object.values(grouped).map((g) => ({
-        watchlist: wlNameMap.get(g.watchlistId) ?? "Unlinked",
-        alertCount: g.alerts.length,
-        highPriority: g.alerts.filter((a) => a.relevanceScore >= 70).length,
-        alerts: g.alerts.map((a) => ({
-          id: a.id,
-          title: a.title,
-          score: a.relevanceScore,
-          status: a.status,
-          whyItMatters: a.whyItMatters
-        }))
-      }));
-      const weekActivities = await policyIntelDb.select().from(activities).where(
-        and18(
-          eq26(activities.workspaceId, workspaceId),
-          gt2(activities.createdAt, weekStart)
-        )
-      ).orderBy(desc20(activities.createdAt));
-      const filteredActivities = weekActivities.filter((a) => a.createdAt < weekEnd);
-      res.json({
-        workspace: workspaceId,
-        period: {
-          start: weekStart.toISOString(),
-          end: weekEnd.toISOString(),
-          week: weekParam ?? `${weekStart.getFullYear()}-W${String(Math.ceil((weekStart.getDate() + weekStart.getDay()) / 7)).padStart(2, "0")}`
-        },
-        summary: {
-          totalAlerts: filtered.length,
-          highPriority: filtered.filter((a) => a.relevanceScore >= 70).length,
-          pendingReview: filtered.filter((a) => a.status === "pending_review").length,
-          reviewed: filtered.filter((a) => a.status !== "pending_review").length,
-          activitiesLogged: filteredActivities.length
-        },
-        sections,
-        recentActivities: filteredActivities.slice(0, 20).map((a) => ({
-          id: a.id,
-          type: a.type,
-          summary: a.summary,
-          matterId: a.matterId,
-          createdAt: a.createdAt
-        }))
-      });
+      res.json(await buildWorkspaceDigestPayload(workspaceId, weekParam));
     } catch (err) {
       next(err);
     }
@@ -17026,6 +17031,62 @@ function createPolicyIntelRouter() {
       if (!workspaceId) return res.status(400).json({ error: "workspaceId required" });
       const result = await autoDiscoverRelationships2(workspaceId);
       res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.get("/premium/market/dashboard", async (req, res, next) => {
+    try {
+      const workspaceId = parseId(req.query.workspaceId);
+      if (!workspaceId) return res.status(400).json({ error: "workspaceId required" });
+      const weekParam = req.query.week;
+      const committeeFrom = req.query.from;
+      const committeeLimit = Math.min(24, Math.max(1, Number(req.query.committeeLimit) || 12));
+      const issueRoomLimit = Math.min(24, Math.max(1, Number(req.query.issueRoomLimit) || 12));
+      const minRelationshipStrength = req.query.minRelationshipStrength ? Number(req.query.minRelationshipStrength) : 0.35;
+      const [
+        { getPredictionDashboard: getPredictionDashboard2 },
+        { buildNetworkGraph: buildNetworkGraph2 },
+        { getSessionDashboard: getSessionDashboard2 }
+      ] = await Promise.all([
+        Promise.resolve().then(() => (init_passage_predictor_service(), passage_predictor_service_exports)),
+        Promise.resolve().then(() => (init_relationship_intelligence_service(), relationship_intelligence_service_exports)),
+        Promise.resolve().then(() => (init_session_lifecycle_service(), session_lifecycle_service_exports))
+      ]);
+      const [
+        predictions,
+        sessionDashboard,
+        relationshipNetwork,
+        digest,
+        committeeSessions,
+        roomRows
+      ] = await Promise.all([
+        getPredictionDashboard2(workspaceId),
+        getSessionDashboard2(workspaceId),
+        buildNetworkGraph2(workspaceId, { minStrength: minRelationshipStrength }),
+        buildWorkspaceDigestPayload(workspaceId, weekParam),
+        listCommitteeIntelSessions({ workspaceId, from: committeeFrom }),
+        policyIntelDb.select().from(issueRooms).where(eq26(issueRooms.workspaceId, workspaceId)).orderBy(desc20(issueRooms.updatedAt), desc20(issueRooms.id)).limit(issueRoomLimit)
+      ]);
+      res.json({
+        workspaceId,
+        generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+        summary: {
+          trackedBills: predictions.totalTracked,
+          committeeSessions: committeeSessions.length,
+          issueRooms: roomRows.length,
+          networkNodes: relationshipNetwork.stats.totalNodes,
+          networkEdges: relationshipNetwork.stats.totalEdges,
+          pendingReviewAlerts: digest.summary.pendingReview,
+          pendingClientActions: sessionDashboard?.stats.pendingActions ?? 0
+        },
+        predictions,
+        session: sessionDashboard ? sessionDashboard : { message: "No active session. Initialize a session first.", session: null },
+        relationships: relationshipNetwork,
+        digest,
+        committeeSessions: committeeSessions.slice(0, committeeLimit),
+        issueRooms: roomRows
+      });
     } catch (err) {
       next(err);
     }

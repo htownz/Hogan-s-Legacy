@@ -5,6 +5,7 @@ import {
   type CommitteeIntelSession,
   type Digest,
   type IssueRoom,
+  type MarketDashboard,
   type NetworkGraph,
   type PredictionDashboard,
   type PredictionResult,
@@ -607,32 +608,23 @@ export function PolicyMarketPage() {
     return from.toISOString();
   }, []);
 
-  const { data: predictionDashboard, loading: predictionLoading, error: predictionError, refetch: refetchPredictions } = useAsync<PredictionDashboard>(
-    () => api.getPredictionDashboard(workspaceId),
-    [workspaceId],
-  );
-  const { data: sessionResponse, loading: sessionLoading, error: sessionError, refetch: refetchSession } = useAsync<SessionDashboard | { session: null }>(
-    () => api.getSessionDashboard(workspaceId),
-    [workspaceId],
-  );
-  const { data: network, loading: networkLoading, error: networkError, refetch: refetchNetwork } = useAsync<NetworkGraph>(
-    () => api.getRelationshipNetwork(workspaceId, { minStrength: 0.35 }),
-    [workspaceId],
-  );
-  const { data: digest, loading: digestLoading, error: digestError, refetch: refetchDigest } = useAsync<Digest>(
-    () => api.getDigest(workspaceId),
-    [workspaceId],
-  );
-  const { data: committeeSessions, loading: committeeLoading, error: committeeError, refetch: refetchCommittee } = useAsync<CommitteeIntelSession[]>(
-    () => api.getCommitteeIntelSessions({ workspaceId, from: hearingWindowStart }),
+  const { data: marketData, loading, error, refetch } = useAsync<MarketDashboard>(
+    () => api.getMarketDashboard(workspaceId, {
+      from: hearingWindowStart,
+      committeeLimit: 12,
+      issueRoomLimit: 12,
+      minRelationshipStrength: 0.35,
+    }),
     [workspaceId, hearingWindowStart],
   );
-  const { data: issueRooms, loading: issueRoomLoading, error: issueRoomError, refetch: refetchIssueRooms } = useAsync<IssueRoom[]>(
-    () => api.getIssueRooms(workspaceId),
-    [workspaceId],
-  );
 
-  const sessionDashboard: SessionDashboard | null = isSessionDashboard(sessionResponse) ? sessionResponse : null;
+  const predictionDashboard = marketData?.predictions ?? null;
+  const committeeSessions = marketData?.committeeSessions ?? null;
+  const issueRooms = marketData?.issueRooms ?? null;
+  const digest = marketData?.digest ?? null;
+  const network = marketData?.relationships ?? null;
+  const sessionValue = marketData?.session ?? null;
+  const sessionDashboard: SessionDashboard | null = isSessionDashboard(sessionValue) ? sessionValue : null;
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
   const predictionItems = useMemo<PredictionFocusItem[]>(() => {
@@ -729,29 +721,24 @@ export function PolicyMarketPage() {
   }, [committeeSessions, digest, sessionDashboard]);
 
   const refreshAll = useCallback(() => {
-    refetchPredictions();
-    refetchSession();
-    refetchNetwork();
-    refetchDigest();
-    refetchCommittee();
-    refetchIssueRooms();
-  }, [refetchCommittee, refetchDigest, refetchIssueRooms, refetchNetwork, refetchPredictions, refetchSession]);
+    refetch();
+  }, [refetch]);
 
   const topMetrics = useMemo(() => {
-    const tracked = (predictionDashboard?.totalTracked ?? 0) + (committeeSessions?.length ?? 0) + (issueRooms?.length ?? 0);
-    const pendingActions = sessionDashboard?.stats.pendingActions ?? 0;
+    const tracked = marketData?.summary.trackedBills ?? ((predictionDashboard?.totalTracked ?? 0) + (committeeSessions?.length ?? 0) + (issueRooms?.length ?? 0));
+    const pendingActions = marketData?.summary.pendingClientActions ?? sessionDashboard?.stats.pendingActions ?? 0;
     const nextPhase = sessionDashboard ? (SESSION_PHASE_META[sessionDashboard.currentPhase]?.label ?? niceLabel(sessionDashboard.currentPhase)) : "Not initialized";
     return [
       { label: "Tracked Instruments", value: tracked, detail: `${predictionDashboard?.totalTracked ?? 0} bills · ${committeeSessions?.length ?? 0} hearings · ${issueRooms?.length ?? 0} issue rooms`, toneColor: NAVY },
       { label: "Market Catalysts", value: catalysts.length, detail: `${digest?.summary.totalAlerts ?? 0} digest alerts this week`, toneColor: SKY },
-      { label: "Network Edges", value: network?.stats.totalEdges ?? 0, detail: network?.stats.mostConnected ? `Most connected: ${network.stats.mostConnected.name}` : "Run relationship discovery to enrich", toneColor: MINT },
+      { label: "Network Edges", value: marketData?.summary.networkEdges ?? network?.stats.totalEdges ?? 0, detail: network?.stats.mostConnected ? `Most connected: ${network.stats.mostConnected.name}` : "Run relationship discovery to enrich", toneColor: MINT },
       { label: "Action Queue", value: pendingActions, detail: nextPhase, toneColor: GOLD },
     ];
-  }, [catalysts.length, committeeSessions?.length, digest?.summary.totalAlerts, issueRooms?.length, network?.stats.mostConnected, network?.stats.totalEdges, predictionDashboard?.totalTracked, sessionDashboard]);
+  }, [catalysts.length, committeeSessions?.length, digest?.summary.totalAlerts, issueRooms?.length, marketData?.summary.networkEdges, marketData?.summary.pendingClientActions, marketData?.summary.trackedBills, network?.stats.mostConnected, network?.stats.totalEdges, predictionDashboard?.totalTracked, sessionDashboard]);
 
   const playbook = selectedItem ? buildPlaybook(selectedItem, sessionDashboard) : [];
-  const initialLoading = predictionLoading && committeeLoading && issueRoomLoading && digestLoading && networkLoading && sessionLoading;
-  const hardFailure = !selectedItem && [predictionError, committeeError, issueRoomError, digestError, networkError].every(Boolean);
+  const initialLoading = loading;
+  const hardFailure = Boolean(error && !selectedItem);
 
   if (initialLoading) {
     return <div style={{ padding: 32, color: MUTED }}>Loading policy market...</div>;
@@ -1000,11 +987,11 @@ export function PolicyMarketPage() {
           <Panel title="Cross-Links" subtitle="Jump straight into the specialist workflows">
             <div style={{ display: "grid", gap: 10 }}>
               {[
-                { href: "/predictions", label: "Predictions Desk", detail: predictionError || `${predictionDashboard?.totalTracked ?? 0} bills priced` },
-                { href: "/committee-intel", label: "Committee Intel", detail: committeeError || `${committeeSessions?.length ?? 0} committee sessions` },
-                { href: "/relationships", label: "Relationship Intelligence", detail: networkError || `${network?.stats.totalEdges ?? 0} edges mapped` },
-                { href: "/session", label: "Session Manager", detail: sessionError || (sessionDashboard ? `${sessionDashboard.stats.pendingActions} pending actions` : "Needs initialization") },
-                { href: "/issue-rooms", label: "Issue Rooms", detail: issueRoomError || `${issueRooms?.length ?? 0} rooms active` },
+                { href: "/predictions", label: "Predictions Desk", detail: error || `${predictionDashboard?.totalTracked ?? 0} bills priced` },
+                { href: "/committee-intel", label: "Committee Intel", detail: error || `${committeeSessions?.length ?? 0} committee sessions` },
+                { href: "/relationships", label: "Relationship Intelligence", detail: error || `${network?.stats.totalEdges ?? 0} edges mapped` },
+                { href: "/session", label: "Session Manager", detail: error || (sessionDashboard ? `${sessionDashboard.stats.pendingActions} pending actions` : "Needs initialization") },
+                { href: "/issue-rooms", label: "Issue Rooms", detail: error || `${issueRooms?.length ?? 0} rooms active` },
               ].map((link) => (
                 <Link key={link.href} href={link.href}>
                   <div style={{ padding: 12, borderRadius: 14, border: `1px solid ${BORDER}`, background: "#fff", cursor: "pointer" }}>

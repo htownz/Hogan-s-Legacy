@@ -329,6 +329,17 @@ export const api = {
   getPowerNetworkReport: (force = false) => apiFetch<PowerNetworkReport>(`/intelligence/power-network${force ? "?force=true" : ""}`),
   getLegislationPredictions: (force = false) => apiFetch<LegislationPredictorReport>(`/intelligence/predictions${force ? "?force=true" : ""}`),
 
+  // ── Premium: Market Dashboard ─────────────────────────────────────────
+  getMarketDashboard: (workspaceId: number, params?: { week?: string; from?: string; committeeLimit?: number; issueRoomLimit?: number; minRelationshipStrength?: number }) => {
+    const q = new URLSearchParams({ workspaceId: String(workspaceId) });
+    if (params?.week) q.set("week", params.week);
+    if (params?.from) q.set("from", params.from);
+    if (params?.committeeLimit !== undefined) q.set("committeeLimit", String(params.committeeLimit));
+    if (params?.issueRoomLimit !== undefined) q.set("issueRoomLimit", String(params.issueRoomLimit));
+    if (params?.minRelationshipStrength !== undefined) q.set("minRelationshipStrength", String(params.minRelationshipStrength));
+    return apiFetch<MarketDashboard>(`/premium/market/dashboard?${q.toString()}`);
+  },
+
   // ── Premium: Passage Predictions ──────────────────────────────────────
   getPredictionDashboard: (workspaceId: number) =>
     apiFetch<PredictionDashboard>(`/premium/predictions/dashboard?workspaceId=${workspaceId}`),
@@ -1801,6 +1812,26 @@ export interface PredictionDashboard {
     direction: "up" | "down";
   }>;
   analyzedAt: string;
+}
+
+export interface MarketDashboard {
+  workspaceId: number;
+  generatedAt: string;
+  summary: {
+    trackedBills: number;
+    committeeSessions: number;
+    issueRooms: number;
+    networkNodes: number;
+    networkEdges: number;
+    pendingReviewAlerts: number;
+    pendingClientActions: number;
+  };
+  predictions: PredictionDashboard;
+  session: SessionDashboard | { message?: string; session: null };
+  relationships: NetworkGraph;
+  digest: Digest;
+  committeeSessions: CommitteeIntelSession[];
+  issueRooms: IssueRoom[];
 }
 
 export interface ClientProfile {
