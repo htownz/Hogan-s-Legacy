@@ -16,9 +16,15 @@ __export(schema_policy_intel_exports, {
   alertStatusEnum: () => alertStatusEnum,
   alerts: () => alerts,
   anomalyHistory: () => anomalyHistory,
+  billOutcomeEnum: () => billOutcomeEnum,
+  billOutcomeSnapshots: () => billOutcomeSnapshots,
   briefStatusEnum: () => briefStatusEnum,
   briefs: () => briefs,
   championSnapshots: () => championSnapshots,
+  clientActionStatusEnum: () => clientActionStatusEnum,
+  clientActionTypeEnum: () => clientActionTypeEnum,
+  clientActions: () => clientActions,
+  clientProfiles: () => clientProfiles,
   committeeIntelAutoIngestStatusEnum: () => committeeIntelAutoIngestStatusEnum,
   committeeIntelEntityTypeEnum: () => committeeIntelEntityTypeEnum,
   committeeIntelPositionEnum: () => committeeIntelPositionEnum,
@@ -48,11 +54,25 @@ __export(schema_policy_intel_exports, {
   issueRoomUpdates: () => issueRoomUpdates,
   issueRooms: () => issueRooms,
   learningMetrics: () => learningMetrics,
+  legislativeSessions: () => legislativeSessions,
   matterStatusEnum: () => matterStatusEnum,
   matterWatchlists: () => matterWatchlists,
   matters: () => matters,
   meetingNotes: () => meetingNotes,
   monitoringJobs: () => monitoringJobs,
+  passagePredictionEnum: () => passagePredictionEnum,
+  passagePredictions: () => passagePredictions,
+  relationshipTypeEnum: () => relationshipTypeEnum,
+  relationships: () => relationships,
+  replayChunkStatusEnum: () => replayChunkStatusEnum,
+  replayChunks: () => replayChunks,
+  replayRunStatusEnum: () => replayRunStatusEnum,
+  replayRuns: () => replayRuns,
+  reportTemplates: () => reportTemplates,
+  schedulerRuns: () => schedulerRuns,
+  sessionMilestoneStatusEnum: () => sessionMilestoneStatusEnum,
+  sessionMilestones: () => sessionMilestones,
+  sessionPhaseEnum: () => sessionPhaseEnum,
   sourceDocuments: () => sourceDocuments,
   sourceTypeEnum: () => sourceTypeEnum,
   stakeholderObservations: () => stakeholderObservations,
@@ -76,7 +96,7 @@ import {
   uniqueIndex,
   varchar
 } from "drizzle-orm/pg-core";
-var sourceTypeEnum, alertStatusEnum, briefStatusEnum, deliverableTypeEnum, matterStatusEnum, activityTypeEnum, issueRoomStatusEnum, issueRoomRelationshipTypeEnum, issueRoomUpdateTypeEnum, issueRoomTaskStatusEnum, issueRoomTaskPriorityEnum, workspaces, watchlists, sourceDocuments, alerts, briefs, monitoringJobs, matters, matterWatchlists, issueRooms, issueRoomSourceDocuments, issueRoomUpdates, issueRoomStrategyOptions, issueRoomTasks, activities, deliverables, stakeholderTypeEnum, stakeholders, stakeholderObservations, hearingStatusEnum, committeeIntelSessionStatusEnum, committeeIntelSpeakerRoleEnum, committeeIntelPositionEnum, committeeIntelEntityTypeEnum, committeeIntelTranscriptSourceTypeEnum, committeeIntelAutoIngestStatusEnum, hearingEvents, committeeRoleEnum, committeeMembers, meetingNotes, committeeIntelSessions, committeeIntelSegments, committeeIntelSignals, feedbackOutcomeEnum, feedbackLog, championSnapshots, forecastSnapshots, anomalyHistory, velocitySnapshots, learningMetrics;
+var sourceTypeEnum, alertStatusEnum, briefStatusEnum, deliverableTypeEnum, matterStatusEnum, activityTypeEnum, issueRoomStatusEnum, issueRoomRelationshipTypeEnum, issueRoomUpdateTypeEnum, issueRoomTaskStatusEnum, issueRoomTaskPriorityEnum, workspaces, watchlists, sourceDocuments, alerts, briefs, monitoringJobs, replayRunStatusEnum, replayChunkStatusEnum, replayRuns, replayChunks, matters, matterWatchlists, issueRooms, issueRoomSourceDocuments, issueRoomUpdates, issueRoomStrategyOptions, issueRoomTasks, activities, deliverables, stakeholderTypeEnum, stakeholders, stakeholderObservations, hearingStatusEnum, committeeIntelSessionStatusEnum, committeeIntelSpeakerRoleEnum, committeeIntelPositionEnum, committeeIntelEntityTypeEnum, committeeIntelTranscriptSourceTypeEnum, committeeIntelAutoIngestStatusEnum, hearingEvents, committeeRoleEnum, committeeMembers, meetingNotes, committeeIntelSessions, committeeIntelSegments, committeeIntelSignals, feedbackOutcomeEnum, feedbackLog, championSnapshots, forecastSnapshots, billOutcomeEnum, billOutcomeSnapshots, anomalyHistory, velocitySnapshots, learningMetrics, schedulerRuns, clientProfiles, passagePredictionEnum, passagePredictions, relationshipTypeEnum, relationships, sessionPhaseEnum, sessionMilestoneStatusEnum, legislativeSessions, sessionMilestones, reportTemplates, clientActionStatusEnum, clientActionTypeEnum, clientActions;
 var init_schema_policy_intel = __esm({
   "shared/schema-policy-intel.ts"() {
     "use strict";
@@ -276,6 +296,72 @@ var init_schema_policy_intel = __esm({
       lastRunAt: timestamp("last_run_at", { withTimezone: true }),
       createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull()
     });
+    replayRunStatusEnum = pgEnum("policy_intel_replay_run_status", [
+      "planned",
+      "running",
+      "paused",
+      "completed",
+      "failed"
+    ]);
+    replayChunkStatusEnum = pgEnum("policy_intel_replay_chunk_status", [
+      "pending",
+      "running",
+      "success",
+      "error",
+      "skipped"
+    ]);
+    replayRuns = pgTable(
+      "policy_intel_replay_runs",
+      {
+        id: serial("id").primaryKey(),
+        source: varchar("source", { length: 64 }).notNull().default("legiscan"),
+        sessionId: integer("session_id").notNull(),
+        mode: varchar("mode", { length: 16 }).notNull().default("full"),
+        orderBy: varchar("order_by", { length: 32 }).notNull().default("bill_id_asc"),
+        chunkSize: integer("chunk_size").notNull().default(250),
+        nextOffset: integer("next_offset").notNull().default(0),
+        totalCandidates: integer("total_candidates"),
+        processedCandidates: integer("processed_candidates").notNull().default(0),
+        status: replayRunStatusEnum("status").notNull().default("planned"),
+        requestedBy: varchar("requested_by", { length: 255 }),
+        optionsJson: jsonb("options_json").$type().notNull().default({}),
+        lastError: text("last_error"),
+        startedAt: timestamp("started_at", { withTimezone: true }),
+        completedAt: timestamp("completed_at", { withTimezone: true }),
+        createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+        updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull()
+      },
+      (table) => ({
+        statusCreatedIdx: index("policy_intel_replay_runs_status_created_idx").on(table.status, table.createdAt),
+        sourceSessionIdx: index("policy_intel_replay_runs_source_session_idx").on(table.source, table.sessionId)
+      })
+    );
+    replayChunks = pgTable(
+      "policy_intel_replay_chunks",
+      {
+        id: serial("id").primaryKey(),
+        replayRunId: integer("replay_run_id").notNull().references(() => replayRuns.id, { onDelete: "cascade" }),
+        chunkIndex: integer("chunk_index").notNull(),
+        offset: integer("offset").notNull(),
+        limit: integer("limit").notNull(),
+        status: replayChunkStatusEnum("status").notNull().default("pending"),
+        startedAt: timestamp("started_at", { withTimezone: true }),
+        finishedAt: timestamp("finished_at", { withTimezone: true }),
+        fetched: integer("fetched").notNull().default(0),
+        inserted: integer("inserted").notNull().default(0),
+        skipped: integer("skipped").notNull().default(0),
+        alertsCreated: integer("alerts_created").notNull().default(0),
+        fetchErrors: integer("fetch_errors").notNull().default(0),
+        upsertErrors: integer("upsert_errors").notNull().default(0),
+        error: text("error"),
+        resultJson: jsonb("result_json").$type().notNull().default({}),
+        createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull()
+      },
+      (table) => ({
+        runChunkUnique: uniqueIndex("policy_intel_replay_chunks_run_chunk_idx").on(table.replayRunId, table.chunkIndex),
+        runCreatedIdx: index("policy_intel_replay_chunks_run_created_idx").on(table.replayRunId, table.createdAt)
+      })
+    );
     matters = pgTable("policy_intel_matters", {
       id: serial("id").primaryKey(),
       workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
@@ -700,6 +786,35 @@ var init_schema_policy_intel = __esm({
         capturedIdx: index("policy_intel_forecast_snap_captured_idx").on(table.capturedAt)
       })
     );
+    billOutcomeEnum = pgEnum("policy_intel_bill_outcome", [
+      "active",
+      "passed",
+      "failed",
+      "stalled",
+      "amended",
+      "unknown"
+    ]);
+    billOutcomeSnapshots = pgTable(
+      "policy_intel_bill_outcome_snapshots",
+      {
+        id: serial("id").primaryKey(),
+        snapshotKey: varchar("snapshot_key", { length: 16 }).notNull(),
+        capturedAt: timestamp("captured_at", { withTimezone: true }).defaultNow().notNull(),
+        billId: varchar("bill_id", { length: 64 }).notNull(),
+        stage: varchar("stage", { length: 64 }).notNull().default("unknown"),
+        outcome: billOutcomeEnum("outcome").notNull().default("unknown"),
+        statusText: text("status_text"),
+        sourceDocumentId: integer("source_document_id").references(() => sourceDocuments.id, { onDelete: "set null" }),
+        publishedAt: timestamp("published_at", { withTimezone: true }),
+        metadataJson: jsonb("metadata_json").$type().notNull().default({}),
+        createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull()
+      },
+      (table) => ({
+        snapshotBillUnique: uniqueIndex("policy_intel_bill_outcome_snapshot_bill_idx").on(table.snapshotKey, table.billId),
+        snapshotIdx: index("policy_intel_bill_outcome_snapshot_idx").on(table.snapshotKey, table.capturedAt),
+        outcomeIdx: index("policy_intel_bill_outcome_outcome_idx").on(table.outcome)
+      })
+    );
     anomalyHistory = pgTable(
       "policy_intel_anomaly_history",
       {
@@ -751,6 +866,291 @@ var init_schema_policy_intel = __esm({
         capturedIdx: index("policy_intel_learning_metrics_captured_idx").on(table.capturedAt)
       })
     );
+    schedulerRuns = pgTable(
+      "policy_intel_scheduler_runs",
+      {
+        id: serial("id").primaryKey(),
+        jobName: varchar("job_name", { length: 128 }).notNull(),
+        startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+        finishedAt: timestamp("finished_at", { withTimezone: true }).notNull(),
+        durationMs: integer("duration_ms").notNull(),
+        status: varchar("status", { length: 16 }).notNull(),
+        summaryJson: jsonb("summary_json").$type().notNull().default({}),
+        error: text("error"),
+        createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull()
+      },
+      (table) => ({
+        finishedIdx: index("policy_intel_scheduler_runs_finished_idx").on(table.finishedAt),
+        jobFinishedIdx: index("policy_intel_scheduler_runs_job_finished_idx").on(table.jobName, table.finishedAt)
+      })
+    );
+    clientProfiles = pgTable(
+      "policy_intel_client_profiles",
+      {
+        id: serial("id").primaryKey(),
+        workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+        firmName: varchar("firm_name", { length: 255 }).notNull(),
+        contactName: varchar("contact_name", { length: 255 }),
+        contactEmail: varchar("contact_email", { length: 255 }),
+        contactPhone: varchar("contact_phone", { length: 64 }),
+        industry: varchar("industry", { length: 128 }),
+        priorityTopics: jsonb("priority_topics").$type().notNull().default([]),
+        jurisdictions: jsonb("jurisdictions").$type().notNull().default(["texas"]),
+        reportingPreferences: jsonb("reporting_preferences").$type().notNull().default({
+          frequency: "weekly",
+          deliverableTypes: ["client_alert", "weekly_digest"],
+          includePassageProbability: true,
+          includeStakeholderIntel: true
+        }),
+        scoringWeights: jsonb("scoring_weights").$type(),
+        notificationChannels: jsonb("notification_channels").$type().notNull().default({}),
+        isActive: boolean("is_active").notNull().default(true),
+        createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+        updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull()
+      },
+      (table) => ({
+        workspaceIdx: index("policy_intel_client_profiles_workspace_idx").on(table.workspaceId)
+      })
+    );
+    passagePredictionEnum = pgEnum("policy_intel_passage_prediction", [
+      "likely_pass",
+      "lean_pass",
+      "toss_up",
+      "lean_fail",
+      "likely_fail",
+      "dead"
+    ]);
+    passagePredictions = pgTable(
+      "policy_intel_passage_predictions",
+      {
+        id: serial("id").primaryKey(),
+        workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+        billId: varchar("bill_id", { length: 64 }).notNull(),
+        billTitle: text("bill_title"),
+        prediction: passagePredictionEnum("prediction").notNull().default("toss_up"),
+        probability: doublePrecision("probability").notNull().default(0.5),
+        confidence: doublePrecision("confidence").notNull().default(0),
+        regime: varchar("regime", { length: 32 }).notNull().default("interim"),
+        currentStage: varchar("current_stage", { length: 128 }),
+        nextMilestone: varchar("next_milestone", { length: 255 }),
+        nextMilestoneDate: timestamp("next_milestone_date", { withTimezone: true }),
+        riskFactors: jsonb("risk_factors").$type().notNull().default([]),
+        supportSignals: jsonb("support_signals").$type().notNull().default([]),
+        oppositionSignals: jsonb("opposition_signals").$type().notNull().default([]),
+        historicalComps: jsonb("historical_comps").$type().notNull().default([]),
+        sponsorStrength: doublePrecision("sponsor_strength").default(0),
+        committeeAlignment: doublePrecision("committee_alignment").default(0),
+        previousProbability: doublePrecision("previous_probability"),
+        probabilityDelta: doublePrecision("probability_delta"),
+        lastUpdatedAt: timestamp("last_updated_at", { withTimezone: true }).defaultNow().notNull(),
+        createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull()
+      },
+      (table) => ({
+        workspaceBillUnique: uniqueIndex("policy_intel_passage_predictions_ws_bill_idx").on(
+          table.workspaceId,
+          table.billId
+        ),
+        predictionIdx: index("policy_intel_passage_predictions_prediction_idx").on(table.prediction),
+        probabilityIdx: index("policy_intel_passage_predictions_probability_idx").on(table.probability)
+      })
+    );
+    relationshipTypeEnum = pgEnum("policy_intel_relationship_type", [
+      "funds",
+      "lobbies_for",
+      "opposes",
+      "co_sponsors",
+      "staff_of",
+      "committee_together",
+      "testified_before",
+      "client_of",
+      "ally",
+      "adversary"
+    ]);
+    relationships = pgTable(
+      "policy_intel_relationships",
+      {
+        id: serial("id").primaryKey(),
+        workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+        fromStakeholderId: integer("from_stakeholder_id").notNull().references(() => stakeholders.id, { onDelete: "cascade" }),
+        toStakeholderId: integer("to_stakeholder_id").notNull().references(() => stakeholders.id, { onDelete: "cascade" }),
+        relationshipType: relationshipTypeEnum("relationship_type").notNull(),
+        strength: doublePrecision("strength").notNull().default(0.5),
+        evidenceSummary: text("evidence_summary"),
+        sourceDocumentIds: jsonb("source_document_ids").$type().notNull().default([]),
+        metadata: jsonb("metadata").$type().notNull().default({}),
+        lastVerifiedAt: timestamp("last_verified_at", { withTimezone: true }),
+        createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+        updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull()
+      },
+      (table) => ({
+        fromToUnique: uniqueIndex("policy_intel_relationships_from_to_type_idx").on(
+          table.fromStakeholderId,
+          table.toStakeholderId,
+          table.relationshipType
+        ),
+        workspaceIdx: index("policy_intel_relationships_workspace_idx").on(table.workspaceId),
+        toIdx: index("policy_intel_relationships_to_idx").on(table.toStakeholderId)
+      })
+    );
+    sessionPhaseEnum = pgEnum("policy_intel_session_phase", [
+      "interim",
+      "pre_filing",
+      "filing_period",
+      "committee_hearings",
+      "floor_action",
+      "conference",
+      "enrollment",
+      "post_session",
+      "special_session"
+    ]);
+    sessionMilestoneStatusEnum = pgEnum("policy_intel_session_milestone_status", [
+      "upcoming",
+      "in_progress",
+      "completed",
+      "missed",
+      "cancelled"
+    ]);
+    legislativeSessions = pgTable(
+      "policy_intel_legislative_sessions",
+      {
+        id: serial("id").primaryKey(),
+        workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+        sessionNumber: integer("session_number").notNull(),
+        sessionType: varchar("session_type", { length: 32 }).notNull().default("regular"),
+        startDate: timestamp("start_date", { withTimezone: true }).notNull(),
+        endDate: timestamp("end_date", { withTimezone: true }),
+        currentPhase: sessionPhaseEnum("current_phase").notNull().default("interim"),
+        isActive: boolean("is_active").notNull().default(true),
+        configJson: jsonb("config_json").$type().notNull().default({}),
+        createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+        updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull()
+      },
+      (table) => ({
+        workspaceSessionUnique: uniqueIndex("policy_intel_leg_sessions_ws_num_idx").on(
+          table.workspaceId,
+          table.sessionNumber
+        )
+      })
+    );
+    sessionMilestones = pgTable(
+      "policy_intel_session_milestones",
+      {
+        id: serial("id").primaryKey(),
+        sessionId: integer("session_id").notNull().references(() => legislativeSessions.id, { onDelete: "cascade" }),
+        title: varchar("title", { length: 255 }).notNull(),
+        description: text("description"),
+        phase: sessionPhaseEnum("phase").notNull(),
+        dueDate: timestamp("due_date", { withTimezone: true }).notNull(),
+        status: sessionMilestoneStatusEnum("status").notNull().default("upcoming"),
+        assignee: varchar("assignee", { length: 255 }),
+        matterId: integer("matter_id").references(() => matters.id, { onDelete: "set null" }),
+        completedAt: timestamp("completed_at", { withTimezone: true }),
+        notesJson: jsonb("notes_json").$type().notNull().default([]),
+        createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+        updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull()
+      },
+      (table) => ({
+        sessionPhaseIdx: index("policy_intel_session_milestones_session_phase_idx").on(
+          table.sessionId,
+          table.phase
+        ),
+        dueDateIdx: index("policy_intel_session_milestones_due_date_idx").on(table.dueDate)
+      })
+    );
+    reportTemplates = pgTable(
+      "policy_intel_report_templates",
+      {
+        id: serial("id").primaryKey(),
+        workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+        name: varchar("name", { length: 255 }).notNull(),
+        type: deliverableTypeEnum("type").notNull(),
+        templateMarkdown: text("template_markdown").notNull(),
+        headerHtml: text("header_html"),
+        footerHtml: text("footer_html"),
+        brandConfig: jsonb("brand_config").$type().notNull().default({
+          primaryColor: "#1a365d",
+          accentColor: "#c53030",
+          firmName: "Grace & McEwan Consulting LLC"
+        }),
+        isDefault: boolean("is_default").notNull().default(false),
+        createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+        updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull()
+      },
+      (table) => ({
+        workspaceTypeIdx: index("policy_intel_report_templates_ws_type_idx").on(
+          table.workspaceId,
+          table.type
+        )
+      })
+    );
+    clientActionStatusEnum = pgEnum("policy_intel_client_action_status", [
+      "pending",
+      "in_progress",
+      "completed",
+      "deferred",
+      "cancelled"
+    ]);
+    clientActionTypeEnum = pgEnum("policy_intel_client_action_type", [
+      "testimony_prep",
+      "legislator_meeting",
+      "position_letter",
+      "coalition_outreach",
+      "media_response",
+      "amendment_draft",
+      "fiscal_note_review",
+      "witness_coordination",
+      "client_briefing",
+      "strategy_pivot",
+      "opposition_research",
+      "grassroots_activation"
+    ]);
+    clientActions = pgTable(
+      "policy_intel_client_actions",
+      {
+        id: serial("id").primaryKey(),
+        workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+        matterId: integer("matter_id").references(() => matters.id, { onDelete: "set null" }),
+        issueRoomId: integer("issue_room_id").references(() => issueRooms.id, { onDelete: "set null" }),
+        alertId: integer("alert_id").references(() => alerts.id, { onDelete: "set null" }),
+        actionType: clientActionTypeEnum("action_type").notNull(),
+        title: varchar("title", { length: 255 }).notNull(),
+        description: text("description"),
+        status: clientActionStatusEnum("status").notNull().default("pending"),
+        priority: issueRoomTaskPriorityEnum("priority").notNull().default("medium"),
+        assignee: varchar("assignee", { length: 255 }),
+        dueDate: timestamp("due_date", { withTimezone: true }),
+        relatedBillIds: jsonb("related_bill_ids").$type().notNull().default([]),
+        stakeholderIds: jsonb("stakeholder_ids").$type().notNull().default([]),
+        outcome: text("outcome"),
+        completedAt: timestamp("completed_at", { withTimezone: true }),
+        createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+        updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull()
+      },
+      (table) => ({
+        workspaceStatusIdx: index("policy_intel_client_actions_ws_status_idx").on(
+          table.workspaceId,
+          table.status
+        ),
+        dueDateIdx: index("policy_intel_client_actions_due_date_idx").on(table.dueDate),
+        matterIdx: index("policy_intel_client_actions_matter_idx").on(table.matterId)
+      })
+    );
+  }
+});
+
+// server/policy-intel/logger.ts
+import pino from "pino";
+function createLogger(module) {
+  return logger.child({ module });
+}
+var logger;
+var init_logger = __esm({
+  "server/policy-intel/logger.ts"() {
+    "use strict";
+    logger = pino({
+      level: process.env.LOG_LEVEL || "info",
+      ...process.env.NODE_ENV !== "production" ? { transport: { target: "pino/file", options: { destination: 1 } } } : {}
+    });
   }
 });
 
@@ -765,7 +1165,7 @@ async function ensureDatabaseConnection() {
     try {
       await queryClient`select 1`;
       if (attempt > 1) {
-        console.log(`[policy-intel] database connection established on attempt ${attempt}`);
+        log.info({ attempt }, "database connection established");
       }
       return;
     } catch (error) {
@@ -773,18 +1173,21 @@ async function ensureDatabaseConnection() {
       if (attempt >= CONNECT_RETRY_ATTEMPTS) {
         throw new Error(`[policy-intel] database connection failed after ${attempt} attempts: ${message}`);
       }
-      console.warn(
-        `[policy-intel] database connection attempt ${attempt}/${CONNECT_RETRY_ATTEMPTS} failed: ${message}`
+      log.warn(
+        { attempt, total: CONNECT_RETRY_ATTEMPTS, err: message },
+        "database connection attempt failed"
       );
       await sleep(CONNECT_RETRY_DELAY_MS);
     }
   }
 }
-var queryClient, CONNECT_RETRY_ATTEMPTS, CONNECT_RETRY_DELAY_MS, policyIntelDb;
+var log, queryClient, CONNECT_RETRY_ATTEMPTS, CONNECT_RETRY_DELAY_MS, policyIntelDb;
 var init_db = __esm({
   "server/policy-intel/db.ts"() {
     "use strict";
     init_schema_policy_intel();
+    init_logger();
+    log = createLogger("db");
     if (!process.env.DATABASE_URL) {
       throw new Error("DATABASE_URL must be set for policy-intel service");
     }
@@ -1106,10 +1509,10 @@ async function analyzeNetworkPower(force = false) {
     }
   };
   seedPowerCenters(bigThree).catch(
-    (err) => console.error("[power-network] Failed to seed power centers:", err.message)
+    (err) => log4.error({ err: err.message }, "failed to seed power centers")
   );
   seedVotingBlocs(votingBlocs2).catch(
-    (err) => console.error("[power-network] Failed to seed voting blocs:", err.message)
+    (err) => log4.error({ err: err.message }, "failed to seed voting blocs")
   );
   cachedReport = report;
   cachedAt = Date.now();
@@ -1604,7 +2007,7 @@ async function seedPowerCenters(bigThree) {
       await Promise.all(updatePriorities);
     }
   }
-  console.log(`[power-network] Seeded ${bigThree.length} power centers with priorities`);
+  log4.info({ count: bigThree.length }, "seeded power centers with priorities");
 }
 async function seedVotingBlocs(blocs) {
   const session = CURRENT_SESSION;
@@ -1639,15 +2042,17 @@ async function seedVotingBlocs(blocs) {
       );
     }
   }
-  console.log(`[power-network] Seeded ${blocs.length} committee cohorts with ${blocs.reduce((s, b) => s + b.members.length, 0)} members`);
+  log4.info({ blocs: blocs.length, members: blocs.reduce((s, b) => s + b.members.length, 0) }, "seeded committee cohorts");
 }
-var CURRENT_SESSION, CACHE_TTL_MS, cachedReport, cachedAt;
+var log4, CURRENT_SESSION, CACHE_TTL_MS, cachedReport, cachedAt;
 var init_power_network_analyzer = __esm({
   "server/policy-intel/engine/intelligence/power-network-analyzer.ts"() {
     "use strict";
     init_db();
     init_schema_policy_intel();
     init_schema_power_network();
+    init_logger();
+    log4 = createLogger("power-network");
     CURRENT_SESSION = "89R";
     CACHE_TTL_MS = 15 * 60 * 1e3;
     cachedReport = null;
@@ -1797,7 +2202,7 @@ async function predictLegislation(force = false) {
     }
   };
   seedPredictions(predictions).catch(
-    (err) => console.error("[legislation-predictor] Failed to seed predictions:", err.message)
+    (err) => log5.error({ err: err.message }, "failed to seed predictions")
   );
   cachedReport2 = report;
   cachedAt2 = Date.now();
@@ -2118,15 +2523,17 @@ async function seedPredictions(predictions) {
       )
     );
   }
-  console.log(`[legislation-predictor] Persisted ${predictions.length} predictions (${inserts.length} new, ${updates.length} updated)`);
+  log5.info({ total: predictions.length, new: inserts.length, updated: updates.length }, "persisted predictions");
 }
-var CURRENT_SESSION2, CACHE_TTL_MS2, cachedReport2, cachedAt2;
+var log5, CURRENT_SESSION2, CACHE_TTL_MS2, cachedReport2, cachedAt2;
 var init_legislation_predictor = __esm({
   "server/policy-intel/engine/intelligence/legislation-predictor.ts"() {
     "use strict";
     init_db();
     init_schema_policy_intel();
     init_schema_power_network();
+    init_logger();
+    log5 = createLogger("legislation-predictor");
     CURRENT_SESSION2 = "89R";
     CACHE_TTL_MS2 = 15 * 60 * 1e3;
     cachedReport2 = null;
@@ -2134,15 +2541,1334 @@ var init_legislation_predictor = __esm({
   }
 });
 
+// server/policy-intel/services/passage-predictor-service.ts
+var passage_predictor_service_exports = {};
+__export(passage_predictor_service_exports, {
+  autoDiscoverAndPredict: () => autoDiscoverAndPredict,
+  getPredictionDashboard: () => getPredictionDashboard,
+  predictBillPassage: () => predictBillPassage,
+  predictBillPassageBatch: () => predictBillPassageBatch
+});
+import { eq as eq22, and as and14, desc as desc16, sql as sql14 } from "drizzle-orm";
+function detectRegime2() {
+  const now = /* @__PURE__ */ new Date();
+  const month = now.getMonth() + 1;
+  const year = now.getFullYear();
+  if (year % 2 === 1 && month >= 1 && month <= 6) return "session";
+  if (year % 2 === 1 && month >= 6) return "post_session";
+  return "interim";
+}
+function classifyPrediction(probability) {
+  if (probability >= 0.75) return "likely_pass";
+  if (probability >= 0.55) return "lean_pass";
+  if (probability >= 0.45) return "toss_up";
+  if (probability >= 0.25) return "lean_fail";
+  if (probability >= 0.05) return "likely_fail";
+  return "dead";
+}
+async function detectBillStage(workspaceId, billId) {
+  const normalizedBill = billId.replace(/\./g, "").toUpperCase();
+  const docs = await policyIntelDb.select().from(sourceDocuments).where(
+    sql14`${sourceDocuments.title} ILIKE ${"%" + normalizedBill + "%"}`
+  ).orderBy(desc16(sourceDocuments.publishedAt)).limit(5);
+  let stage = "introduced";
+  let hearingScheduled = false;
+  let bipartisan = false;
+  for (const doc of docs) {
+    const status = (doc.summary ?? "").toLowerCase() + " " + (doc.title ?? "").toLowerCase();
+    if (status.includes("enrolled") || status.includes("signed")) stage = "enrolled";
+    else if (status.includes("conference")) stage = "conference";
+    else if (status.includes("floor") || status.includes("third reading") || status.includes("passed")) stage = "floor";
+    else if (status.includes("committee") || status.includes("reported") || status.includes("favorable")) stage = "committee_passed";
+    else if (status.includes("hearing") || status.includes("testimony")) {
+      stage = "committee_hearing";
+      hearingScheduled = true;
+    } else if (status.includes("referred")) stage = "referred";
+    if (status.includes("bipartisan") || status.includes("joint author")) bipartisan = true;
+  }
+  const hearings = await policyIntelDb.select().from(hearingEvents).where(
+    and14(
+      eq22(hearingEvents.workspaceId, workspaceId),
+      sql14`${hearingEvents.description} ILIKE ${"%" + normalizedBill + "%"}`
+    )
+  ).limit(3);
+  if (hearings.length > 0) hearingScheduled = true;
+  return { stage, hearingScheduled, bipartisan };
+}
+async function analyzeSponsorStrength(workspaceId, billId) {
+  const signals = [];
+  let strength = 0.3;
+  const normalizedBill = billId.replace(/\./g, "").toUpperCase();
+  const relatedAlerts = await policyIntelDb.select().from(alerts).where(
+    and14(
+      eq22(alerts.workspaceId, workspaceId),
+      sql14`${alerts.title} ILIKE ${"%" + normalizedBill + "%"}`
+    )
+  ).limit(10);
+  const committees = await policyIntelDb.select().from(committeeMembers).limit(200);
+  const chairs = committees.filter(
+    (m) => m.role === "chair" || m.role === "vice_chair"
+  );
+  if (chairs.length > 0) {
+    signals.push({
+      signal: `${chairs.length} committee leadership positions identified in workspace`,
+      source: "committee_analysis",
+      strength: Math.min(chairs.length * 0.1, 0.3)
+    });
+    strength += Math.min(chairs.length * 0.05, 0.15);
+  }
+  if (relatedAlerts.length > 0) {
+    const highRelevance = relatedAlerts.filter(
+      (a) => (a.relevanceScore ?? 0) >= 70
+    ).length;
+    if (highRelevance > 0) {
+      signals.push({
+        signal: `${highRelevance} high-relevance alerts indicate strong engagement`,
+        source: "alert_analysis",
+        strength: Math.min(highRelevance * 0.15, 0.3)
+      });
+      strength += Math.min(highRelevance * 0.1, 0.2);
+    }
+  }
+  return { strength: Math.min(strength, 1), signals };
+}
+async function predictBillPassage(req) {
+  const { workspaceId, billId, billTitle } = req;
+  if (!req.forceRefresh) {
+    const [existing] = await policyIntelDb.select().from(passagePredictions).where(
+      and14(
+        eq22(passagePredictions.workspaceId, workspaceId),
+        eq22(passagePredictions.billId, billId)
+      )
+    );
+    if (existing) {
+      const age = Date.now() - new Date(existing.lastUpdatedAt).getTime();
+      const ONE_HOUR = 60 * 60 * 1e3;
+      if (age < ONE_HOUR) {
+        return formatPrediction(existing);
+      }
+    }
+  }
+  const [stageInfo, sponsorInfo] = await Promise.all([
+    detectBillStage(workspaceId, billId),
+    analyzeSponsorStrength(workspaceId, billId)
+  ]);
+  const regime = detectRegime2();
+  let probability = 0.5;
+  const riskFactors = [];
+  const oppositionSignals = [];
+  const stageProbabilities = {
+    introduced: -0.15,
+    referred: -0.1,
+    committee_hearing: 0.05,
+    committee_passed: 0.15,
+    floor: 0.25,
+    conference: 0.1,
+    enrolled: 0.4
+  };
+  const stageAdjust = stageProbabilities[stageInfo.stage] ?? 0;
+  probability += stageAdjust;
+  riskFactors.push({
+    factor: "Legislative Stage",
+    impact: stageAdjust >= 0 ? "positive" : "negative",
+    weight: Math.abs(stageAdjust),
+    detail: `Bill is at "${stageInfo.stage}" stage (${stageAdjust >= 0 ? "+" : ""}${(stageAdjust * 100).toFixed(0)}% adjustment)`
+  });
+  if (stageInfo.hearingScheduled) {
+    probability += 0.1;
+    riskFactors.push({
+      factor: "Hearing Scheduled",
+      impact: "positive",
+      weight: 0.1,
+      detail: "A hearing is scheduled, indicating active consideration by committee"
+    });
+  }
+  if (stageInfo.bipartisan) {
+    probability += 0.12;
+    riskFactors.push({
+      factor: "Bipartisan Support",
+      impact: "positive",
+      weight: 0.12,
+      detail: "Bipartisan co-sponsorship detected \u2014 significantly increases passage odds"
+    });
+  }
+  const regimeAdjust = {
+    session: 0.05,
+    post_session: -0.2,
+    interim: -0.25
+  };
+  const rAdj = regimeAdjust[regime] ?? 0;
+  probability += rAdj;
+  riskFactors.push({
+    factor: "Session Timing",
+    impact: rAdj >= 0 ? "positive" : "negative",
+    weight: Math.abs(rAdj),
+    detail: `Current regime: ${regime}. ${regime === "interim" ? "No active session \u2014 prediction is speculative." : "Active session \u2014 bills are moving."}`
+  });
+  probability += (sponsorInfo.strength - 0.3) * 0.3;
+  riskFactors.push({
+    factor: "Sponsor Strength",
+    impact: sponsorInfo.strength >= 0.5 ? "positive" : sponsorInfo.strength >= 0.3 ? "neutral" : "negative",
+    weight: sponsorInfo.strength,
+    detail: `Sponsor coalition strength: ${(sponsorInfo.strength * 100).toFixed(0)}%`
+  });
+  probability = Math.max(0.01, Math.min(0.99, probability));
+  const dataPoints = [
+    stageInfo.stage !== "introduced" ? 1 : 0,
+    stageInfo.hearingScheduled ? 1 : 0,
+    sponsorInfo.signals.length > 0 ? 1 : 0,
+    regime === "session" ? 1 : 0
+  ];
+  const confidence = dataPoints.reduce((a, b) => a + b, 0) / dataPoints.length;
+  const milestones = {
+    introduced: { next: "Committee Referral", estimatedDays: 14 },
+    referred: { next: "Committee Hearing", estimatedDays: 30 },
+    committee_hearing: { next: "Committee Vote", estimatedDays: 7 },
+    committee_passed: { next: "Floor Calendar", estimatedDays: 14 },
+    floor: { next: "Floor Vote", estimatedDays: 7 },
+    conference: { next: "Conference Report", estimatedDays: 14 },
+    enrolled: { next: "Governor's Desk", estimatedDays: 10 }
+  };
+  const ms = milestones[stageInfo.stage];
+  const nextMilestoneDate = ms ? new Date(Date.now() + ms.estimatedDays * 864e5).toISOString() : null;
+  const [prevPrediction] = await policyIntelDb.select().from(passagePredictions).where(
+    and14(
+      eq22(passagePredictions.workspaceId, workspaceId),
+      eq22(passagePredictions.billId, billId)
+    )
+  );
+  const previousProbability = prevPrediction?.probability ?? null;
+  const probabilityDelta = previousProbability !== null ? probability - previousProbability : null;
+  const predictionData = {
+    workspaceId,
+    billId,
+    billTitle: billTitle ?? prevPrediction?.billTitle ?? null,
+    prediction: classifyPrediction(probability),
+    probability,
+    confidence,
+    regime,
+    currentStage: stageInfo.stage,
+    nextMilestone: ms?.next ?? null,
+    nextMilestoneDate: nextMilestoneDate ? new Date(nextMilestoneDate) : null,
+    riskFactors,
+    supportSignals: sponsorInfo.signals,
+    oppositionSignals,
+    historicalComps: [],
+    sponsorStrength: sponsorInfo.strength,
+    committeeAlignment: stageInfo.hearingScheduled ? 0.6 : 0.3,
+    previousProbability,
+    probabilityDelta,
+    lastUpdatedAt: /* @__PURE__ */ new Date()
+  };
+  let stored;
+  if (prevPrediction) {
+    [stored] = await policyIntelDb.update(passagePredictions).set(predictionData).where(eq22(passagePredictions.id, prevPrediction.id)).returning();
+  } else {
+    [stored] = await policyIntelDb.insert(passagePredictions).values(predictionData).returning();
+  }
+  log8.info(`Predicted ${billId}: ${(probability * 100).toFixed(1)}% (${classifyPrediction(probability)})`);
+  return formatPrediction(stored);
+}
+async function predictBillPassageBatch(req) {
+  const results = [];
+  for (const billId of req.billIds) {
+    const result = await predictBillPassage({
+      workspaceId: req.workspaceId,
+      billId
+    });
+    results.push(result);
+  }
+  return results;
+}
+async function getPredictionDashboard(workspaceId) {
+  const all = await policyIntelDb.select().from(passagePredictions).where(eq22(passagePredictions.workspaceId, workspaceId)).orderBy(desc16(passagePredictions.probability));
+  const breakdown = {
+    likely_pass: 0,
+    lean_pass: 0,
+    toss_up: 0,
+    lean_fail: 0,
+    likely_fail: 0,
+    dead: 0
+  };
+  for (const p of all) {
+    const pred = p.prediction;
+    if (pred in breakdown) breakdown[pred]++;
+  }
+  const topRisks = all.filter((p) => p.probability >= 0.5).slice(0, 5).map(formatPrediction);
+  const topOpportunities = all.filter((p) => p.probability < 0.5 && p.prediction !== "dead").slice(0, 5).map(formatPrediction);
+  const recentChanges = all.filter((p) => p.probabilityDelta !== null && Math.abs(p.probabilityDelta ?? 0) >= 0.05).sort((a, b) => Math.abs(b.probabilityDelta ?? 0) - Math.abs(a.probabilityDelta ?? 0)).slice(0, 10).map((p) => ({
+    billId: p.billId,
+    billTitle: p.billTitle,
+    previousProbability: p.previousProbability ?? 0,
+    currentProbability: p.probability,
+    delta: p.probabilityDelta ?? 0,
+    direction: (p.probabilityDelta ?? 0) > 0 ? "up" : "down"
+  }));
+  return {
+    workspaceId,
+    totalTracked: all.length,
+    breakdown,
+    topRisks,
+    topOpportunities,
+    recentChanges,
+    analyzedAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+}
+async function autoDiscoverAndPredict(workspaceId) {
+  const billAlerts = await policyIntelDb.select({ title: alerts.title }).from(alerts).where(eq22(alerts.workspaceId, workspaceId)).orderBy(desc16(alerts.createdAt)).limit(200);
+  const billPattern = /\b(H\.?B\.?|S\.?B\.?|H\.?J\.?R\.?|S\.?J\.?R\.?|H\.?C\.?R\.?|S\.?C\.?R\.?)\s*(\d+)\b/gi;
+  const discoveredBills = /* @__PURE__ */ new Set();
+  for (const alert of billAlerts) {
+    const matches = (alert.title ?? "").matchAll(billPattern);
+    for (const m of matches) {
+      discoveredBills.add(`${m[1].replace(/\./g, "")} ${m[2]}`);
+    }
+  }
+  let predicted = 0;
+  for (const billId of discoveredBills) {
+    await predictBillPassage({ workspaceId, billId });
+    predicted++;
+  }
+  return { discovered: discoveredBills.size, predicted };
+}
+function formatPrediction(p) {
+  return {
+    billId: p.billId,
+    billTitle: p.billTitle,
+    prediction: p.prediction,
+    probability: p.probability,
+    confidence: p.confidence,
+    regime: p.regime,
+    currentStage: p.currentStage,
+    nextMilestone: p.nextMilestone,
+    nextMilestoneDate: p.nextMilestoneDate?.toISOString() ?? null,
+    riskFactors: p.riskFactors ?? [],
+    supportSignals: p.supportSignals ?? [],
+    oppositionSignals: p.oppositionSignals ?? [],
+    historicalComps: p.historicalComps ?? [],
+    sponsorStrength: p.sponsorStrength ?? 0,
+    committeeAlignment: p.committeeAlignment ?? 0,
+    trend: p.probabilityDelta === null ? null : p.probabilityDelta > 0.05 ? "improving" : p.probabilityDelta < -0.05 ? "declining" : "stable",
+    lastUpdatedAt: p.lastUpdatedAt.toISOString()
+  };
+}
+var log8;
+var init_passage_predictor_service = __esm({
+  "server/policy-intel/services/passage-predictor-service.ts"() {
+    "use strict";
+    init_db();
+    init_schema_policy_intel();
+    init_logger();
+    log8 = createLogger("passage-predictor");
+  }
+});
+
+// server/policy-intel/services/client-reporting-service.ts
+var client_reporting_service_exports = {};
+__export(client_reporting_service_exports, {
+  createClientProfile: () => createClientProfile,
+  createReportTemplate: () => createReportTemplate,
+  deleteReportTemplate: () => deleteReportTemplate,
+  generateExecutiveReport: () => generateExecutiveReport,
+  getClientProfile: () => getClientProfile,
+  getReportTemplate: () => getReportTemplate,
+  listClientProfiles: () => listClientProfiles,
+  listReportTemplates: () => listReportTemplates,
+  updateClientProfile: () => updateClientProfile,
+  updateReportTemplate: () => updateReportTemplate
+});
+import { eq as eq23, and as and15, desc as desc17, gte as gte12 } from "drizzle-orm";
+async function createReportTemplate(req) {
+  if (req.isDefault) {
+    await policyIntelDb.update(reportTemplates).set({ isDefault: false }).where(
+      and15(
+        eq23(reportTemplates.workspaceId, req.workspaceId),
+        eq23(reportTemplates.type, req.type)
+      )
+    );
+  }
+  const [created] = await policyIntelDb.insert(reportTemplates).values({
+    workspaceId: req.workspaceId,
+    name: req.name,
+    type: req.type,
+    templateMarkdown: req.templateMarkdown,
+    headerHtml: req.headerHtml ?? null,
+    footerHtml: req.footerHtml ?? null,
+    brandConfig: req.brandConfig ?? {
+      primaryColor: "#1a365d",
+      accentColor: "#c53030",
+      firmName: "Grace & McEwan Consulting LLC"
+    },
+    isDefault: req.isDefault ?? false
+  }).returning();
+  return created;
+}
+async function listReportTemplates(workspaceId, type) {
+  const conditions = [eq23(reportTemplates.workspaceId, workspaceId)];
+  if (type) {
+    conditions.push(eq23(reportTemplates.type, type));
+  }
+  return policyIntelDb.select().from(reportTemplates).where(and15(...conditions)).orderBy(desc17(reportTemplates.isDefault), reportTemplates.name);
+}
+async function getReportTemplate(id) {
+  const [template] = await policyIntelDb.select().from(reportTemplates).where(eq23(reportTemplates.id, id));
+  return template ?? null;
+}
+async function updateReportTemplate(id, updates) {
+  const setData = { updatedAt: /* @__PURE__ */ new Date() };
+  if (updates.name) setData.name = updates.name;
+  if (updates.templateMarkdown) setData.templateMarkdown = updates.templateMarkdown;
+  if (updates.headerHtml !== void 0) setData.headerHtml = updates.headerHtml;
+  if (updates.footerHtml !== void 0) setData.footerHtml = updates.footerHtml;
+  if (updates.brandConfig) setData.brandConfig = updates.brandConfig;
+  const [updated] = await policyIntelDb.update(reportTemplates).set(setData).where(eq23(reportTemplates.id, id)).returning();
+  if (!updated) throw new Error(`Template ${id} not found`);
+  return updated;
+}
+async function deleteReportTemplate(id) {
+  await policyIntelDb.delete(reportTemplates).where(eq23(reportTemplates.id, id));
+}
+async function createClientProfile(data) {
+  const [created] = await policyIntelDb.insert(clientProfiles).values(data).returning();
+  return created;
+}
+async function listClientProfiles(workspaceId) {
+  return policyIntelDb.select().from(clientProfiles).where(
+    and15(
+      eq23(clientProfiles.workspaceId, workspaceId),
+      eq23(clientProfiles.isActive, true)
+    )
+  ).orderBy(clientProfiles.firmName);
+}
+async function getClientProfile(id) {
+  const [profile] = await policyIntelDb.select().from(clientProfiles).where(eq23(clientProfiles.id, id));
+  return profile ?? null;
+}
+async function updateClientProfile(id, updates) {
+  const [updated] = await policyIntelDb.update(clientProfiles).set({ ...updates, updatedAt: /* @__PURE__ */ new Date() }).where(eq23(clientProfiles.id, id)).returning();
+  if (!updated) throw new Error(`Client profile ${id} not found`);
+  return updated;
+}
+async function generateExecutiveReport(req) {
+  let profile = null;
+  if (req.clientProfileId) {
+    profile = await getClientProfile(req.clientProfileId);
+  }
+  const [template] = await policyIntelDb.select().from(reportTemplates).where(
+    and15(
+      eq23(reportTemplates.workspaceId, req.workspaceId),
+      eq23(reportTemplates.type, "weekly_digest"),
+      eq23(reportTemplates.isDefault, true)
+    )
+  ).limit(1);
+  const now = /* @__PURE__ */ new Date();
+  let periodStart;
+  let periodLabel;
+  switch (req.period) {
+    case "daily":
+      periodStart = new Date(now.getTime() - 24 * 60 * 60 * 1e3);
+      periodLabel = now.toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric"
+      });
+      break;
+    case "monthly":
+      periodStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1e3);
+      periodLabel = now.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+      break;
+    default:
+      periodStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1e3);
+      periodLabel = `Week of ${periodStart.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+  }
+  const [recentAlerts, predictions, activeRooms, recentActivities] = await Promise.all([
+    policyIntelDb.select().from(alerts).where(
+      and15(
+        eq23(alerts.workspaceId, req.workspaceId),
+        gte12(alerts.createdAt, periodStart)
+      )
+    ).orderBy(desc17(alerts.relevanceScore)).limit(50),
+    req.includePredictions !== false ? policyIntelDb.select().from(passagePredictions).where(eq23(passagePredictions.workspaceId, req.workspaceId)).orderBy(desc17(passagePredictions.probability)) : Promise.resolve([]),
+    policyIntelDb.select().from(issueRooms).where(
+      and15(
+        eq23(issueRooms.workspaceId, req.workspaceId),
+        eq23(issueRooms.status, "active")
+      )
+    ),
+    policyIntelDb.select().from(activities).where(
+      and15(
+        eq23(activities.workspaceId, req.workspaceId),
+        gte12(activities.createdAt, periodStart)
+      )
+    ).orderBy(desc17(activities.createdAt)).limit(50)
+  ]);
+  const firmName = profile?.firmName ?? template?.brandConfig?.firmName ?? "Grace & McEwan Consulting LLC";
+  const brandColor = template?.brandConfig?.primaryColor ?? "#1a365d";
+  const confidentiality = template?.brandConfig?.confidentialityNotice ?? "CONFIDENTIAL \u2014 For client use only. Do not distribute.";
+  const sections = [];
+  sections.push(`# Executive Legislative Intelligence Report`);
+  sections.push(`## ${periodLabel}
+`);
+  sections.push(`**Prepared by:** ${firmName}`);
+  sections.push(`**Date:** ${now.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}`);
+  if (profile) {
+    sections.push(`**Prepared for:** ${profile.contactName ?? profile.firmName}`);
+  }
+  sections.push(`
+*${confidentiality}*
+`);
+  sections.push(`---
+`);
+  sections.push(`## Executive Summary
+`);
+  const highPriorityAlerts = recentAlerts.filter(
+    (a) => (a.relevanceScore ?? 0) >= 70
+  );
+  const likelyPassBills = predictions.filter(
+    (p) => p.probability >= 0.6
+  );
+  const atRiskBills = predictions.filter(
+    (p) => p.probability >= 0.4 && p.probability < 0.6
+  );
+  sections.push(
+    `This ${req.period} report covers **${recentAlerts.length}** legislative developments, **${predictions.length}** bills under prediction monitoring, and **${activeRooms.length}** active issue rooms requiring attention.
+`
+  );
+  if (highPriorityAlerts.length > 0) {
+    sections.push(
+      `\u26A0\uFE0F **${highPriorityAlerts.length}** high-priority alerts require immediate attention.
+`
+    );
+  }
+  if (predictions.length > 0 && req.includePredictions !== false) {
+    sections.push(`## Bill Passage Predictions
+`);
+    sections.push(`| Bill | Probability | Prediction | Stage | Trend |`);
+    sections.push(`|------|------------|------------|-------|-------|`);
+    for (const p of predictions.slice(0, 15)) {
+      const trendIcon = (p.probabilityDelta ?? 0) > 0.05 ? "\u{1F4C8}" : (p.probabilityDelta ?? 0) < -0.05 ? "\u{1F4C9}" : "\u27A1\uFE0F";
+      sections.push(
+        `| ${p.billId} | ${(p.probability * 100).toFixed(0)}% | ${p.prediction} | ${p.currentStage ?? "-"} | ${trendIcon} ${p.probabilityDelta !== null ? `${p.probabilityDelta > 0 ? "+" : ""}${(p.probabilityDelta * 100).toFixed(0)}%` : ""} |`
+      );
+    }
+    sections.push("");
+    if (likelyPassBills.length > 0) {
+      sections.push(`### Likely to Pass (\u226560% probability)
+`);
+      for (const b of likelyPassBills.slice(0, 5)) {
+        sections.push(
+          `- **${b.billId}** (${(b.probability * 100).toFixed(0)}%) \u2014 ${b.billTitle ?? "Title pending"} \u2014 Next: ${b.nextMilestone ?? "Unknown"}`
+        );
+      }
+      sections.push("");
+    }
+    if (atRiskBills.length > 0) {
+      sections.push(`### Toss-Up Bills (40-60% probability)
+`);
+      for (const b of atRiskBills.slice(0, 5)) {
+        sections.push(
+          `- **${b.billId}** (${(b.probability * 100).toFixed(0)}%) \u2014 ${b.billTitle ?? "Title pending"} \u2014 Stage: ${b.currentStage ?? "Unknown"}`
+        );
+      }
+      sections.push("");
+    }
+  }
+  if (highPriorityAlerts.length > 0) {
+    sections.push(`## High-Priority Alerts
+`);
+    for (const a of highPriorityAlerts.slice(0, 10)) {
+      sections.push(
+        `### ${a.title} (Score: ${a.relevanceScore})
+`
+      );
+      if (a.whyItMatters) {
+        sections.push(a.whyItMatters.split("\n")[0].slice(0, 500) + "\n");
+      }
+    }
+  }
+  if (activeRooms.length > 0) {
+    sections.push(`## Active Issue Rooms
+`);
+    sections.push(`| Issue | Status | Bills | Jurisdiction |`);
+    sections.push(`|-------|--------|-------|-------------|`);
+    for (const room of activeRooms.slice(0, 10)) {
+      const bills = room.relatedBillIds ?? [];
+      sections.push(
+        `| ${room.title} | ${room.status} | ${bills.join(", ") || "\u2014"} | ${room.jurisdiction ?? "TX"} |`
+      );
+    }
+    sections.push("");
+  }
+  if (profile?.priorityTopics && profile.priorityTopics.length > 0) {
+    sections.push(`## Your Priority Topics
+`);
+    for (const topic of profile.priorityTopics) {
+      const topicAlerts = recentAlerts.filter(
+        (a) => (a.title ?? "").toLowerCase().includes(topic.toLowerCase()) || (a.whyItMatters ?? "").toLowerCase().includes(topic.toLowerCase())
+      );
+      sections.push(
+        `- **${topic}**: ${topicAlerts.length} alert(s) this ${req.period}` + (topicAlerts.length > 0 ? ` \u2014 Latest: ${topicAlerts[0].title}` : " \u2014 No new activity")
+      );
+    }
+    sections.push("");
+  }
+  sections.push(`---
+`);
+  sections.push(
+    `*Report generated by Act Up Policy Intelligence Platform \u2014 ${firmName}*
+`
+  );
+  sections.push(`*${confidentiality}*`);
+  const bodyMarkdown = sections.join("\n");
+  const title = `Executive Report \u2014 ${periodLabel}`;
+  const [stored] = await policyIntelDb.insert(deliverables).values({
+    workspaceId: req.workspaceId,
+    type: "weekly_digest",
+    title,
+    bodyMarkdown,
+    generatedBy: "client-reporting-service",
+    matterId: null
+  }).returning();
+  log9.info(`Generated executive report: ${title} (${recentAlerts.length} alerts, ${predictions.length} predictions)`);
+  return {
+    deliverableId: stored.id,
+    title,
+    bodyMarkdown,
+    clientProfile: profile,
+    template: template ?? null,
+    generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    period: req.period,
+    stats: {
+      alertsProcessed: recentAlerts.length,
+      billsTracked: predictions.length,
+      predictionsGenerated: predictions.filter(
+        (p) => p.probability > 0
+      ).length,
+      issueRoomsActive: activeRooms.length
+    }
+  };
+}
+var log9;
+var init_client_reporting_service = __esm({
+  "server/policy-intel/services/client-reporting-service.ts"() {
+    "use strict";
+    init_db();
+    init_schema_policy_intel();
+    init_logger();
+    log9 = createLogger("client-reporting");
+  }
+});
+
+// server/policy-intel/services/relationship-intelligence-service.ts
+var relationship_intelligence_service_exports = {};
+__export(relationship_intelligence_service_exports, {
+  autoDiscoverRelationships: () => autoDiscoverRelationships,
+  buildNetworkGraph: () => buildNetworkGraph,
+  createRelationship: () => createRelationship,
+  getStakeholderDossier: () => getStakeholderDossier,
+  listRelationships: () => listRelationships
+});
+import { eq as eq24, and as and16, desc as desc18, sql as sql16, inArray as inArray7 } from "drizzle-orm";
+async function createRelationship(data) {
+  const [created] = await policyIntelDb.insert(relationships).values(data).onConflictDoNothing().returning();
+  if (!created) {
+    const [existing] = await policyIntelDb.select().from(relationships).where(
+      and16(
+        eq24(relationships.fromStakeholderId, data.fromStakeholderId),
+        eq24(relationships.toStakeholderId, data.toStakeholderId),
+        eq24(relationships.relationshipType, data.relationshipType)
+      )
+    );
+    if (existing) {
+      const [updated] = await policyIntelDb.update(relationships).set({
+        strength: data.strength ?? existing.strength,
+        evidenceSummary: data.evidenceSummary ?? existing.evidenceSummary,
+        updatedAt: /* @__PURE__ */ new Date()
+      }).where(eq24(relationships.id, existing.id)).returning();
+      return updated;
+    }
+    throw new Error("Failed to create or find relationship");
+  }
+  return created;
+}
+async function listRelationships(workspaceId, stakeholderId) {
+  const conditions = [eq24(relationships.workspaceId, workspaceId)];
+  if (stakeholderId) {
+    return policyIntelDb.select().from(relationships).where(
+      and16(
+        eq24(relationships.workspaceId, workspaceId),
+        sql16`(${relationships.fromStakeholderId} = ${stakeholderId} OR ${relationships.toStakeholderId} = ${stakeholderId})`
+      )
+    ).orderBy(desc18(relationships.strength));
+  }
+  return policyIntelDb.select().from(relationships).where(and16(...conditions)).orderBy(desc18(relationships.strength));
+}
+async function buildNetworkGraph(workspaceId, options) {
+  let rels = await policyIntelDb.select().from(relationships).where(eq24(relationships.workspaceId, workspaceId));
+  if (options?.relationshipTypes?.length) {
+    rels = rels.filter(
+      (r) => options.relationshipTypes.includes(r.relationshipType)
+    );
+  }
+  if (options?.minStrength) {
+    rels = rels.filter((r) => r.strength >= options.minStrength);
+  }
+  const stakeholderIds = /* @__PURE__ */ new Set();
+  for (const r of rels) {
+    stakeholderIds.add(r.fromStakeholderId);
+    stakeholderIds.add(r.toStakeholderId);
+  }
+  if (stakeholderIds.size === 0) {
+    return {
+      nodes: [],
+      edges: [],
+      stats: {
+        totalNodes: 0,
+        totalEdges: 0,
+        avgConnections: 0,
+        mostConnected: null,
+        clusters: 0
+      }
+    };
+  }
+  const allStakeholders = await policyIntelDb.select().from(stakeholders).where(inArray7(stakeholders.id, Array.from(stakeholderIds)));
+  const stakeholderMap = new Map(allStakeholders.map((s) => [s.id, s]));
+  const connectionCounts = /* @__PURE__ */ new Map();
+  for (const r of rels) {
+    connectionCounts.set(
+      r.fromStakeholderId,
+      (connectionCounts.get(r.fromStakeholderId) ?? 0) + 1
+    );
+    connectionCounts.set(
+      r.toStakeholderId,
+      (connectionCounts.get(r.toStakeholderId) ?? 0) + 1
+    );
+  }
+  const nodes = Array.from(stakeholderIds).map((id) => {
+    const s = stakeholderMap.get(id);
+    const connCount = connectionCounts.get(id) ?? 0;
+    return {
+      id,
+      name: s?.name ?? `Stakeholder ${id}`,
+      type: s?.type ?? "unknown",
+      party: s?.party ?? void 0,
+      chamber: s?.chamber ?? void 0,
+      role: void 0,
+      influence: Math.min(connCount * 10, 100),
+      connectionCount: connCount
+    };
+  });
+  const edges = rels.map((r) => ({
+    id: r.id,
+    fromId: r.fromStakeholderId,
+    toId: r.toStakeholderId,
+    relationshipType: r.relationshipType,
+    strength: r.strength,
+    evidence: r.evidenceSummary
+  }));
+  const maxConnNode = nodes.reduce(
+    (max, n) => n.connectionCount > (max?.connectionCount ?? 0) ? n : max,
+    null
+  );
+  const visited = /* @__PURE__ */ new Set();
+  let clusters = 0;
+  const adjacency = /* @__PURE__ */ new Map();
+  for (const r of rels) {
+    if (!adjacency.has(r.fromStakeholderId))
+      adjacency.set(r.fromStakeholderId, []);
+    if (!adjacency.has(r.toStakeholderId))
+      adjacency.set(r.toStakeholderId, []);
+    adjacency.get(r.fromStakeholderId).push(r.toStakeholderId);
+    adjacency.get(r.toStakeholderId).push(r.fromStakeholderId);
+  }
+  for (const id of stakeholderIds) {
+    if (visited.has(id)) continue;
+    clusters++;
+    const queue = [id];
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (visited.has(current)) continue;
+      visited.add(current);
+      const neighbors = adjacency.get(current) ?? [];
+      for (const n of neighbors) {
+        if (!visited.has(n)) queue.push(n);
+      }
+    }
+  }
+  return {
+    nodes,
+    edges,
+    stats: {
+      totalNodes: nodes.length,
+      totalEdges: edges.length,
+      avgConnections: nodes.length > 0 ? nodes.reduce((s, n) => s + n.connectionCount, 0) / nodes.length : 0,
+      mostConnected: maxConnNode ? { name: maxConnNode.name, connections: maxConnNode.connectionCount } : null,
+      clusters
+    }
+  };
+}
+async function getStakeholderDossier(workspaceId, stakeholderId) {
+  const [s] = await policyIntelDb.select().from(stakeholders).where(eq24(stakeholders.id, stakeholderId));
+  if (!s) throw new Error(`Stakeholder ${stakeholderId} not found`);
+  const rels = await policyIntelDb.select().from(relationships).where(
+    and16(
+      eq24(relationships.workspaceId, workspaceId),
+      sql16`(${relationships.fromStakeholderId} = ${stakeholderId} OR ${relationships.toStakeholderId} = ${stakeholderId})`
+    )
+  ).orderBy(desc18(relationships.strength));
+  const relatedIds = /* @__PURE__ */ new Set();
+  for (const r of rels) {
+    relatedIds.add(
+      r.fromStakeholderId === stakeholderId ? r.toStakeholderId : r.fromStakeholderId
+    );
+  }
+  const relatedStakeholders = relatedIds.size > 0 ? await policyIntelDb.select().from(stakeholders).where(inArray7(stakeholders.id, Array.from(relatedIds))) : [];
+  const relMap = new Map(relatedStakeholders.map((rs) => [rs.id, rs]));
+  const observations = await policyIntelDb.select().from(stakeholderObservations).where(eq24(stakeholderObservations.stakeholderId, stakeholderId)).orderBy(desc18(stakeholderObservations.createdAt)).limit(20);
+  const committees = await policyIntelDb.select().from(committeeMembers).where(
+    eq24(committeeMembers.stakeholderId, stakeholderId)
+  );
+  const billAlerts = await policyIntelDb.select().from(alerts).where(
+    and16(
+      eq24(alerts.workspaceId, workspaceId),
+      sql16`${alerts.title} ILIKE ${"%" + s.name + "%"}`
+    )
+  ).limit(20);
+  const billPattern = /\b(H\.?B\.?|S\.?B\.?|H\.?J\.?R\.?|S\.?J\.?R\.?)\s*(\d+)\b/gi;
+  const billConnections = [];
+  const seenBills = /* @__PURE__ */ new Set();
+  for (const a of billAlerts) {
+    const matches = (a.title ?? "").matchAll(billPattern);
+    for (const m of matches) {
+      const bId = `${m[1].replace(/\./g, "")} ${m[2]}`;
+      if (seenBills.has(bId)) continue;
+      seenBills.add(bId);
+      billConnections.push({
+        billId: bId,
+        role: "associated",
+        alert: { title: a.title ?? "", score: a.relevanceScore ?? 0 }
+      });
+    }
+  }
+  const influenceScore = Math.min(
+    100,
+    rels.length * 5 + committees.filter((c) => c.role === "chair" || c.role === "vice_chair").length * 20 + committees.length * 3 + Math.min(observations.length, 10) * 2
+  );
+  return {
+    stakeholder: {
+      id: s.id,
+      name: s.name,
+      type: s.type,
+      party: s.party ?? void 0,
+      chamber: s.chamber ?? void 0,
+      district: s.district ?? void 0,
+      role: void 0
+    },
+    relationships: rels.map((r) => {
+      const otherId = r.fromStakeholderId === stakeholderId ? r.toStakeholderId : r.fromStakeholderId;
+      const other = relMap.get(otherId);
+      return {
+        relatedStakeholder: {
+          id: otherId,
+          name: other?.name ?? `Stakeholder ${otherId}`,
+          type: other?.type ?? "unknown"
+        },
+        type: r.relationshipType,
+        strength: r.strength,
+        evidence: r.evidenceSummary
+      };
+    }),
+    observations: observations.map((o) => ({
+      type: o.confidence,
+      summary: o.observationText,
+      date: o.createdAt.toISOString()
+    })),
+    committees: committees.map((c) => ({
+      committee: c.committeeName,
+      role: c.role ?? "member",
+      chamber: c.chamber
+    })),
+    billConnections,
+    influenceScore,
+    reachability: relatedIds.size
+  };
+}
+async function autoDiscoverRelationships(workspaceId) {
+  let created = 0;
+  const allWorkspaceStakeholders = await policyIntelDb.select({ id: stakeholders.id }).from(stakeholders).where(eq24(stakeholders.workspaceId, workspaceId));
+  const wsStakeholderIds = new Set(allWorkspaceStakeholders.map((s) => s.id));
+  const members = (await policyIntelDb.select().from(committeeMembers)).filter((m) => wsStakeholderIds.has(m.stakeholderId));
+  const committeeGroups = /* @__PURE__ */ new Map();
+  for (const m of members) {
+    if (!committeeGroups.has(m.committeeName))
+      committeeGroups.set(m.committeeName, []);
+    committeeGroups.get(m.committeeName).push(m.stakeholderId);
+  }
+  for (const [committee, memberIds] of committeeGroups) {
+    for (let i = 0; i < memberIds.length; i++) {
+      for (let j = i + 1; j < memberIds.length; j++) {
+        try {
+          await createRelationship({
+            workspaceId,
+            fromStakeholderId: memberIds[i],
+            toStakeholderId: memberIds[j],
+            relationshipType: "committee_together",
+            strength: 0.4,
+            evidenceSummary: `Both serve on ${committee}`
+          });
+          created++;
+        } catch {
+        }
+      }
+    }
+  }
+  const allAlerts = await policyIntelDb.select().from(alerts).where(eq24(alerts.workspaceId, workspaceId)).limit(500);
+  const allStakeholderNames = await policyIntelDb.select({ id: stakeholders.id, name: stakeholders.name }).from(stakeholders).where(eq24(stakeholders.workspaceId, workspaceId));
+  const coOccurrences = /* @__PURE__ */ new Map();
+  for (const alert of allAlerts) {
+    const text3 = `${alert.title ?? ""} ${alert.whyItMatters ?? ""}`.toLowerCase();
+    const mentioned = allStakeholderNames.filter(
+      (s) => text3.includes(s.name.toLowerCase())
+    );
+    for (let i = 0; i < mentioned.length; i++) {
+      for (let j = i + 1; j < mentioned.length; j++) {
+        const key = [mentioned[i].id, mentioned[j].id].sort().join("-");
+        coOccurrences.set(key, (coOccurrences.get(key) ?? 0) + 1);
+      }
+    }
+  }
+  for (const [key, count12] of coOccurrences) {
+    if (count12 < 2) continue;
+    const [fromId, toId] = key.split("-").map(Number);
+    try {
+      await createRelationship({
+        workspaceId,
+        fromStakeholderId: fromId,
+        toStakeholderId: toId,
+        relationshipType: "ally",
+        strength: Math.min(count12 * 0.15, 0.9),
+        evidenceSummary: `Co-mentioned in ${count12} legislative alerts`
+      });
+      created++;
+    } catch {
+    }
+  }
+  log10.info(`Auto-discovered relationships: ${created} created for workspace ${workspaceId}`);
+  return { discovered: coOccurrences.size + committeeGroups.size, created };
+}
+var log10;
+var init_relationship_intelligence_service = __esm({
+  "server/policy-intel/services/relationship-intelligence-service.ts"() {
+    "use strict";
+    init_db();
+    init_schema_policy_intel();
+    init_logger();
+    log10 = createLogger("relationship-intelligence");
+  }
+});
+
+// server/policy-intel/services/session-lifecycle-service.ts
+var session_lifecycle_service_exports = {};
+__export(session_lifecycle_service_exports, {
+  createClientAction: () => createClientAction,
+  createMilestone: () => createMilestone,
+  createSession: () => createSession,
+  executePhaseTransition: () => executePhaseTransition,
+  generatePhaseTransitionPlan: () => generatePhaseTransitionPlan,
+  getActiveSession: () => getActiveSession,
+  getSessionDashboard: () => getSessionDashboard,
+  initializeTexasSession: () => initializeTexasSession,
+  listClientActions: () => listClientActions,
+  listMilestones: () => listMilestones,
+  listSessions: () => listSessions,
+  updateClientAction: () => updateClientAction,
+  updateMilestoneStatus: () => updateMilestoneStatus,
+  updateSessionPhase: () => updateSessionPhase
+});
+import { eq as eq25, and as and17, desc as desc19, lte as lte3 } from "drizzle-orm";
+async function createSession(data) {
+  const [created] = await policyIntelDb.insert(legislativeSessions).values(data).returning();
+  return created;
+}
+async function getActiveSession(workspaceId) {
+  const [session] = await policyIntelDb.select().from(legislativeSessions).where(
+    and17(
+      eq25(legislativeSessions.workspaceId, workspaceId),
+      eq25(legislativeSessions.isActive, true)
+    )
+  ).orderBy(desc19(legislativeSessions.sessionNumber)).limit(1);
+  return session ?? null;
+}
+async function listSessions(workspaceId) {
+  return policyIntelDb.select().from(legislativeSessions).where(eq25(legislativeSessions.workspaceId, workspaceId)).orderBy(desc19(legislativeSessions.sessionNumber));
+}
+async function updateSessionPhase(sessionId, phase) {
+  const [updated] = await policyIntelDb.update(legislativeSessions).set({ currentPhase: phase, updatedAt: /* @__PURE__ */ new Date() }).where(eq25(legislativeSessions.id, sessionId)).returning();
+  if (!updated) throw new Error(`Session ${sessionId} not found`);
+  log11.info(`Session ${sessionId} phase updated to: ${phase}`);
+  return updated;
+}
+async function createMilestone(data) {
+  const [created] = await policyIntelDb.insert(sessionMilestones).values(data).returning();
+  return created;
+}
+async function listMilestones(sessionId, phase) {
+  const conditions = [eq25(sessionMilestones.sessionId, sessionId)];
+  if (phase) {
+    conditions.push(eq25(sessionMilestones.phase, phase));
+  }
+  return policyIntelDb.select().from(sessionMilestones).where(and17(...conditions)).orderBy(sessionMilestones.dueDate);
+}
+async function updateMilestoneStatus(milestoneId, status) {
+  const setData = {
+    status,
+    updatedAt: /* @__PURE__ */ new Date()
+  };
+  if (status === "completed") {
+    setData.completedAt = /* @__PURE__ */ new Date();
+  }
+  const [updated] = await policyIntelDb.update(sessionMilestones).set(setData).where(eq25(sessionMilestones.id, milestoneId)).returning();
+  if (!updated) throw new Error(`Milestone ${milestoneId} not found`);
+  return updated;
+}
+async function createClientAction(data) {
+  const [created] = await policyIntelDb.insert(clientActions).values(data).returning();
+  return created;
+}
+async function listClientActions(workspaceId, filters) {
+  const conditions = [eq25(clientActions.workspaceId, workspaceId)];
+  if (filters?.status) {
+    conditions.push(eq25(clientActions.status, filters.status));
+  }
+  if (filters?.matterId) {
+    conditions.push(eq25(clientActions.matterId, filters.matterId));
+  }
+  if (filters?.assignee) {
+    conditions.push(eq25(clientActions.assignee, filters.assignee));
+  }
+  if (filters?.dueBefore) {
+    conditions.push(lte3(clientActions.dueDate, filters.dueBefore));
+  }
+  return policyIntelDb.select().from(clientActions).where(and17(...conditions)).orderBy(clientActions.dueDate);
+}
+async function updateClientAction(actionId, updates) {
+  const setData = { ...updates, updatedAt: /* @__PURE__ */ new Date() };
+  if (updates.status === "completed") {
+    setData.completedAt = /* @__PURE__ */ new Date();
+  }
+  const [updated] = await policyIntelDb.update(clientActions).set(setData).where(eq25(clientActions.id, actionId)).returning();
+  if (!updated) throw new Error(`Client action ${actionId} not found`);
+  return updated;
+}
+async function getSessionDashboard(workspaceId) {
+  const session = await getActiveSession(workspaceId);
+  if (!session) return null;
+  const now = /* @__PURE__ */ new Date();
+  const [milestones, actions] = await Promise.all([
+    listMilestones(session.id),
+    listClientActions(workspaceId)
+  ]);
+  const upcomingMilestones = milestones.filter(
+    (m) => m.status === "upcoming" && new Date(m.dueDate) > now
+  );
+  const overdueMilestones = milestones.filter(
+    (m) => (m.status === "upcoming" || m.status === "in_progress") && new Date(m.dueDate) < now
+  );
+  const activeActions = actions.filter(
+    (a) => a.status === "pending" || a.status === "in_progress"
+  );
+  const daysRemaining = session.endDate ? Math.max(
+    0,
+    Math.ceil(
+      (new Date(session.endDate).getTime() - now.getTime()) / (1e3 * 60 * 60 * 24)
+    )
+  ) : null;
+  const phaseGuidance = generatePhaseGuidance(
+    session.currentPhase,
+    daysRemaining,
+    overdueMilestones.length,
+    activeActions.length
+  );
+  return {
+    session,
+    currentPhase: session.currentPhase,
+    daysRemaining,
+    milestones,
+    upcomingMilestones,
+    overdueMilestones,
+    activeActions,
+    phaseGuidance,
+    stats: {
+      totalMilestones: milestones.length,
+      completedMilestones: milestones.filter((m) => m.status === "completed").length,
+      totalActions: actions.length,
+      completedActions: actions.filter((a) => a.status === "completed").length,
+      pendingActions: activeActions.length
+    }
+  };
+}
+async function generatePhaseTransitionPlan(workspaceId, toPhase) {
+  const session = await getActiveSession(workspaceId);
+  if (!session) throw new Error("No active session");
+  const fromPhase = session.currentPhase;
+  const planTemplates = {
+    pre_filing: {
+      briefing: "**Pre-Filing Period** \u2014 Bill drafts are being prepared. This is the critical window for:\n- Identifying client priority issues and potential legislation\n- Building coalitions before bills are officially filed\n- Scheduling meetings with committee chairs and key sponsors\n- Preparing testimony and position papers\n",
+      tasks: [
+        { actionType: "client_briefing", title: "Client priority intake meeting", priority: "high" },
+        { actionType: "coalition_outreach", title: "Pre-session coalition building", priority: "high" },
+        { actionType: "legislator_meeting", title: "Key sponsor meetings", priority: "medium" },
+        { actionType: "opposition_research", title: "Opposition landscape analysis", priority: "medium" }
+      ],
+      milestones: [
+        { title: "Client priorities finalized", phase: "pre_filing" },
+        { title: "Watchlists configured", phase: "pre_filing" },
+        { title: "Key legislator meetings scheduled", phase: "pre_filing" }
+      ]
+    },
+    filing_period: {
+      briefing: "**Filing Period** \u2014 Bills are being officially filed. Critical activities:\n- Monitor every bill filing for client-relevant legislation\n- Run immediate passage probability analysis on new filings\n- Track companion bills (House/Senate versions)\n- Alert clients on high-priority new filings within 24 hours\n",
+      tasks: [
+        { actionType: "client_briefing", title: "Daily new filing briefings", priority: "critical" },
+        { actionType: "opposition_research", title: "Track adverse filings", priority: "high" },
+        { actionType: "amendment_draft", title: "Draft amendment language for priority bills", priority: "high" }
+      ],
+      milestones: [
+        { title: "All priority bills identified and tracked", phase: "filing_period" },
+        { title: "Passage predictions live for all tracked bills", phase: "filing_period" }
+      ]
+    },
+    committee_hearings: {
+      briefing: "**Committee Hearings** \u2014 Bills are being heard. Maximum engagement required:\n- Prepare testimony for every relevant hearing\n- Coordinate witnesses and stakeholders\n- Monitor committee substitutes and amendments\n- Real-time briefing from hearing outcomes\n",
+      tasks: [
+        { actionType: "testimony_prep", title: "Prepare hearing testimony", priority: "critical" },
+        { actionType: "witness_coordination", title: "Coordinate hearing witnesses", priority: "high" },
+        { actionType: "client_briefing", title: "Post-hearing client briefings", priority: "high" },
+        { actionType: "amendment_draft", title: "Monitor committee substitutes", priority: "medium" }
+      ],
+      milestones: [
+        { title: "All priority bill hearings attended", phase: "committee_hearings" },
+        { title: "Committee vote tracking active", phase: "committee_hearings" }
+      ]
+    },
+    floor_action: {
+      briefing: "**Floor Action** \u2014 Bills are being debated and voted on. Fast-paced environment:\n- Real-time floor vote monitoring\n- Track amendments offered on the floor\n- Emergency client alerts for unexpected votes\n- Prepare conference committee contingencies\n",
+      tasks: [
+        { actionType: "client_briefing", title: "Real-time floor action updates", priority: "critical" },
+        { actionType: "strategy_pivot", title: "Assess floor amendment impacts", priority: "high" },
+        { actionType: "grassroots_activation", title: "Grassroots activation if needed", priority: "medium" }
+      ],
+      milestones: [
+        { title: "Floor calendar monitoring active", phase: "floor_action" },
+        { title: "Conference committee preparations ready", phase: "floor_action" }
+      ]
+    },
+    post_session: {
+      briefing: "**Post-Session** \u2014 Session has ended. Time for assessment and preparation:\n- Generate final session reports for clients\n- Track governor action on enrolled bills\n- Begin interim charge monitoring\n- Plan advocacy strategy for next session\n",
+      tasks: [
+        { actionType: "client_briefing", title: "Final session report for clients", priority: "high" },
+        { actionType: "strategy_pivot", title: "Next session strategy planning", priority: "medium" },
+        { actionType: "opposition_research", title: "Interim charge analysis", priority: "medium" }
+      ],
+      milestones: [
+        { title: "Governor action tracking complete", phase: "post_session" },
+        { title: "Client session reports delivered", phase: "post_session" },
+        { title: "Interim charge monitoring started", phase: "post_session" }
+      ]
+    }
+  };
+  const plan = planTemplates[toPhase] ?? {
+    briefing: `Transitioning to ${toPhase} phase.`,
+    tasks: [],
+    milestones: []
+  };
+  const now = /* @__PURE__ */ new Date();
+  const twoWeeks = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1e3);
+  const generatedTasks = plan.tasks.map(
+    (t) => ({
+      workspaceId,
+      actionType: t.actionType,
+      title: t.title,
+      status: "pending",
+      priority: t.priority,
+      dueDate: twoWeeks
+    })
+  );
+  const generatedMilestones = plan.milestones.map((m) => ({
+    sessionId: session.id,
+    title: m.title,
+    phase: m.phase,
+    dueDate: twoWeeks,
+    status: "upcoming"
+  }));
+  return {
+    fromPhase,
+    toPhase,
+    generatedTasks,
+    milestones: generatedMilestones,
+    briefing: plan.briefing
+  };
+}
+async function executePhaseTransition(workspaceId, toPhase) {
+  const plan = await generatePhaseTransitionPlan(workspaceId, toPhase);
+  const session = await getActiveSession(workspaceId);
+  if (!session) throw new Error("No active session");
+  const updatedSession = await updateSessionPhase(session.id, toPhase);
+  let tasksCreated = 0;
+  for (const task of plan.generatedTasks) {
+    await createClientAction(task);
+    tasksCreated++;
+  }
+  let milestonesCreated = 0;
+  for (const milestone of plan.milestones) {
+    await createMilestone(milestone);
+    milestonesCreated++;
+  }
+  log11.info(
+    `Phase transition: ${plan.fromPhase} \u2192 ${toPhase} | ${tasksCreated} tasks, ${milestonesCreated} milestones created`
+  );
+  return { session: updatedSession, tasksCreated, milestonesCreated };
+}
+function generatePhaseGuidance(currentPhase, daysRemaining, overdueCount, pendingActions) {
+  const phaseDescriptions = {
+    interim: "The Legislature is not in session. Focus on interim charge monitoring, relationship building, and preparing client advocacy strategies for the next session.",
+    pre_filing: "Bill drafts are being prepared. This is the most strategic window \u2014 work with sponsors on bill language, build coalitions, and prepare clients.",
+    filing_period: "Bills are being officially filed. Monitor every filing for client-relevant legislation and run immediate analysis on new filings.",
+    committee_hearings: "Bills are being heard in committee. Prepare testimony, coordinate witnesses, and track committee substitutes and amendments.",
+    floor_action: "Bills are being debated on the floor. Fast-paced environment requiring real-time monitoring, emergency alerts, and strategic response.",
+    conference: "Conference committees are reconciling House and Senate versions. Track compromise language and assess impacts on client positions.",
+    enrollment: "Bills are being enrolled and sent to the Governor. Track signing and veto dynamics.",
+    post_session: "Session has ended. Generate final reports, track governor action, and begin planning for the next session.",
+    special_session: "Special session is active. Limited agenda but high intensity. Focus on the Governor's call items."
+  };
+  const phaseOrder = [
+    "interim",
+    "pre_filing",
+    "filing_period",
+    "committee_hearings",
+    "floor_action",
+    "conference",
+    "enrollment",
+    "post_session"
+  ];
+  const currentIdx = phaseOrder.indexOf(currentPhase);
+  const nextPhase = currentIdx >= 0 && currentIdx < phaseOrder.length - 1 ? phaseOrder[currentIdx + 1] : null;
+  const warnings = [];
+  if (overdueCount > 0) {
+    warnings.push(`${overdueCount} milestone(s) are overdue \u2014 immediate attention required`);
+  }
+  if (daysRemaining !== null && daysRemaining < 30) {
+    warnings.push(`Only ${daysRemaining} days remaining in session`);
+  }
+  if (pendingActions > 10) {
+    warnings.push(`${pendingActions} pending actions \u2014 consider prioritization review`);
+  }
+  const keyPriorities = [];
+  switch (currentPhase) {
+    case "interim":
+      keyPriorities.push("Monitor interim charges");
+      keyPriorities.push("Build legislator relationships");
+      keyPriorities.push("Update client priority matrices");
+      break;
+    case "pre_filing":
+      keyPriorities.push("Finalize client priorities");
+      keyPriorities.push("Configure bill watchlists");
+      keyPriorities.push("Schedule key legislator meetings");
+      break;
+    case "filing_period":
+      keyPriorities.push("Track all new filings daily");
+      keyPriorities.push("Run passage predictions on priority bills");
+      keyPriorities.push("Alert clients on adverse filings within 24 hours");
+      break;
+    case "committee_hearings":
+      keyPriorities.push("Prepare and deliver testimony");
+      keyPriorities.push("Track committee votes and substitutes");
+      keyPriorities.push("Brief clients after every key hearing");
+      break;
+    case "floor_action":
+      keyPriorities.push("Monitor floor calendar daily");
+      keyPriorities.push("Track floor amendments in real-time");
+      keyPriorities.push("Emergency alerts for unexpected developments");
+      break;
+    default:
+      keyPriorities.push("Review current phase objectives");
+  }
+  return {
+    currentPhaseDescription: phaseDescriptions[currentPhase] ?? `Phase: ${currentPhase}`,
+    nextPhase,
+    nextPhaseDate: null,
+    keyPriorities,
+    warnings
+  };
+}
+async function initializeTexasSession(workspaceId, sessionNumber = 89) {
+  const existing = await getActiveSession(workspaceId);
+  if (existing && existing.sessionNumber === sessionNumber) {
+    const milestones = await listMilestones(existing.id);
+    return { session: existing, milestones };
+  }
+  const session = await createSession({
+    workspaceId,
+    sessionNumber,
+    sessionType: "regular",
+    startDate: /* @__PURE__ */ new Date("2025-01-14"),
+    // 89R start date
+    endDate: /* @__PURE__ */ new Date("2025-06-02"),
+    // sine die
+    currentPhase: "committee_hearings",
+    // current phase as of mid-2025
+    isActive: true
+  });
+  const standardMilestones = [
+    { title: "Session Convenes", phase: "filing_period", dueDate: /* @__PURE__ */ new Date("2025-01-14") },
+    { title: "Bill Filing Deadline (60-day)", phase: "filing_period", dueDate: /* @__PURE__ */ new Date("2025-03-14") },
+    { title: "Committee Hearing Deadline", phase: "committee_hearings", dueDate: /* @__PURE__ */ new Date("2025-04-30") },
+    { title: "House Floor Deadline", phase: "floor_action", dueDate: /* @__PURE__ */ new Date("2025-05-09") },
+    { title: "Senate Floor Deadline", phase: "floor_action", dueDate: /* @__PURE__ */ new Date("2025-05-16") },
+    { title: "Conference Committee Deadline", phase: "conference", dueDate: /* @__PURE__ */ new Date("2025-05-26") },
+    { title: "Sine Die", phase: "enrollment", dueDate: /* @__PURE__ */ new Date("2025-06-02") },
+    { title: "Governor Signing Deadline", phase: "post_session", dueDate: /* @__PURE__ */ new Date("2025-06-22") }
+  ];
+  const createdMilestones = [];
+  for (const m of standardMilestones) {
+    const now = /* @__PURE__ */ new Date();
+    const status = m.dueDate && m.dueDate < now ? "completed" : "upcoming";
+    const created = await createMilestone({
+      sessionId: session.id,
+      title: m.title,
+      phase: m.phase,
+      dueDate: m.dueDate,
+      status
+    });
+    createdMilestones.push(created);
+  }
+  log11.info(
+    `Initialized Texas ${sessionNumber}R session with ${createdMilestones.length} milestones`
+  );
+  return { session, milestones: createdMilestones };
+}
+var log11;
+var init_session_lifecycle_service = __esm({
+  "server/policy-intel/services/session-lifecycle-service.ts"() {
+    "use strict";
+    init_db();
+    init_schema_policy_intel();
+    init_logger();
+    log11 = createLogger("session-lifecycle");
+  }
+});
+
 // server/policy-intel/app.ts
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 
 // server/policy-intel/routes.ts
 init_db();
 init_schema_policy_intel();
 import { Router } from "express";
-import { and as and13, count as count11, desc as desc15, eq as eq21, gt as gt2, gte as gte12, ilike as ilike6, inArray as inArray5, lt, or, sql as sql14 } from "drizzle-orm";
+import { and as and18, count as count11, desc as desc20, eq as eq26, gt as gt2, gte as gte15, ilike as ilike6, inArray as inArray8, lt, or as or2, sql as sql18 } from "drizzle-orm";
 
 // server/policy-intel/seed/grace-mcewan.ts
 init_db();
@@ -2731,9 +4457,9 @@ function matchDocumentToWatchlist(doc, watchlist) {
   if (reasons.length === 0) return null;
   return { watchlist, reasons };
 }
-function matchDocumentToAllWatchlists(doc, watchlists4) {
+function matchDocumentToAllWatchlists(doc, watchlists7) {
   const matches = [];
-  for (const wl of watchlists4) {
+  for (const wl of watchlists7) {
     if (!wl.isActive) continue;
     const match = matchDocumentToWatchlist(doc, wl);
     if (match) matches.push(match);
@@ -4036,7 +5762,33 @@ function detectRegime(text3 = "", date = /* @__PURE__ */ new Date()) {
   return detectLegislativeRegime(ctx);
 }
 
+// server/policy-intel/security.ts
+var TOKEN_LIKE_PATTERNS = [
+  /(Bearer\s+)[A-Za-z0-9._~+\/-]+/gi,
+  /(api[_-]?key\s*[:=]\s*)[^\s,;]+/gi,
+  /(token\s*[:=]\s*)[^\s,;]+/gi,
+  /(secret\s*[:=]\s*)[^\s,;]+/gi,
+  /(password\s*[:=]\s*)[^\s,;]+/gi
+];
+var URL_SECRET_PATTERN = /([?&](?:api[_-]?key|token|secret|password)=)[^&#\s]*/gi;
+function redactSecrets(input) {
+  let output = input;
+  for (const pattern of TOKEN_LIKE_PATTERNS) {
+    output = output.replace(pattern, "$1[REDACTED]");
+  }
+  output = output.replace(URL_SECRET_PATTERN, "$1[REDACTED]");
+  return output;
+}
+function safeErrorMessage(error, fallback = "Unexpected server error") {
+  const raw = error instanceof Error ? error.message : String(error ?? "");
+  const sanitized = redactSecrets(raw).replace(/\s+/g, " ").trim();
+  if (!sanitized) return fallback;
+  return sanitized.length > 400 ? `${sanitized.slice(0, 400)}...` : sanitized;
+}
+
 // server/policy-intel/notify.ts
+init_logger();
+var log2 = createLogger("notify");
 var SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL ?? "";
 async function notifySlack(title, body, opts) {
   if (!SLACK_WEBHOOK_URL) return false;
@@ -4054,12 +5806,13 @@ async function notifySlack(title, body, opts) {
       body: JSON.stringify({ attachments: [attachment] })
     });
     if (!resp.ok) {
-      console.error(`[notify] Slack webhook returned ${resp.status}: ${await resp.text()}`);
+      const body2 = await resp.text();
+      log2.error({ status: resp.status }, "Slack webhook returned error");
       return false;
     }
     return true;
   } catch (err) {
-    console.error("[notify] Slack webhook failed:", err);
+    log2.error({ err: safeErrorMessage(err, "Webhook call failed") }, "Slack webhook failed");
     return false;
   }
 }
@@ -4080,6 +5833,8 @@ async function notifyHighPriorityAlert(alert) {
 }
 
 // server/policy-intel/services/alert-service.ts
+init_logger();
+var log3 = createLogger("alert-service");
 var BASE_COOLDOWN_MS = 24 * 60 * 60 * 1e3;
 var REGIME_COOLDOWN_MULTIPLIER = {
   pre_filing: 2,
@@ -4202,7 +5957,7 @@ Scorecard: ${scorecard.summary}`,
 
 Scorecard: ${scorecard.summary}`,
         watchlistName: match.watchlist.name
-      }).catch((err) => console.error("[alert-service] Slack notification failed:", err?.message ?? err));
+      }).catch((err) => log3.error({ err: err?.message ?? err }, "Slack notification failed"));
     }
   }
   return result;
@@ -4292,6 +6047,39 @@ function resolveDetailConcurrency(requested) {
     return DEFAULT_DETAIL_CONCURRENCY;
   }
   return Math.max(1, Math.min(MAX_DETAIL_CONCURRENCY, Math.floor(raw)));
+}
+function resolveOffset(offset) {
+  if (!Number.isFinite(offset) || !offset) return 0;
+  return Math.max(0, Math.floor(offset));
+}
+function resolveOrderBy(orderBy) {
+  if (!orderBy) return "bill_id_asc";
+  return orderBy;
+}
+function compareByLastActionDate(left, right) {
+  const leftTime = Date.parse(left.last_action_date || "") || 0;
+  const rightTime = Date.parse(right.last_action_date || "") || 0;
+  return leftTime - rightTime;
+}
+function orderMasterListEntries(entries, orderBy) {
+  const resolvedOrder = resolveOrderBy(orderBy);
+  const next = [...entries];
+  switch (resolvedOrder) {
+    case "bill_id_desc":
+      next.sort((left, right) => right.bill_id - left.bill_id);
+      break;
+    case "last_action_date_asc":
+      next.sort((left, right) => compareByLastActionDate(left, right) || left.bill_id - right.bill_id);
+      break;
+    case "last_action_date_desc":
+      next.sort((left, right) => compareByLastActionDate(right, left) || left.bill_id - right.bill_id);
+      break;
+    case "bill_id_asc":
+    default:
+      next.sort((left, right) => left.bill_id - right.bill_id);
+      break;
+  }
+  return next;
 }
 async function getCurrentTexasSession(apiKey) {
   const res = await axios2.get(BASE_URL, {
@@ -4418,6 +6206,15 @@ function normalizeStatus(status) {
   }
   return `status_${status}`;
 }
+function parseLegiscanDate(value) {
+  const cleaned = value?.trim();
+  if (!cleaned) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(cleaned) && Number.isNaN(Date.parse(cleaned))) {
+    return null;
+  }
+  const parsed = new Date(cleaned);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
 function normaliseMasterListEntryToSourceDocument(entry, sessionId, sessionName) {
   const chamber = inferChamberFromBillNumber(entry.number);
   const status = normalizeStatus(entry.status);
@@ -4437,6 +6234,7 @@ function normaliseMasterListEntryToSourceDocument(entry, sessionId, sessionName)
     `status:${status.toLowerCase().replace(/\s+/g, "_")}`,
     "legiscan_masterlist"
   ];
+  const publishedAt = parseLegiscanDate(entry.last_action_date) ?? parseLegiscanDate(entry.status_date);
   return {
     sourceType: "texas_legislation",
     publisher: "LegiScan / Texas Legislature",
@@ -4444,7 +6242,7 @@ function normaliseMasterListEntryToSourceDocument(entry, sessionId, sessionName)
     externalId: `legiscan:${entry.bill_id}`,
     title: `${entry.number} \u2014 ${entry.title}`.slice(0, 500),
     summary: (entry.description || lastAction || entry.title).slice(0, 1e3) || null,
-    publishedAt: entry.last_action_date ? new Date(entry.last_action_date) : entry.status_date ? new Date(entry.status_date) : null,
+    publishedAt,
     normalizedText,
     rawPayload: {
       legiscanBillId: entry.bill_id,
@@ -4486,6 +6284,12 @@ async function fetchLegiscanMasterListBackfill(opts = {}) {
   if (opts.since) {
     candidates = candidates.filter((entry) => entry.last_action_date >= opts.since);
   }
+  candidates = orderMasterListEntries(candidates, opts.orderBy);
+  const totalCandidates = candidates.length;
+  const offset = resolveOffset(opts.offset);
+  if (offset > 0) {
+    candidates = candidates.slice(offset);
+  }
   if (opts.limit && opts.limit > 0) {
     candidates = candidates.slice(0, opts.limit);
   }
@@ -4493,6 +6297,9 @@ async function fetchLegiscanMasterListBackfill(opts = {}) {
     sessionId,
     sessionName,
     totalInMaster: masterList.length,
+    totalCandidates,
+    offset,
+    orderBy: resolveOrderBy(opts.orderBy),
     documents: candidates.map((entry) => normaliseMasterListEntryToSourceDocument(entry, sessionId, sessionName))
   };
 }
@@ -4504,6 +6311,12 @@ async function fetchLegiscanBills(opts = {}) {
   if (opts.since) {
     candidates = masterList.filter((e) => e.last_action_date >= opts.since);
   }
+  candidates = orderMasterListEntries(candidates, opts.orderBy);
+  const totalCandidates = candidates.length;
+  const offset = resolveOffset(opts.offset);
+  if (offset > 0) {
+    candidates = candidates.slice(offset);
+  }
   if (opts.limit && opts.limit > 0) {
     candidates = candidates.slice(0, opts.limit);
   }
@@ -4511,6 +6324,9 @@ async function fetchLegiscanBills(opts = {}) {
     sessionId,
     sessionName,
     totalInMaster: masterList.length,
+    totalCandidates,
+    offset,
+    orderBy: resolveOrderBy(opts.orderBy),
     fetched: 0,
     bills: [],
     documents: [],
@@ -4561,6 +6377,12 @@ async function runLegiscanJob(opts = {}) {
     sessionId: 0,
     sessionName: "",
     totalInMaster: 0,
+    totalCandidates: 0,
+    chunk: {
+      offset: Math.max(0, Math.floor(Number(opts.offset) || 0)),
+      limit: opts.limit && opts.limit > 0 ? Math.floor(opts.limit) : null,
+      orderBy: opts.orderBy ?? "bill_id_asc"
+    },
     fetched: 0,
     inserted: 0,
     skipped: 0,
@@ -4573,11 +6395,16 @@ async function runLegiscanJob(opts = {}) {
     const fetchResult = await fetchLegiscanMasterListBackfill({
       since,
       limit: opts.limit,
+      offset: opts.offset,
+      orderBy: opts.orderBy,
       sessionId: opts.sessionId
     });
     result.sessionId = fetchResult.sessionId;
     result.sessionName = fetchResult.sessionName;
     result.totalInMaster = fetchResult.totalInMaster;
+    result.totalCandidates = fetchResult.totalCandidates;
+    result.chunk.offset = fetchResult.offset;
+    result.chunk.orderBy = fetchResult.orderBy;
     result.fetched = fetchResult.documents.length;
     result.fetchErrors = [];
     documents = fetchResult.documents;
@@ -4585,12 +6412,17 @@ async function runLegiscanJob(opts = {}) {
     const fetchResult = await fetchLegiscanBills({
       since,
       limit: opts.limit,
+      offset: opts.offset,
+      orderBy: opts.orderBy,
       sessionId: opts.sessionId,
       detailConcurrency: opts.detailConcurrency
     });
     result.sessionId = fetchResult.sessionId;
     result.sessionName = fetchResult.sessionName;
     result.totalInMaster = fetchResult.totalInMaster;
+    result.totalCandidates = fetchResult.totalCandidates;
+    result.chunk.offset = fetchResult.offset;
+    result.chunk.orderBy = fetchResult.orderBy;
     result.fetched = fetchResult.documents.length;
     result.fetchErrors = fetchResult.errors;
     documents = fetchResult.documents;
@@ -4628,6 +6460,301 @@ async function runLegiscanJob(opts = {}) {
   }
   return result;
 }
+
+// server/policy-intel/routes.ts
+init_logger();
+
+// server/policy-intel/validation.ts
+import { z } from "zod";
+function validateBody(schema) {
+  return (req, res, next) => {
+    const result = schema.safeParse(req.body);
+    if (!result.success) {
+      const errors = result.error.issues.map((i) => ({
+        path: i.path.join("."),
+        message: i.message
+      }));
+      return res.status(400).json({ message: "Validation failed", errors });
+    }
+    req.body = result.data;
+    next();
+  };
+}
+var positiveInt = z.number().int().positive();
+function escapeLike(input) {
+  return input.replace(/[%_\\]/g, "\\$&");
+}
+var optionalPositiveInt = z.number().int().positive().optional();
+var optionalString = z.string().optional();
+var safeString = z.string().min(1).max(5e3);
+var optionalSafeString = z.string().max(5e3).optional().nullable();
+var createWorkspaceSchema = z.object({
+  slug: z.string().min(1).max(200),
+  name: z.string().min(1).max(500)
+});
+var createWatchlistSchema = z.object({
+  workspaceId: positiveInt,
+  name: z.string().min(1).max(500),
+  topic: optionalSafeString,
+  description: optionalSafeString,
+  rulesJson: z.record(z.unknown()).optional().default({})
+});
+var patchWatchlistSchema = z.object({
+  name: z.string().min(1).max(500).optional(),
+  topic: optionalSafeString,
+  description: optionalSafeString,
+  rulesJson: z.record(z.unknown()).optional(),
+  isActive: z.boolean().optional()
+}).refine((d) => Object.keys(d).length > 0, { message: "Provide at least one field to update" });
+var createSourceDocumentSchema = z.object({
+  sourceType: z.string().min(1).max(100),
+  publisher: z.string().min(1).max(500),
+  sourceUrl: z.string().url().max(2e3),
+  externalId: optionalSafeString,
+  title: z.string().min(1).max(1e3),
+  summary: optionalSafeString,
+  publishedAt: z.string().datetime().optional().nullable(),
+  checksum: optionalSafeString,
+  rawPayload: z.record(z.unknown()).optional().default({}),
+  normalizedText: optionalSafeString,
+  tagsJson: z.array(z.string().max(200)).optional().default([])
+});
+var createAlertSchema = z.object({
+  workspaceId: positiveInt,
+  watchlistId: positiveInt,
+  sourceDocumentId: positiveInt,
+  title: z.string().min(1).max(1e3),
+  summary: optionalSafeString,
+  severity: z.enum(["high", "medium", "low", "info"]).optional().default("info"),
+  status: z.enum(["pending_review", "ready", "sent", "suppressed"]).optional().default("pending_review"),
+  alertReason: optionalSafeString,
+  metadataJson: z.record(z.unknown()).optional()
+});
+var patchAlertSchema = z.object({
+  status: z.enum(["pending_review", "ready", "sent", "suppressed"]).optional(),
+  reviewerNote: z.string().max(5e3).optional()
+}).refine((d) => d.status !== void 0 || d.reviewerNote !== void 0, {
+  message: "Provide status and/or reviewerNote"
+});
+var bulkTriageSchema = z.object({
+  suppressBelow: z.number().min(0).max(100).optional().default(20),
+  promoteAbove: z.number().min(0).max(100).optional().default(70),
+  dryRun: z.boolean().optional().default(false),
+  approvalToken: z.string().max(200).optional().default("")
+});
+var createIssueRoomSchema = z.object({
+  workspaceId: positiveInt,
+  matterId: optionalPositiveInt.nullable(),
+  slug: z.string().max(200).optional(),
+  title: z.string().min(1).max(1e3),
+  issueType: optionalSafeString,
+  jurisdiction: z.string().max(100).optional().default("texas"),
+  status: z.string().max(50).optional().default("active"),
+  summary: optionalSafeString,
+  recommendedPath: optionalSafeString,
+  ownerUserId: optionalPositiveInt.nullable(),
+  relatedBillIds: z.array(z.string().max(100)).optional().default([]),
+  sourceDocumentIds: z.array(positiveInt).optional()
+});
+var createIssueRoomFromAlertSchema = z.object({
+  matterId: optionalPositiveInt.nullable(),
+  slug: z.string().max(200).optional(),
+  title: z.string().max(1e3).optional(),
+  issueType: optionalSafeString,
+  jurisdiction: z.string().max(100).optional().default("texas"),
+  summary: optionalSafeString,
+  recommendedPath: optionalSafeString,
+  ownerUserId: optionalPositiveInt.nullable(),
+  relatedBillIds: z.array(z.string().max(100)).optional().default([])
+});
+var patchIssueRoomSchema = z.object({
+  title: z.string().min(1).max(1e3).optional(),
+  summary: optionalSafeString,
+  status: z.string().max(50).optional(),
+  recommendedPath: optionalSafeString,
+  issueType: optionalSafeString,
+  jurisdiction: z.string().max(100).optional()
+}).refine((d) => Object.keys(d).length > 0, { message: "No fields to update" });
+var createIssueRoomUpdateSchema = z.object({
+  title: z.string().min(1).max(1e3),
+  body: safeString,
+  updateType: z.string().max(100).optional().default("analysis"),
+  sourcePackJson: z.array(z.unknown()).optional().default([])
+});
+var createStrategyOptionSchema = z.object({
+  label: z.string().min(1).max(500),
+  description: optionalSafeString,
+  prosJson: z.array(z.string().max(1e3)).optional().default([]),
+  consJson: z.array(z.string().max(1e3)).optional().default([]),
+  politicalFeasibility: z.number().min(0).max(100).optional(),
+  legalDurability: z.number().min(0).max(100).optional(),
+  implementationComplexity: z.number().min(0).max(100).optional(),
+  recommendationRank: z.number().int().min(0).optional().default(0)
+});
+var createTaskSchema = z.object({
+  title: z.string().min(1).max(1e3),
+  description: optionalSafeString,
+  status: z.enum(["todo", "in_progress", "done", "blocked"]).optional().default("todo"),
+  priority: z.enum(["low", "medium", "high", "urgent"]).optional().default("medium"),
+  assignee: optionalSafeString,
+  dueDate: z.string().datetime().optional().nullable()
+});
+var patchTaskSchema = z.object({
+  status: z.enum(["todo", "in_progress", "done", "blocked"]).optional(),
+  priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
+  assignee: z.string().max(500).optional(),
+  dueDate: z.string().datetime().optional().nullable(),
+  completedAt: z.string().datetime().optional().nullable()
+}).refine((d) => Object.keys(d).length > 0, { message: "At least one field is required" });
+var createMatterSchema = z.object({
+  workspaceId: positiveInt,
+  slug: z.string().min(1).max(200),
+  name: z.string().min(1).max(500),
+  clientName: optionalSafeString,
+  practiceArea: optionalSafeString,
+  jurisdictionScope: z.string().max(100).optional().default("texas"),
+  status: z.string().max(50).optional().default("active"),
+  ownerUserId: optionalPositiveInt.nullable(),
+  description: optionalSafeString,
+  tagsJson: z.array(z.string().max(200)).optional().default([])
+});
+var createStakeholderSchema = z.object({
+  workspaceId: positiveInt,
+  type: z.string().min(1).max(100),
+  name: z.string().min(1).max(500),
+  title: optionalSafeString,
+  organization: optionalSafeString,
+  jurisdiction: optionalSafeString,
+  tagsJson: z.array(z.string().max(200)).optional().default([]),
+  sourceSummary: optionalSafeString
+});
+var createIssueRoomStakeholderSchema = z.object({
+  type: z.string().min(1).max(100),
+  name: z.string().min(1).max(500),
+  title: optionalSafeString,
+  organization: optionalSafeString,
+  jurisdiction: optionalSafeString,
+  tagsJson: z.array(z.string().max(200)).optional().default([]),
+  sourceSummary: optionalSafeString
+});
+var createObservationSchema = z.object({
+  sourceDocumentId: optionalPositiveInt,
+  matterId: optionalPositiveInt,
+  observationText: z.string().min(1).max(5e3),
+  confidence: z.number().min(0).max(1).optional()
+});
+var createMeetingNoteSchema = z.object({
+  noteText: z.string().min(1).max(1e4),
+  meetingDate: z.string().datetime().optional().nullable(),
+  contactMethod: z.string().max(200).optional().nullable(),
+  matterId: optionalPositiveInt.nullable()
+});
+var createActivitySchema = z.object({
+  workspaceId: positiveInt,
+  alertId: optionalPositiveInt.nullable(),
+  type: z.string().min(1).max(100),
+  ownerUserId: optionalPositiveInt.nullable(),
+  summary: z.string().min(1).max(2e3),
+  detailText: optionalSafeString,
+  dueAt: z.string().datetime().optional().nullable()
+});
+var generateBriefSchema = z.object({
+  workspaceId: positiveInt,
+  watchlistId: optionalPositiveInt,
+  matterId: optionalPositiveInt,
+  sourceDocumentIds: z.array(positiveInt).min(1, "sourceDocumentIds[] must have at least one entry"),
+  title: z.string().max(1e3).optional()
+});
+var generateClientAlertSchema = z.object({
+  issueRoomId: positiveInt,
+  workspaceId: positiveInt,
+  recipientName: optionalSafeString,
+  firmName: optionalSafeString
+});
+var generateWeeklyReportSchema = z.object({
+  workspaceId: positiveInt,
+  week: z.string().regex(/^\d{4}-W\d{2}$/).optional(),
+  recipientName: optionalSafeString,
+  firmName: optionalSafeString
+});
+var generateHearingMemoSchema = z.object({
+  hearingId: positiveInt,
+  workspaceId: positiveInt,
+  recipientName: optionalSafeString,
+  firmName: optionalSafeString
+});
+var pipelineTestSchema = z.object({
+  title: z.string().min(1).max(1e3),
+  summary: z.string().max(5e3).optional().nullable(),
+  reasons: z.array(z.record(z.unknown())).optional().default([])
+});
+var runLegiscanSchema = z.object({
+  mode: z.enum(["recent", "full", "backfill"]).optional().default("recent"),
+  sinceDays: z.number().int().positive().optional(),
+  limit: z.number().int().positive().max(1e4).optional(),
+  offset: z.number().int().min(0).optional(),
+  orderBy: z.enum(["bill_id_asc", "bill_id_desc", "last_action_date_asc", "last_action_date_desc"]).optional(),
+  sessionId: z.number().int().positive().optional(),
+  detailConcurrency: z.number().int().min(1).max(20).optional()
+});
+var fetchTecSchema = z.object({
+  searchTerm: z.string().min(1).max(500)
+});
+var runTecImportSchema = z.object({
+  searchTerm: z.string().max(500).optional(),
+  workspaceId: positiveInt,
+  matterId: optionalPositiveInt,
+  mode: z.enum(["search", "sweep"]).optional().default("search")
+}).refine((d) => d.mode === "sweep" || d.searchTerm && d.searchTerm.length > 0, {
+  message: "searchTerm is required for search mode"
+});
+var createCommitteeIntelFromHearingSchema = z.object({
+  workspaceId: positiveInt,
+  hearingId: positiveInt,
+  title: z.string().max(1e3).optional(),
+  focusTopics: z.array(z.string().max(500)).optional(),
+  interimCharges: z.array(z.string().max(500)).optional(),
+  clientContext: z.string().max(5e3).optional().nullable(),
+  monitoringNotes: z.string().max(5e3).optional().nullable(),
+  videoUrl: z.string().url().max(2e3).optional(),
+  agendaUrl: z.string().url().max(2e3).optional(),
+  transcriptSourceType: z.string().max(100).optional(),
+  transcriptSourceUrl: z.string().max(2e3).optional(),
+  autoIngestEnabled: z.boolean().optional(),
+  autoIngestIntervalSeconds: z.number().int().min(10).max(3600).optional(),
+  status: z.string().max(50).optional()
+});
+var addSegmentSchema = z.object({
+  transcriptText: z.string().min(1).max(5e4),
+  capturedAt: z.string().datetime().optional(),
+  startedAtSecond: z.number().min(0).optional().nullable(),
+  endedAtSecond: z.number().min(0).optional().nullable(),
+  speakerName: z.string().max(500).optional(),
+  speakerRole: z.string().max(200).optional(),
+  affiliation: z.string().max(500).optional(),
+  invited: z.boolean().optional(),
+  metadata: z.record(z.unknown()).optional()
+});
+var focusedBriefSchema = z.object({
+  issue: z.string().min(1).max(2e3)
+});
+var createReplayRunSchema = z.object({
+  sessionId: positiveInt,
+  mode: z.enum(["recent", "full", "backfill"]).optional(),
+  chunkSize: z.number().int().min(1).max(1e3).optional(),
+  orderBy: z.string().max(100).optional(),
+  requestedBy: z.string().max(200).optional(),
+  sinceDays: z.number().int().positive().optional(),
+  detailConcurrency: z.number().int().min(1).max(20).optional(),
+  startNow: z.boolean().optional(),
+  maxChunks: z.union([z.number().int().positive(), z.literal("all")]).optional()
+});
+var importLegislatorsSchema = z.object({
+  workspaceId: positiveInt
+});
+var linkWatchlistToMatterSchema = z.object({
+  watchlistId: positiveInt
+});
 
 // server/policy-intel/services/brief-service.ts
 init_db();
@@ -5276,6 +7403,8 @@ async function runTecImportJob(opts) {
 }
 
 // server/policy-intel/scheduler.ts
+init_db();
+init_logger();
 import cron from "node-cron";
 
 // server/policy-intel/engine/intelligence/velocity-analyzer.ts
@@ -6417,9 +8546,8 @@ async function detectAnomalies() {
   }
   if (hearingBillIds.size > 0) {
     const billIdArray = Array.from(hearingBillIds.keys());
-    const conditions = billIdArray.map((id) => `(${alerts.title.name} ILIKE '%${id.replace(/'/g, "''")}%' OR ${alerts.summary.name} ILIKE '%${id.replace(/'/g, "''")}%')`);
     const coveredBills = /* @__PURE__ */ new Set();
-    if (conditions.length > 0) {
+    if (billIdArray.length > 0) {
       const alertBillSearch = await policyIntelDb.select({ title: alerts.title, summary: alerts.summary }).from(alerts).where(gte5(alerts.createdAt, d90)).limit(1e3);
       for (const a of alertBillSearch) {
         const text3 = `${a.title} ${a.summary ?? ""}`;
@@ -6484,7 +8612,283 @@ async function detectAnomalies() {
 // server/policy-intel/engine/intelligence/forecast-tracker.ts
 init_db();
 init_schema_policy_intel();
-import { gte as gte6, desc as desc8, count as count6, eq as eq14 } from "drizzle-orm";
+import { desc as desc8, count as count6, eq as eq14 } from "drizzle-orm";
+var BILL_ID_PATTERN = /\b(H\.?B\.?|S\.?B\.?|H\.?J\.?R\.?|S\.?J\.?R\.?|H\.?C\.?R\.?|S\.?C\.?R\.?)\s*(\d+)\b/i;
+var OUTCOME_SNAPSHOT_STALE_HOURS = 18;
+var outcomeTruthPersistenceReady = false;
+async function ensureOutcomeTruthPersistence() {
+  if (outcomeTruthPersistenceReady) return;
+  await queryClient.unsafe(`
+    do $$
+    begin
+      create type policy_intel_bill_outcome as enum ('active', 'passed', 'failed', 'stalled', 'amended', 'unknown');
+    exception
+      when duplicate_object then null;
+    end
+    $$;
+  `);
+  await queryClient.unsafe(`
+    create table if not exists policy_intel_bill_outcome_snapshots (
+      id serial primary key,
+      snapshot_key varchar(16) not null,
+      captured_at timestamptz not null default now(),
+      bill_id varchar(64) not null,
+      stage varchar(64) not null default 'unknown',
+      outcome policy_intel_bill_outcome not null default 'unknown',
+      status_text text,
+      source_document_id integer references policy_intel_source_documents(id) on delete set null,
+      published_at timestamptz,
+      metadata_json jsonb not null default '{}'::jsonb,
+      created_at timestamptz not null default now()
+    )
+  `);
+  await queryClient.unsafe(`
+    create unique index if not exists policy_intel_bill_outcome_snapshot_bill_idx
+    on policy_intel_bill_outcome_snapshots (snapshot_key, bill_id)
+  `);
+  await queryClient.unsafe(`
+    create index if not exists policy_intel_bill_outcome_snapshot_idx
+    on policy_intel_bill_outcome_snapshots (snapshot_key, captured_at)
+  `);
+  await queryClient.unsafe(`
+    create index if not exists policy_intel_bill_outcome_outcome_idx
+    on policy_intel_bill_outcome_snapshots (outcome)
+  `);
+  outcomeTruthPersistenceReady = true;
+}
+function utcSnapshotKey(date) {
+  return date.toISOString().slice(0, 10);
+}
+function normalizeBillId(value) {
+  if (!value) return null;
+  const normalized = value.replace(/\./g, "").toUpperCase().replace(/\s+/g, " ").trim();
+  return normalized || null;
+}
+function extractBillIdFromTitle(title) {
+  const text3 = title ?? "";
+  const match = text3.match(BILL_ID_PATTERN);
+  if (!match) return null;
+  return normalizeBillId(`${match[1]} ${match[2]}`);
+}
+function getPayloadRecord(rawPayload) {
+  if (rawPayload && typeof rawPayload === "object" && !Array.isArray(rawPayload)) {
+    return rawPayload;
+  }
+  return {};
+}
+function classifyOutcome(statusText, lastActionText) {
+  const text3 = `${statusText} ${lastActionText}`.toLowerCase();
+  if (/\b(amended|committee substitute|substitute adopted|engrossed as amended)\b/.test(text3)) {
+    return "amended";
+  }
+  if (/\b(signed|enrolled|chaptered|effective|became law|sent to governor|governor signed|passed both|adopted final)\b/.test(text3)) {
+    return "passed";
+  }
+  if (/\b(failed|defeated|killed|died|vetoed|withdrawn|stricken|lost|rejected)\b/.test(text3)) {
+    return "failed";
+  }
+  if (/\b(left pending|held in committee|stalled|tabled|postponed indefinitely)\b/.test(text3)) {
+    return "stalled";
+  }
+  if (/\b(referred|reported|considered|in committee|on floor|calendar)\b/.test(text3)) {
+    return "active";
+  }
+  return "unknown";
+}
+function classifyStage(statusText, lastActionText) {
+  const text3 = `${statusText} ${lastActionText}`.toLowerCase();
+  if (/\b(governor|signed|veto|chaptered|effective|became law)\b/.test(text3)) return "governor";
+  if (/\b(passed both|final passage|conference|concurrence)\b/.test(text3)) return "final_passage";
+  if (/\b(second reading|third reading|on floor|calendar|engrossed)\b/.test(text3)) return "floor";
+  if (/\b(referred|committee|public hearing|left pending|reported favorably)\b/.test(text3)) return "committee";
+  if (/\b(prefiled|filed|introduced|read first time)\b/.test(text3)) return "introduced";
+  return "unknown";
+}
+function resolveBillIdFromDocument(doc) {
+  const payload = getPayloadRecord(doc.rawPayload);
+  const payloadBillId = (typeof payload.billId === "string" ? payload.billId : null) ?? (typeof payload.billNumber === "string" ? payload.billNumber : null);
+  return normalizeBillId(payloadBillId) ?? extractBillIdFromTitle(doc.title);
+}
+function resolveStatusText(payload) {
+  const status = typeof payload.status === "string" ? payload.status : "";
+  const statusCode = payload.statusCode !== void 0 && payload.statusCode !== null ? String(payload.statusCode) : "";
+  return `${status} ${statusCode}`.trim();
+}
+function resolveLastActionText(payload) {
+  const raw = payload.lastAction;
+  if (typeof raw === "string") return raw;
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    const action = raw.action;
+    if (typeof action === "string") return action;
+  }
+  return "";
+}
+function outcomeToBinary(outcome) {
+  if (outcome === "passed" || outcome === "amended") return 1;
+  if (outcome === "failed" || outcome === "stalled") return 0;
+  return null;
+}
+async function latestOutcomeSnapshotMeta() {
+  await ensureOutcomeTruthPersistence();
+  const [row] = await policyIntelDb.select({
+    snapshotKey: billOutcomeSnapshots.snapshotKey,
+    capturedAt: billOutcomeSnapshots.capturedAt
+  }).from(billOutcomeSnapshots).orderBy(desc8(billOutcomeSnapshots.snapshotKey), desc8(billOutcomeSnapshots.capturedAt)).limit(1);
+  if (!row) return null;
+  return row;
+}
+async function refreshOutcomeTruthSnapshot(snapshotKey = utcSnapshotKey(/* @__PURE__ */ new Date())) {
+  await ensureOutcomeTruthPersistence();
+  const capturedAt = /* @__PURE__ */ new Date();
+  const docs = await policyIntelDb.select({
+    id: sourceDocuments.id,
+    title: sourceDocuments.title,
+    rawPayload: sourceDocuments.rawPayload,
+    publishedAt: sourceDocuments.publishedAt
+  }).from(sourceDocuments).where(eq14(sourceDocuments.sourceType, "texas_legislation")).orderBy(desc8(sourceDocuments.publishedAt), desc8(sourceDocuments.id));
+  const latestByBill = /* @__PURE__ */ new Map();
+  for (const doc of docs) {
+    const billId = resolveBillIdFromDocument(doc);
+    if (!billId || latestByBill.has(billId)) continue;
+    const payload = getPayloadRecord(doc.rawPayload);
+    const statusText = resolveStatusText(payload);
+    const lastActionText = resolveLastActionText(payload);
+    latestByBill.set(billId, {
+      billId,
+      stage: classifyStage(statusText, lastActionText),
+      outcome: classifyOutcome(statusText, lastActionText),
+      statusText: `${statusText} ${lastActionText}`.trim(),
+      sourceDocumentId: doc.id,
+      publishedAt: doc.publishedAt ? doc.publishedAt.toISOString() : null
+    });
+  }
+  await policyIntelDb.delete(billOutcomeSnapshots).where(eq14(billOutcomeSnapshots.snapshotKey, snapshotKey));
+  const rows = Array.from(latestByBill.values()).map((entry) => ({
+    snapshotKey,
+    capturedAt,
+    billId: entry.billId,
+    stage: entry.stage,
+    outcome: entry.outcome,
+    statusText: entry.statusText || null,
+    sourceDocumentId: entry.sourceDocumentId,
+    publishedAt: entry.publishedAt ? new Date(entry.publishedAt) : null,
+    metadataJson: {}
+  }));
+  const batchSize = 500;
+  for (let index2 = 0; index2 < rows.length; index2 += batchSize) {
+    const batch = rows.slice(index2, index2 + batchSize);
+    await policyIntelDb.insert(billOutcomeSnapshots).values(batch);
+  }
+  return {
+    snapshotKey,
+    capturedAt: capturedAt.toISOString(),
+    billsCaptured: rows.length
+  };
+}
+async function ensureOutcomeTruthSnapshot() {
+  const now = /* @__PURE__ */ new Date();
+  const targetKey = utcSnapshotKey(now);
+  const latest = await latestOutcomeSnapshotMeta();
+  const latestAgeMs = latest ? now.getTime() - latest.capturedAt.getTime() : Number.POSITIVE_INFINITY;
+  const shouldRefresh = !latest || latest.snapshotKey !== targetKey || latestAgeMs > OUTCOME_SNAPSHOT_STALE_HOURS * 60 * 60 * 1e3;
+  const snapshotKey = shouldRefresh ? (await refreshOutcomeTruthSnapshot(targetKey)).snapshotKey : latest.snapshotKey;
+  const rows = await policyIntelDb.select().from(billOutcomeSnapshots).where(eq14(billOutcomeSnapshots.snapshotKey, snapshotKey));
+  const outcomes = /* @__PURE__ */ new Map();
+  for (const row of rows) {
+    outcomes.set(row.billId, {
+      billId: row.billId,
+      stage: row.stage,
+      outcome: row.outcome,
+      statusText: row.statusText ?? "",
+      sourceDocumentId: row.sourceDocumentId ?? null,
+      publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null
+    });
+  }
+  return { snapshotKey, outcomes };
+}
+async function getLatestOutcomeTruthSnapshotSummary() {
+  await ensureOutcomeTruthPersistence();
+  const latest = await latestOutcomeSnapshotMeta();
+  if (!latest) {
+    return {
+      snapshotKey: null,
+      capturedAt: null,
+      totalBills: 0,
+      outcomeCounts: {}
+    };
+  }
+  const rows = await policyIntelDb.select({ outcome: billOutcomeSnapshots.outcome, cnt: count6() }).from(billOutcomeSnapshots).where(eq14(billOutcomeSnapshots.snapshotKey, latest.snapshotKey)).groupBy(billOutcomeSnapshots.outcome);
+  const outcomeCounts = {};
+  for (const row of rows) {
+    outcomeCounts[row.outcome] = Number(row.cnt ?? 0);
+  }
+  const totalBills = Object.values(outcomeCounts).reduce((acc, next) => acc + next, 0);
+  return {
+    snapshotKey: latest.snapshotKey,
+    capturedAt: latest.capturedAt.toISOString(),
+    totalBills,
+    outcomeCounts
+  };
+}
+function metricNumber(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+async function getForecastDriftSummary(limit = 24) {
+  const normalizedLimit = Math.max(2, Math.min(120, Math.floor(Number(limit) || 24)));
+  const rows = await policyIntelDb.select().from(learningMetrics).where(eq14(learningMetrics.metricType, "forecast_calibration")).orderBy(desc8(learningMetrics.capturedAt)).limit(normalizedLimit);
+  const points = rows.slice().reverse().map((row) => {
+    const values = row.valuesJson ?? {};
+    return {
+      capturedAt: row.capturedAt.toISOString(),
+      regime: row.regime,
+      accuracy: metricNumber(values.accuracy) ?? 0,
+      rankingAccuracy: metricNumber(values.rankingAccuracy) ?? 0,
+      verifiablePredictions: Math.max(0, Math.floor(metricNumber(values.verifiablePredictions) ?? 0))
+    };
+  });
+  if (points.length < 2) {
+    return {
+      metricType: "forecast_calibration",
+      points,
+      latestAccuracy: points[0]?.accuracy ?? null,
+      baselineAccuracy: points[0]?.accuracy ?? null,
+      deltaAccuracy: null,
+      latestRankingAccuracy: points[0]?.rankingAccuracy ?? null,
+      deltaRankingAccuracy: null,
+      trend: "insufficient_data",
+      driftAlert: false,
+      narrative: "Not enough calibration history yet to detect drift; at least 2 forecast calibration points are required."
+    };
+  }
+  const baseline = points[0];
+  const latest = points[points.length - 1];
+  const deltaAccuracy = latest.accuracy - baseline.accuracy;
+  const deltaRankingAccuracy = latest.rankingAccuracy - baseline.rankingAccuracy;
+  const trend = deltaAccuracy > 0.05 ? "improving" : deltaAccuracy < -0.05 ? "degrading" : "stable";
+  const recentWindow = points.slice(-Math.min(4, points.length));
+  const recentDeclines = recentWindow.slice(1).filter((point, idx) => point.accuracy < recentWindow[idx].accuracy).length;
+  const driftAlert = trend === "degrading" && (latest.accuracy < 0.55 || recentDeclines >= 2);
+  const narrative = `Calibration trend is ${trend.toUpperCase()} over ${points.length} checkpoints (accuracy delta ${(deltaAccuracy * 100).toFixed(1)}pp, ranking delta ${(deltaRankingAccuracy * 100).toFixed(1)}pp).` + (driftAlert ? " Drift alert: recent forecast quality is deteriorating and should trigger model review." : " No drift alert threshold is currently exceeded.");
+  return {
+    metricType: "forecast_calibration",
+    points,
+    latestAccuracy: latest.accuracy,
+    baselineAccuracy: baseline.accuracy,
+    deltaAccuracy,
+    latestRankingAccuracy: latest.rankingAccuracy,
+    deltaRankingAccuracy,
+    trend,
+    driftAlert,
+    narrative
+  };
+}
 var MAX_SNAPSHOTS = 200;
 async function storeSnapshot(snapshot) {
   await policyIntelDb.insert(forecastSnapshots).values({
@@ -6527,6 +8931,7 @@ function dbRowToSnapshot(row) {
 }
 async function gradePredictions() {
   const snapshots = await getAllSnapshots();
+  const { snapshotKey, outcomes } = await ensureOutcomeTruthSnapshot();
   if (snapshots.length < 2) {
     return {
       windowStart: (/* @__PURE__ */ new Date()).toISOString(),
@@ -6540,7 +8945,7 @@ async function gradePredictions() {
       },
       blindSpots: [],
       trendDirection: "insufficient_data",
-      narrative: "Insufficient forecast history \u2014 need at least 2 briefings to begin tracking accuracy. Continue running the intelligence swarm to build prediction history."
+      narrative: `Insufficient forecast history \u2014 need at least 2 briefings to begin tracking accuracy. Outcome-truth snapshot ${snapshotKey} is ready for grading once more predictions accumulate.`
     };
   }
   const olderSnapshots = snapshots.slice(0, -1);
@@ -6554,40 +8959,35 @@ async function gradePredictions() {
       uniquePredictions.set(p.billId, { ...p });
     }
   }
-  const d30 = new Date(Date.now() - 30 * 864e5);
-  const recentAlertBills = await policyIntelDb.select({
-    title: alerts.title,
-    cnt: count6()
-  }).from(alerts).where(gte6(alerts.createdAt, d30)).groupBy(alerts.title).orderBy(desc8(count6()));
-  const activeBills = /* @__PURE__ */ new Set();
-  const billIdPattern = /\b(H\.?B\.?|S\.?B\.?|H\.?J\.?R\.?|S\.?J\.?R\.?)\s*(\d+)\b/gi;
-  for (const row of recentAlertBills) {
-    let m;
-    while ((m = billIdPattern.exec(row.title)) !== null) {
-      activeBills.add(`${m[1].replace(/\./g, "").toUpperCase()} ${m[2]}`);
-    }
-  }
   let correct = 0;
   let verifiable = 0;
   const buckets = buildEmptyCalibration();
   const missedBills = [];
   for (const [billId, pred] of uniquePredictions) {
-    const isActive = activeBills.has(billId);
-    const predictedHigh = pred.predictedPassageProbability >= 0.4;
+    const normalizedBillId = normalizeBillId(billId) ?? billId;
+    const truth = outcomes.get(normalizedBillId);
+    const actual = truth ? outcomeToBinary(truth.outcome) : null;
+    if (actual === null) {
+      pred.actualOutcome = truth?.outcome ?? "unknown";
+      continue;
+    }
+    const predictedPass = pred.predictedPassageProbability >= 0.5;
+    const didPass = actual === 1;
     verifiable++;
-    if (predictedHigh && isActive || !predictedHigh && !isActive) {
+    pred.actualOutcome = truth?.outcome ?? "unknown";
+    if (predictedPass && didPass || !predictedPass && !didPass) {
       correct++;
       pred.wasAccurate = true;
     } else {
       pred.wasAccurate = false;
-      if (!predictedHigh && isActive) {
+      if (!predictedPass && didPass) {
         missedBills.push(billId);
       }
     }
     for (const bucket of buckets) {
       if (pred.predictedPassageProbability >= bucket.lower && pred.predictedPassageProbability < bucket.upper) {
         bucket.count++;
-        if (isActive) bucket.actualRate = (bucket.actualRate * (bucket.count - 1) + 1) / bucket.count;
+        if (didPass) bucket.actualRate = (bucket.actualRate * (bucket.count - 1) + 1) / bucket.count;
         else bucket.actualRate = bucket.actualRate * (bucket.count - 1) / bucket.count;
         bucket.calibrationError = Math.abs(bucket.actualRate - (bucket.lower + bucket.upper) / 2);
         break;
@@ -6598,8 +8998,8 @@ async function gradePredictions() {
   let trendDirection = "insufficient_data";
   if (snapshots.length >= 4) {
     const midpoint = Math.floor(snapshots.length / 2);
-    const olderAccuracy = computeSubsetAccuracy(snapshots.slice(0, midpoint), activeBills);
-    const newerAccuracy = computeSubsetAccuracy(snapshots.slice(midpoint, -1), activeBills);
+    const olderAccuracy = computeSubsetAccuracy(snapshots.slice(0, midpoint), outcomes);
+    const newerAccuracy = computeSubsetAccuracy(snapshots.slice(midpoint, -1), outcomes);
     if (newerAccuracy > olderAccuracy + 0.05) trendDirection = "improving";
     else if (newerAccuracy < olderAccuracy - 0.05) trendDirection = "degrading";
     else trendDirection = "stable";
@@ -6620,8 +9020,11 @@ async function gradePredictions() {
     for (let j = i + 1; j < Math.min(predsArray.length, 50); j++) {
       const pi = predsArray[i];
       const pj = predsArray[j];
-      const ai = activeBills.has(pi.billId) ? 1 : 0;
-      const aj = activeBills.has(pj.billId) ? 1 : 0;
+      const ti = outcomes.get(normalizeBillId(pi.billId) ?? pi.billId);
+      const tj = outcomes.get(normalizeBillId(pj.billId) ?? pj.billId);
+      const ai = ti ? outcomeToBinary(ti.outcome) : null;
+      const aj = tj ? outcomeToBinary(tj.outcome) : null;
+      if (ai === null || aj === null) continue;
       if (pi.predictedPassageProbability > pj.predictedPassageProbability && ai > aj || pi.predictedPassageProbability < pj.predictedPassageProbability && ai < aj) {
         concordant++;
       } else if (pi.predictedPassageProbability > pj.predictedPassageProbability && ai < aj || pi.predictedPassageProbability < pj.predictedPassageProbability && ai > aj) {
@@ -6630,7 +9033,7 @@ async function gradePredictions() {
     }
   }
   const rankingAccuracy = concordant + discordant > 0 ? concordant / (concordant + discordant) : 0.5;
-  const narrative = verifiable === 0 ? "No predictions to grade yet. Run the intelligence swarm multiple times to build a forecast history." : `Graded ${verifiable} predictions: ${(overallAccuracy * 100).toFixed(0)}% accuracy. Ranking accuracy ${(rankingAccuracy * 100).toFixed(0)}% (higher-risk bills are correctly ranked above lower-risk). ` + (trendDirection === "improving" ? "Model accuracy is improving over time. " : trendDirection === "degrading" ? "Warning: model accuracy is declining \u2014 check for data quality issues. " : trendDirection === "stable" ? "Model accuracy is stable. " : "") + (missedBills.length > 0 ? `${missedBills.length} blind spot(s) detected \u2014 bills that were under-predicted but showed high activity.` : "No major blind spots detected.");
+  const narrative = verifiable === 0 ? `No predictions are yet verifiable against outcome truth snapshot ${snapshotKey}.` : `Graded ${verifiable} predictions: ${(overallAccuracy * 100).toFixed(0)}% accuracy. Ranking accuracy ${(rankingAccuracy * 100).toFixed(0)}% (higher predicted passage aligned with actual outcomes). ` + (trendDirection === "improving" ? "Model accuracy is improving over time. " : trendDirection === "degrading" ? "Warning: model accuracy is declining \u2014 check for data quality issues. " : trendDirection === "stable" ? "Model accuracy is stable. " : "") + (missedBills.length > 0 ? `${missedBills.length} blind spot(s) detected \u2014 bills under-predicted for passage but later passed/amended.` : `No major blind spots detected in outcome snapshot ${snapshotKey}.`);
   return {
     windowStart: snapshots[0].capturedAt,
     windowEnd: snapshots[snapshots.length - 1].capturedAt,
@@ -6764,15 +9167,18 @@ function buildEmptyCalibration() {
     { range: "80-100%", lower: 0.8, upper: 1.01, count: 0, actualRate: 0, calibrationError: 0 }
   ];
 }
-function computeSubsetAccuracy(snapshots, activeBills) {
+function computeSubsetAccuracy(snapshots, outcomes) {
   let correct = 0;
   let total = 0;
   for (const snap of snapshots) {
     for (const pred of snap.predictions) {
-      const isActive = activeBills.has(pred.billId);
-      const predictedHigh = pred.predictedPassageProbability >= 0.4;
+      const truth = outcomes.get(normalizeBillId(pred.billId) ?? pred.billId);
+      const actual = truth ? outcomeToBinary(truth.outcome) : null;
+      if (actual === null) continue;
+      const predictedPass = pred.predictedPassageProbability >= 0.5;
+      const didPass = actual === 1;
       total++;
-      if (predictedHigh && isActive || !predictedHigh && !isActive) correct++;
+      if (predictedPass && didPass || !predictedPass && !didPass) correct++;
     }
   }
   return total > 0 ? correct / total : 0;
@@ -6780,7 +9186,7 @@ function computeSubsetAccuracy(snapshots, activeBills) {
 
 // server/policy-intel/engine/intelligence/historical-patterns.ts
 init_db();
-import { sql as sql9 } from "drizzle-orm";
+import { sql as sql8 } from "drizzle-orm";
 function normalizeStatus2(raw) {
   if (raw == null) return "unknown";
   const s = String(raw).toLowerCase().replace("status_", "").trim();
@@ -6834,7 +9240,7 @@ var BILL_TYPE_LABELS = {
   OTHER: "Other"
 };
 async function analyzeHistoricalPatterns() {
-  const statusQuery = await policyIntelDb.execute(sql9`
+  const statusQuery = await policyIntelDb.execute(sql8`
     SELECT
       raw_payload->>'billNumber' AS bill_number,
       raw_payload->>'sessionId' AS session_id,
@@ -6855,7 +9261,7 @@ async function analyzeHistoricalPatterns() {
     GROUP BY raw_payload->>'billNumber', raw_payload->>'sessionId',
              raw_payload->>'sessionName', raw_payload->>'chamber'
   `);
-  const committeeQuery = await policyIntelDb.execute(sql9`
+  const committeeQuery = await policyIntelDb.execute(sql8`
     SELECT DISTINCT ON (raw_payload->>'billNumber', raw_payload->>'sessionId')
       raw_payload->>'billNumber' AS bill_number,
       raw_payload->>'sessionId' AS session_id,
@@ -6907,7 +9313,7 @@ async function analyzeHistoricalPatterns() {
   const totalBills = parsed.length;
   const passedCount = parsed.filter((b) => b.status === "passed").length;
   const overallPassageRate = totalBills > 0 ? passedCount / totalBills : 0;
-  const referralQuery = await policyIntelDb.execute(sql9`
+  const referralQuery = await policyIntelDb.execute(sql8`
     SELECT
       TRIM(SUBSTRING(raw_payload->>'lastAction' FROM 'Referred to (.+)')) AS committee_name,
       raw_payload->>'status' AS status,
@@ -7146,7 +9552,7 @@ async function analyzeHistoricalPatterns() {
 // server/policy-intel/engine/intelligence/legislator-profiler.ts
 init_db();
 init_schema_policy_intel();
-import { eq as eq15, sql as sql10, gte as gte7, desc as desc9, count as count7 } from "drizzle-orm";
+import { eq as eq15, sql as sql9, gte as gte6, desc as desc9, count as count7 } from "drizzle-orm";
 async function analyzeLegislatorProfiles() {
   const d90 = new Date(Date.now() - 90 * 864e5);
   const legislators = await policyIntelDb.select().from(stakeholders).where(eq15(stakeholders.type, "legislator"));
@@ -7157,9 +9563,9 @@ async function analyzeLegislatorProfiles() {
     list.push(cm);
     stakeholderCommittees.set(cm.stakeholderId, list);
   }
-  const obsCounts = await policyIntelDb.select({ stakeholderId: stakeholderObservations.stakeholderId, cnt: count7(), latestAt: sql10`MAX(${stakeholderObservations.createdAt})` }).from(stakeholderObservations).groupBy(stakeholderObservations.stakeholderId);
+  const obsCounts = await policyIntelDb.select({ stakeholderId: stakeholderObservations.stakeholderId, cnt: count7(), latestAt: sql9`MAX(${stakeholderObservations.createdAt})` }).from(stakeholderObservations).groupBy(stakeholderObservations.stakeholderId);
   const obsMap = new Map(obsCounts.map((r) => [r.stakeholderId, { count: r.cnt, latestAt: r.latestAt }]));
-  const noteCounts = await policyIntelDb.select({ stakeholderId: meetingNotes.stakeholderId, cnt: count7(), latestAt: sql10`MAX(${meetingNotes.createdAt})` }).from(meetingNotes).groupBy(meetingNotes.stakeholderId);
+  const noteCounts = await policyIntelDb.select({ stakeholderId: meetingNotes.stakeholderId, cnt: count7(), latestAt: sql9`MAX(${meetingNotes.createdAt})` }).from(meetingNotes).groupBy(meetingNotes.stakeholderId);
   const noteMap = new Map(noteCounts.map((r) => [r.stakeholderId, { count: r.cnt, latestAt: r.latestAt }]));
   const activeWatchlists = await policyIntelDb.select({ id: watchlists.id, rulesJson: watchlists.rulesJson }).from(watchlists).where(eq15(watchlists.isActive, true));
   const watchedBillIds = /* @__PURE__ */ new Set();
@@ -7171,12 +9577,12 @@ async function analyzeLegislatorProfiles() {
       }
     }
   }
-  const recentAlerts = await policyIntelDb.select({ title: alerts.title, summary: alerts.summary, whyItMatters: alerts.whyItMatters }).from(alerts).where(gte7(alerts.createdAt, d90)).orderBy(desc9(alerts.relevanceScore)).limit(800);
+  const recentAlerts = await policyIntelDb.select({ title: alerts.title, summary: alerts.summary, whyItMatters: alerts.whyItMatters }).from(alerts).where(gte6(alerts.createdAt, d90)).orderBy(desc9(alerts.relevanceScore)).limit(800);
   const recentDocs = await policyIntelDb.select({
     title: sourceDocuments.title,
     rawPayload: sourceDocuments.rawPayload,
     normalizedText: sourceDocuments.normalizedText
-  }).from(sourceDocuments).where(gte7(sourceDocuments.fetchedAt, d90)).orderBy(desc9(sourceDocuments.fetchedAt)).limit(800);
+  }).from(sourceDocuments).where(gte6(sourceDocuments.fetchedAt, d90)).orderBy(desc9(sourceDocuments.fetchedAt)).limit(800);
   const billIdPattern = /\b(H\.?B\.?|S\.?B\.?|H\.?J\.?R\.?|S\.?J\.?R\.?|H\.?C\.?R\.?|S\.?C\.?R\.?)\s*(\d+)\b/gi;
   const billTexts = /* @__PURE__ */ new Map();
   for (const a of recentAlerts) {
@@ -7425,7 +9831,7 @@ function deriveIssueFocus(bills, billTexts) {
 // server/policy-intel/engine/intelligence/influence-map.ts
 init_db();
 init_schema_policy_intel();
-import { eq as eq16, gte as gte8, desc as desc10, count as count8, and as and8 } from "drizzle-orm";
+import { eq as eq16, gte as gte7, desc as desc10, count as count8, and as and8 } from "drizzle-orm";
 async function analyzeInfluenceMaps() {
   const d90 = new Date(Date.now() - 90 * 864e5);
   const legislators = await policyIntelDb.select().from(stakeholders).where(eq16(stakeholders.type, "legislator"));
@@ -7451,7 +9857,7 @@ async function analyzeInfluenceMaps() {
     summary: alerts.summary,
     whyItMatters: alerts.whyItMatters,
     relevanceScore: alerts.relevanceScore
-  }).from(alerts).where(and8(gte8(alerts.createdAt, d90), gte8(alerts.relevanceScore, 40))).orderBy(desc10(alerts.relevanceScore)).limit(400);
+  }).from(alerts).where(and8(gte7(alerts.createdAt, d90), gte7(alerts.relevanceScore, 40))).orderBy(desc10(alerts.relevanceScore)).limit(400);
   const billIdPattern = /\b(H\.?B\.?|S\.?B\.?|H\.?J\.?R\.?|S\.?J\.?R\.?|H\.?C\.?R\.?|S\.?C\.?R\.?)\s*(\d+)\b/gi;
   const billData = /* @__PURE__ */ new Map();
   for (const a of recentAlerts) {
@@ -7717,9 +10123,11 @@ async function analyzeInfluenceMaps() {
 // server/policy-intel/engine/intelligence/swarm-coordinator.ts
 init_power_network_analyzer();
 init_legislation_predictor();
+init_logger();
+var log6 = createLogger("intelligence");
 function withAnalyzerFallback(name, runner, fallback, onFailure) {
   return runner().catch((error) => {
-    console.error(`[intelligence] ${name} failed:`, error);
+    log6.error({ analyzer: name, err: error }, "analyzer failed");
     onFailure?.();
     return fallback();
   });
@@ -8346,15 +10754,15 @@ async function runSwarm() {
 
 // server/policy-intel/services/committee-intel-service.ts
 init_db();
-init_schema_policy_intel();
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { and as and11, asc, desc as desc13, eq as eq19, gte as gte10, ilike as ilike5, inArray as inArray3 } from "drizzle-orm";
+import { and as and11, asc, desc as desc13, eq as eq19, gte as gte9, ilike as ilike5, inArray as inArray3, or } from "drizzle-orm";
 import * as cheerio6 from "cheerio";
+init_schema_policy_intel();
 var ISSUE_CATALOG = [
   {
     tag: "critical_infrastructure",
@@ -8396,9 +10804,25 @@ var AGENCY_HINTS = ["commission", "council", "office", "department", "agency", "
 var ORGANIZATION_HINTS = ["association", "alliance", "coalition", "chamber", "company", "corp", "foundation", "group", "llc", "inc", "union"];
 var TEXAS_CAPITOL_TIME_ZONE = "America/Chicago";
 var OFFICIAL_TRANSCRIPTION_CLIP_SECONDS = 150;
+var OFFICIAL_TRANSCRIPTION_OVERLAP_SECONDS = 8;
 var OFFICIAL_TRANSCRIPTION_TIMEOUT_MS = 12e4;
 var FFMPEG_BINARY = process.env.FFMPEG_PATH?.trim() || "ffmpeg";
 var execFileAsync = promisify(execFile);
+var NON_SPEECH_TRANSCRIPT_PATTERNS = [
+  /^\[(?:music|applause|laughter|inaudible|silence|noise|crosstalk|cross talk|background noise|gavel|off mic|off-mic|unintelligible)[^\]]*\]$/i,
+  /^\((?:music|applause|laughter|inaudible|silence|noise|crosstalk|cross talk|background noise|gavel|off mic|off-mic|unintelligible)[^\)]*\)$/i,
+  /^(?:music|applause|laughter|inaudible|silence|noise|crosstalk|cross talk|background noise|gavel|off mic|off-mic|unintelligible)\.?$/i
+];
+var SPEAKER_ROLE_VALUES = [
+  "chair",
+  "member",
+  "staff",
+  "agency",
+  "invited_witness",
+  "public_witness",
+  "moderator",
+  "unknown"
+];
 function hashValue(value) {
   return createHash("sha1").update(value).digest("hex");
 }
@@ -8456,7 +10880,11 @@ function buildCapturedAtFromOffset(session, startedAtSecond, fallbackIndex) {
 }
 function normaliseSpeakerFromText(transcriptText) {
   const cleaned = transcriptText.replace(/^>>\s*/, "").trim();
-  const match = cleaned.match(/^([^:(]{2,120}?)(?:\s+\(([^)]+)\))?:\s+(.+)$/s);
+  const patterns = [
+    /^([^:(\-—]{2,120}?)(?:\s+\(([^)]+)\))?\s*[:\-—]\s+(.+)$/s,
+    /^([^:(]{2,120}?)(?:\s+\(([^)]+)\))?:\s+(.+)$/s
+  ];
+  const match = patterns.map((pattern) => cleaned.match(pattern)).find((candidate) => Boolean(candidate));
   if (!match) {
     return {
       speakerName: null,
@@ -8464,28 +10892,80 @@ function normaliseSpeakerFromText(transcriptText) {
       transcriptText: cleaned
     };
   }
-  const speakerName = match[1]?.trim() || null;
+  const rawSpeakerName = match[1]?.trim() || null;
+  const speakerName = isLikelySpeakerLabel(rawSpeakerName) ? rawSpeakerName : null;
   const affiliation = match[2]?.trim() || null;
   const nextText = match[3]?.trim() || cleaned;
+  if (!speakerName) {
+    return {
+      speakerName: null,
+      affiliation: null,
+      transcriptText: cleaned
+    };
+  }
   return {
     speakerName,
     affiliation,
     transcriptText: nextText
   };
 }
+function isLikelySpeakerLabel(value) {
+  const label = value?.trim() ?? "";
+  if (!label || label.length < 2 || label.length > 80) return false;
+  if (!/[A-Za-z]/.test(label)) return false;
+  if (/[.!?]/.test(label)) return false;
+  if (/\d{1,2}:\d{2}/.test(label)) return false;
+  if (/^(agenda|item|today|thank you|thanks|question|answer)$/i.test(label)) return false;
+  const tokenCount = label.split(/\s+/).length;
+  return tokenCount <= 8;
+}
+function decodeBasicHtmlEntities(value) {
+  return value.replace(/&amp;/gi, "&").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">").replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'").replace(/&nbsp;/gi, " ");
+}
+function cleanTranscriptText(value) {
+  const cleaned = decodeBasicHtmlEntities(
+    value.replace(/<\d{2}:\d{2}:\d{2}\.\d{3}>/g, " ").replace(/<\/?c(?:\.[^>]+)?>/gi, " ").replace(/<\/?(?:i|b|u|v|ruby|rt|lang)[^>]*>/gi, " ").replace(/<[^>]+>/g, " ")
+  ).replace(/\s+/g, " ").trim();
+  if (!cleaned) return null;
+  const normalized = cleaned.replace(/[.!?]+$/g, "").trim();
+  if (!normalized) return null;
+  if (NON_SPEECH_TRANSCRIPT_PATTERNS.some((pattern) => pattern.test(cleaned) || pattern.test(normalized))) {
+    return null;
+  }
+  return cleaned;
+}
+function normalizeSpeakerRole(value) {
+  if (typeof value !== "string") return void 0;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return void 0;
+  if (SPEAKER_ROLE_VALUES.includes(normalized)) {
+    return normalized;
+  }
+  if (/chair/.test(normalized)) return "chair";
+  if (/(member|senator|representative|legislator|committee member)/.test(normalized)) return "member";
+  if (/staff/.test(normalized)) return "staff";
+  if (/(agency|commission|department|director|commissioner)/.test(normalized)) return "agency";
+  if (/invited/.test(normalized)) return "invited_witness";
+  if (/(public witness|public testimony|public)/.test(normalized)) return "public_witness";
+  if (/(moderator|host|facilitator)/.test(normalized)) return "moderator";
+  if (/witness/.test(normalized)) return "public_witness";
+  return void 0;
+}
 function buildTranscriptExternalKey(parts) {
   return hashValue(parts.map((part) => String(part ?? "")).join("|"));
 }
 function buildFeedEntry(session, index2, value) {
-  const trimmedText = value.transcriptText.replace(/\s+/g, " ").trim();
-  if (!trimmedText) return null;
+  const cleanedInputText = cleanTranscriptText(value.transcriptText);
+  if (!cleanedInputText) return null;
   const metadata = getMetadataRecord(value.metadata);
   const sourceType = typeof metadata.sourceType === "string" ? metadata.sourceType : null;
   const sourceId = typeof metadata.sourceId === "string" || typeof metadata.sourceId === "number" ? metadata.sourceId : null;
-  const normalizedSpeaker = normaliseSpeakerFromText(trimmedText);
+  const normalizedSpeaker = normaliseSpeakerFromText(cleanedInputText);
   const speakerName = value.speakerName?.trim() || normalizedSpeaker.speakerName;
   const affiliation = value.affiliation?.trim() || normalizedSpeaker.affiliation;
-  const transcriptText = speakerName || affiliation ? normalizedSpeaker.transcriptText : trimmedText;
+  const candidateText = speakerName || affiliation ? normalizedSpeaker.transcriptText : cleanedInputText;
+  const transcriptText = cleanTranscriptText(candidateText);
+  if (!transcriptText) return null;
   const startedAtSecond = value.startedAtSecond ?? null;
   const endedAtSecond = value.endedAtSecond ?? null;
   const capturedAt = value.capturedAt ?? buildCapturedAtFromOffset(session, startedAtSecond, index2);
@@ -8585,7 +11065,7 @@ function parseJsonFeed(content, session) {
       startedAtSecond: typeof startedAtSecond === "number" ? startedAtSecond : parseTimestampToSeconds(String(startedAtSecond ?? "")),
       endedAtSecond: typeof endedAtSecond === "number" ? endedAtSecond : parseTimestampToSeconds(String(endedAtSecond ?? "")),
       speakerName: typeof item.speaker === "string" ? item.speaker : typeof item.name === "string" ? item.name : null,
-      speakerRole: typeof item.role === "string" ? item.role : void 0,
+      speakerRole: normalizeSpeakerRole(item.role),
       affiliation: typeof item.affiliation === "string" ? item.affiliation : typeof item.organization === "string" ? item.organization : null,
       transcriptText,
       invited: Boolean(item.invited),
@@ -8655,7 +11135,7 @@ function dayDifferenceFromDateKeys(left, right) {
   return Math.round(Math.abs(leftDate.getTime() - rightDate.getTime()) / 864e5);
 }
 function normalizeCommitteeName(value) {
-  return normalizeText(value).replace(/\b(committee|subcommittee|joint|hearing|select|special|part|room|house|senate|on)\b/g, " ").replace(/\b(i|ii|iii|iv|v)\b/g, " ").replace(/\s+/g, " ").trim();
+  return normalizeText(value).replace(/\b(committee|subcommittee|joint|hearing|select|special|part|room|house|senate|on|and)\b/g, " ").replace(/\b(i|ii|iii|iv|v)\b/g, " ").replace(/\s+/g, " ").trim();
 }
 function tokenizeCommitteeName(value) {
   return normalizeCommitteeName(value).split(" ").map((token) => token.trim()).filter((token) => token.length >= 2);
@@ -8837,9 +11317,11 @@ async function decodeSenatePlayerStreamUrl(officialPageUrl) {
   const atobLiteralMatch = html.match(/src\s*:\s*atob\(\s*['"]([^'"]+)['"]\s*\)/i);
   if (atobLiteralMatch) {
     try {
-      return Buffer.from(atobLiteralMatch[1], "base64").toString("utf8");
+      const decoded = Buffer.from(atobLiteralMatch[1], "base64").toString("utf8").trim();
+      if (isHlsUrl(decoded) || /^https?:\/\//i.test(decoded)) {
+        return decoded;
+      }
     } catch {
-      return null;
     }
   }
   const atobVariableMatch = html.match(/src\s*:\s*atob\(\s*([A-Za-z_$][\w$]*)\s*\)/i);
@@ -8848,9 +11330,11 @@ async function decodeSenatePlayerStreamUrl(officialPageUrl) {
     const variableMatch = html.match(new RegExp(`(?:const|let|var)\\s+${escapeRegExp(variableName)}\\s*=\\s*['"]([^'"]+)['"]`, "i"));
     if (variableMatch) {
       try {
-        return Buffer.from(variableMatch[1], "base64").toString("utf8");
+        const decoded = Buffer.from(variableMatch[1], "base64").toString("utf8").trim();
+        if (isHlsUrl(decoded) || /^https?:\/\//i.test(decoded)) {
+          return decoded;
+        }
       } catch {
-        return null;
       }
     }
   }
@@ -9032,6 +11516,19 @@ function isRetryableOfficialSourceError(session, message) {
   }
   return false;
 }
+function classifyOfficialSourceWaitReason(message) {
+  if (/No official .* committee source is available .* yet/i.test(message)) {
+    return "source_not_published";
+  }
+  if (/Official source resolution succeeded .* but no transcript or video stream is available yet/i.test(message)) {
+    return "media_not_live";
+  }
+  const statusMatch = message.match(/Transcript feed request failed with status (\d{3})/i);
+  if (statusMatch) {
+    return `feed_http_${statusMatch[1]}`;
+  }
+  return "official_source_pending";
+}
 function parseCursorSecond(value) {
   const cleaned = value?.trim();
   if (!cleaned) return 0;
@@ -9132,7 +11629,8 @@ async function buildOfficialTranscriptEntries(session, officialSource) {
   if (!officialSource.videoStreamUrl) {
     throw new Error(`Official source for ${session.committee} does not expose a playable video stream`);
   }
-  const clipStartSecond = parseCursorSecond(session.lastAutoIngestCursor);
+  const priorCursorSecond = parseCursorSecond(session.lastAutoIngestCursor);
+  const clipStartSecond = Math.max(0, priorCursorSecond - OFFICIAL_TRANSCRIPTION_OVERLAP_SECONDS);
   const extractedAudio = await extractAudioClipFromStream(
     officialSource.videoStreamUrl,
     clipStartSecond,
@@ -9172,7 +11670,9 @@ async function buildOfficialTranscriptEntries(session, officialSource) {
       return fallback ? [fallback] : [];
     })();
     const lastEntry = entries.at(-1) ?? null;
-    const cursor = lastEntry ? String(lastEntry.endedAtSecond ?? lastEntry.startedAtSecond ?? clipStartSecond) : null;
+    const lastEntryCursorSecond = lastEntry ? lastEntry.endedAtSecond ?? lastEntry.startedAtSecond ?? clipStartSecond : clipStartSecond;
+    const minimumProgressSecond = clipStartSecond + Math.max(30, OFFICIAL_TRANSCRIPTION_CLIP_SECONDS - OFFICIAL_TRANSCRIPTION_OVERLAP_SECONDS);
+    const cursor = String(Math.max(lastEntryCursorSecond, minimumProgressSecond, priorCursorSecond));
     return { entries, cursor };
   } finally {
     await extractedAudio.cleanup();
@@ -9253,6 +11753,29 @@ function toDate(value) {
   if (!value) return null;
   const date = value instanceof Date ? value : new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+function getNextAutoIngestWindow(session) {
+  if (!session.autoIngestEnabled) {
+    return {
+      nextEligibleAutoIngestAt: null,
+      nextEligibleAutoIngestInSeconds: null
+    };
+  }
+  const now = Date.now();
+  const intervalMs = Math.max(session.autoIngestIntervalSeconds, 30) * 1e3;
+  const lastIngestedAt = toDate(session.lastAutoIngestedAt);
+  if (!lastIngestedAt) {
+    return {
+      nextEligibleAutoIngestAt: new Date(now).toISOString(),
+      nextEligibleAutoIngestInSeconds: 0
+    };
+  }
+  const nextEligibleMs = lastIngestedAt.getTime() + intervalMs;
+  const remainingMs = Math.max(0, nextEligibleMs - now);
+  return {
+    nextEligibleAutoIngestAt: new Date(nextEligibleMs).toISOString(),
+    nextEligibleAutoIngestInSeconds: Math.ceil(remainingMs / 1e3)
+  };
 }
 function formatTimestampLabel(seconds, capturedAt) {
   if (seconds !== null && seconds !== void 0) {
@@ -9404,6 +11927,7 @@ function buildEmptyAnalysis(session, totalSegments = 0, totalSignals = 0) {
     totalSignals,
     trackedEntities: 0,
     invitedWitnessCount: 0,
+    rollCall: [],
     issueCoverage: [],
     keyMoments: [],
     electedFocus: [],
@@ -9425,6 +11949,7 @@ function parseStoredAnalysis(session, segments, signals) {
     totalSignals: typeof raw.totalSignals === "number" ? raw.totalSignals : signals.length,
     trackedEntities: typeof raw.trackedEntities === "number" ? raw.trackedEntities : 0,
     invitedWitnessCount: typeof raw.invitedWitnessCount === "number" ? raw.invitedWitnessCount : 0,
+    rollCall: Array.isArray(raw.rollCall) ? raw.rollCall : [],
     issueCoverage: Array.isArray(raw.issueCoverage) ? raw.issueCoverage : [],
     keyMoments: Array.isArray(raw.keyMoments) ? raw.keyMoments : [],
     electedFocus: Array.isArray(raw.electedFocus) ? raw.electedFocus : [],
@@ -9598,7 +12123,11 @@ async function loadStakeholderContext(session) {
       party: stakeholders.party,
       chamber: stakeholders.chamber
     }).from(committeeMembers).innerJoin(stakeholders, eq19(stakeholders.id, committeeMembers.stakeholderId)).where(and11(
-      ilike5(committeeMembers.committeeName, session.committee),
+      or(
+        ilike5(committeeMembers.committeeName, session.committee),
+        ilike5(committeeMembers.committeeName, session.committee.replace(/&/g, "and")),
+        ilike5(committeeMembers.committeeName, session.committee.replace(/\band\b/g, "&"))
+      ),
       eq19(committeeMembers.chamber, session.chamber)
     ))
   ]);
@@ -9614,19 +12143,82 @@ async function loadStakeholderContext(session) {
     committeeMemberMap
   };
 }
-function deriveSegment(segment, session) {
+function findMemberByLastName(lastName, committeeMemberMap) {
+  const normalizedLastName = normalizeText(lastName);
+  if (!normalizedLastName) return null;
+  for (const [, entry] of committeeMemberMap) {
+    const memberLastName = normalizeText(entry.name.split(" ").pop() ?? "");
+    if (memberLastName === normalizedLastName) return entry;
+  }
+  for (const [, entry] of committeeMemberMap) {
+    const memberLastName = normalizeText(entry.name.split(" ").pop() ?? "");
+    if (memberLastName.length >= 4 && normalizedLastName.length >= 4 && (memberLastName.startsWith(normalizedLastName.slice(0, 4)) || normalizedLastName.startsWith(memberLastName.slice(0, 4)))) {
+      return entry;
+    }
+  }
+  return null;
+}
+function extractSpeakerFromTranscriptContext(segment, committeeMemberMap) {
+  if (segment.speakerName?.trim()) {
+    return { speakerName: null, speakerRole: null };
+  }
+  const text3 = segment.transcriptText;
+  const rollCallMatch = text3.match(
+    /^(?:Senator|Sen\.?|Dean|Dr\.?|Mr\.?|Mrs\.?|Ms\.?)\s+([\w'-]+)\??\s*(?:Present|Here)\b/i
+  );
+  if (rollCallMatch) {
+    const lastName = rollCallMatch[1];
+    const matched = findMemberByLastName(lastName, committeeMemberMap);
+    return {
+      speakerName: matched?.name ?? `Senator ${lastName}`,
+      speakerRole: "member"
+    };
+  }
+  if (/committee.*will come to order/i.test(text3) || /^there being \d+ present,?\s*a quorum is established/i.test(text3)) {
+    const chair = [...committeeMemberMap.values()].find((m) => m.role === "chair");
+    return {
+      speakerName: chair?.name ?? null,
+      speakerRole: "chair"
+    };
+  }
+  if (/thank you,?\s*(?:mr\.?\s*)?chairman/i.test(text3)) {
+    return { speakerName: null, speakerRole: "member" };
+  }
+  if (/^(?:Senator|Sen\.?)\s+[\w'-]+\s+and\s+(?:Senator|Sen\.?)\s+[\w'-]+/i.test(text3)) {
+    const chair = [...committeeMemberMap.values()].find((m) => m.role === "chair");
+    return { speakerName: chair?.name ?? null, speakerRole: "chair" };
+  }
+  if (/^(?:before we begin|i'm going to ask|i will ask|let me recognize)/i.test(text3)) {
+    const chair = [...committeeMemberMap.values()].find((m) => m.role === "chair");
+    return { speakerName: chair?.name ?? null, speakerRole: "chair" };
+  }
+  if (/^(?:welcome,?\s*sir|thank you,?\s*senator)/i.test(text3)) {
+    const chair = [...committeeMemberMap.values()].find((m) => m.role === "chair");
+    return { speakerName: chair?.name ?? null, speakerRole: "chair" };
+  }
+  if (/^(?:the chair (?:opens|recognizes)|with that,?\s*we'll begin|the plan is to hear|let the record reflect|so this is the|today we (?:will|are)|the committee has (?:dedicated|been)|members,?\s*(?:i wanted|welcome|we)|are there any remarks)/i.test(text3)) {
+    const chair = [...committeeMemberMap.values()].find((m) => m.role === "chair");
+    return { speakerName: chair?.name ?? null, speakerRole: "chair" };
+  }
+  return { speakerName: null, speakerRole: null };
+}
+function deriveSegment(segment, session, committeeMemberMap) {
   const issueLabels = buildIssueLabelMap(session);
-  const speakerRole = determineSpeakerRole(segment.speakerRole, segment.speakerName, segment.affiliation, segment.transcriptText);
+  const extracted = committeeMemberMap ? extractSpeakerFromTranscriptContext(segment, committeeMemberMap) : { speakerName: null, speakerRole: null };
+  const speakerName = segment.speakerName?.trim() || extracted.speakerName || null;
+  const effectiveSegment = speakerName !== segment.speakerName ? { ...segment, speakerName } : segment;
+  const speakerRole = extracted.speakerRole ?? determineSpeakerRole(effectiveSegment.speakerRole, speakerName, effectiveSegment.affiliation, effectiveSegment.transcriptText);
   const issueTagsJson = detectIssueTags(segment.transcriptText, session.focusTopicsJson);
   const position = determinePosition(segment.transcriptText, speakerRole);
   const invited = detectInvitedWitness(segment.transcriptText, speakerRole, segment.invited);
   const importance = scoreImportance(segment.transcriptText, speakerRole, issueTagsJson, position, invited);
-  const summary = summarizeSegment(segment.speakerName, segment.affiliation, issueTagsJson, position, issueLabels);
+  const summary = summarizeSegment(speakerName, segment.affiliation, issueTagsJson, position, issueLabels);
   const metadataJson = {
     ...segment.metadataJson ?? {},
     wordCount: normalizeText(segment.transcriptText).split(" ").filter(Boolean).length
   };
   return {
+    speakerName,
     speakerRole,
     summary,
     issueTagsJson,
@@ -9796,6 +12388,30 @@ async function mergeDuplicateFeedSegments(session) {
     await policyIntelDb.delete(committeeIntelSegments).where(inArray3(committeeIntelSegments.id, duplicateIds));
   }
 }
+function buildRollCall(segments, committeeMemberMap) {
+  const rollCallPattern = /^(?:Senator|Sen\.?|Dean|Dr\.?|Mr\.?|Mrs\.?|Ms\.?)\s+([\w'-]+)\??\s*(Present|Here)\b/i;
+  const entries = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const segment of segments) {
+    const match = segment.transcriptText.match(rollCallPattern);
+    if (!match) continue;
+    const lastName = match[1];
+    const response = match[2];
+    const normalizedLast = normalizeText(lastName);
+    if (seen.has(normalizedLast)) continue;
+    seen.add(normalizedLast);
+    const member = findMemberByLastName(lastName, committeeMemberMap);
+    entries.push({
+      name: member?.name ?? `Senator ${lastName}`,
+      response: response.charAt(0).toUpperCase() + response.slice(1).toLowerCase(),
+      matched: member !== null,
+      stakeholderId: member?.stakeholderId ?? null,
+      party: member?.party ?? null,
+      role: member?.role ?? null
+    });
+  }
+  return entries;
+}
 function buildAnalysis(session, segments, signals, committeeMemberMap) {
   if (segments.length === 0) {
     return buildEmptyAnalysis(session, 0, 0);
@@ -9916,6 +12532,7 @@ function buildAnalysis(session, segments, signals, committeeMemberMap) {
     mentionCount: position.mentionCount,
     invited: entry.invited
   }))).sort((left, right) => right.mentionCount - left.mentionCount).slice(0, 40);
+  const rollCall = buildRollCall(segments, committeeMemberMap);
   return {
     analyzedAt: (/* @__PURE__ */ new Date()).toISOString(),
     summary: buildAnalysisSummary(session, issueCoverage, electedFocus, activeWitnesses, segments.length),
@@ -9923,6 +12540,7 @@ function buildAnalysis(session, segments, signals, committeeMemberMap) {
     totalSignals: signals.length,
     trackedEntities: entitySummaries.length,
     invitedWitnessCount: activeWitnesses.filter((entry) => entry.invited).length,
+    rollCall,
     issueCoverage,
     keyMoments,
     electedFocus,
@@ -9939,7 +12557,7 @@ async function listCommitteeIntelSessions(filters) {
   if (filters?.status) conditions.push(eq19(committeeIntelSessions.status, filters.status));
   if (filters?.from) {
     const fromDate = toDate(filters.from);
-    if (fromDate) conditions.push(gte10(committeeIntelSessions.hearingDate, fromDate));
+    if (fromDate) conditions.push(gte9(committeeIntelSessions.hearingDate, fromDate));
   }
   return policyIntelDb.select().from(committeeIntelSessions).where(conditions.length > 0 ? and11(...conditions) : void 0).orderBy(asc(committeeIntelSessions.hearingDate), asc(committeeIntelSessions.id));
 }
@@ -10120,9 +12738,14 @@ async function addCommitteeIntelSegment(sessionId, request) {
       updatedAt: /* @__PURE__ */ new Date()
     }).where(eq19(committeeIntelSessions.id, sessionId));
   }
+  if (core.hearing && core.hearing.status === "scheduled") {
+    await policyIntelDb.update(hearingEvents).set({ status: "in_progress", updatedAt: /* @__PURE__ */ new Date() }).where(eq19(hearingEvents.id, core.hearing.id));
+  }
   return refreshCommitteeIntelSession(sessionId);
 }
 async function syncCommitteeIntelTranscriptFeed(sessionId) {
+  const attemptStartedAt = /* @__PURE__ */ new Date();
+  const attemptedAt = attemptStartedAt.toISOString();
   const core = await loadSessionCore(sessionId);
   if (!core) {
     throw new Error(`Committee intelligence session ${sessionId} not found`);
@@ -10183,6 +12806,13 @@ async function syncCommitteeIntelTranscriptFeed(sessionId) {
       updatedAt: /* @__PURE__ */ new Date()
     }).where(eq19(committeeIntelSessions.id, sessionId));
     const detail = await refreshCommitteeIntelSession(sessionId);
+    if (core.hearing && core.hearing.status === "scheduled" && (upsertResult.ingestedSegments > 0 || upsertResult.updatedSegments > 0)) {
+      await policyIntelDb.update(hearingEvents).set({ status: "in_progress", updatedAt: /* @__PURE__ */ new Date() }).where(eq19(hearingEvents.id, core.hearing.id));
+    }
+    const completedAtDate = /* @__PURE__ */ new Date();
+    const completedAt = completedAtDate.toISOString();
+    const durationMs = completedAtDate.getTime() - attemptStartedAt.getTime();
+    const nextWindow = getNextAutoIngestWindow(detail.session);
     return {
       detail,
       sync: {
@@ -10198,11 +12828,19 @@ async function syncCommitteeIntelTranscriptFeed(sessionId) {
         updatedSegments: upsertResult.updatedSegments,
         duplicateSegments: upsertResult.duplicateSegments,
         cursor,
-        status: detail.session.autoIngestStatus
+        status: detail.session.autoIngestStatus,
+        outcome: "synced",
+        retryable: false,
+        waitReason: null,
+        attemptedAt,
+        completedAt,
+        durationMs,
+        nextEligibleAutoIngestAt: nextWindow.nextEligibleAutoIngestAt,
+        nextEligibleAutoIngestInSeconds: nextWindow.nextEligibleAutoIngestInSeconds
       }
     };
   } catch (error) {
-    const message = error?.message ?? String(error);
+    const message = safeErrorMessage(error, "Transcript synchronization failed");
     if (isRetryableOfficialSourceError(core.session, message)) {
       const fallbackSourceUrl = resolveTranscriptSourceUrl(core.session);
       const nextAutoIngestStatus = resolveAutoIngestStatus(
@@ -10218,6 +12856,10 @@ async function syncCommitteeIntelTranscriptFeed(sessionId) {
         updatedAt: /* @__PURE__ */ new Date()
       }).where(eq19(committeeIntelSessions.id, sessionId));
       const detail = await refreshCommitteeIntelSession(sessionId);
+      const completedAtDate = /* @__PURE__ */ new Date();
+      const completedAt = completedAtDate.toISOString();
+      const durationMs = completedAtDate.getTime() - attemptStartedAt.getTime();
+      const nextWindow = getNextAutoIngestWindow(detail.session);
       return {
         detail,
         sync: {
@@ -10234,6 +12876,14 @@ async function syncCommitteeIntelTranscriptFeed(sessionId) {
           duplicateSegments: 0,
           cursor: core.session.lastAutoIngestCursor ?? null,
           status: detail.session.autoIngestStatus,
+          outcome: "waiting_source",
+          retryable: true,
+          waitReason: classifyOfficialSourceWaitReason(message),
+          attemptedAt,
+          completedAt,
+          durationMs,
+          nextEligibleAutoIngestAt: nextWindow.nextEligibleAutoIngestAt,
+          nextEligibleAutoIngestInSeconds: nextWindow.nextEligibleAutoIngestInSeconds,
           error: message
         }
       };
@@ -10247,11 +12897,16 @@ async function syncCommitteeIntelTranscriptFeed(sessionId) {
   }
 }
 async function syncCommitteeIntelAutoIngestSessions() {
+  const startedAtDate = /* @__PURE__ */ new Date();
   const rows = await policyIntelDb.select().from(committeeIntelSessions).where(eq19(committeeIntelSessions.autoIngestEnabled, true)).orderBy(asc(committeeIntelSessions.hearingDate), asc(committeeIntelSessions.id));
   let sessionsSynced = 0;
   let sessionsWaiting = 0;
+  let sessionsErrored = 0;
+  let sessionsWithChanges = 0;
   let ingestedSegments = 0;
+  let updatedSegments = 0;
   let sessionsSkipped = 0;
+  const waitReasonCounts = {};
   const errors = [];
   for (const session of rows) {
     if (session.status === "completed") {
@@ -10266,22 +12921,37 @@ async function syncCommitteeIntelAutoIngestSessions() {
     }
     try {
       const result = await syncCommitteeIntelTranscriptFeed(session.id);
-      if (result.sync.error) {
+      if (result.sync.outcome === "waiting_source") {
         sessionsWaiting += 1;
+        const waitReason = result.sync.waitReason ?? "unknown";
+        waitReasonCounts[waitReason] = (waitReasonCounts[waitReason] ?? 0) + 1;
         continue;
       }
       sessionsSynced += 1;
       ingestedSegments += result.sync.ingestedSegments;
+      updatedSegments += result.sync.updatedSegments;
+      if (result.sync.ingestedSegments > 0 || result.sync.updatedSegments > 0) {
+        sessionsWithChanges += 1;
+      }
     } catch (error) {
-      errors.push(`session ${session.id}: ${error?.message ?? String(error)}`);
+      sessionsErrored += 1;
+      errors.push(`session ${session.id}: ${safeErrorMessage(error, "sync failed")}`);
     }
   }
+  const completedAtDate = /* @__PURE__ */ new Date();
   return {
+    startedAt: startedAtDate.toISOString(),
+    completedAt: completedAtDate.toISOString(),
+    durationMs: completedAtDate.getTime() - startedAtDate.getTime(),
     sessionsChecked: rows.length,
     sessionsSynced,
     sessionsWaiting,
+    sessionsErrored,
+    sessionsWithChanges,
     sessionsSkipped,
     ingestedSegments,
+    updatedSegments,
+    waitReasonCounts,
     errors: errors.length,
     errorMessages: errors.slice(0, 10)
   };
@@ -10310,8 +12980,9 @@ async function refreshCommitteeIntelSession(sessionId) {
   const { committeeMemberMap, stakeholderByName, stakeholderByOrganization } = await loadStakeholderContext(core.session);
   const rawSegments = await loadSessionSegments(sessionId);
   const updatedSegments = await Promise.all(rawSegments.map(async (segment) => {
-    const derived = deriveSegment(segment, core.session);
+    const derived = deriveSegment(segment, core.session, committeeMemberMap);
     const [updated] = await policyIntelDb.update(committeeIntelSegments).set({
+      speakerName: derived.speakerName,
       speakerRole: derived.speakerRole,
       summary: derived.summary,
       issueTagsJson: derived.issueTagsJson,
@@ -10358,6 +13029,9 @@ async function refreshCommitteeIntelSession(sessionId) {
     lastAnalyzedAt: /* @__PURE__ */ new Date(),
     updatedAt: /* @__PURE__ */ new Date()
   }).where(eq19(committeeIntelSessions.id, sessionId)).returning();
+  if (core.hearing && core.hearing.status === "scheduled" && updatedSegments.length > 0) {
+    await policyIntelDb.update(hearingEvents).set({ status: "in_progress", updatedAt: /* @__PURE__ */ new Date() }).where(eq19(hearingEvents.id, core.hearing.id));
+  }
   return {
     session: updatedSession,
     hearing: core.hearing,
@@ -10408,11 +13082,16 @@ async function generateCommitteeIntelFocusedBrief(sessionId, issue) {
 }
 
 // server/policy-intel/scheduler.ts
+var log7 = createLogger("scheduler");
 var jobs = /* @__PURE__ */ new Map();
 var runningFlags = /* @__PURE__ */ new Map();
+var runningSince = /* @__PURE__ */ new Map();
 var lastRuns = /* @__PURE__ */ new Map();
+var jobTelemetry = /* @__PURE__ */ new Map();
 var history = [];
+var persistedHistory = [];
 var MAX_HISTORY = 50;
+var MAX_PERSISTED_HISTORY = 500;
 var DEFAULT_JOB_TIMEOUT_MS = Number(process.env.SCHEDULER_JOB_TIMEOUT_MS || 20 * 60 * 1e3);
 var DEFAULT_INTEL_BRIEFING_TIMEOUT_MS = Number(
   process.env.SCHEDULER_INTEL_BRIEFING_TIMEOUT_MS || 15 * 60 * 1e3
@@ -10422,10 +13101,163 @@ var DEFAULT_COMMITTEE_INTEL_SYNC_TIMEOUT_MS = Number(
 );
 var schedulerEnabled = false;
 var schedulerStartedAt = null;
+var persistenceInitialized = false;
+var persistenceEnabled = false;
 function pushHistory(record) {
   history.unshift(record);
   if (history.length > MAX_HISTORY) history.length = MAX_HISTORY;
   lastRuns.set(record.jobName, record);
+  const telemetry = jobTelemetry.get(record.jobName) ?? {
+    totalRuns: 0,
+    successRuns: 0,
+    errorRuns: 0,
+    skippedWhileRunning: 0,
+    consecutiveFailures: 0,
+    lastSuccessAt: null,
+    lastErrorAt: null
+  };
+  telemetry.totalRuns += 1;
+  if (record.status === "success") {
+    telemetry.successRuns += 1;
+    telemetry.consecutiveFailures = 0;
+    telemetry.lastSuccessAt = record.finishedAt;
+  } else {
+    telemetry.errorRuns += 1;
+    telemetry.consecutiveFailures += 1;
+    telemetry.lastErrorAt = record.finishedAt;
+  }
+  jobTelemetry.set(record.jobName, telemetry);
+}
+function mapPersistedRow(row) {
+  const toIso = (value) => {
+    if (value instanceof Date) return value.toISOString();
+    const text3 = String(value ?? "");
+    const parsed = new Date(text3);
+    return Number.isNaN(parsed.getTime()) ? text3 : parsed.toISOString();
+  };
+  const summaryRaw = row.summary_json;
+  const summary = summaryRaw && typeof summaryRaw === "object" && !Array.isArray(summaryRaw) ? summaryRaw : {};
+  return {
+    jobName: String(row.job_name ?? "unknown"),
+    startedAt: toIso(row.started_at),
+    finishedAt: toIso(row.finished_at),
+    durationMs: Number(row.duration_ms ?? 0),
+    status: row.status === "error" ? "error" : "success",
+    summary,
+    error: row.error ? String(row.error) : void 0
+  };
+}
+function mergeHistoryRecords() {
+  const deduped = /* @__PURE__ */ new Map();
+  for (const record of [...history, ...persistedHistory]) {
+    const key = `${record.jobName}|${record.startedAt}|${record.finishedAt}`;
+    if (!deduped.has(key)) {
+      deduped.set(key, record);
+    }
+  }
+  return Array.from(deduped.values()).sort((left, right) => {
+    const rightTs = Date.parse(right.finishedAt) || 0;
+    const leftTs = Date.parse(left.finishedAt) || 0;
+    return rightTs - leftTs;
+  }).slice(0, MAX_PERSISTED_HISTORY);
+}
+async function initializeHistoryPersistence() {
+  if (persistenceInitialized) return;
+  persistenceInitialized = true;
+  try {
+    await queryClient.unsafe(`
+      create table if not exists policy_intel_scheduler_runs (
+        id serial primary key,
+        job_name varchar(128) not null,
+        started_at timestamptz not null,
+        finished_at timestamptz not null,
+        duration_ms integer not null,
+        status varchar(16) not null,
+        summary_json jsonb not null default '{}'::jsonb,
+        error text,
+        created_at timestamptz not null default now()
+      )
+    `);
+    await queryClient.unsafe(`
+      create index if not exists policy_intel_scheduler_runs_finished_idx
+      on policy_intel_scheduler_runs (finished_at desc)
+    `);
+    await queryClient.unsafe(`
+      create index if not exists policy_intel_scheduler_runs_job_finished_idx
+      on policy_intel_scheduler_runs (job_name, finished_at desc)
+    `);
+    const rows = await queryClient.unsafe(
+      `
+      select
+        job_name,
+        started_at,
+        finished_at,
+        duration_ms,
+        status,
+        summary_json,
+        error
+      from policy_intel_scheduler_runs
+      order by finished_at desc
+      limit $1
+      `,
+      [MAX_PERSISTED_HISTORY]
+    );
+    persistedHistory.length = 0;
+    persistedHistory.push(...rows.map((row) => mapPersistedRow(row)));
+    persistenceEnabled = true;
+  } catch (error) {
+    persistenceEnabled = false;
+    log7.warn({ err: error?.message ?? String(error) }, "persistent history disabled");
+  }
+}
+async function persistHistoryRecord(record) {
+  if (!persistenceEnabled) return;
+  try {
+    await queryClient.unsafe(
+      `
+      insert into policy_intel_scheduler_runs (
+        job_name,
+        started_at,
+        finished_at,
+        duration_ms,
+        status,
+        summary_json,
+        error
+      )
+      values ($1, $2, $3, $4, $5, $6::jsonb, $7)
+      `,
+      [
+        record.jobName,
+        record.startedAt,
+        record.finishedAt,
+        record.durationMs,
+        record.status,
+        JSON.stringify(record.summary ?? {}),
+        record.error ?? null
+      ]
+    );
+    persistedHistory.unshift(record);
+    if (persistedHistory.length > MAX_PERSISTED_HISTORY) {
+      persistedHistory.length = MAX_PERSISTED_HISTORY;
+    }
+  } catch (error) {
+    log7.warn({ err: error?.message ?? String(error) }, "failed to persist run history");
+  }
+}
+function getOrCreateTelemetry(jobName) {
+  const existing = jobTelemetry.get(jobName);
+  if (existing) return existing;
+  const created = {
+    totalRuns: 0,
+    successRuns: 0,
+    errorRuns: 0,
+    skippedWhileRunning: 0,
+    consecutiveFailures: 0,
+    lastSuccessAt: null,
+    lastErrorAt: null
+  };
+  jobTelemetry.set(jobName, created);
+  return created;
 }
 function getNextRun(cronExpr) {
   try {
@@ -10454,15 +13286,21 @@ async function withTimeout(jobName, timeoutMs, runner) {
   }
 }
 async function executeJob(jobName, runner, timeoutMs = DEFAULT_JOB_TIMEOUT_MS) {
+  if (!persistenceInitialized) {
+    await initializeHistoryPersistence();
+  }
   if (runningFlags.get(jobName)) {
-    console.log(`[scheduler] ${jobName} already running \u2013 skipping`);
+    const telemetry = getOrCreateTelemetry(jobName);
+    telemetry.skippedWhileRunning += 1;
+    log7.info({ job: jobName }, "already running, skipping");
     return;
   }
   runningFlags.set(jobName, true);
   const start2 = Date.now();
   const startedAt = (/* @__PURE__ */ new Date()).toISOString();
+  runningSince.set(jobName, startedAt);
   try {
-    console.log(`[scheduler] \u25B6 starting ${jobName}`);
+    log7.info({ job: jobName }, "starting");
     const result = await withTimeout(jobName, timeoutMs, runner);
     const record = {
       jobName,
@@ -10473,7 +13311,8 @@ async function executeJob(jobName, runner, timeoutMs = DEFAULT_JOB_TIMEOUT_MS) {
       summary: result
     };
     pushHistory(record);
-    console.log(`[scheduler] \u2713 ${jobName} completed in ${record.durationMs}ms`);
+    await persistHistoryRecord(record);
+    log7.info({ job: jobName, durationMs: record.durationMs }, "completed");
   } catch (err) {
     const record = {
       jobName,
@@ -10485,9 +13324,11 @@ async function executeJob(jobName, runner, timeoutMs = DEFAULT_JOB_TIMEOUT_MS) {
       error: err?.message ?? String(err)
     };
     pushHistory(record);
-    console.error(`[scheduler] \u2717 ${jobName} failed: ${record.error}`);
+    await persistHistoryRecord(record);
+    log7.error({ job: jobName, err: record.error }, "failed");
   } finally {
     runningFlags.set(jobName, false);
+    runningSince.set(jobName, null);
   }
 }
 async function legiscanRecent() {
@@ -10555,12 +13396,13 @@ async function committeeIntelSync() {
 function startScheduler() {
   const enabled = process.env.SCHEDULER_ENABLED !== "false";
   if (!enabled) {
-    console.log("[scheduler] disabled via SCHEDULER_ENABLED=false");
+    log7.info("scheduler disabled via SCHEDULER_ENABLED=false");
     schedulerEnabled = false;
     return;
   }
   schedulerEnabled = true;
   schedulerStartedAt = (/* @__PURE__ */ new Date()).toISOString();
+  void initializeHistoryPersistence();
   const legiscanCron = process.env.CRON_LEGISCAN ?? "0 */4 * * *";
   const tloCron = process.env.CRON_TLO_RSS ?? "0 1,7,13,19 * * *";
   const localCron = process.env.CRON_LOCAL_FEEDS ?? "0 2,8,14,20 * * *";
@@ -10617,11 +13459,11 @@ function startScheduler() {
   ];
   for (const def of jobDefs) {
     if (def.enabled === false) {
-      console.log(`[scheduler] skipped ${def.name} \u2192 disabled`);
+      log7.info({ job: def.name }, "skipped, disabled");
       continue;
     }
     if (!cron.validate(def.cron)) {
-      console.error(`[scheduler] invalid cron expression for ${def.name}: ${def.cron}`);
+      log7.error({ job: def.name, cron: def.cron }, "invalid cron expression");
       continue;
     }
     const task = cron.schedule(def.cron, () => {
@@ -10634,24 +13476,44 @@ function startScheduler() {
       task
     });
     runningFlags.set(def.name, false);
-    console.log(`[scheduler] registered ${def.name} \u2192 ${def.cron}`);
+    runningSince.set(def.name, null);
+    getOrCreateTelemetry(def.name);
+    log7.info({ job: def.name, cron: def.cron }, "registered");
   }
-  console.log(`[scheduler] started with ${jobs.size} jobs`);
+  log7.info({ jobCount: jobs.size }, "started");
 }
 function stopScheduler() {
   jobs.forEach((job) => {
     job.task?.stop();
     job.enabled = false;
   });
+  runningSince.forEach((_value, key) => {
+    runningSince.set(key, null);
+  });
   schedulerEnabled = false;
-  console.log("[scheduler] stopped all jobs");
+  log7.info("stopped all jobs");
 }
 function getSchedulerStatus() {
   const jobStatuses = Array.from(jobs.values()).map((j) => ({
+    ...(() => {
+      const telemetry = getOrCreateTelemetry(j.name);
+      return {
+        runCounts: {
+          total: telemetry.totalRuns,
+          success: telemetry.successRuns,
+          error: telemetry.errorRuns,
+          skippedWhileRunning: telemetry.skippedWhileRunning
+        },
+        consecutiveFailures: telemetry.consecutiveFailures,
+        lastSuccessAt: telemetry.lastSuccessAt,
+        lastErrorAt: telemetry.lastErrorAt
+      };
+    })(),
     name: j.name,
     cronExpression: j.cronExpression,
     enabled: j.enabled,
     running: runningFlags.get(j.name) ?? false,
+    runningSince: runningSince.get(j.name) ?? null,
     lastRun: lastRuns.get(j.name) ?? null,
     nextRun: getNextRun(j.cronExpression)
   }));
@@ -10659,7 +13521,7 @@ function getSchedulerStatus() {
     enabled: schedulerEnabled,
     startedAt: schedulerStartedAt,
     jobs: jobStatuses,
-    recentHistory: history.slice(0, 20)
+    recentHistory: mergeHistoryRecords().slice(0, 20)
   };
 }
 async function triggerJob(jobName) {
@@ -10677,13 +13539,97 @@ async function triggerJob(jobName) {
   return lastRuns.get(jobName) ?? null;
 }
 function getJobHistory() {
-  return [...history];
+  return mergeHistoryRecords();
+}
+
+// server/policy-intel/env-status.ts
+var ENVIRONMENT_VARIABLES = [
+  {
+    key: "DATABASE_URL",
+    required: true,
+    description: "Postgres connection string for Policy Intel"
+  },
+  {
+    key: "POLICY_INTEL_API_TOKEN",
+    required: false,
+    description: "Bearer token for API protection"
+  },
+  {
+    key: "CORS_ORIGINS",
+    required: false,
+    description: "Comma-separated allowed CORS origins"
+  },
+  {
+    key: "LEGISCAN_API_KEY",
+    required: false,
+    description: "LegiScan ingestion and legislator import"
+  },
+  {
+    key: "OPENSTATES_API_KEY",
+    required: false,
+    description: "OpenStates committee membership import"
+  },
+  {
+    key: "OPENAI_API_KEY",
+    required: false,
+    description: "Official audio transcription fallback"
+  },
+  {
+    key: "ANTHROPIC_API_KEY",
+    required: false,
+    description: "Enhanced brief generation"
+  },
+  {
+    key: "SLACK_WEBHOOK_URL",
+    required: false,
+    description: "Slack alert notifications"
+  },
+  {
+    key: "SCHEDULER_ENABLED",
+    required: false,
+    description: "Enable/disable scheduled jobs (default: true)"
+  },
+  {
+    key: "NODE_ENV",
+    required: false,
+    description: "Runtime environment (development/production)"
+  },
+  {
+    key: "LOG_LEVEL",
+    required: false,
+    description: "Pino log level (debug/info/warn/error)"
+  }
+];
+function getEnvironmentStatusReport() {
+  const isProduction = process.env.NODE_ENV === "production";
+  const variables = ENVIRONMENT_VARIABLES.map((entry) => {
+    const raw = process.env[entry.key];
+    const configured2 = typeof raw === "string" && raw.trim().length > 0;
+    const required = entry.required || isProduction && entry.key === "POLICY_INTEL_API_TOKEN";
+    return {
+      key: entry.key,
+      configured: configured2,
+      required,
+      description: entry.description
+    };
+  });
+  const configured = variables.filter((item) => item.configured).length;
+  const missingRequired = variables.filter((item) => item.required && !item.configured).length;
+  return {
+    checkedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    counts: {
+      total: variables.length,
+      configured,
+      missingRequired
+    },
+    variables
+  };
 }
 
 // server/policy-intel/services/deliverable-service.ts
 init_db();
 init_schema_policy_intel();
-import { eq as eq20, and as and12, gte as gte11, lte, inArray as inArray4, desc as desc14 } from "drizzle-orm";
+import { eq as eq20, and as and12, gte as gte10, lte, inArray as inArray4, desc as desc14 } from "drizzle-orm";
 async function generateClientAlert(req) {
   const [room] = await policyIntelDb.select().from(issueRooms).where(eq20(issueRooms.id, req.issueRoomId));
   if (!room) throw new Error(`Issue room ${req.issueRoomId} not found`);
@@ -10882,7 +13828,7 @@ async function generateWeeklyReport(req) {
   const weekAlerts = await policyIntelDb.select().from(alerts).where(
     and12(
       eq20(alerts.workspaceId, req.workspaceId),
-      gte11(alerts.createdAt, weekStart),
+      gte10(alerts.createdAt, weekStart),
       lte(alerts.createdAt, weekEnd)
     )
   ).orderBy(desc14(alerts.relevanceScore));
@@ -10897,7 +13843,7 @@ async function generateWeeklyReport(req) {
   const weekActivities = await policyIntelDb.select().from(activities).where(
     and12(
       eq20(activities.workspaceId, req.workspaceId),
-      gte11(activities.createdAt, weekStart),
+      gte10(activities.createdAt, weekStart),
       lte(activities.createdAt, weekEnd)
     )
   ).orderBy(desc14(activities.createdAt));
@@ -11017,7 +13963,7 @@ async function generateWeeklyReport(req) {
   const upcomingHearings = await policyIntelDb.select().from(hearingEvents).where(
     and12(
       eq20(hearingEvents.workspaceId, req.workspaceId),
-      gte11(hearingEvents.hearingDate, nextWeekStart),
+      gte10(hearingEvents.hearingDate, nextWeekStart),
       lte(hearingEvents.hearingDate, nextWeekEnd)
     )
   ).orderBy(hearingEvents.hearingDate);
@@ -11247,7 +14193,346 @@ async function generateHearingMemo(req) {
   };
 }
 
+// server/policy-intel/services/replay-orchestrator-service.ts
+init_db();
+init_schema_policy_intel();
+import { and as and13, desc as desc15, eq as eq21 } from "drizzle-orm";
+var DEFAULT_CHUNK_SIZE = 250;
+var MAX_CHUNK_SIZE = 2e3;
+var DEFAULT_ADVANCE_CHUNKS = 1;
+var MAX_ADVANCE_CHUNKS = 200;
+var REPLAY_ADVISORY_LOCK_NAMESPACE = 87121;
+var replayPersistenceReady = false;
+var VALID_ORDER_BY = /* @__PURE__ */ new Set([
+  "bill_id_asc",
+  "bill_id_desc",
+  "last_action_date_asc",
+  "last_action_date_desc"
+]);
+function normalizeMode(mode) {
+  if (mode === "recent" || mode === "backfill" || mode === "full") {
+    return mode;
+  }
+  return "full";
+}
+function normalizeOrderBy(orderBy) {
+  if (!orderBy) return "bill_id_asc";
+  return VALID_ORDER_BY.has(orderBy) ? orderBy : "bill_id_asc";
+}
+function normalizeChunkSize(chunkSize) {
+  if (!Number.isFinite(chunkSize)) return DEFAULT_CHUNK_SIZE;
+  return Math.max(1, Math.min(MAX_CHUNK_SIZE, Math.floor(chunkSize)));
+}
+function normalizeMaxChunks(value) {
+  if (!Number.isFinite(value)) return DEFAULT_ADVANCE_CHUNKS;
+  return Math.max(1, Math.min(MAX_ADVANCE_CHUNKS, Math.floor(value)));
+}
+function asRecord(value) {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value;
+  }
+  return {};
+}
+async function ensureReplayPersistence() {
+  if (replayPersistenceReady) return;
+  await queryClient.unsafe(`
+    do $$
+    begin
+      create type policy_intel_replay_run_status as enum ('planned', 'running', 'paused', 'completed', 'failed');
+    exception
+      when duplicate_object then null;
+    end
+    $$;
+  `);
+  await queryClient.unsafe(`
+    do $$
+    begin
+      create type policy_intel_replay_chunk_status as enum ('pending', 'running', 'success', 'error', 'skipped');
+    exception
+      when duplicate_object then null;
+    end
+    $$;
+  `);
+  await queryClient.unsafe(`
+    create table if not exists policy_intel_replay_runs (
+      id serial primary key,
+      source varchar(64) not null default 'legiscan',
+      session_id integer not null,
+      mode varchar(16) not null default 'full',
+      order_by varchar(32) not null default 'bill_id_asc',
+      chunk_size integer not null default 250,
+      next_offset integer not null default 0,
+      total_candidates integer,
+      processed_candidates integer not null default 0,
+      status policy_intel_replay_run_status not null default 'planned',
+      requested_by varchar(255),
+      options_json jsonb not null default '{}'::jsonb,
+      last_error text,
+      started_at timestamptz,
+      completed_at timestamptz,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )
+  `);
+  await queryClient.unsafe(`
+    create table if not exists policy_intel_replay_chunks (
+      id serial primary key,
+      replay_run_id integer not null references policy_intel_replay_runs(id) on delete cascade,
+      chunk_index integer not null,
+      "offset" integer not null,
+      "limit" integer not null,
+      status policy_intel_replay_chunk_status not null default 'pending',
+      started_at timestamptz,
+      finished_at timestamptz,
+      fetched integer not null default 0,
+      inserted integer not null default 0,
+      skipped integer not null default 0,
+      alerts_created integer not null default 0,
+      fetch_errors integer not null default 0,
+      upsert_errors integer not null default 0,
+      error text,
+      result_json jsonb not null default '{}'::jsonb,
+      created_at timestamptz not null default now()
+    )
+  `);
+  await queryClient.unsafe(`
+    create unique index if not exists policy_intel_replay_chunks_run_chunk_idx
+    on policy_intel_replay_chunks (replay_run_id, chunk_index)
+  `);
+  await queryClient.unsafe(`
+    create index if not exists policy_intel_replay_chunks_run_created_idx
+    on policy_intel_replay_chunks (replay_run_id, created_at)
+  `);
+  await queryClient.unsafe(`
+    create index if not exists policy_intel_replay_runs_status_created_idx
+    on policy_intel_replay_runs (status, created_at)
+  `);
+  await queryClient.unsafe(`
+    create index if not exists policy_intel_replay_runs_source_session_idx
+    on policy_intel_replay_runs (source, session_id)
+  `);
+  replayPersistenceReady = true;
+}
+function calculateProgress(run, chunks) {
+  const successfulChunks = chunks.filter((chunk) => chunk.status === "success" || chunk.status === "skipped").length;
+  const errorChunks = chunks.filter((chunk) => chunk.status === "error").length;
+  const lastChunkCompletedAt = chunks.find((chunk) => chunk.finishedAt instanceof Date)?.finishedAt?.toISOString() ?? null;
+  const total = run.totalCandidates;
+  const elapsedMs = run.startedAt ? Date.now() - run.startedAt.getTime() : 0;
+  const elapsedMinutes = elapsedMs > 0 ? elapsedMs / 6e4 : 0;
+  const processedPerMinute = elapsedMinutes > 0 && run.processedCandidates > 0 ? run.processedCandidates / elapsedMinutes : null;
+  if (!total || total <= 0) {
+    return {
+      completionRatio: 0,
+      remainingCandidates: null,
+      hasMore: run.status !== "completed",
+      processedPerMinute,
+      etaMinutes: null,
+      successfulChunks,
+      errorChunks,
+      lastChunkCompletedAt
+    };
+  }
+  const processed = Math.max(0, Math.min(run.processedCandidates, total));
+  const remaining = Math.max(0, total - processed);
+  const etaMinutes = processedPerMinute && processedPerMinute > 0 ? remaining / processedPerMinute : null;
+  return {
+    completionRatio: total > 0 ? processed / total : 0,
+    remainingCandidates: remaining,
+    hasMore: remaining > 0 && run.status !== "completed",
+    processedPerMinute,
+    etaMinutes,
+    successfulChunks,
+    errorChunks,
+    lastChunkCompletedAt
+  };
+}
+async function tryAcquireRunAdvanceLock(runId) {
+  const rows = await queryClient.unsafe(
+    "select pg_try_advisory_lock($1, $2) as locked",
+    [REPLAY_ADVISORY_LOCK_NAMESPACE, runId]
+  );
+  return Boolean(rows[0]?.locked);
+}
+async function releaseRunAdvanceLock(runId) {
+  await queryClient.unsafe("select pg_advisory_unlock($1, $2)", [REPLAY_ADVISORY_LOCK_NAMESPACE, runId]);
+}
+async function getRunOrThrow(runId) {
+  const [run] = await policyIntelDb.select().from(replayRuns).where(eq21(replayRuns.id, runId));
+  if (!run) {
+    throw new Error(`Replay run ${runId} was not found`);
+  }
+  return run;
+}
+async function listReplayRuns(filters = {}) {
+  await ensureReplayPersistence();
+  const limit = Math.max(1, Math.min(200, Number(filters.limit) || 50));
+  const rows = await policyIntelDb.select().from(replayRuns).where(filters.status ? eq21(replayRuns.status, filters.status) : void 0).orderBy(desc15(replayRuns.createdAt)).limit(limit);
+  return Promise.all(rows.map((row) => getReplayRunDetail(row.id)));
+}
+async function getReplayRunDetail(runId) {
+  await ensureReplayPersistence();
+  const run = await getRunOrThrow(runId);
+  const chunks = await policyIntelDb.select().from(replayChunks).where(eq21(replayChunks.replayRunId, runId)).orderBy(desc15(replayChunks.chunkIndex), desc15(replayChunks.createdAt)).limit(500);
+  return {
+    run,
+    chunks,
+    progress: calculateProgress(run, chunks)
+  };
+}
+async function createLegiscanReplayRun(request) {
+  await ensureReplayPersistence();
+  if (!Number.isFinite(request.sessionId) || request.sessionId <= 0) {
+    throw new Error("sessionId is required");
+  }
+  const mode = normalizeMode(request.mode);
+  const chunkSize = normalizeChunkSize(request.chunkSize);
+  const orderBy = normalizeOrderBy(request.orderBy);
+  const optionsJson = {
+    sinceDays: Number.isFinite(request.sinceDays) ? Math.max(1, Math.floor(request.sinceDays)) : void 0,
+    detailConcurrency: Number.isFinite(request.detailConcurrency) ? Math.max(1, Math.floor(request.detailConcurrency)) : void 0
+  };
+  const [created] = await policyIntelDb.insert(replayRuns).values({
+    source: "legiscan",
+    sessionId: Math.floor(request.sessionId),
+    mode,
+    orderBy,
+    chunkSize,
+    nextOffset: 0,
+    processedCandidates: 0,
+    status: "planned",
+    requestedBy: request.requestedBy?.trim() || null,
+    optionsJson,
+    startedAt: null,
+    completedAt: null,
+    updatedAt: /* @__PURE__ */ new Date()
+  }).returning();
+  return getReplayRunDetail(created.id);
+}
+async function pauseReplayRun(runId) {
+  await ensureReplayPersistence();
+  const run = await getRunOrThrow(runId);
+  if (run.status === "completed") {
+    return getReplayRunDetail(runId);
+  }
+  await policyIntelDb.update(replayRuns).set({
+    status: "paused",
+    updatedAt: /* @__PURE__ */ new Date()
+  }).where(eq21(replayRuns.id, runId));
+  return getReplayRunDetail(runId);
+}
+async function advanceReplayRun(runId, options = {}) {
+  await ensureReplayPersistence();
+  const lockAcquired = await tryAcquireRunAdvanceLock(runId);
+  if (!lockAcquired) {
+    return getReplayRunDetail(runId);
+  }
+  const stopOnError = options.stopOnError !== false;
+  const maxChunks = options.untilCompleted ? MAX_ADVANCE_CHUNKS : normalizeMaxChunks(options.maxChunks);
+  try {
+    let run = await getRunOrThrow(runId);
+    if (run.status === "completed") {
+      return getReplayRunDetail(runId);
+    }
+    if (run.status === "failed" || run.status === "paused" || run.status === "planned") {
+      await policyIntelDb.update(replayRuns).set({
+        status: "running",
+        startedAt: run.startedAt ?? /* @__PURE__ */ new Date(),
+        lastError: null,
+        updatedAt: /* @__PURE__ */ new Date()
+      }).where(eq21(replayRuns.id, runId));
+      run = await getRunOrThrow(runId);
+    }
+    for (let step = 0; step < maxChunks; step++) {
+      run = await getRunOrThrow(runId);
+      if (run.status !== "running") {
+        break;
+      }
+      if (run.totalCandidates !== null && run.nextOffset >= run.totalCandidates) {
+        await policyIntelDb.update(replayRuns).set({
+          status: "completed",
+          completedAt: run.completedAt ?? /* @__PURE__ */ new Date(),
+          updatedAt: /* @__PURE__ */ new Date()
+        }).where(eq21(replayRuns.id, runId));
+        break;
+      }
+      const chunkIndex = Math.floor(run.nextOffset / Math.max(run.chunkSize, 1));
+      const [createdChunk] = await policyIntelDb.insert(replayChunks).values({
+        replayRunId: run.id,
+        chunkIndex,
+        offset: run.nextOffset,
+        limit: run.chunkSize,
+        status: "running",
+        startedAt: /* @__PURE__ */ new Date()
+      }).returning();
+      try {
+        const optionsJson = asRecord(run.optionsJson);
+        const result = await runLegiscanJob({
+          mode: normalizeMode(run.mode),
+          sessionId: run.sessionId,
+          offset: run.nextOffset,
+          limit: run.chunkSize,
+          orderBy: normalizeOrderBy(run.orderBy),
+          sinceDays: typeof optionsJson.sinceDays === "number" ? optionsJson.sinceDays : void 0,
+          detailConcurrency: typeof optionsJson.detailConcurrency === "number" ? optionsJson.detailConcurrency : void 0
+        });
+        const totalCandidates = Number.isFinite(result.totalCandidates) ? result.totalCandidates : run.totalCandidates;
+        const remaining = totalCandidates === null ? null : Math.max(0, totalCandidates - run.nextOffset);
+        const candidateCount = remaining === null ? run.chunkSize : Math.min(run.chunkSize, remaining);
+        const nextOffset = run.nextOffset + candidateCount;
+        const hasMore = totalCandidates === null ? result.fetched > 0 : nextOffset < totalCandidates;
+        await policyIntelDb.update(replayChunks).set({
+          status: result.fetched === 0 && candidateCount === 0 ? "skipped" : "success",
+          finishedAt: /* @__PURE__ */ new Date(),
+          fetched: result.fetched,
+          inserted: result.inserted,
+          skipped: result.skipped,
+          alertsCreated: result.alerts.created,
+          fetchErrors: result.fetchErrors.length,
+          upsertErrors: result.upsertErrors.length,
+          resultJson: result
+        }).where(eq21(replayChunks.id, createdChunk.id));
+        await policyIntelDb.update(replayRuns).set({
+          totalCandidates,
+          processedCandidates: run.processedCandidates + candidateCount,
+          nextOffset: hasMore ? nextOffset : run.nextOffset + candidateCount,
+          status: hasMore ? "running" : "completed",
+          completedAt: hasMore ? null : /* @__PURE__ */ new Date(),
+          updatedAt: /* @__PURE__ */ new Date(),
+          lastError: null
+        }).where(eq21(replayRuns.id, run.id));
+        if (!hasMore) {
+          break;
+        }
+      } catch (error) {
+        const message = safeErrorMessage(error, "Replay chunk failed");
+        await policyIntelDb.update(replayChunks).set({
+          status: "error",
+          finishedAt: /* @__PURE__ */ new Date(),
+          error: message
+        }).where(eq21(replayChunks.id, createdChunk.id));
+        await policyIntelDb.update(replayRuns).set({
+          status: "failed",
+          lastError: message,
+          updatedAt: /* @__PURE__ */ new Date()
+        }).where(eq21(replayRuns.id, run.id));
+        if (stopOnError) {
+          break;
+        }
+        await policyIntelDb.update(replayRuns).set({
+          status: "running",
+          updatedAt: /* @__PURE__ */ new Date()
+        }).where(and13(eq21(replayRuns.id, run.id), eq21(replayRuns.status, "failed")));
+      }
+    }
+    return getReplayRunDetail(runId);
+  } finally {
+    await releaseRunAdvanceLock(runId);
+  }
+}
+
 // server/policy-intel/routes.ts
+var log12 = createLogger("routes");
 function slugifyIssueRoom(value) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 150);
 }
@@ -11291,6 +14576,7 @@ function createPolicyIntelRouter() {
         "/api/intel/intelligence/risk",
         "/api/intel/intelligence/anomalies",
         "/api/intel/intelligence/forecast",
+        "/api/intel/intelligence/forecast/drift",
         "/api/intel/intelligence/sponsors",
         "/api/intel/intelligence/legislators",
         "/api/intel/intelligence/influence-map",
@@ -11322,24 +14608,24 @@ function createPolicyIntelRouter() {
         alertsByStatus
       ] = await Promise.all([
         policyIntelDb.select({ count: count11() }).from(alerts),
-        policyIntelDb.select({ count: count11() }).from(alerts).where(eq21(alerts.status, "pending_review")),
-        policyIntelDb.select({ count: count11() }).from(alerts).where(gte12(alerts.relevanceScore, 70)),
+        policyIntelDb.select({ count: count11() }).from(alerts).where(eq26(alerts.status, "pending_review")),
+        policyIntelDb.select({ count: count11() }).from(alerts).where(gte15(alerts.relevanceScore, 70)),
         policyIntelDb.select({ count: count11() }).from(sourceDocuments),
-        policyIntelDb.select({ count: count11() }).from(matters).where(eq21(matters.status, "active")),
-        policyIntelDb.select({ count: count11() }).from(watchlists).where(eq21(watchlists.isActive, true)),
-        policyIntelDb.select().from(alerts).orderBy(desc15(alerts.id)).limit(10),
-        policyIntelDb.select().from(sourceDocuments).orderBy(desc15(sourceDocuments.id)).limit(5),
+        policyIntelDb.select({ count: count11() }).from(matters).where(eq26(matters.status, "active")),
+        policyIntelDb.select({ count: count11() }).from(watchlists).where(eq26(watchlists.isActive, true)),
+        policyIntelDb.select().from(alerts).orderBy(desc20(alerts.id)).limit(10),
+        policyIntelDb.select().from(sourceDocuments).orderBy(desc20(sourceDocuments.id)).limit(5),
         policyIntelDb.select({
           watchlistId: alerts.watchlistId,
           count: count11()
-        }).from(alerts).groupBy(alerts.watchlistId).orderBy(desc15(count11())).limit(10),
+        }).from(alerts).groupBy(alerts.watchlistId).orderBy(desc20(count11())).limit(10),
         policyIntelDb.select({
           status: alerts.status,
           count: count11()
         }).from(alerts).groupBy(alerts.status)
       ]);
       const wlIds = alertsByWatchlist.map((r) => r.watchlistId).filter((id) => id !== null);
-      const wlRows = wlIds.length > 0 ? await policyIntelDb.select({ id: watchlists.id, name: watchlists.name }).from(watchlists).where(inArray5(watchlists.id, wlIds)) : [];
+      const wlRows = wlIds.length > 0 ? await policyIntelDb.select({ id: watchlists.id, name: watchlists.name }).from(watchlists).where(inArray8(watchlists.id, wlIds)) : [];
       const wlNameMap = new Map(wlRows.map((w) => [w.id, w.name]));
       res.json({
         totalAlerts: totalAlertsRow?.count ?? 0,
@@ -11391,8 +14677,8 @@ function createPolicyIntelRouter() {
         [highPriorityCount]
       ] = await Promise.all([
         policyIntelDb.select({ count: count11() }).from(alerts),
-        policyIntelDb.select({ count: count11() }).from(alerts).where(eq21(alerts.status, "pending_review")),
-        policyIntelDb.select({ count: count11() }).from(alerts).where(gte12(alerts.relevanceScore, 70))
+        policyIntelDb.select({ count: count11() }).from(alerts).where(eq26(alerts.status, "pending_review")),
+        policyIntelDb.select({ count: count11() }).from(alerts).where(gte15(alerts.relevanceScore, 70))
       ]);
       const spark = timeSeries.getAll();
       res.json({
@@ -11428,7 +14714,7 @@ function createPolicyIntelRouter() {
   router.get("/dashboard/analytics", async (_req, res, next) => {
     try {
       const [scoreDistRaw, sourceBreakdownRaw, dailyVolumeRaw] = await Promise.all([
-        policyIntelDb.execute(sql14`
+        policyIntelDb.execute(sql18`
           SELECT
             CASE
               WHEN relevance_score < 10 THEN '0-9'
@@ -11447,13 +14733,13 @@ function createPolicyIntelRouter() {
           GROUP BY bucket
           ORDER BY bucket
         `),
-        policyIntelDb.execute(sql14`
+        policyIntelDb.execute(sql18`
           SELECT source_type, count(*)::int AS count
           FROM policy_intel_source_documents
           GROUP BY source_type
           ORDER BY count DESC
         `),
-        policyIntelDb.execute(sql14`
+        policyIntelDb.execute(sql18`
           SELECT date_trunc('day', created_at)::date AS day, count(*)::int AS count
           FROM policy_intel_alerts
           WHERE created_at >= now() - interval '30 days'
@@ -11470,12 +14756,9 @@ function createPolicyIntelRouter() {
       next(err);
     }
   });
-  router.post("/workspaces", async (req, res, next) => {
+  router.post("/workspaces", validateBody(createWorkspaceSchema), async (req, res, next) => {
     try {
-      const { slug, name } = req.body ?? {};
-      if (!slug || !name) {
-        return res.status(400).json({ message: "slug and name are required" });
-      }
+      const { slug, name } = req.body;
       const [created] = await policyIntelDb.insert(workspaces).values({ slug, name }).returning();
       res.status(201).json(created);
     } catch (err) {
@@ -11488,7 +14771,7 @@ function createPolicyIntelRouter() {
       const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
       const offset = (page - 1) * limit;
       const [rows, [totalRow]] = await Promise.all([
-        policyIntelDb.select().from(watchlists).orderBy(desc15(watchlists.id)).limit(limit).offset(offset),
+        policyIntelDb.select().from(watchlists).orderBy(desc20(watchlists.id)).limit(limit).offset(offset),
         policyIntelDb.select({ count: count11() }).from(watchlists)
       ]);
       res.json({ data: rows, total: totalRow?.count ?? 0, page, limit, totalPages: Math.ceil((totalRow?.count ?? 0) / limit) });
@@ -11496,12 +14779,9 @@ function createPolicyIntelRouter() {
       next(err);
     }
   });
-  router.post("/watchlists", async (req, res, next) => {
+  router.post("/watchlists", validateBody(createWatchlistSchema), async (req, res, next) => {
     try {
-      const { workspaceId, name, topic, description, rulesJson } = req.body ?? {};
-      if (!workspaceId || !name) {
-        return res.status(400).json({ message: "workspaceId and name are required" });
-      }
+      const { workspaceId, name, topic, description, rulesJson } = req.body;
       const [created] = await policyIntelDb.insert(watchlists).values({
         workspaceId: Number(workspaceId),
         name,
@@ -11518,7 +14798,7 @@ function createPolicyIntelRouter() {
     try {
       const id = parseId(req.params.id);
       if (!id) return res.status(400).json({ message: "invalid id" });
-      const [watchlist] = await policyIntelDb.select().from(watchlists).where(eq21(watchlists.id, id));
+      const [watchlist] = await policyIntelDb.select().from(watchlists).where(eq26(watchlists.id, id));
       if (!watchlist) {
         return res.status(404).json({ message: "watchlist not found" });
       }
@@ -11527,11 +14807,11 @@ function createPolicyIntelRouter() {
       next(err);
     }
   });
-  router.patch("/watchlists/:id", async (req, res, next) => {
+  router.patch("/watchlists/:id", validateBody(patchWatchlistSchema), async (req, res, next) => {
     try {
       const id = parseId(req.params.id);
       if (!id) return res.status(400).json({ message: "invalid id" });
-      const { name, topic, description, rulesJson, isActive } = req.body ?? {};
+      const { name, topic, description, rulesJson, isActive } = req.body;
       const updates = {};
       if (name !== void 0) updates.name = name;
       if (topic !== void 0) updates.topic = topic;
@@ -11539,10 +14819,7 @@ function createPolicyIntelRouter() {
       if (rulesJson !== void 0) updates.rulesJson = rulesJson;
       if (isActive !== void 0) updates.isActive = Boolean(isActive);
       updates.updatedAt = /* @__PURE__ */ new Date();
-      if (Object.keys(updates).length <= 1) {
-        return res.status(400).json({ message: "Provide at least one field to update" });
-      }
-      const [updated] = await policyIntelDb.update(watchlists).set(updates).where(eq21(watchlists.id, id)).returning();
+      const [updated] = await policyIntelDb.update(watchlists).set(updates).where(eq26(watchlists.id, id)).returning();
       if (!updated) return res.status(404).json({ message: "watchlist not found" });
       res.json(updated);
     } catch (err) {
@@ -11557,11 +14834,11 @@ function createPolicyIntelRouter() {
       const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
       const offset = (page - 1) * limit;
       const status = req.query.status;
-      const conditions = [eq21(alerts.watchlistId, id)];
-      if (status && status !== "all") conditions.push(eq21(alerts.status, status));
-      const where = and13(...conditions);
+      const conditions = [eq26(alerts.watchlistId, id)];
+      if (status && status !== "all") conditions.push(eq26(alerts.status, status));
+      const where = and18(...conditions);
       const [rows, [totalRow]] = await Promise.all([
-        policyIntelDb.select().from(alerts).where(where).orderBy(desc15(alerts.relevanceScore)).limit(limit).offset(offset),
+        policyIntelDb.select().from(alerts).where(where).orderBy(desc20(alerts.relevanceScore)).limit(limit).offset(offset),
         policyIntelDb.select({ count: count11() }).from(alerts).where(where)
       ]);
       res.json({ data: rows, total: totalRow?.count ?? 0, page, limit, totalPages: Math.ceil((totalRow?.count ?? 0) / limit) });
@@ -11569,7 +14846,7 @@ function createPolicyIntelRouter() {
       next(err);
     }
   });
-  router.post("/source-documents", async (req, res, next) => {
+  router.post("/source-documents", validateBody(createSourceDocumentSchema), async (req, res, next) => {
     try {
       const {
         sourceType,
@@ -11583,12 +14860,7 @@ function createPolicyIntelRouter() {
         rawPayload,
         normalizedText,
         tagsJson
-      } = req.body ?? {};
-      if (!sourceType || !publisher || !sourceUrl || !title) {
-        return res.status(400).json({
-          message: "sourceType, publisher, sourceUrl, and title are required"
-        });
-      }
+      } = req.body;
       const [created] = await policyIntelDb.insert(sourceDocuments).values({
         sourceType,
         publisher,
@@ -11615,17 +14887,17 @@ function createPolicyIntelRouter() {
       const sourceType = req.query.sourceType;
       const search = req.query.search;
       const conditions = [];
-      if (sourceType) conditions.push(eq21(sourceDocuments.sourceType, sourceType));
+      if (sourceType) conditions.push(eq26(sourceDocuments.sourceType, sourceType));
       if (search) {
         const terms = search.trim().split(/\s+/).filter(Boolean).map((t) => t.replace(/[^a-zA-Z0-9]/g, "")).filter(Boolean);
         if (terms.length > 0) {
           const tsq = terms.join(" & ");
-          conditions.push(sql14`to_tsvector('english', coalesce(${sourceDocuments.title},'') || ' ' || coalesce(${sourceDocuments.summary},'') || ' ' || coalesce(${sourceDocuments.normalizedText},'')) @@ to_tsquery('english', ${tsq})`);
+          conditions.push(sql18`to_tsvector('english', coalesce(${sourceDocuments.title},'') || ' ' || coalesce(${sourceDocuments.summary},'') || ' ' || coalesce(${sourceDocuments.normalizedText},'')) @@ to_tsquery('english', ${tsq})`);
         }
       }
-      const where = conditions.length > 0 ? and13(...conditions) : void 0;
+      const where = conditions.length > 0 ? and18(...conditions) : void 0;
       const [rows, [totalRow]] = await Promise.all([
-        policyIntelDb.select().from(sourceDocuments).where(where).orderBy(desc15(sourceDocuments.id)).limit(limit).offset(offset),
+        policyIntelDb.select().from(sourceDocuments).where(where).orderBy(desc20(sourceDocuments.id)).limit(limit).offset(offset),
         policyIntelDb.select({ count: count11() }).from(sourceDocuments).where(where)
       ]);
       const total = totalRow?.count ?? 0;
@@ -11634,9 +14906,9 @@ function createPolicyIntelRouter() {
       if (docIds.length > 0) {
         const alertAgg = await policyIntelDb.select({
           sourceDocumentId: alerts.sourceDocumentId,
-          count: sql14`count(*)::int`,
-          maxScore: sql14`coalesce(max(${alerts.relevanceScore}), 0)`
-        }).from(alerts).where(inArray5(alerts.sourceDocumentId, docIds)).groupBy(alerts.sourceDocumentId);
+          count: sql18`count(*)::int`,
+          maxScore: sql18`coalesce(max(${alerts.relevanceScore}), 0)`
+        }).from(alerts).where(inArray8(alerts.sourceDocumentId, docIds)).groupBy(alerts.sourceDocumentId);
         for (const a of alertAgg) {
           if (a.sourceDocumentId) {
             alertCountMap[a.sourceDocumentId] = { count: a.count, maxScore: a.maxScore };
@@ -11653,7 +14925,7 @@ function createPolicyIntelRouter() {
       next(err);
     }
   });
-  router.post("/alerts", async (req, res, next) => {
+  router.post("/alerts", validateBody(createAlertSchema), async (req, res, next) => {
     try {
       const {
         workspaceId,
@@ -11661,17 +14933,11 @@ function createPolicyIntelRouter() {
         sourceDocumentId,
         title,
         summary,
-        // Accept friendly input names; map to actual schema columns below
-        severity = "info",
-        status = "pending_review",
+        severity,
+        status,
         alertReason,
         metadataJson
-      } = req.body ?? {};
-      if (!workspaceId || !watchlistId || !sourceDocumentId || !title) {
-        return res.status(400).json({
-          message: "workspaceId, watchlistId, sourceDocumentId, and title are required"
-        });
-      }
+      } = req.body;
       const severityScoreMap = {
         high: 80,
         medium: 50,
@@ -11707,19 +14973,19 @@ function createPolicyIntelRouter() {
       const minScore = req.query.minScore ? Number(req.query.minScore) : void 0;
       const search = req.query.search;
       const conditions = [];
-      if (status && status !== "all") conditions.push(eq21(alerts.status, status));
-      if (watchlistId) conditions.push(eq21(alerts.watchlistId, watchlistId));
-      if (minScore !== void 0) conditions.push(gte12(alerts.relevanceScore, minScore));
+      if (status && status !== "all") conditions.push(eq26(alerts.status, status));
+      if (watchlistId) conditions.push(eq26(alerts.watchlistId, watchlistId));
+      if (minScore !== void 0) conditions.push(gte15(alerts.relevanceScore, minScore));
       if (search) {
         const terms = search.trim().split(/\s+/).filter(Boolean).map((t) => t.replace(/[^a-zA-Z0-9]/g, "")).filter(Boolean);
         if (terms.length > 0) {
           const tsq = terms.join(" & ");
-          conditions.push(sql14`to_tsvector('english', coalesce(${alerts.title},'') || ' ' || coalesce(${alerts.summary},'') || ' ' || coalesce(${alerts.whyItMatters},'')) @@ to_tsquery('english', ${tsq})`);
+          conditions.push(sql18`to_tsvector('english', coalesce(${alerts.title},'') || ' ' || coalesce(${alerts.summary},'') || ' ' || coalesce(${alerts.whyItMatters},'')) @@ to_tsquery('english', ${tsq})`);
         }
       }
-      const where = conditions.length > 0 ? and13(...conditions) : void 0;
+      const where = conditions.length > 0 ? and18(...conditions) : void 0;
       const [rows, [totalRow]] = await Promise.all([
-        policyIntelDb.select().from(alerts).where(where).orderBy(desc15(alerts.id)).limit(limit).offset(offset),
+        policyIntelDb.select().from(alerts).where(where).orderBy(desc20(alerts.id)).limit(limit).offset(offset),
         policyIntelDb.select({ count: count11() }).from(alerts).where(where)
       ]);
       const total = totalRow?.count ?? 0;
@@ -11728,11 +14994,11 @@ function createPolicyIntelRouter() {
       next(err);
     }
   });
-  router.patch("/alerts/:id", async (req, res, next) => {
+  router.patch("/alerts/:id", validateBody(patchAlertSchema), async (req, res, next) => {
     try {
       const id = parseId(req.params.id);
       if (!id) return res.status(400).json({ message: "invalid id" });
-      const { status, reviewerNote } = req.body ?? {};
+      const { status, reviewerNote } = req.body;
       const validStatuses = ["pending_review", "ready", "sent", "suppressed"];
       const updates = {};
       if (status && validStatuses.includes(status)) {
@@ -11742,13 +15008,10 @@ function createPolicyIntelRouter() {
         updates.reviewerNote = reviewerNote;
       }
       updates.reviewedAt = /* @__PURE__ */ new Date();
-      if (Object.keys(updates).length <= 1) {
-        return res.status(400).json({ message: "Provide status and/or reviewerNote" });
-      }
-      const [updated] = await policyIntelDb.update(alerts).set(updates).where(eq21(alerts.id, id)).returning();
+      const [updated] = await policyIntelDb.update(alerts).set(updates).where(eq26(alerts.id, id)).returning();
       if (!updated) return res.status(404).json({ message: "alert not found" });
       if (updated.watchlistId) {
-        const links = await policyIntelDb.select().from(matterWatchlists).where(eq21(matterWatchlists.watchlistId, updated.watchlistId));
+        const links = await policyIntelDb.select().from(matterWatchlists).where(eq26(matterWatchlists.watchlistId, updated.watchlistId));
         for (const link of links) {
           await policyIntelDb.insert(activities).values({
             workspaceId: updated.workspaceId,
@@ -11776,7 +15039,7 @@ function createPolicyIntelRouter() {
             regime: pipelineEntry?.regime ?? "interim"
           });
         } catch (feedbackErr) {
-          console.error("[champion] feedback recording failed:", feedbackErr);
+          log12.error({ err: feedbackErr }, "champion feedback recording failed");
         }
       }
       res.json(updated);
@@ -11788,56 +15051,94 @@ function createPolicyIntelRouter() {
     try {
       const id = parseId(req.params.id);
       if (!id) return res.status(400).json({ message: "invalid id" });
-      const [alert] = await policyIntelDb.select().from(alerts).where(eq21(alerts.id, id));
+      const [alert] = await policyIntelDb.select().from(alerts).where(eq26(alerts.id, id));
       if (!alert) return res.status(404).json({ message: "alert not found" });
       const [sourceDoc, watchlist, linkedIssueRoom] = await Promise.all([
-        alert.sourceDocumentId ? policyIntelDb.select().from(sourceDocuments).where(eq21(sourceDocuments.id, alert.sourceDocumentId)).then((r) => r[0] ?? null) : Promise.resolve(null),
-        alert.watchlistId ? policyIntelDb.select().from(watchlists).where(eq21(watchlists.id, alert.watchlistId)).then((r) => r[0] ?? null) : Promise.resolve(null),
-        alert.issueRoomId ? policyIntelDb.select().from(issueRooms).where(eq21(issueRooms.id, alert.issueRoomId)).then((r) => r[0] ?? null) : Promise.resolve(null)
+        alert.sourceDocumentId ? policyIntelDb.select().from(sourceDocuments).where(eq26(sourceDocuments.id, alert.sourceDocumentId)).then((r) => r[0] ?? null) : Promise.resolve(null),
+        alert.watchlistId ? policyIntelDb.select().from(watchlists).where(eq26(watchlists.id, alert.watchlistId)).then((r) => r[0] ?? null) : Promise.resolve(null),
+        alert.issueRoomId ? policyIntelDb.select().from(issueRooms).where(eq26(issueRooms.id, alert.issueRoomId)).then((r) => r[0] ?? null) : Promise.resolve(null)
       ]);
       res.json({ alert, sourceDocument: sourceDoc, watchlist, issueRoom: linkedIssueRoom });
     } catch (err) {
       next(err);
     }
   });
-  router.post("/alerts/bulk-triage", async (req, res, next) => {
+  router.post("/alerts/bulk-triage", validateBody(bulkTriageSchema), async (req, res, next) => {
     try {
-      const suppressBelow = Math.max(0, Math.min(100, Number(req.body?.suppressBelow) || 20));
-      const promoteAbove = Math.max(0, Math.min(100, Number(req.body?.promoteAbove) || 70));
-      const dryRun = Boolean(req.body?.dryRun);
-      const [suppressCountRow] = await policyIntelDb.select({ count: count11() }).from(alerts).where(and13(
-        eq21(alerts.status, "pending_review"),
+      const suppressBelow = req.body.suppressBelow;
+      const promoteAbove = req.body.promoteAbove;
+      const dryRun = req.body.dryRun;
+      const approvalToken = req.body.approvalToken;
+      const requireApproval = process.env.BULK_TRIAGE_REQUIRE_APPROVAL !== "false";
+      const approvalThreshold = Math.max(1, Number(process.env.BULK_TRIAGE_APPROVAL_THRESHOLD || 100));
+      const approvalPhrase = process.env.BULK_TRIAGE_APPROVAL_TOKEN || "APPROVE_BULK_TRIAGE";
+      const [pendingCountRow] = await policyIntelDb.select({ count: count11() }).from(alerts).where(eq26(alerts.status, "pending_review"));
+      const pendingCount = pendingCountRow?.count ?? 0;
+      const [suppressCountRow] = await policyIntelDb.select({ count: count11() }).from(alerts).where(and18(
+        eq26(alerts.status, "pending_review"),
         lt(alerts.relevanceScore, suppressBelow)
       ));
-      const [promoteCountRow] = await policyIntelDb.select({ count: count11() }).from(alerts).where(and13(
-        eq21(alerts.status, "pending_review"),
-        gte12(alerts.relevanceScore, promoteAbove)
+      const [promoteCountRow] = await policyIntelDb.select({ count: count11() }).from(alerts).where(and18(
+        eq26(alerts.status, "pending_review"),
+        gte15(alerts.relevanceScore, promoteAbove)
       ));
       const toSuppress = suppressCountRow?.count ?? 0;
       const toPromote = promoteCountRow?.count ?? 0;
+      const suppressShare = pendingCount > 0 ? toSuppress / pendingCount : 0;
+      if (!dryRun && requireApproval && toSuppress >= approvalThreshold) {
+        if (approvalToken !== approvalPhrase) {
+          return res.status(409).json({
+            message: `Bulk triage approval required: rerun with dryRun=true first, then set approvalToken to execute suppression of ${toSuppress} alerts`,
+            requireApproval,
+            approvalThreshold,
+            toSuppress,
+            toPromote,
+            pendingCount,
+            suppressShare
+          });
+        }
+      }
       if (dryRun) {
-        return res.json({ dryRun: true, wouldSuppress: toSuppress, wouldPromote: toPromote, suppressBelow, promoteAbove });
+        return res.json({
+          dryRun: true,
+          wouldSuppress: toSuppress,
+          wouldPromote: toPromote,
+          suppressBelow,
+          promoteAbove,
+          pendingCount,
+          suppressShare,
+          requireApproval,
+          approvalThreshold
+        });
       }
       const result = await policyIntelDb.transaction(async (tx) => {
         let suppressed = 0;
         let promoted = 0;
         if (toSuppress > 0) {
-          await tx.update(alerts).set({ status: "suppressed", reviewedAt: /* @__PURE__ */ new Date(), reviewerNote: `auto-triage: score < ${suppressBelow}` }).where(and13(
-            eq21(alerts.status, "pending_review"),
+          await tx.update(alerts).set({ status: "suppressed", reviewedAt: /* @__PURE__ */ new Date(), reviewerNote: `auto-triage: score < ${suppressBelow}` }).where(and18(
+            eq26(alerts.status, "pending_review"),
             lt(alerts.relevanceScore, suppressBelow)
           ));
           suppressed = toSuppress;
         }
         if (toPromote > 0) {
-          await tx.update(alerts).set({ status: "ready", reviewedAt: /* @__PURE__ */ new Date(), reviewerNote: `auto-triage: score >= ${promoteAbove}` }).where(and13(
-            eq21(alerts.status, "pending_review"),
-            gte12(alerts.relevanceScore, promoteAbove)
+          await tx.update(alerts).set({ status: "ready", reviewedAt: /* @__PURE__ */ new Date(), reviewerNote: `auto-triage: score >= ${promoteAbove}` }).where(and18(
+            eq26(alerts.status, "pending_review"),
+            gte15(alerts.relevanceScore, promoteAbove)
           ));
           promoted = toPromote;
         }
         return { suppressed, promoted };
       });
-      res.json({ ...result, suppressBelow, promoteAbove });
+      res.json({
+        ...result,
+        suppressBelow,
+        promoteAbove,
+        pendingCount,
+        suppressShare,
+        requireApproval,
+        approvalThreshold
+      });
     } catch (err) {
       next(err);
     }
@@ -11868,11 +15169,11 @@ function createPolicyIntelRouter() {
         weekEnd.setDate(weekStart.getDate() + 7);
       }
       const weekAlerts = await policyIntelDb.select().from(alerts).where(
-        and13(
-          eq21(alerts.workspaceId, workspaceId),
+        and18(
+          eq26(alerts.workspaceId, workspaceId),
           gt2(alerts.createdAt, weekStart)
         )
-      ).orderBy(desc15(alerts.relevanceScore));
+      ).orderBy(desc20(alerts.relevanceScore));
       const filtered = weekAlerts.filter((a) => a.createdAt < weekEnd);
       const grouped = {};
       for (const alert of filtered) {
@@ -11881,7 +15182,7 @@ function createPolicyIntelRouter() {
         grouped[wlId].alerts.push(alert);
       }
       const wlIds = Object.keys(grouped).map(Number).filter((id) => id > 0);
-      const wlRows = wlIds.length > 0 ? await policyIntelDb.select().from(watchlists).where(inArray5(watchlists.id, wlIds)) : [];
+      const wlRows = wlIds.length > 0 ? await policyIntelDb.select().from(watchlists).where(inArray8(watchlists.id, wlIds)) : [];
       const wlNameMap = new Map(wlRows.map((w) => [w.id, w.name]));
       const sections = Object.values(grouped).map((g) => ({
         watchlist: wlNameMap.get(g.watchlistId) ?? "Unlinked",
@@ -11896,11 +15197,11 @@ function createPolicyIntelRouter() {
         }))
       }));
       const weekActivities = await policyIntelDb.select().from(activities).where(
-        and13(
-          eq21(activities.workspaceId, workspaceId),
+        and18(
+          eq26(activities.workspaceId, workspaceId),
           gt2(activities.createdAt, weekStart)
         )
-      ).orderBy(desc15(activities.createdAt));
+      ).orderBy(desc20(activities.createdAt));
       const filteredActivities = weekActivities.filter((a) => a.createdAt < weekEnd);
       res.json({
         workspace: workspaceId,
@@ -11931,18 +15232,15 @@ function createPolicyIntelRouter() {
   });
   router.get("/briefs", async (_req, res, next) => {
     try {
-      const rows = await policyIntelDb.select().from(briefs).orderBy(desc15(briefs.id));
+      const rows = await policyIntelDb.select().from(briefs).orderBy(desc20(briefs.id));
       res.json(rows);
     } catch (err) {
       next(err);
     }
   });
-  router.post("/briefs/generate", async (req, res, next) => {
+  router.post("/briefs/generate", validateBody(generateBriefSchema), async (req, res, next) => {
     try {
-      const { workspaceId, watchlistId, matterId, sourceDocumentIds, title } = req.body ?? {};
-      if (!workspaceId || !sourceDocumentIds || !Array.isArray(sourceDocumentIds) || sourceDocumentIds.length === 0) {
-        return res.status(400).json({ message: "workspaceId and non-empty sourceDocumentIds[] are required \u2014 no sources, no brief" });
-      }
+      const { workspaceId, watchlistId, matterId, sourceDocumentIds, title } = req.body;
       const result = await generateBrief({
         workspaceId: Number(workspaceId),
         watchlistId: watchlistId ? Number(watchlistId) : void 0,
@@ -11969,7 +15267,7 @@ function createPolicyIntelRouter() {
       const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
       const offset = (page - 1) * limit;
       const [rows, [totalRow]] = await Promise.all([
-        policyIntelDb.select().from(deliverables).orderBy(desc15(deliverables.id)).limit(limit).offset(offset),
+        policyIntelDb.select().from(deliverables).orderBy(desc20(deliverables.id)).limit(limit).offset(offset),
         policyIntelDb.select({ count: count11() }).from(deliverables)
       ]);
       res.json({ data: rows, total: totalRow?.count ?? 0, page, limit, totalPages: Math.ceil((totalRow?.count ?? 0) / limit) });
@@ -11980,7 +15278,7 @@ function createPolicyIntelRouter() {
   router.get("/matters/:id/briefs", async (req, res, next) => {
     try {
       const matterId = Number(req.params.id);
-      const rows = await policyIntelDb.select().from(deliverables).where(eq21(deliverables.matterId, matterId)).orderBy(desc15(deliverables.id));
+      const rows = await policyIntelDb.select().from(deliverables).where(eq26(deliverables.matterId, matterId)).orderBy(desc20(deliverables.id));
       res.json(rows);
     } catch (err) {
       next(err);
@@ -11988,7 +15286,7 @@ function createPolicyIntelRouter() {
   });
   router.get("/jobs", async (_req, res, next) => {
     try {
-      const rows = await policyIntelDb.select().from(monitoringJobs).orderBy(desc15(monitoringJobs.id));
+      const rows = await policyIntelDb.select().from(monitoringJobs).orderBy(desc20(monitoringJobs.id));
       res.json(rows);
     } catch (err) {
       next(err);
@@ -12000,9 +15298,9 @@ function createPolicyIntelRouter() {
       const page = Math.max(1, Number(req.query.page) || 1);
       const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
       const offset = (page - 1) * limit;
-      const where = workspaceId ? eq21(issueRooms.workspaceId, workspaceId) : void 0;
+      const where = workspaceId ? eq26(issueRooms.workspaceId, workspaceId) : void 0;
       const [rows, [totalRow]] = await Promise.all([
-        policyIntelDb.select().from(issueRooms).where(where).orderBy(desc15(issueRooms.id)).limit(limit).offset(offset),
+        policyIntelDb.select().from(issueRooms).where(where).orderBy(desc20(issueRooms.id)).limit(limit).offset(offset),
         policyIntelDb.select({ count: count11() }).from(issueRooms).where(where)
       ]);
       res.json({ data: rows, total: totalRow?.count ?? 0, page, limit, totalPages: Math.ceil((totalRow?.count ?? 0) / limit) });
@@ -12010,12 +15308,9 @@ function createPolicyIntelRouter() {
       next(err);
     }
   });
-  router.post("/issue-rooms", async (req, res, next) => {
+  router.post("/issue-rooms", validateBody(createIssueRoomSchema), async (req, res, next) => {
     try {
-      const { workspaceId, matterId, slug, title, issueType, jurisdiction, status, summary, recommendedPath, ownerUserId, relatedBillIds, sourceDocumentIds } = req.body ?? {};
-      if (!workspaceId || !title) {
-        return res.status(400).json({ message: "workspaceId and title are required" });
-      }
+      const { workspaceId, matterId, slug, title, issueType, jurisdiction, status, summary, recommendedPath, ownerUserId, relatedBillIds, sourceDocumentIds } = req.body;
       const resolvedSlug = slugifyIssueRoom(slug ?? title);
       const [created] = await policyIntelDb.insert(issueRooms).values({
         workspaceId: Number(workspaceId),
@@ -12056,17 +15351,17 @@ function createPolicyIntelRouter() {
     try {
       const id = parseId(req.params.id);
       if (!id) return res.status(400).json({ message: "invalid id" });
-      const [issueRoom] = await policyIntelDb.select().from(issueRooms).where(eq21(issueRooms.id, id));
+      const [issueRoom] = await policyIntelDb.select().from(issueRooms).where(eq26(issueRooms.id, id));
       if (!issueRoom) return res.status(404).json({ message: "issue room not found" });
       const [linkedSources, updates, strategyOptions, tasks, linkedStakeholders] = await Promise.all([
-        policyIntelDb.select().from(issueRoomSourceDocuments).where(eq21(issueRoomSourceDocuments.issueRoomId, id)).orderBy(desc15(issueRoomSourceDocuments.id)),
-        policyIntelDb.select().from(issueRoomUpdates).where(eq21(issueRoomUpdates.issueRoomId, id)).orderBy(desc15(issueRoomUpdates.id)),
-        policyIntelDb.select().from(issueRoomStrategyOptions).where(eq21(issueRoomStrategyOptions.issueRoomId, id)).orderBy(issueRoomStrategyOptions.recommendationRank, desc15(issueRoomStrategyOptions.id)),
-        policyIntelDb.select().from(issueRoomTasks).where(eq21(issueRoomTasks.issueRoomId, id)).orderBy(desc15(issueRoomTasks.id)),
-        policyIntelDb.select().from(stakeholders).where(eq21(stakeholders.issueRoomId, id)).orderBy(desc15(stakeholders.id))
+        policyIntelDb.select().from(issueRoomSourceDocuments).where(eq26(issueRoomSourceDocuments.issueRoomId, id)).orderBy(desc20(issueRoomSourceDocuments.id)),
+        policyIntelDb.select().from(issueRoomUpdates).where(eq26(issueRoomUpdates.issueRoomId, id)).orderBy(desc20(issueRoomUpdates.id)),
+        policyIntelDb.select().from(issueRoomStrategyOptions).where(eq26(issueRoomStrategyOptions.issueRoomId, id)).orderBy(issueRoomStrategyOptions.recommendationRank, desc20(issueRoomStrategyOptions.id)),
+        policyIntelDb.select().from(issueRoomTasks).where(eq26(issueRoomTasks.issueRoomId, id)).orderBy(desc20(issueRoomTasks.id)),
+        policyIntelDb.select().from(stakeholders).where(eq26(stakeholders.issueRoomId, id)).orderBy(desc20(stakeholders.id))
       ]);
       const sourceIds = linkedSources.map((row) => row.sourceDocumentId);
-      const sourceRows = sourceIds.length > 0 ? await policyIntelDb.select().from(sourceDocuments).where(inArray5(sourceDocuments.id, sourceIds)) : [];
+      const sourceRows = sourceIds.length > 0 ? await policyIntelDb.select().from(sourceDocuments).where(inArray8(sourceDocuments.id, sourceIds)) : [];
       res.json({
         issueRoom,
         sourceDocuments: sourceRows,
@@ -12080,12 +15375,12 @@ function createPolicyIntelRouter() {
       next(err);
     }
   });
-  router.post("/alerts/:id/create-issue-room", async (req, res, next) => {
+  router.post("/alerts/:id/create-issue-room", validateBody(createIssueRoomFromAlertSchema), async (req, res, next) => {
     try {
       const alertId = Number(req.params.id);
-      const [alert] = await policyIntelDb.select().from(alerts).where(eq21(alerts.id, alertId));
+      const [alert] = await policyIntelDb.select().from(alerts).where(eq26(alerts.id, alertId));
       if (!alert) return res.status(404).json({ message: "alert not found" });
-      const { matterId, slug, title, issueType, jurisdiction, summary, recommendedPath, ownerUserId, relatedBillIds } = req.body ?? {};
+      const { matterId, slug, title, issueType, jurisdiction, summary, recommendedPath, ownerUserId, relatedBillIds } = req.body;
       const resolvedTitle = title ?? alert.title;
       const [created] = await policyIntelDb.insert(issueRooms).values({
         workspaceId: alert.workspaceId,
@@ -12107,7 +15402,7 @@ function createPolicyIntelRouter() {
           relationshipType: "primary_authority"
         });
       }
-      const [updatedAlert] = await policyIntelDb.update(alerts).set({ issueRoomId: created.id }).where(eq21(alerts.id, alertId)).returning();
+      const [updatedAlert] = await policyIntelDb.update(alerts).set({ issueRoomId: created.id }).where(eq26(alerts.id, alertId)).returning();
       await policyIntelDb.insert(activities).values({
         workspaceId: alert.workspaceId,
         matterId: matterId ? Number(matterId) : null,
@@ -12131,18 +15426,18 @@ function createPolicyIntelRouter() {
           regime: pipelineEntry?.regime ?? "interim"
         });
       } catch (feedbackErr) {
-        console.error("[champion] strong_positive feedback failed:", feedbackErr);
+        log12.error({ err: feedbackErr }, "champion strong_positive feedback failed");
       }
       res.status(201).json({ issueRoom: created, alert: updatedAlert });
     } catch (err) {
       next(err);
     }
   });
-  router.patch("/issue-rooms/:id", async (req, res, next) => {
+  router.patch("/issue-rooms/:id", validateBody(patchIssueRoomSchema), async (req, res, next) => {
     try {
       const id = parseId(req.params.id);
       if (!id) return res.status(400).json({ message: "invalid id" });
-      const { title, summary, status, recommendedPath, issueType, jurisdiction } = req.body ?? {};
+      const { title, summary, status, recommendedPath, issueType, jurisdiction } = req.body;
       const patch = {};
       if (title !== void 0) patch.title = title;
       if (summary !== void 0) patch.summary = summary;
@@ -12154,7 +15449,7 @@ function createPolicyIntelRouter() {
         return res.status(400).json({ message: "No fields to update" });
       }
       patch.updatedAt = /* @__PURE__ */ new Date();
-      const [updated] = await policyIntelDb.update(issueRooms).set(patch).where(eq21(issueRooms.id, id)).returning();
+      const [updated] = await policyIntelDb.update(issueRooms).set(patch).where(eq26(issueRooms.id, id)).returning();
       if (!updated) {
         return res.status(404).json({ message: "Issue room not found" });
       }
@@ -12166,26 +15461,23 @@ function createPolicyIntelRouter() {
   router.get("/issue-rooms/:id/alerts", async (req, res, next) => {
     try {
       const issueRoomId = Number(req.params.id);
-      const linkedDocs = await policyIntelDb.select({ sourceDocumentId: issueRoomSourceDocuments.sourceDocumentId }).from(issueRoomSourceDocuments).where(eq21(issueRoomSourceDocuments.issueRoomId, issueRoomId));
+      const linkedDocs = await policyIntelDb.select({ sourceDocumentId: issueRoomSourceDocuments.sourceDocumentId }).from(issueRoomSourceDocuments).where(eq26(issueRoomSourceDocuments.issueRoomId, issueRoomId));
       const linkedSourceDocumentIds = linkedDocs.map((row) => row.sourceDocumentId);
       const rows = linkedSourceDocumentIds.length > 0 ? await policyIntelDb.select().from(alerts).where(
-        or(
-          eq21(alerts.issueRoomId, issueRoomId),
-          inArray5(alerts.sourceDocumentId, linkedSourceDocumentIds)
+        or2(
+          eq26(alerts.issueRoomId, issueRoomId),
+          inArray8(alerts.sourceDocumentId, linkedSourceDocumentIds)
         )
-      ).orderBy(desc15(alerts.id)) : await policyIntelDb.select().from(alerts).where(eq21(alerts.issueRoomId, issueRoomId)).orderBy(desc15(alerts.id));
+      ).orderBy(desc20(alerts.id)) : await policyIntelDb.select().from(alerts).where(eq26(alerts.issueRoomId, issueRoomId)).orderBy(desc20(alerts.id));
       res.json(rows);
     } catch (err) {
       next(err);
     }
   });
-  router.post("/issue-rooms/:id/updates", async (req, res, next) => {
+  router.post("/issue-rooms/:id/updates", validateBody(createIssueRoomUpdateSchema), async (req, res, next) => {
     try {
       const issueRoomId = Number(req.params.id);
-      const { title, body, updateType, sourcePackJson } = req.body ?? {};
-      if (!title || !body) {
-        return res.status(400).json({ message: "title and body are required" });
-      }
+      const { title, body, updateType, sourcePackJson } = req.body;
       const [created] = await policyIntelDb.insert(issueRoomUpdates).values({
         issueRoomId,
         title,
@@ -12193,7 +15485,7 @@ function createPolicyIntelRouter() {
         updateType: updateType ?? "analysis",
         sourcePackJson: sourcePackJson ?? []
       }).returning();
-      const [issueRoom] = await policyIntelDb.select().from(issueRooms).where(eq21(issueRooms.id, issueRoomId));
+      const [issueRoom] = await policyIntelDb.select().from(issueRooms).where(eq26(issueRooms.id, issueRoomId));
       if (issueRoom) {
         await policyIntelDb.insert(activities).values({
           workspaceId: issueRoom.workspaceId,
@@ -12209,13 +15501,10 @@ function createPolicyIntelRouter() {
       next(err);
     }
   });
-  router.post("/issue-rooms/:id/strategy-options", async (req, res, next) => {
+  router.post("/issue-rooms/:id/strategy-options", validateBody(createStrategyOptionSchema), async (req, res, next) => {
     try {
       const issueRoomId = Number(req.params.id);
-      const { label, description, prosJson, consJson, politicalFeasibility, legalDurability, implementationComplexity, recommendationRank } = req.body ?? {};
-      if (!label) {
-        return res.status(400).json({ message: "label is required" });
-      }
+      const { label, description, prosJson, consJson, politicalFeasibility, legalDurability, implementationComplexity, recommendationRank } = req.body;
       const [created] = await policyIntelDb.insert(issueRoomStrategyOptions).values({
         issueRoomId,
         label,
@@ -12232,13 +15521,10 @@ function createPolicyIntelRouter() {
       next(err);
     }
   });
-  router.post("/issue-rooms/:id/tasks", async (req, res, next) => {
+  router.post("/issue-rooms/:id/tasks", validateBody(createTaskSchema), async (req, res, next) => {
     try {
       const issueRoomId = Number(req.params.id);
-      const { title, description, status, priority, assignee, dueDate } = req.body ?? {};
-      if (!title) {
-        return res.status(400).json({ message: "title is required" });
-      }
+      const { title, description, status, priority, assignee, dueDate } = req.body;
       const [created] = await policyIntelDb.insert(issueRoomTasks).values({
         issueRoomId,
         title,
@@ -12253,12 +15539,12 @@ function createPolicyIntelRouter() {
       next(err);
     }
   });
-  router.patch("/issue-rooms/:issueRoomId/tasks/:taskId", async (req, res, next) => {
+  router.patch("/issue-rooms/:issueRoomId/tasks/:taskId", validateBody(patchTaskSchema), async (req, res, next) => {
     try {
       const issueRoomId = Number(req.params.issueRoomId);
       const taskId = Number(req.params.taskId);
-      const { status, priority, assignee, dueDate, completedAt } = req.body ?? {};
-      const [existing] = await policyIntelDb.select().from(issueRoomTasks).where(and13(eq21(issueRoomTasks.id, taskId), eq21(issueRoomTasks.issueRoomId, issueRoomId)));
+      const { status, priority, assignee, dueDate, completedAt } = req.body;
+      const [existing] = await policyIntelDb.select().from(issueRoomTasks).where(and18(eq26(issueRoomTasks.id, taskId), eq26(issueRoomTasks.issueRoomId, issueRoomId)));
       if (!existing) {
         return res.status(404).json({ message: "task not found" });
       }
@@ -12272,11 +15558,8 @@ function createPolicyIntelRouter() {
       } else if (status !== void 0) {
         updateValues.completedAt = status === "done" ? /* @__PURE__ */ new Date() : null;
       }
-      if (Object.keys(updateValues).length === 0) {
-        return res.status(400).json({ message: "at least one field is required" });
-      }
-      const [updated] = await policyIntelDb.update(issueRoomTasks).set(updateValues).where(and13(eq21(issueRoomTasks.id, taskId), eq21(issueRoomTasks.issueRoomId, issueRoomId))).returning();
-      const [issueRoom] = await policyIntelDb.select().from(issueRooms).where(eq21(issueRooms.id, issueRoomId));
+      const [updated] = await policyIntelDb.update(issueRoomTasks).set(updateValues).where(and18(eq26(issueRoomTasks.id, taskId), eq26(issueRoomTasks.issueRoomId, issueRoomId))).returning();
+      const [issueRoom] = await policyIntelDb.select().from(issueRooms).where(eq26(issueRooms.id, issueRoomId));
       if (issueRoom) {
         await policyIntelDb.insert(activities).values({
           workspaceId: issueRoom.workspaceId,
@@ -12292,15 +15575,12 @@ function createPolicyIntelRouter() {
       next(err);
     }
   });
-  router.post("/issue-rooms/:id/stakeholders", async (req, res, next) => {
+  router.post("/issue-rooms/:id/stakeholders", validateBody(createIssueRoomStakeholderSchema), async (req, res, next) => {
     try {
       const issueRoomId = Number(req.params.id);
-      const [issueRoom] = await policyIntelDb.select().from(issueRooms).where(eq21(issueRooms.id, issueRoomId));
+      const [issueRoom] = await policyIntelDb.select().from(issueRooms).where(eq26(issueRooms.id, issueRoomId));
       if (!issueRoom) return res.status(404).json({ message: "issue room not found" });
-      const { type, name, title, organization, jurisdiction, tagsJson, sourceSummary } = req.body ?? {};
-      if (!type || !name) {
-        return res.status(400).json({ message: "type and name are required" });
-      }
+      const { type, name, title, organization, jurisdiction, tagsJson, sourceSummary } = req.body;
       const [created] = await policyIntelDb.insert(stakeholders).values({
         workspaceId: issueRoom.workspaceId,
         issueRoomId,
@@ -12319,18 +15599,15 @@ function createPolicyIntelRouter() {
   });
   router.get("/matters", async (_req, res, next) => {
     try {
-      const rows = await policyIntelDb.select().from(matters).orderBy(desc15(matters.id));
+      const rows = await policyIntelDb.select().from(matters).orderBy(desc20(matters.id));
       res.json(rows);
     } catch (err) {
       next(err);
     }
   });
-  router.post("/matters", async (req, res, next) => {
+  router.post("/matters", validateBody(createMatterSchema), async (req, res, next) => {
     try {
-      const { workspaceId, slug, name, clientName, practiceArea, jurisdictionScope, status, ownerUserId, description, tagsJson } = req.body ?? {};
-      if (!workspaceId || !slug || !name) {
-        return res.status(400).json({ message: "workspaceId, slug, and name are required" });
-      }
+      const { workspaceId, slug, name, clientName, practiceArea, jurisdictionScope, status, ownerUserId, description, tagsJson } = req.body;
       const [created] = await policyIntelDb.insert(matters).values({
         workspaceId: Number(workspaceId),
         slug,
@@ -12352,20 +15629,17 @@ function createPolicyIntelRouter() {
     try {
       const id = parseId(req.params.id);
       if (!id) return res.status(400).json({ message: "invalid id" });
-      const [matter] = await policyIntelDb.select().from(matters).where(eq21(matters.id, id));
+      const [matter] = await policyIntelDb.select().from(matters).where(eq26(matters.id, id));
       if (!matter) return res.status(404).json({ message: "matter not found" });
       res.json(matter);
     } catch (err) {
       next(err);
     }
   });
-  router.post("/matters/:id/watchlists", async (req, res, next) => {
+  router.post("/matters/:id/watchlists", validateBody(linkWatchlistToMatterSchema), async (req, res, next) => {
     try {
       const matterId = Number(req.params.id);
-      const { watchlistId } = req.body ?? {};
-      if (!watchlistId) {
-        return res.status(400).json({ message: "watchlistId is required" });
-      }
+      const { watchlistId } = req.body;
       const [created] = await policyIntelDb.insert(matterWatchlists).values({ matterId, watchlistId: Number(watchlistId) }).returning();
       res.status(201).json(created);
     } catch (err) {
@@ -12375,10 +15649,10 @@ function createPolicyIntelRouter() {
   router.get("/matters/:id/watchlists", async (req, res, next) => {
     try {
       const matterId = Number(req.params.id);
-      const links = await policyIntelDb.select().from(matterWatchlists).where(eq21(matterWatchlists.matterId, matterId));
+      const links = await policyIntelDb.select().from(matterWatchlists).where(eq26(matterWatchlists.matterId, matterId));
       if (links.length === 0) return res.json([]);
       const wlIds = links.map((l) => l.watchlistId);
-      const rows = await policyIntelDb.select().from(watchlists).where(inArray5(watchlists.id, wlIds));
+      const rows = await policyIntelDb.select().from(watchlists).where(inArray8(watchlists.id, wlIds));
       res.json(rows);
     } catch (err) {
       next(err);
@@ -12387,22 +15661,19 @@ function createPolicyIntelRouter() {
   router.get("/matters/:id/alerts", async (req, res, next) => {
     try {
       const matterId = Number(req.params.id);
-      const links = await policyIntelDb.select().from(matterWatchlists).where(eq21(matterWatchlists.matterId, matterId));
+      const links = await policyIntelDb.select().from(matterWatchlists).where(eq26(matterWatchlists.matterId, matterId));
       if (links.length === 0) return res.json([]);
       const wlIds = links.map((l) => l.watchlistId);
-      const rows = await policyIntelDb.select().from(alerts).where(inArray5(alerts.watchlistId, wlIds)).orderBy(desc15(alerts.id));
+      const rows = await policyIntelDb.select().from(alerts).where(inArray8(alerts.watchlistId, wlIds)).orderBy(desc20(alerts.id));
       res.json(rows);
     } catch (err) {
       next(err);
     }
   });
-  router.post("/matters/:id/activities", async (req, res, next) => {
+  router.post("/matters/:id/activities", validateBody(createActivitySchema), async (req, res, next) => {
     try {
       const matterId = Number(req.params.id);
-      const { workspaceId, alertId, type, ownerUserId, summary, detailText, dueAt } = req.body ?? {};
-      if (!workspaceId || !type || !summary) {
-        return res.status(400).json({ message: "workspaceId, type, and summary are required" });
-      }
+      const { workspaceId, alertId, type, ownerUserId, summary, detailText, dueAt } = req.body;
       const [created] = await policyIntelDb.insert(activities).values({
         workspaceId: Number(workspaceId),
         matterId,
@@ -12421,7 +15692,7 @@ function createPolicyIntelRouter() {
   router.get("/matters/:id/activities", async (req, res, next) => {
     try {
       const matterId = Number(req.params.id);
-      const rows = await policyIntelDb.select().from(activities).where(eq21(activities.matterId, matterId)).orderBy(desc15(activities.id));
+      const rows = await policyIntelDb.select().from(activities).where(eq26(activities.matterId, matterId)).orderBy(desc20(activities.id));
       res.json(rows);
     } catch (err) {
       next(err);
@@ -12429,7 +15700,7 @@ function createPolicyIntelRouter() {
   });
   router.get("/activities", async (_req, res, next) => {
     try {
-      const rows = await policyIntelDb.select().from(activities).orderBy(desc15(activities.id));
+      const rows = await policyIntelDb.select().from(activities).orderBy(desc20(activities.id));
       res.json(rows);
     } catch (err) {
       next(err);
@@ -12438,14 +15709,14 @@ function createPolicyIntelRouter() {
   router.get("/stakeholders/for-bill/:billId", async (req, res, next) => {
     try {
       const billId = req.params.billId.toUpperCase().replace(/\s+/g, " ");
-      const hearingRows = await policyIntelDb.select({ committee: hearingEvents.committee, chamber: hearingEvents.chamber }).from(hearingEvents).where(sql14`${hearingEvents.relatedBillIds}::jsonb @> ${JSON.stringify([billId])}::jsonb`);
+      const hearingRows = await policyIntelDb.select({ committee: hearingEvents.committee, chamber: hearingEvents.chamber }).from(hearingEvents).where(sql18`${hearingEvents.relatedBillIds}::jsonb @> ${JSON.stringify([billId])}::jsonb`);
       const docRows = await policyIntelDb.select({
-        committee: sql14`${sourceDocuments.rawPayload}->>'committee'`,
-        feedType: sql14`${sourceDocuments.rawPayload}->>'feedType'`
+        committee: sql18`${sourceDocuments.rawPayload}->>'committee'`,
+        feedType: sql18`${sourceDocuments.rawPayload}->>'feedType'`
       }).from(sourceDocuments).where(
-        or(
-          ilike6(sourceDocuments.title, `%${billId}%`),
-          sql14`${sourceDocuments.rawPayload}->>'billId' = ${billId}`
+        or2(
+          ilike6(sourceDocuments.title, `%${escapeLike(billId)}%`),
+          sql18`${sourceDocuments.rawPayload}->>'billId' = ${billId}`
         )
       );
       const committeeNames = /* @__PURE__ */ new Set();
@@ -12467,7 +15738,7 @@ function createPolicyIntelRouter() {
           title: stakeholders.title,
           email: stakeholders.email,
           phone: stakeholders.phone
-        }).from(committeeMembers).innerJoin(stakeholders, eq21(committeeMembers.stakeholderId, stakeholders.id)).where(inArray5(committeeMembers.committeeName, [...committeeNames]));
+        }).from(committeeMembers).innerJoin(stakeholders, eq26(committeeMembers.stakeholderId, stakeholders.id)).where(inArray8(committeeMembers.committeeName, [...committeeNames]));
       }
       const observedStakeholders = await policyIntelDb.select({
         stakeholderId: stakeholders.id,
@@ -12479,7 +15750,7 @@ function createPolicyIntelRouter() {
         email: stakeholders.email,
         phone: stakeholders.phone,
         observationText: stakeholderObservations.observationText
-      }).from(stakeholderObservations).innerJoin(stakeholders, eq21(stakeholderObservations.stakeholderId, stakeholders.id)).where(ilike6(stakeholderObservations.observationText, `%${billId}%`));
+      }).from(stakeholderObservations).innerJoin(stakeholders, eq26(stakeholderObservations.stakeholderId, stakeholders.id)).where(ilike6(stakeholderObservations.observationText, `%${escapeLike(billId)}%`));
       res.json({
         billId,
         committees: [...committeeNames],
@@ -12492,18 +15763,15 @@ function createPolicyIntelRouter() {
   });
   router.get("/stakeholders", async (_req, res, next) => {
     try {
-      const rows = await policyIntelDb.select().from(stakeholders).orderBy(desc15(stakeholders.id));
+      const rows = await policyIntelDb.select().from(stakeholders).orderBy(desc20(stakeholders.id));
       res.json(rows);
     } catch (err) {
       next(err);
     }
   });
-  router.post("/stakeholders", async (req, res, next) => {
+  router.post("/stakeholders", validateBody(createStakeholderSchema), async (req, res, next) => {
     try {
-      const { workspaceId, type, name, title, organization, jurisdiction, tagsJson, sourceSummary } = req.body ?? {};
-      if (!workspaceId || !type || !name) {
-        return res.status(400).json({ message: "workspaceId, type, and name are required" });
-      }
+      const { workspaceId, type, name, title, organization, jurisdiction, tagsJson, sourceSummary } = req.body;
       const result = await upsertStakeholder({
         workspaceId: Number(workspaceId),
         type,
@@ -12530,13 +15798,10 @@ function createPolicyIntelRouter() {
       next(err);
     }
   });
-  router.post("/stakeholders/:id/observations", async (req, res, next) => {
+  router.post("/stakeholders/:id/observations", validateBody(createObservationSchema), async (req, res, next) => {
     try {
       const stakeholderId = Number(req.params.id);
-      const { sourceDocumentId, matterId, observationText, confidence } = req.body ?? {};
-      if (!observationText) {
-        return res.status(400).json({ message: "observationText is required" });
-      }
+      const { sourceDocumentId, matterId, observationText, confidence } = req.body;
       const obs = await addObservation({
         stakeholderId,
         sourceDocumentId: sourceDocumentId ? Number(sourceDocumentId) : void 0,
@@ -12558,27 +15823,18 @@ function createPolicyIntelRouter() {
       next(err);
     }
   });
-  router.post("/jobs/fetch-tec", async (req, res, next) => {
+  router.post("/jobs/fetch-tec", validateBody(fetchTecSchema), async (req, res, next) => {
     try {
-      const { searchTerm } = req.body ?? {};
-      if (!searchTerm) {
-        return res.status(400).json({ message: "searchTerm is required" });
-      }
+      const { searchTerm } = req.body;
       const result = await fetchTecData(searchTerm);
       res.json(result);
     } catch (err) {
       next(err);
     }
   });
-  router.post("/jobs/run-tec-import", async (req, res, next) => {
+  router.post("/jobs/run-tec-import", validateBody(runTecImportSchema), async (req, res, next) => {
     try {
-      const { searchTerm, workspaceId, matterId, mode } = req.body ?? {};
-      if (!workspaceId) {
-        return res.status(400).json({ message: "workspaceId is required" });
-      }
-      if (mode !== "sweep" && !searchTerm) {
-        return res.status(400).json({ message: "searchTerm is required for search mode" });
-      }
+      const { searchTerm, workspaceId, matterId, mode } = req.body;
       const result = await runTecImportJob({
         mode: mode === "sweep" ? "sweep" : "search",
         searchTerm,
@@ -12622,17 +15878,106 @@ function createPolicyIntelRouter() {
       next(err);
     }
   });
-  router.post("/jobs/run-legiscan", async (req, res, next) => {
+  router.post("/jobs/run-legiscan", validateBody(runLegiscanSchema), async (req, res, next) => {
     try {
-      const { mode, sinceDays, limit, sessionId, detailConcurrency } = req.body ?? {};
+      const { mode, sinceDays, limit, offset, orderBy, sessionId, detailConcurrency } = req.body;
+      const parsedOrderBy = typeof orderBy === "string" ? orderBy.trim() : void 0;
       const result = await runLegiscanJob({
         mode: mode === "full" || mode === "backfill" ? mode : "recent",
-        sinceDays: sinceDays ? Number(sinceDays) : void 0,
-        limit: limit ? Number(limit) : void 0,
-        sessionId: sessionId ? Number(sessionId) : void 0,
-        detailConcurrency: detailConcurrency ? Number(detailConcurrency) : void 0
+        sinceDays: sinceDays !== void 0 ? Number(sinceDays) : void 0,
+        limit: limit !== void 0 ? Number(limit) : void 0,
+        offset: offset !== void 0 ? Number(offset) : void 0,
+        orderBy: parsedOrderBy === "bill_id_asc" || parsedOrderBy === "bill_id_desc" || parsedOrderBy === "last_action_date_asc" || parsedOrderBy === "last_action_date_desc" ? parsedOrderBy : void 0,
+        sessionId: sessionId !== void 0 ? Number(sessionId) : void 0,
+        detailConcurrency: detailConcurrency !== void 0 ? Number(detailConcurrency) : void 0
       });
       res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.post("/replay/legiscan/runs", validateBody(createReplayRunSchema), async (req, res, next) => {
+    try {
+      const { sessionId, mode, chunkSize, orderBy, requestedBy, sinceDays, detailConcurrency, startNow, maxChunks } = req.body;
+      const created = await createLegiscanReplayRun({
+        sessionId: Number(sessionId),
+        mode: typeof mode === "string" ? mode : void 0,
+        chunkSize: Number.isFinite(Number(chunkSize)) ? Number(chunkSize) : void 0,
+        orderBy: typeof orderBy === "string" ? orderBy : void 0,
+        requestedBy: typeof requestedBy === "string" ? requestedBy : void 0,
+        sinceDays: Number.isFinite(Number(sinceDays)) ? Number(sinceDays) : void 0,
+        detailConcurrency: Number.isFinite(Number(detailConcurrency)) ? Number(detailConcurrency) : void 0
+      });
+      if (startNow === true) {
+        const started = await advanceReplayRun(created.run.id, {
+          maxChunks: Number.isFinite(Number(maxChunks)) ? Number(maxChunks) : 1,
+          untilCompleted: maxChunks === "all",
+          stopOnError: true
+        });
+        return res.status(201).json(started);
+      }
+      res.status(201).json(created);
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.get("/replay/legiscan/runs", async (req, res, next) => {
+    try {
+      const status = typeof req.query.status === "string" ? req.query.status : void 0;
+      const limit = Number.isFinite(Number(req.query.limit)) ? Number(req.query.limit) : void 0;
+      const rows = await listReplayRuns({
+        status,
+        limit
+      });
+      res.json(rows);
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.get("/replay/legiscan/runs/:id", async (req, res, next) => {
+    try {
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
+      const detail = await getReplayRunDetail(id);
+      res.json(detail);
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.post("/replay/legiscan/runs/:id/advance", async (req, res, next) => {
+    try {
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
+      const detail = await advanceReplayRun(id, {
+        maxChunks: Number.isFinite(Number(req.body?.maxChunks)) ? Number(req.body.maxChunks) : void 0,
+        untilCompleted: req.body?.untilCompleted === true,
+        stopOnError: req.body?.stopOnError !== false
+      });
+      res.json(detail);
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.post("/replay/legiscan/runs/:id/pause", async (req, res, next) => {
+    try {
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
+      const detail = await pauseReplayRun(id);
+      res.json(detail);
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.post("/replay/legiscan/runs/:id/resume", async (req, res, next) => {
+    try {
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ message: "invalid id" });
+      const detail = await advanceReplayRun(id, {
+        maxChunks: Number.isFinite(Number(req.body?.maxChunks)) ? Number(req.body.maxChunks) : 1,
+        untilCompleted: req.body?.untilCompleted === true,
+        stopOnError: req.body?.stopOnError !== false
+      });
+      res.json(detail);
     } catch (err) {
       next(err);
     }
@@ -12661,6 +16006,9 @@ function createPolicyIntelRouter() {
   });
   router.get("/scheduler/history", (_req, res) => {
     res.json(getJobHistory());
+  });
+  router.get("/ops/environment", (_req, res) => {
+    res.json(getEnvironmentStatusReport());
   });
   router.post("/scheduler/trigger/:jobName", async (req, res, next) => {
     try {
@@ -12694,12 +16042,9 @@ function createPolicyIntelRouter() {
       next(err);
     }
   });
-  router.post("/metrics/pipeline/test", async (req, res, next) => {
+  router.post("/metrics/pipeline/test", validateBody(pipelineTestSchema), async (req, res, next) => {
     try {
       const { title, summary, reasons } = req.body;
-      if (!title || typeof title !== "string") {
-        return res.status(400).json({ error: "title is required" });
-      }
       const signal = await runAgentPipeline(
         title,
         summary ?? null,
@@ -12748,11 +16093,11 @@ function createPolicyIntelRouter() {
     try {
       const { from, to, chamber, committee } = req.query;
       const conditions = [];
-      if (from) conditions.push(gte12(hearingEvents.hearingDate, new Date(from)));
+      if (from) conditions.push(gte15(hearingEvents.hearingDate, new Date(from)));
       if (to) conditions.push(lt(hearingEvents.hearingDate, new Date(to)));
-      if (chamber) conditions.push(eq21(hearingEvents.chamber, chamber));
-      if (committee) conditions.push(ilike6(hearingEvents.committee, `%${committee}%`));
-      const rows = await policyIntelDb.select().from(hearingEvents).where(conditions.length > 0 ? and13(...conditions) : void 0).orderBy(hearingEvents.hearingDate);
+      if (chamber) conditions.push(eq26(hearingEvents.chamber, chamber));
+      if (committee) conditions.push(ilike6(hearingEvents.committee, `%${escapeLike(committee)}%`));
+      const rows = await policyIntelDb.select().from(hearingEvents).where(conditions.length > 0 ? and18(...conditions) : void 0).orderBy(hearingEvents.hearingDate);
       res.json(rows);
     } catch (err) {
       next(err);
@@ -12767,8 +16112,8 @@ function createPolicyIntelRouter() {
       monday.setHours(0, 0, 0, 0);
       const nextMonday = new Date(monday);
       nextMonday.setDate(monday.getDate() + 7);
-      const rows = await policyIntelDb.select().from(hearingEvents).where(and13(
-        gte12(hearingEvents.hearingDate, monday),
+      const rows = await policyIntelDb.select().from(hearingEvents).where(and18(
+        gte15(hearingEvents.hearingDate, monday),
         lt(hearingEvents.hearingDate, nextMonday)
       )).orderBy(hearingEvents.hearingDate);
       res.json({ weekStart: monday.toISOString(), weekEnd: nextMonday.toISOString(), hearings: rows });
@@ -12780,7 +16125,7 @@ function createPolicyIntelRouter() {
     try {
       const id = parseId(req.params.id);
       if (!id) return res.status(400).json({ message: "invalid id" });
-      const [row] = await policyIntelDb.select().from(hearingEvents).where(eq21(hearingEvents.id, id));
+      const [row] = await policyIntelDb.select().from(hearingEvents).where(eq26(hearingEvents.id, id));
       if (!row) return res.status(404).json({ message: "Hearing not found" });
       res.json(row);
     } catch (err) {
@@ -12790,10 +16135,10 @@ function createPolicyIntelRouter() {
   router.post("/hearings/sync", async (req, res, next) => {
     try {
       const docs = await policyIntelDb.select().from(sourceDocuments).where(
-        or(
-          sql14`${sourceDocuments.rawPayload}->>'feedType' = 'upcomingmeetingshouse'`,
-          sql14`${sourceDocuments.rawPayload}->>'feedType' = 'upcomingmeetingssenate'`,
-          sql14`${sourceDocuments.rawPayload}->>'feedType' = 'upcomingmeetingsjoint'`
+        or2(
+          sql18`${sourceDocuments.rawPayload}->>'feedType' = 'upcomingmeetingshouse'`,
+          sql18`${sourceDocuments.rawPayload}->>'feedType' = 'upcomingmeetingssenate'`,
+          sql18`${sourceDocuments.rawPayload}->>'feedType' = 'upcomingmeetingsjoint'`
         )
       );
       let created = 0;
@@ -12828,7 +16173,7 @@ function createPolicyIntelRouter() {
           }
         }
         const extId = `tlo-hearing-${doc.id}`;
-        const [existing] = await policyIntelDb.select({ id: hearingEvents.id }).from(hearingEvents).where(eq21(hearingEvents.externalId, extId));
+        const [existing] = await policyIntelDb.select({ id: hearingEvents.id }).from(hearingEvents).where(eq26(hearingEvents.externalId, extId));
         if (existing) {
           skipped++;
           continue;
@@ -12870,13 +16215,10 @@ function createPolicyIntelRouter() {
       next(err);
     }
   });
-  router.post("/committee-intel/sessions/from-hearing", async (req, res, next) => {
+  router.post("/committee-intel/sessions/from-hearing", validateBody(createCommitteeIntelFromHearingSchema), async (req, res, next) => {
     try {
-      const workspaceId = parseId(String(req.body?.workspaceId ?? ""));
-      const hearingId = parseId(String(req.body?.hearingId ?? ""));
-      if (!workspaceId || !hearingId) {
-        return res.status(400).json({ message: "workspaceId and hearingId are required" });
-      }
+      const workspaceId = req.body.workspaceId;
+      const hearingId = req.body.hearingId;
       const detail = await createCommitteeIntelSessionFromHearing({
         workspaceId,
         hearingId,
@@ -12963,13 +16305,10 @@ function createPolicyIntelRouter() {
       next(err);
     }
   });
-  router.post("/committee-intel/sessions/:id/segments", async (req, res, next) => {
+  router.post("/committee-intel/sessions/:id/segments", validateBody(addSegmentSchema), async (req, res, next) => {
     try {
       const id = parseId(req.params.id);
       if (!id) return res.status(400).json({ message: "invalid id" });
-      if (typeof req.body?.transcriptText !== "string" || !req.body.transcriptText.trim()) {
-        return res.status(400).json({ message: "transcriptText is required" });
-      }
       const detail = await addCommitteeIntelSegment(id, {
         capturedAt: typeof req.body?.capturedAt === "string" ? req.body.capturedAt : void 0,
         startedAtSecond: typeof req.body?.startedAtSecond === "number" ? req.body.startedAtSecond : null,
@@ -13006,13 +16345,10 @@ function createPolicyIntelRouter() {
       next(err);
     }
   });
-  router.post("/committee-intel/sessions/:id/focused-brief", async (req, res, next) => {
+  router.post("/committee-intel/sessions/:id/focused-brief", validateBody(focusedBriefSchema), async (req, res, next) => {
     try {
       const id = parseId(req.params.id);
       if (!id) return res.status(400).json({ message: "invalid id" });
-      if (typeof req.body?.issue !== "string" || !req.body.issue.trim()) {
-        return res.status(400).json({ message: "issue is required" });
-      }
       const brief = await generateCommitteeIntelFocusedBrief(id, req.body.issue);
       res.json(brief);
     } catch (err) {
@@ -13064,14 +16400,14 @@ function createPolicyIntelRouter() {
           }))
         }));
       };
-      console.log("\u{1F3DB}\uFE0F Importing committee memberships from OpenStates GraphQL...");
+      log12.info("importing committee memberships from OpenStates GraphQL");
       const [houseMembers, senateMembers] = await Promise.all([
         fetchMembers(houseOrgId, "House"),
         fetchMembers(senateOrgId, "Senate")
       ]);
       const allMembers = [...houseMembers, ...senateMembers];
-      console.log(`\u{1F4CA} Fetched ${allMembers.length} legislators from OpenStates (${houseMembers.length} House, ${senateMembers.length} Senate)`);
-      const existingStakeholders = await policyIntelDb.select({ id: stakeholders.id, name: stakeholders.name, chamber: stakeholders.chamber }).from(stakeholders).where(eq21(stakeholders.type, "legislator"));
+      log12.info({ total: allMembers.length, house: houseMembers.length, senate: senateMembers.length }, "fetched legislators from OpenStates");
+      const existingStakeholders = await policyIntelDb.select({ id: stakeholders.id, name: stakeholders.name, chamber: stakeholders.chamber }).from(stakeholders).where(eq26(stakeholders.type, "legislator"));
       const normalize = (s) => s.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
       const nameMap = /* @__PURE__ */ new Map();
       const familyMap = /* @__PURE__ */ new Map();
@@ -13111,7 +16447,7 @@ function createPolicyIntelRouter() {
           inserted++;
         }
       }
-      console.log(`\u2705 Committee import complete: ${matched} matched, ${unmatched} unmatched, ${inserted} memberships inserted`);
+      log12.info({ matched, unmatched, inserted }, "committee import complete");
       res.json({
         success: true,
         matched,
@@ -13128,9 +16464,9 @@ function createPolicyIntelRouter() {
     try {
       const { stakeholderId, committee, chamber } = req.query;
       const conditions = [];
-      if (stakeholderId) conditions.push(eq21(committeeMembers.stakeholderId, Number(stakeholderId)));
-      if (committee) conditions.push(ilike6(committeeMembers.committeeName, `%${committee}%`));
-      if (chamber) conditions.push(eq21(committeeMembers.chamber, chamber));
+      if (stakeholderId) conditions.push(eq26(committeeMembers.stakeholderId, Number(stakeholderId)));
+      if (committee) conditions.push(ilike6(committeeMembers.committeeName, `%${escapeLike(committee)}%`));
+      if (chamber) conditions.push(eq26(committeeMembers.chamber, chamber));
       const rows = await policyIntelDb.select({
         id: committeeMembers.id,
         stakeholderId: committeeMembers.stakeholderId,
@@ -13141,7 +16477,7 @@ function createPolicyIntelRouter() {
         stakeholderName: stakeholders.name,
         stakeholderParty: stakeholders.party,
         stakeholderDistrict: stakeholders.district
-      }).from(committeeMembers).leftJoin(stakeholders, eq21(committeeMembers.stakeholderId, stakeholders.id)).where(conditions.length > 0 ? and13(...conditions) : void 0).orderBy(committeeMembers.committeeName, committeeMembers.role);
+      }).from(committeeMembers).leftJoin(stakeholders, eq26(committeeMembers.stakeholderId, stakeholders.id)).where(conditions.length > 0 ? and18(...conditions) : void 0).orderBy(committeeMembers.committeeName, committeeMembers.role);
       res.json(rows);
     } catch (err) {
       next(err);
@@ -13150,17 +16486,16 @@ function createPolicyIntelRouter() {
   router.get("/stakeholders/:id/meeting-notes", async (req, res, next) => {
     try {
       const stakeholderId = Number(req.params.id);
-      const rows = await policyIntelDb.select().from(meetingNotes).where(eq21(meetingNotes.stakeholderId, stakeholderId)).orderBy(desc15(meetingNotes.createdAt));
+      const rows = await policyIntelDb.select().from(meetingNotes).where(eq26(meetingNotes.stakeholderId, stakeholderId)).orderBy(desc20(meetingNotes.createdAt));
       res.json(rows);
     } catch (err) {
       next(err);
     }
   });
-  router.post("/stakeholders/:id/meeting-notes", async (req, res, next) => {
+  router.post("/stakeholders/:id/meeting-notes", validateBody(createMeetingNoteSchema), async (req, res, next) => {
     try {
       const stakeholderId = Number(req.params.id);
-      const { noteText, meetingDate, contactMethod, matterId } = req.body ?? {};
-      if (!noteText?.trim()) return res.status(400).json({ message: "noteText required" });
+      const { noteText, meetingDate, contactMethod, matterId } = req.body;
       const [row] = await policyIntelDb.insert(meetingNotes).values({
         stakeholderId,
         matterId: matterId ? Number(matterId) : null,
@@ -13177,20 +16512,19 @@ function createPolicyIntelRouter() {
     try {
       const id = parseId(req.params.id);
       if (!id) return res.status(400).json({ message: "invalid id" });
-      const [stakeholder] = await policyIntelDb.select().from(stakeholders).where(eq21(stakeholders.id, id));
+      const [stakeholder] = await policyIntelDb.select().from(stakeholders).where(eq26(stakeholders.id, id));
       if (!stakeholder) return res.status(404).json({ message: "Stakeholder not found" });
-      const observations = await policyIntelDb.select().from(stakeholderObservations).where(eq21(stakeholderObservations.stakeholderId, id)).orderBy(desc15(stakeholderObservations.createdAt));
-      const committees = await policyIntelDb.select().from(committeeMembers).where(eq21(committeeMembers.stakeholderId, id));
-      const notes = await policyIntelDb.select().from(meetingNotes).where(eq21(meetingNotes.stakeholderId, id)).orderBy(desc15(meetingNotes.createdAt));
+      const observations = await policyIntelDb.select().from(stakeholderObservations).where(eq26(stakeholderObservations.stakeholderId, id)).orderBy(desc20(stakeholderObservations.createdAt));
+      const committees = await policyIntelDb.select().from(committeeMembers).where(eq26(committeeMembers.stakeholderId, id));
+      const notes = await policyIntelDb.select().from(meetingNotes).where(eq26(meetingNotes.stakeholderId, id)).orderBy(desc20(meetingNotes.createdAt));
       res.json({ ...stakeholder, observations, committees, meetingNotes: notes });
     } catch (err) {
       next(err);
     }
   });
-  router.post("/stakeholders/import-legislators", async (req, res, next) => {
+  router.post("/stakeholders/import-legislators", validateBody(importLegislatorsSchema), async (req, res, next) => {
     try {
-      const workspaceId = Number(req.body?.workspaceId);
-      if (!workspaceId) return res.status(400).json({ message: "workspaceId required" });
+      const workspaceId = req.body.workspaceId;
       const apiKey = process.env.LEGISCAN_API_KEY;
       if (!apiKey) return res.status(500).json({ message: "LEGISCAN_API_KEY not configured" });
       const sessionListResp = await fetch(
@@ -13221,10 +16555,10 @@ function createPolicyIntelRouter() {
         const party = person.party ?? "";
         const district = person.district ?? "";
         const title = `${chamber} District ${district} (${party})`;
-        const [existingRow] = await policyIntelDb.select({ id: stakeholders.id }).from(stakeholders).where(and13(
-          eq21(stakeholders.workspaceId, workspaceId),
-          eq21(stakeholders.name, name),
-          eq21(stakeholders.type, "legislator")
+        const [existingRow] = await policyIntelDb.select({ id: stakeholders.id }).from(stakeholders).where(and18(
+          eq26(stakeholders.workspaceId, workspaceId),
+          eq26(stakeholders.name, name),
+          eq26(stakeholders.type, "legislator")
         ));
         if (existingRow) {
           await policyIntelDb.update(stakeholders).set({
@@ -13233,7 +16567,7 @@ function createPolicyIntelRouter() {
             chamber: chamber || null,
             district: district ? String(district) : null,
             updatedAt: /* @__PURE__ */ new Date()
-          }).where(eq21(stakeholders.id, existingRow.id));
+          }).where(eq26(stakeholders.id, existingRow.id));
           existing++;
           continue;
         }
@@ -13269,12 +16603,9 @@ function createPolicyIntelRouter() {
       next(err);
     }
   });
-  router.post("/deliverables/generate-client-alert", async (req, res, next) => {
+  router.post("/deliverables/generate-client-alert", validateBody(generateClientAlertSchema), async (req, res, next) => {
     try {
       const { issueRoomId, workspaceId, matterId, recipientName, firmName } = req.body;
-      if (!issueRoomId || !workspaceId) {
-        return res.status(400).json({ error: "issueRoomId and workspaceId are required" });
-      }
       const result = await generateClientAlert({
         issueRoomId: Number(issueRoomId),
         workspaceId: Number(workspaceId),
@@ -13287,12 +16618,9 @@ function createPolicyIntelRouter() {
       next(err);
     }
   });
-  router.post("/deliverables/generate-weekly-report", async (req, res, next) => {
+  router.post("/deliverables/generate-weekly-report", validateBody(generateWeeklyReportSchema), async (req, res, next) => {
     try {
       const { workspaceId, matterId, week, recipientName, firmName } = req.body;
-      if (!workspaceId) {
-        return res.status(400).json({ error: "workspaceId is required" });
-      }
       const result = await generateWeeklyReport({
         workspaceId: Number(workspaceId),
         matterId: matterId ? Number(matterId) : void 0,
@@ -13305,12 +16633,9 @@ function createPolicyIntelRouter() {
       next(err);
     }
   });
-  router.post("/deliverables/generate-hearing-memo", async (req, res, next) => {
+  router.post("/deliverables/generate-hearing-memo", validateBody(generateHearingMemoSchema), async (req, res, next) => {
     try {
       const { hearingId, workspaceId, matterId, recipientName, firmName } = req.body;
-      if (!hearingId || !workspaceId) {
-        return res.status(400).json({ error: "hearingId and workspaceId are required" });
-      }
       const result = await generateHearingMemo({
         hearingId: Number(hearingId),
         workspaceId: Number(workspaceId),
@@ -13397,6 +16722,32 @@ function createPolicyIntelRouter() {
       next(err);
     }
   });
+  router.get("/intelligence/forecast/outcomes", async (_req, res, next) => {
+    try {
+      const summary = await getLatestOutcomeTruthSnapshotSummary();
+      res.json(summary);
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.post("/intelligence/forecast/outcomes/refresh", async (req, res, next) => {
+    try {
+      const snapshotKey = typeof req.body?.snapshotKey === "string" ? req.body.snapshotKey : void 0;
+      const result = await refreshOutcomeTruthSnapshot(snapshotKey);
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.get("/intelligence/forecast/drift", async (req, res, next) => {
+    try {
+      const limit = Number.isFinite(Number(req.query.limit)) ? Number(req.query.limit) : void 0;
+      const summary = await getForecastDriftSummary(limit);
+      res.json(summary);
+    } catch (err) {
+      next(err);
+    }
+  });
   router.get("/intelligence/forecast", async (_req, res, next) => {
     try {
       const riskReport = await analyzeRisk();
@@ -13473,11 +16824,354 @@ function createPolicyIntelRouter() {
       next(err);
     }
   });
+  router.get("/premium/predictions/dashboard", async (req, res, next) => {
+    try {
+      const { getPredictionDashboard: getPredictionDashboard2 } = await Promise.resolve().then(() => (init_passage_predictor_service(), passage_predictor_service_exports));
+      const workspaceId = parseId(req.query.workspaceId);
+      if (!workspaceId) return res.status(400).json({ error: "workspaceId required" });
+      const dashboard = await getPredictionDashboard2(workspaceId);
+      res.json(dashboard);
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.post("/premium/predictions/predict", async (req, res, next) => {
+    try {
+      const { predictBillPassage: predictBillPassage2 } = await Promise.resolve().then(() => (init_passage_predictor_service(), passage_predictor_service_exports));
+      const { workspaceId, billId, billTitle, forceRefresh } = req.body;
+      if (!workspaceId || !billId) {
+        return res.status(400).json({ error: "workspaceId and billId required" });
+      }
+      const result = await predictBillPassage2({ workspaceId, billId, billTitle, forceRefresh });
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.post("/premium/predictions/batch", async (req, res, next) => {
+    try {
+      const { predictBillPassageBatch: predictBillPassageBatch2 } = await Promise.resolve().then(() => (init_passage_predictor_service(), passage_predictor_service_exports));
+      const { workspaceId, billIds } = req.body;
+      if (!workspaceId || !Array.isArray(billIds)) {
+        return res.status(400).json({ error: "workspaceId and billIds[] required" });
+      }
+      const results = await predictBillPassageBatch2({ workspaceId, billIds });
+      res.json({ data: results, total: results.length });
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.post("/premium/predictions/auto-discover", async (req, res, next) => {
+    try {
+      const { autoDiscoverAndPredict: autoDiscoverAndPredict2 } = await Promise.resolve().then(() => (init_passage_predictor_service(), passage_predictor_service_exports));
+      const { workspaceId } = req.body;
+      if (!workspaceId) return res.status(400).json({ error: "workspaceId required" });
+      const result = await autoDiscoverAndPredict2(workspaceId);
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.get("/premium/clients", async (req, res, next) => {
+    try {
+      const { listClientProfiles: listClientProfiles2 } = await Promise.resolve().then(() => (init_client_reporting_service(), client_reporting_service_exports));
+      const workspaceId = parseId(req.query.workspaceId);
+      if (!workspaceId) return res.status(400).json({ error: "workspaceId required" });
+      const clients = await listClientProfiles2(workspaceId);
+      res.json({ data: clients, total: clients.length });
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.get("/premium/clients/:id", async (req, res, next) => {
+    try {
+      const { getClientProfile: getClientProfile2 } = await Promise.resolve().then(() => (init_client_reporting_service(), client_reporting_service_exports));
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ error: "Invalid client id" });
+      const profile = await getClientProfile2(id);
+      if (!profile) return res.status(404).json({ error: "Client profile not found" });
+      res.json(profile);
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.post("/premium/clients", async (req, res, next) => {
+    try {
+      const { createClientProfile: createClientProfile2 } = await Promise.resolve().then(() => (init_client_reporting_service(), client_reporting_service_exports));
+      const profile = await createClientProfile2(req.body);
+      res.status(201).json(profile);
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.patch("/premium/clients/:id", async (req, res, next) => {
+    try {
+      const { updateClientProfile: updateClientProfile2 } = await Promise.resolve().then(() => (init_client_reporting_service(), client_reporting_service_exports));
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ error: "Invalid client id" });
+      const profile = await updateClientProfile2(id, req.body);
+      res.json(profile);
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.get("/premium/templates", async (req, res, next) => {
+    try {
+      const { listReportTemplates: listReportTemplates2 } = await Promise.resolve().then(() => (init_client_reporting_service(), client_reporting_service_exports));
+      const workspaceId = parseId(req.query.workspaceId);
+      if (!workspaceId) return res.status(400).json({ error: "workspaceId required" });
+      const templates = await listReportTemplates2(workspaceId, req.query.type);
+      res.json({ data: templates, total: templates.length });
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.post("/premium/templates", async (req, res, next) => {
+    try {
+      const { createReportTemplate: createReportTemplate2 } = await Promise.resolve().then(() => (init_client_reporting_service(), client_reporting_service_exports));
+      const template = await createReportTemplate2(req.body);
+      res.status(201).json(template);
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.patch("/premium/templates/:id", async (req, res, next) => {
+    try {
+      const { updateReportTemplate: updateReportTemplate2 } = await Promise.resolve().then(() => (init_client_reporting_service(), client_reporting_service_exports));
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ error: "Invalid template id" });
+      const template = await updateReportTemplate2(id, req.body);
+      res.json(template);
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.delete("/premium/templates/:id", async (req, res, next) => {
+    try {
+      const { deleteReportTemplate: deleteReportTemplate2 } = await Promise.resolve().then(() => (init_client_reporting_service(), client_reporting_service_exports));
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ error: "Invalid template id" });
+      await deleteReportTemplate2(id);
+      res.status(204).end();
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.post("/premium/reports/executive", async (req, res, next) => {
+    try {
+      const { generateExecutiveReport: generateExecutiveReport2 } = await Promise.resolve().then(() => (init_client_reporting_service(), client_reporting_service_exports));
+      const report = await generateExecutiveReport2(req.body);
+      res.status(201).json(report);
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.get("/premium/relationships/network", async (req, res, next) => {
+    try {
+      const { buildNetworkGraph: buildNetworkGraph2 } = await Promise.resolve().then(() => (init_relationship_intelligence_service(), relationship_intelligence_service_exports));
+      const workspaceId = parseId(req.query.workspaceId);
+      if (!workspaceId) return res.status(400).json({ error: "workspaceId required" });
+      const focusStakeholderId = req.query.focusStakeholderId ? parseId(req.query.focusStakeholderId) : void 0;
+      const minStrength = req.query.minStrength ? parseFloat(req.query.minStrength) : void 0;
+      const relationshipTypes = req.query.types ? req.query.types.split(",") : void 0;
+      const graph = await buildNetworkGraph2(workspaceId, {
+        focusStakeholderId: focusStakeholderId ?? void 0,
+        relationshipTypes,
+        minStrength
+      });
+      res.json(graph);
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.get("/premium/relationships/dossier/:stakeholderId", async (req, res, next) => {
+    try {
+      const { getStakeholderDossier: getStakeholderDossier2 } = await Promise.resolve().then(() => (init_relationship_intelligence_service(), relationship_intelligence_service_exports));
+      const workspaceId = parseId(req.query.workspaceId);
+      const stakeholderId = parseId(req.params.stakeholderId);
+      if (!workspaceId || !stakeholderId) {
+        return res.status(400).json({ error: "workspaceId and stakeholderId required" });
+      }
+      const dossier = await getStakeholderDossier2(workspaceId, stakeholderId);
+      res.json(dossier);
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.post("/premium/relationships", async (req, res, next) => {
+    try {
+      const { createRelationship: createRelationship2 } = await Promise.resolve().then(() => (init_relationship_intelligence_service(), relationship_intelligence_service_exports));
+      const rel = await createRelationship2(req.body);
+      res.status(201).json(rel);
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.get("/premium/relationships", async (req, res, next) => {
+    try {
+      const { listRelationships: listRelationships2 } = await Promise.resolve().then(() => (init_relationship_intelligence_service(), relationship_intelligence_service_exports));
+      const workspaceId = parseId(req.query.workspaceId);
+      if (!workspaceId) return res.status(400).json({ error: "workspaceId required" });
+      const stakeholderId = req.query.stakeholderId ? parseId(req.query.stakeholderId) : void 0;
+      const rels = await listRelationships2(workspaceId, stakeholderId ?? void 0);
+      res.json({ data: rels, total: rels.length });
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.post("/premium/relationships/auto-discover", async (req, res, next) => {
+    try {
+      const { autoDiscoverRelationships: autoDiscoverRelationships2 } = await Promise.resolve().then(() => (init_relationship_intelligence_service(), relationship_intelligence_service_exports));
+      const { workspaceId } = req.body;
+      if (!workspaceId) return res.status(400).json({ error: "workspaceId required" });
+      const result = await autoDiscoverRelationships2(workspaceId);
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.get("/premium/session/dashboard", async (req, res, next) => {
+    try {
+      const { getSessionDashboard: getSessionDashboard2 } = await Promise.resolve().then(() => (init_session_lifecycle_service(), session_lifecycle_service_exports));
+      const workspaceId = parseId(req.query.workspaceId);
+      if (!workspaceId) return res.status(400).json({ error: "workspaceId required" });
+      const dashboard = await getSessionDashboard2(workspaceId);
+      if (!dashboard) {
+        return res.json({ message: "No active session. Initialize a session first.", session: null });
+      }
+      res.json(dashboard);
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.post("/premium/session/initialize", async (req, res, next) => {
+    try {
+      const { initializeTexasSession: initializeTexasSession2 } = await Promise.resolve().then(() => (init_session_lifecycle_service(), session_lifecycle_service_exports));
+      const { workspaceId, sessionNumber } = req.body;
+      if (!workspaceId) return res.status(400).json({ error: "workspaceId required" });
+      const result = await initializeTexasSession2(workspaceId, sessionNumber);
+      res.status(201).json(result);
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.get("/premium/session/sessions", async (req, res, next) => {
+    try {
+      const { listSessions: listSessions2 } = await Promise.resolve().then(() => (init_session_lifecycle_service(), session_lifecycle_service_exports));
+      const workspaceId = parseId(req.query.workspaceId);
+      if (!workspaceId) return res.status(400).json({ error: "workspaceId required" });
+      const sessions = await listSessions2(workspaceId);
+      res.json({ data: sessions, total: sessions.length });
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.post("/premium/session/transition", async (req, res, next) => {
+    try {
+      const { executePhaseTransition: executePhaseTransition2 } = await Promise.resolve().then(() => (init_session_lifecycle_service(), session_lifecycle_service_exports));
+      const { workspaceId, toPhase } = req.body;
+      if (!workspaceId || !toPhase) {
+        return res.status(400).json({ error: "workspaceId and toPhase required" });
+      }
+      const result = await executePhaseTransition2(workspaceId, toPhase);
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.get("/premium/session/transition/plan", async (req, res, next) => {
+    try {
+      const { generatePhaseTransitionPlan: generatePhaseTransitionPlan2 } = await Promise.resolve().then(() => (init_session_lifecycle_service(), session_lifecycle_service_exports));
+      const workspaceId = parseId(req.query.workspaceId);
+      const toPhase = req.query.toPhase;
+      if (!workspaceId || !toPhase) {
+        return res.status(400).json({ error: "workspaceId and toPhase required" });
+      }
+      const plan = await generatePhaseTransitionPlan2(workspaceId, toPhase);
+      res.json(plan);
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.get("/premium/actions", async (req, res, next) => {
+    try {
+      const { listClientActions: listClientActions2 } = await Promise.resolve().then(() => (init_session_lifecycle_service(), session_lifecycle_service_exports));
+      const workspaceId = parseId(req.query.workspaceId);
+      if (!workspaceId) return res.status(400).json({ error: "workspaceId required" });
+      const actions = await listClientActions2(workspaceId, {
+        status: req.query.status,
+        matterId: req.query.matterId ? parseId(req.query.matterId) ?? void 0 : void 0,
+        assignee: req.query.assignee
+      });
+      res.json({ data: actions, total: actions.length });
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.post("/premium/actions", async (req, res, next) => {
+    try {
+      const { createClientAction: createClientAction2 } = await Promise.resolve().then(() => (init_session_lifecycle_service(), session_lifecycle_service_exports));
+      const action = await createClientAction2(req.body);
+      res.status(201).json(action);
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.patch("/premium/actions/:id", async (req, res, next) => {
+    try {
+      const { updateClientAction: updateClientAction2 } = await Promise.resolve().then(() => (init_session_lifecycle_service(), session_lifecycle_service_exports));
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ error: "Invalid action id" });
+      const action = await updateClientAction2(id, req.body);
+      res.json(action);
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.get("/premium/session/milestones", async (req, res, next) => {
+    try {
+      const { listMilestones: listMilestones2 } = await Promise.resolve().then(() => (init_session_lifecycle_service(), session_lifecycle_service_exports));
+      const sessionId = parseId(req.query.sessionId);
+      if (!sessionId) return res.status(400).json({ error: "sessionId required" });
+      const phase = req.query.phase;
+      const milestones = await listMilestones2(sessionId, phase);
+      res.json({ data: milestones, total: milestones.length });
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.patch("/premium/session/milestones/:id", async (req, res, next) => {
+    try {
+      const { updateMilestoneStatus: updateMilestoneStatus2 } = await Promise.resolve().then(() => (init_session_lifecycle_service(), session_lifecycle_service_exports));
+      const id = parseId(req.params.id);
+      if (!id) return res.status(400).json({ error: "Invalid milestone id" });
+      const { status } = req.body;
+      if (!status) return res.status(400).json({ error: "status required" });
+      const milestone = await updateMilestoneStatus2(id, status);
+      res.json(milestone);
+    } catch (err) {
+      next(err);
+    }
+  });
   return router;
 }
 
+// server/policy-intel/app.ts
+init_db();
+import { sql as sql19 } from "drizzle-orm";
+
 // server/policy-intel/auth.ts
-var API_TOKEN = process.env.POLICY_INTEL_API_TOKEN ?? "";
+var IS_PRODUCTION = process.env.NODE_ENV === "production";
+function resolveApiToken() {
+  const token = process.env.POLICY_INTEL_API_TOKEN;
+  return typeof token === "string" ? token.trim() : "";
+}
+var API_TOKEN = resolveApiToken();
+function validatePolicyIntelAuthConfiguration() {
+  if (IS_PRODUCTION && !API_TOKEN) {
+    throw new Error("POLICY_INTEL_API_TOKEN must be set in production");
+  }
+}
 var PUBLIC_PATHS = /* @__PURE__ */ new Set(["/health", "/", "/metrics"]);
 function authMiddleware(req, res, next) {
   if (!API_TOKEN) return next();
@@ -13494,13 +17188,53 @@ function authMiddleware(req, res, next) {
 }
 
 // server/policy-intel/app.ts
+init_logger();
+var log13 = createLogger("policy-intel");
 function createPolicyIntelApp() {
   const app2 = express();
   app2.set("trust proxy", 1);
-  const allowedOrigins = process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(",").map((o) => o.trim()) : ["http://localhost:5173", "http://localhost:5050"];
+  app2.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "https:"],
+        connectSrc: ["'self'"]
+      }
+    },
+    crossOriginEmbedderPolicy: false
+    // allow loading cross-origin resources (e.g. legislator photos)
+  }));
+  const corsRaw = process.env.CORS_ORIGINS?.split(",").map((o) => o.trim()).filter(Boolean);
+  if ((!corsRaw || corsRaw.length === 0) && process.env.NODE_ENV === "production") {
+    throw new Error("CORS_ORIGINS must be set in production (comma-separated list of allowed origins)");
+  }
+  const allowedOrigins = corsRaw && corsRaw.length > 0 ? corsRaw : ["http://localhost:5173", "http://localhost:5050"];
   app2.use(cors({ origin: allowedOrigins, credentials: true }));
   app2.use(express.json({ limit: "2mb" }));
   app2.use(express.urlencoded({ extended: true }));
+  const apiLimiter = rateLimit({
+    windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS) || 6e4,
+    max: Number(process.env.RATE_LIMIT_MAX) || 120,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: "Too many requests, please try again later" }
+  });
+  const mutationLimiter = rateLimit({
+    windowMs: Number(process.env.RATE_LIMIT_MUTATION_WINDOW_MS) || 6e4,
+    max: Number(process.env.RATE_LIMIT_MUTATION_MAX) || 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: "Too many write requests, please try again later" }
+  });
+  app2.use("/api/intel", apiLimiter);
+  app2.use("/api/intel", (req, _res, next) => {
+    if (req.method === "POST" || req.method === "PATCH" || req.method === "DELETE") {
+      return mutationLimiter(req, _res, next);
+    }
+    next();
+  });
   app2.use((req, res, next) => {
     const start2 = Date.now();
     res.on("finish", () => {
@@ -13511,42 +17245,54 @@ function createPolicyIntelApp() {
     });
     next();
   });
-  app2.get("/health", (_req, res) => {
+  app2.get("/health/liveness", (_req, res) => {
     res.json({ ok: true, app: "actup-policy-intel" });
+  });
+  app2.get("/health", async (_req, res) => {
+    try {
+      await policyIntelDb.execute(sql19`SELECT 1`);
+      res.json({ ok: true, app: "actup-policy-intel" });
+    } catch {
+      res.status(503).json({ ok: false, app: "actup-policy-intel", error: "database unreachable" });
+    }
   });
   app2.get("/metrics", (_req, res) => {
     res.set("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
     res.send(metrics.serialize());
   });
   app2.use("/api/intel", authMiddleware, createPolicyIntelRouter());
-  app2.use((err, _req, res, _next) => {
-    console.error(err);
-    const message = err instanceof Error ? err.message : "Unexpected server error";
-    res.status(500).json({ message });
+  app2.use((err, req, res, _next) => {
+    const message = safeErrorMessage(err);
+    log13.error({ method: req.method, path: req.path, err: message }, "request failed");
+    const clientMessage = process.env.NODE_ENV === "production" ? "Internal server error" : message;
+    res.status(500).json({ message: clientMessage });
   });
   return app2;
 }
 
 // server/policy-intel/index.ts
 init_db();
+init_logger();
+var log14 = createLogger("policy-intel");
 process.on("uncaughtException", (err) => {
-  console.error("[policy-intel] uncaughtException:", err);
+  log14.error({ err: safeErrorMessage(err) }, "uncaughtException");
 });
 process.on("unhandledRejection", (reason) => {
-  console.error("[policy-intel] unhandledRejection:", reason);
+  log14.error({ err: safeErrorMessage(reason) }, "unhandledRejection");
 });
 var port = Number(process.env.POLICY_INTEL_PORT || 5050);
 var host = process.env.HOST || "0.0.0.0";
+validatePolicyIntelAuthConfiguration();
 var app = createPolicyIntelApp();
 var server = null;
 var shuttingDown = false;
 async function shutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
-  console.log(`[policy-intel] received ${signal}; shutting down`);
+  log14.info({ signal }, "shutting down");
   stopScheduler();
   const forcedExit = setTimeout(() => {
-    console.error("[policy-intel] forced shutdown after timeout");
+    log14.error("forced shutdown after timeout");
     process.exit(1);
   }, 1e4);
   forcedExit.unref?.();
@@ -13562,7 +17308,7 @@ async function shutdown(signal) {
     await queryClient.end({ timeout: 5 });
     process.exit(0);
   } catch (error) {
-    console.error("[policy-intel] shutdown failed:", error);
+    log14.error({ err: error }, "shutdown failed");
     process.exit(1);
   } finally {
     clearTimeout(forcedExit);
@@ -13577,11 +17323,11 @@ process.on("SIGTERM", () => {
 async function start() {
   await ensureDatabaseConnection();
   server = app.listen(port, host, () => {
-    console.log(`[policy-intel] listening on http://${host}:${port}`);
+    log14.info({ host, port }, "listening");
     startScheduler();
   });
 }
 void start().catch((error) => {
-  console.error("[policy-intel] startup failed:", error);
+  log14.fatal({ err: safeErrorMessage(error) }, "startup failed");
   process.exit(1);
 });
