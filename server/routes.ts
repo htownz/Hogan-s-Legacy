@@ -201,6 +201,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     log.error({ err: error }, "Failed to initialize RSS feed scheduler");
   }
   
+  // Register Enhanced UX Routes (must come before bills-legislators router
+  // because /api/bills/:id in that router would shadow /api/bills/trending etc.)
+  registerUXEnhancementRoutes(app);
+
   // ---- BILLS & LEGISLATORS routes (extracted) ----
   const billsLegislatorsRoutes = (await import("./routes/bills-legislators-routes")).default;
   app.use("/api", billsLegislatorsRoutes);
@@ -693,9 +697,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ---- DATA IMPORT routes (extracted) ----
   const dataImportRoutes = (await import("./routes/data-import-routes")).default;
   app.use("/api", dataImportRoutes);
-  
-  // Register Enhanced UX Routes
-  registerUXEnhancementRoutes(app);
   
   // Register Comprehensive Data Expansion Routes
   registerComprehensiveDataExpansionRoutes(app);

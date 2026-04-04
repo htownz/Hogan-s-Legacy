@@ -71,7 +71,7 @@ router.get("/bills", async (req: Request, res: Response) => {
   try {
     if (Object.keys(req.query).length > 0) {
       const queryParams = new URLSearchParams(req.query as any).toString();
-      return res.redirect(`/api/search/bills?${queryParams}`);
+      return res.redirect(`/api/search?type=bill&${queryParams}`);
     }
 
     const bills = await storage.getAllBills();
