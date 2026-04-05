@@ -4,9 +4,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
-    command: npm run db:push:policy-intel
+    command: npm run db:migrate:policy-intel
     env_file:
       - ./.env.policy-intel
+    volumes:
+      - .:/workspace
+      - /workspace/node_modules
     restart: "no"
     depends_on:
       postgres:

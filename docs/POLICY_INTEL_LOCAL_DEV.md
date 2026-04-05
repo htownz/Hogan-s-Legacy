@@ -33,7 +33,7 @@ If you need to create or reconcile the local schema, run the one-shot migration 
 docker compose -f docker-compose.policy-intel.yml run --rm policy-intel-migrate
 ```
 
-If Drizzle detects destructive changes, it will stop and ask for confirmation in that terminal instead of blocking the whole stack.
+This helper runs the checked-in versioned policy-intel migrations from your current workspace.
 
 ## Production-style compose flow
 

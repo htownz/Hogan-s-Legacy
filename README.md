@@ -56,7 +56,7 @@ If you need to create or reconcile the local schema, run:
 docker compose -f docker-compose.policy-intel.yml run --rm policy-intel-migrate
 ```
 
-If Drizzle detects destructive changes, it will ask for confirmation in that terminal instead of hanging the whole stack.
+This dev helper now runs the checked-in versioned policy-intel migrations from your current workspace.
 
 ## Main App to Policy Intel Bridge
 
