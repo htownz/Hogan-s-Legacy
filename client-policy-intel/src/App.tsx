@@ -1,36 +1,46 @@
 import { Route, Switch, Link, useLocation } from "wouter";
-import { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react";
+import { useState, useEffect, useRef, useCallback, lazy, Suspense, type ComponentType } from "react";
 import { api } from "./api";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
-const DashboardPage = lazy(() => import("./pages/DashboardPage").then((mod) => ({ default: mod.DashboardPage })));
-const PolicyMarketPage = lazy(() => import("./pages/PolicyMarketPage").then((mod) => ({ default: mod.PolicyMarketPage })));
-const IntelligenceHubPage = lazy(() => import("./pages/IntelligenceHubPage").then((mod) => ({ default: mod.IntelligenceHubPage })));
-const PowerNetworkPage = lazy(() => import("./pages/PowerNetworkPage").then((mod) => ({ default: mod.PowerNetworkPage })));
-const CalendarPage = lazy(() => import("./pages/CalendarPage").then((mod) => ({ default: mod.CalendarPage })));
-const CommitteeIntelPage = lazy(() => import("./pages/CommitteeIntelPage").then((mod) => ({ default: mod.CommitteeIntelPage })));
-const MattersPage = lazy(() => import("./pages/MattersPage").then((mod) => ({ default: mod.MattersPage })));
-const MatterDetailPage = lazy(() => import("./pages/MatterDetailPage").then((mod) => ({ default: mod.MatterDetailPage })));
-const AlertQueuePage = lazy(() => import("./pages/AlertQueuePage").then((mod) => ({ default: mod.AlertQueuePage })));
-const AlertDetailPage = lazy(() => import("./pages/AlertDetailPage").then((mod) => ({ default: mod.AlertDetailPage })));
-const MobileAlertReviewPage = lazy(() => import("./pages/MobileAlertReviewPage").then((mod) => ({ default: mod.MobileAlertReviewPage })));
-const IssueRoomsPage = lazy(() => import("./pages/IssueRoomsPage").then((mod) => ({ default: mod.IssueRoomsPage })));
-const IssueRoomDetailPage = lazy(() => import("./pages/IssueRoomDetailPage").then((mod) => ({ default: mod.IssueRoomDetailPage })));
-const WatchlistsPage = lazy(() => import("./pages/WatchlistsPage").then((mod) => ({ default: mod.WatchlistsPage })));
-const WatchlistDetailPage = lazy(() => import("./pages/WatchlistDetailPage").then((mod) => ({ default: mod.WatchlistDetailPage })));
-const StakeholdersPage = lazy(() => import("./pages/StakeholdersPage").then((mod) => ({ default: mod.StakeholdersPage })));
-const StakeholderDetailPage = lazy(() => import("./pages/StakeholderDetailPage").then((mod) => ({ default: mod.StakeholderDetailPage })));
-const DeliverablesPage = lazy(() => import("./pages/DeliverablesPage").then((mod) => ({ default: mod.DeliverablesPage })));
-const SourceDocsPage = lazy(() => import("./pages/SourceDocsPage").then((mod) => ({ default: mod.SourceDocsPage })));
-const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage").then((mod) => ({ default: mod.AnalyticsPage })));
-const DigestPage = lazy(() => import("./pages/DigestPage").then((mod) => ({ default: mod.DigestPage })));
-const SettingsPage = lazy(() => import("./pages/SettingsPage").then((mod) => ({ default: mod.SettingsPage })));
-const PredictionsPage = lazy(() => import("./pages/PredictionsPage").then((mod) => ({ default: mod.PredictionsPage })));
-const SessionPage = lazy(() => import("./pages/SessionPage").then((mod) => ({ default: mod.SessionPage })));
-const RelationshipsPage = lazy(() => import("./pages/RelationshipsPage").then((mod) => ({ default: mod.RelationshipsPage })));
-const ClientAlertPage = lazy(() => import("./pages/ClientAlertPage").then((mod) => ({ default: mod.ClientAlertPage })));
-const WeeklyReportPage = lazy(() => import("./pages/WeeklyReportPage").then((mod) => ({ default: mod.WeeklyReportPage })));
-const HearingMemoPage = lazy(() => import("./pages/HearingMemoPage").then((mod) => ({ default: mod.HearingMemoPage })));
+type PreloadableComponent<T extends ComponentType<any>> = ReturnType<typeof lazy<T>> & {
+  preload: () => Promise<{ default: T }>;
+};
+
+function lazyWithPreload<T extends ComponentType<any>>(factory: () => Promise<{ default: T }>): PreloadableComponent<T> {
+  const Component = lazy(factory) as PreloadableComponent<T>;
+  Component.preload = factory;
+  return Component;
+}
+
+const DashboardPage = lazyWithPreload(() => import("./pages/DashboardPage").then((mod) => ({ default: mod.DashboardPage })));
+const PolicyMarketPage = lazyWithPreload(() => import("./pages/PolicyMarketPage").then((mod) => ({ default: mod.PolicyMarketPage })));
+const IntelligenceHubPage = lazyWithPreload(() => import("./pages/IntelligenceHubPage").then((mod) => ({ default: mod.IntelligenceHubPage })));
+const PowerNetworkPage = lazyWithPreload(() => import("./pages/PowerNetworkPage").then((mod) => ({ default: mod.PowerNetworkPage })));
+const CalendarPage = lazyWithPreload(() => import("./pages/CalendarPage").then((mod) => ({ default: mod.CalendarPage })));
+const CommitteeIntelPage = lazyWithPreload(() => import("./pages/CommitteeIntelPage").then((mod) => ({ default: mod.CommitteeIntelPage })));
+const MattersPage = lazyWithPreload(() => import("./pages/MattersPage").then((mod) => ({ default: mod.MattersPage })));
+const MatterDetailPage = lazyWithPreload(() => import("./pages/MatterDetailPage").then((mod) => ({ default: mod.MatterDetailPage })));
+const AlertQueuePage = lazyWithPreload(() => import("./pages/AlertQueuePage").then((mod) => ({ default: mod.AlertQueuePage })));
+const AlertDetailPage = lazyWithPreload(() => import("./pages/AlertDetailPage").then((mod) => ({ default: mod.AlertDetailPage })));
+const MobileAlertReviewPage = lazyWithPreload(() => import("./pages/MobileAlertReviewPage").then((mod) => ({ default: mod.MobileAlertReviewPage })));
+const IssueRoomsPage = lazyWithPreload(() => import("./pages/IssueRoomsPage").then((mod) => ({ default: mod.IssueRoomsPage })));
+const IssueRoomDetailPage = lazyWithPreload(() => import("./pages/IssueRoomDetailPage").then((mod) => ({ default: mod.IssueRoomDetailPage })));
+const WatchlistsPage = lazyWithPreload(() => import("./pages/WatchlistsPage").then((mod) => ({ default: mod.WatchlistsPage })));
+const WatchlistDetailPage = lazyWithPreload(() => import("./pages/WatchlistDetailPage").then((mod) => ({ default: mod.WatchlistDetailPage })));
+const StakeholdersPage = lazyWithPreload(() => import("./pages/StakeholdersPage").then((mod) => ({ default: mod.StakeholdersPage })));
+const StakeholderDetailPage = lazyWithPreload(() => import("./pages/StakeholderDetailPage").then((mod) => ({ default: mod.StakeholderDetailPage })));
+const DeliverablesPage = lazyWithPreload(() => import("./pages/DeliverablesPage").then((mod) => ({ default: mod.DeliverablesPage })));
+const SourceDocsPage = lazyWithPreload(() => import("./pages/SourceDocsPage").then((mod) => ({ default: mod.SourceDocsPage })));
+const AnalyticsPage = lazyWithPreload(() => import("./pages/AnalyticsPage").then((mod) => ({ default: mod.AnalyticsPage })));
+const DigestPage = lazyWithPreload(() => import("./pages/DigestPage").then((mod) => ({ default: mod.DigestPage })));
+const SettingsPage = lazyWithPreload(() => import("./pages/SettingsPage").then((mod) => ({ default: mod.SettingsPage })));
+const PredictionsPage = lazyWithPreload(() => import("./pages/PredictionsPage").then((mod) => ({ default: mod.PredictionsPage })));
+const SessionPage = lazyWithPreload(() => import("./pages/SessionPage").then((mod) => ({ default: mod.SessionPage })));
+const RelationshipsPage = lazyWithPreload(() => import("./pages/RelationshipsPage").then((mod) => ({ default: mod.RelationshipsPage })));
+const ClientAlertPage = lazyWithPreload(() => import("./pages/ClientAlertPage").then((mod) => ({ default: mod.ClientAlertPage })));
+const WeeklyReportPage = lazyWithPreload(() => import("./pages/WeeklyReportPage").then((mod) => ({ default: mod.WeeklyReportPage })));
+const HearingMemoPage = lazyWithPreload(() => import("./pages/HearingMemoPage").then((mod) => ({ default: mod.HearingMemoPage })));
 
 function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(() =>
@@ -72,6 +82,31 @@ const NAV_ITEMS = [
   { path: "/settings", label: "Settings" },
 ];
 
+const NAV_PREFETCHERS: Record<string, () => Promise<unknown>> = {
+  "/": DashboardPage.preload,
+  "/market": PolicyMarketPage.preload,
+  "/intelligence": IntelligenceHubPage.preload,
+  "/power-network": PowerNetworkPage.preload,
+  "/calendar": CalendarPage.preload,
+  "/committee-intel": CommitteeIntelPage.preload,
+  "/matters": MattersPage.preload,
+  "/alerts": AlertQueuePage.preload,
+  "/review": MobileAlertReviewPage.preload,
+  "/issue-rooms": IssueRoomsPage.preload,
+  "/watchlists": WatchlistsPage.preload,
+  "/stakeholders": StakeholdersPage.preload,
+  "/deliverables": DeliverablesPage.preload,
+  "/client-alerts": ClientAlertPage.preload,
+  "/weekly-report": WeeklyReportPage.preload,
+  "/hearing-memo": HearingMemoPage.preload,
+  "/sources": SourceDocsPage.preload,
+  "/analytics": AnalyticsPage.preload,
+  "/digest": DigestPage.preload,
+  "/predictions": PredictionsPage.preload,
+  "/session": SessionPage.preload,
+  "/relationships": RelationshipsPage.preload,
+};
+
 function RouteLoadingState() {
   return (
     <div
@@ -94,10 +129,20 @@ export function App() {
   const [toast, setToast] = useState<{ message: string; count: number } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const lastPending = useRef<number | null>(null);
+  const prefetchedRoutes = useRef(new Set<string>());
   const isMobile = useMediaQuery("(max-width: 768px)");
 
   // Close menu on navigation
   const closeMenu = useCallback(() => setMenuOpen(false), []);
+  const prefetchRoute = useCallback((path: string) => {
+    const preload = NAV_PREFETCHERS[path];
+    if (!preload || prefetchedRoutes.current.has(path)) return;
+
+    prefetchedRoutes.current.add(path);
+    void preload().catch(() => {
+      prefetchedRoutes.current.delete(path);
+    });
+  }, []);
 
   // Poll for new high-priority alerts every 30 seconds
   useEffect(() => {
@@ -152,7 +197,7 @@ export function App() {
             {menuOpen ? "✕" : "☰"}
           </button>
           <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>Policy Intel</span>
-          <Link href="/review" onClick={closeMenu}>
+          <Link href="/review" onClick={closeMenu} onMouseEnter={() => prefetchRoute("/review")} onFocus={() => prefetchRoute("/review")} onTouchStart={() => prefetchRoute("/review")}>
             <span style={{
               fontSize: 12,
               background: "#e74c3c",
@@ -206,7 +251,14 @@ export function App() {
             {NAV_ITEMS.map((item) => {
               const active = item.path === "/" ? location === "/" : location.startsWith(item.path);
               return (
-                <Link key={item.path} href={item.path} onClick={closeMenu}>
+                <Link
+                  key={item.path}
+                  href={item.path}
+                  onClick={closeMenu}
+                  onMouseEnter={() => prefetchRoute(item.path)}
+                  onFocus={() => prefetchRoute(item.path)}
+                  onTouchStart={() => prefetchRoute(item.path)}
+                >
                   <div style={{
                     padding: isMobile ? "12px 20px" : "10px 20px",
                     fontSize: 14,

@@ -1,0 +1,7 @@
+{
+  "remote.extensionKind": {
+    "github.copilot-chat": [
+      "ui"
+    ]
+  }
+}

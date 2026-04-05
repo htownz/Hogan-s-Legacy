@@ -11,8 +11,12 @@
   "customizations": {
     "vscode": {
       "settings": {
-
         "editor.formatOnSave": true,
+        "remote.extensionKind": {
+          "github.copilot-chat": [
+            "ui"
+          ]
+        },
         "files.exclude": {
           "**/.turbo": true,
           "**/dist": true
