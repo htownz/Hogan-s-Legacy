@@ -1,5 +1,6 @@
 services:
   policy-intel-migrate:
+    profiles: ["manual"]
     build:
       context: .
       dockerfile: Dockerfile.dev
@@ -24,8 +25,6 @@ services:
       - .:/workspace
       - /workspace/node_modules
     depends_on:
-      policy-intel-migrate:
-        condition: service_completed_successfully
       postgres:
         condition: service_healthy
     healthcheck:

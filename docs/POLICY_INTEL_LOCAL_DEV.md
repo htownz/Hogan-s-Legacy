@@ -25,7 +25,15 @@ docker compose -f docker-compose.policy-intel.yml up --build
   - Policy Intel API root: http://localhost:5050/api/intel
   - Adminer: http://localhost:8080
 
-The backend container now waits for Postgres and pushes the policy-intel schema automatically during startup.
+The backend container now waits for Postgres, but schema changes run manually so the dev stack cannot hang on an interactive Drizzle prompt during startup.
+
+If you need to create or reconcile the local schema, run the one-shot migration helper from a terminal after the stack is up:
+
+```bash
+docker compose -f docker-compose.policy-intel.yml run --rm policy-intel-migrate
+```
+
+If Drizzle detects destructive changes, it will stop and ask for confirmation in that terminal instead of blocking the whole stack.
 
 ## Production-style compose flow
 
@@ -61,11 +69,17 @@ npm run policy-intel:prod:down
 
 1. Open the repo folder in VS Code.
 2. Run `Dev Containers: Reopen in Container`.
-3. After the container comes up, the post-create hook installs dependencies and pushes the schema.
+3. After the container comes up, the post-create hook installs dependencies.
 4. Start the service from the VS Code terminal if needed:
 
 ```bash
 npm run dev:policy-intel
+```
+
+If your local database needs schema changes, run:
+
+```bash
+docker compose -f docker-compose.policy-intel.yml run --rm policy-intel-migrate
 ```
 
 ## What is wired right now

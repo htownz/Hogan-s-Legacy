@@ -48,12 +48,15 @@ docker compose -f docker-compose.policy-intel.yml up --build
 - Adminer: `http://localhost:8080`
 
 The backend container waits for Postgres before service startup.
+The dev stack no longer auto-runs schema changes during startup, so a destructive Drizzle prompt cannot block the backend or devcontainer from loading.
 
-Apply policy-intel schema updates using explicit migrations:
+If you need to create or reconcile the local schema, run:
 
 ```bash
-npm run db:migrate:policy-intel
+docker compose -f docker-compose.policy-intel.yml run --rm policy-intel-migrate
 ```
+
+If Drizzle detects destructive changes, it will ask for confirmation in that terminal instead of hanging the whole stack.
 
 ## Main App to Policy Intel Bridge
 

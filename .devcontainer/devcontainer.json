@@ -7,7 +7,7 @@
   "workspaceFolder": "/workspace",
   "shutdownAction": "none",
   "forwardPorts": [5050, 5173, 5433, 8080],
-  "postCreateCommand": "npm install && npm run db:push:policy-intel",
+  "postCreateCommand": "npm install",
   "customizations": {
     "vscode": {
       "settings": {
