@@ -36,7 +36,7 @@
     "@jridgewell/trace-mapping": "^0.3.25",
     "@langchain/openai": "^0.5.10",
     "@neondatabase/serverless": "^0.10.4",
-    "@paralleldrive/cuid2": "^2.2.2",
+    "@paralleldrive/cuid2": "^3.3.0",
     "@pinecone-database/pinecone": "^6.0.0",
     "@radix-ui/react-accordion": "^1.2.1",
     "@radix-ui/react-alert-dialog": "^1.1.2",
