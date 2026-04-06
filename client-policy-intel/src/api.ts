@@ -17,7 +17,7 @@ export const api = {
   health: () => apiFetch<{ ok: boolean }>("/health"),
 
   // Matters
-  getMatters: () => apiFetch<Matter[]>("/matters"),
+  getMatters: (workspaceId?: number) => apiFetch<Matter[]>(`/matters${workspaceId ? `?workspaceId=${workspaceId}` : ""}`),
   getMatter: (id: number) => apiFetch<Matter>(`/matters/${id}`),
   getMatterAlerts: (id: number) => apiFetch<Alert[]>(`/matters/${id}/alerts`),
   getMatterActivities: (id: number) => apiFetch<Activity[]>(`/matters/${id}/activities`),
@@ -25,11 +25,12 @@ export const api = {
   getMatterStakeholders: (id: number) => apiFetch<Stakeholder[]>(`/matters/${id}/stakeholders`),
 
   // Alerts
-  getAlerts: (params?: { page?: number; limit?: number; status?: string; watchlistId?: number; minScore?: number; search?: string }) => {
+  getAlerts: (params?: { page?: number; limit?: number; status?: string; workspaceId?: number; watchlistId?: number; minScore?: number; search?: string }) => {
     const q = new URLSearchParams();
     if (params?.page) q.set("page", String(params.page));
     if (params?.limit) q.set("limit", String(params.limit));
     if (params?.status && params.status !== "all") q.set("status", params.status);
+    if (params?.workspaceId) q.set("workspaceId", String(params.workspaceId));
     if (params?.watchlistId) q.set("watchlistId", String(params.watchlistId));
     if (params?.minScore !== undefined) q.set("minScore", String(params.minScore));
     if (params?.search) q.set("search", params.search);
@@ -115,7 +116,8 @@ export const api = {
     apiFetch<Digest>(`/workspaces/${workspaceId}/digest${week ? `?week=${week}` : ""}`),
 
   // Watchlists
-  getWatchlists: () => apiFetch<{ data: Watchlist[] }>("/watchlists").then(r => r.data),
+  getWatchlists: (workspaceId?: number) =>
+    apiFetch<{ data: Watchlist[] }>(`/watchlists${workspaceId ? `?workspaceId=${workspaceId}` : ""}`).then(r => r.data),
   getWatchlist: (id: number) => apiFetch<Watchlist>(`/watchlists/${id}`),
   getWatchlistAlerts: (id: number, params?: { page?: number; limit?: number; status?: string }) => {
     const q = new URLSearchParams();
@@ -129,7 +131,7 @@ export const api = {
     apiFetch<Watchlist>("/watchlists", { method: "POST", body: JSON.stringify(body) }),
 
   // Stakeholders
-  getStakeholders: () => apiFetch<Stakeholder[]>("/stakeholders"),
+  getStakeholders: (workspaceId?: number) => apiFetch<Stakeholder[]>(`/stakeholders${workspaceId ? `?workspaceId=${workspaceId}` : ""}`),
   getStakeholder: (id: number) => apiFetch<StakeholderDetail>(`/stakeholders/${id}`),
   addObservation: (stakeholderId: number, body: { observationText: string; confidence?: string; sourceDocumentId?: number; matterId?: number }) =>
     apiFetch<unknown>(`/stakeholders/${stakeholderId}/observations`, { method: "POST", body: JSON.stringify(body) }),

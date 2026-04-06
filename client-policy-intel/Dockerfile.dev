@@ -8,6 +8,7 @@ WORKDIR /workspace/client-policy-intel
 
 COPY package*.json ./
 RUN npm ci
+RUN chown -R appuser:appgroup /workspace/client-policy-intel
 
 COPY --chown=appuser:appgroup . .
 

@@ -20,7 +20,7 @@ function typeColor(type: string) {
 }
 
 export function StakeholdersPage() {
-  const { data: stakeholders, loading, error, refetch } = useAsync(() => api.getStakeholders());
+  const { data: stakeholders, loading, error, refetch } = useAsync(() => api.getStakeholders(DEFAULT_WORKSPACE_ID));
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [showTecPanel, setShowTecPanel] = useState(false);

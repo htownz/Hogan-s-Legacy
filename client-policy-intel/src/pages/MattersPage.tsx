@@ -1,9 +1,10 @@
 import { Link } from "wouter";
 import { api } from "../api";
 import { useAsync } from "../hooks";
+import { DEFAULT_WORKSPACE_ID } from "../constants";
 
 export function MattersPage() {
-  const { data: matters, loading, error, refetch } = useAsync(() => api.getMatters());
+  const { data: matters, loading, error, refetch } = useAsync(() => api.getMatters(DEFAULT_WORKSPACE_ID));
 
   if (loading) return <p>Loading matters...</p>;
   if (error) return <div><p style={{ color: "red" }}>{error}</p><button onClick={refetch} style={{ padding: "6px 14px", cursor: "pointer" }}>Retry</button></div>;
@@ -57,7 +58,7 @@ export function MattersPage() {
           </Link>
         ))}
         {(matters ?? []).length === 0 && (
-          <p style={{ color: "#888" }}>No matters yet. Run POST /seed to create the Grace &amp; McEwan workspace.</p>
+          <p style={{ color: "#888" }}>No matters yet for the current workspace.</p>
         )}
       </div>
     </div>

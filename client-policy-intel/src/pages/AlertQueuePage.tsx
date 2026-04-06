@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { Link } from "wouter";
 import { api, type Alert, type BulkTriageResult, type Watchlist } from "../api";
 import { useAsync } from "../hooks";
+import { DEFAULT_WORKSPACE_ID } from "../constants";
 
 export function AlertQueuePage() {
   const [page, setPage] = useState(1);
@@ -21,10 +22,18 @@ export function AlertQueuePage() {
   const [sort, setSort] = useState<"newest" | "oldest" | "score_high" | "score_low">("newest");
   const LIMIT = 50;
 
-  const { data: watchlists } = useAsync(() => api.getWatchlists(), []);
+  const { data: watchlists } = useAsync(() => api.getWatchlists(DEFAULT_WORKSPACE_ID), []);
 
   const fetchAlerts = useCallback(
-    () => api.getAlerts({ page, limit: LIMIT, status: filter, search: search || undefined, watchlistId, minScore }),
+    () => api.getAlerts({
+      page,
+      limit: LIMIT,
+      status: filter,
+      workspaceId: DEFAULT_WORKSPACE_ID,
+      search: search || undefined,
+      watchlistId,
+      minScore,
+    }),
     [page, filter, search, watchlistId, minScore],
   );
   const { data: result, loading, error, refetch } = useAsync(fetchAlerts, [page, filter, search, watchlistId, minScore]);

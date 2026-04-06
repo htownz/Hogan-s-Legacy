@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { api, type PredictionDashboard, type PredictionResult } from "../api";
 import { useAsync } from "../hooks";
+import { DEFAULT_WORKSPACE_ID } from "../constants";
 
 // ── Probability Gauge ────────────────────────────────────────────────────────
 
@@ -192,7 +193,7 @@ function BreakdownChart({ breakdown }: { breakdown: PredictionDashboard["breakdo
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 export function PredictionsPage() {
-  const [workspaceId] = useState(1);
+  const [workspaceId] = useState(DEFAULT_WORKSPACE_ID);
   const [predictBillId, setPredictBillId] = useState("");
   const [predicting, setPredicting] = useState(false);
 

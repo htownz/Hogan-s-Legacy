@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { api, type NetworkGraph, type StakeholderDossier } from "../api";
 import { useAsync } from "../hooks";
+import { DEFAULT_WORKSPACE_ID } from "../constants";
 
 // ── Relationship Type Labels ─────────────────────────────────────────────────
 
@@ -210,7 +211,7 @@ function DossierPanel({ dossier }: { dossier: StakeholderDossier }) {
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 export function RelationshipsPage() {
-  const [workspaceId] = useState(1);
+  const [workspaceId] = useState(DEFAULT_WORKSPACE_ID);
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
   const [minStrength, setMinStrength] = useState(0.2);
   const [discovering, setDiscovering] = useState(false);

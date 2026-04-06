@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { api, type Deliverable, type SourceDocument, type Watchlist, type Matter } from "../api";
 import { useAsync } from "../hooks";
+import { DEFAULT_WORKSPACE_ID } from "../constants";
 
 const TYPE_COLORS: Record<string, string> = {
   issue_brief: "#1565c0",
@@ -171,12 +172,12 @@ export function DeliverablesPage() {
 
 function BriefGenerator({ onClose, onGenerated }: { onClose: () => void; onGenerated: () => void }) {
   const { data: sourceDocs } = useAsync(() => api.getSourceDocuments({ limit: 100 }));
-  const { data: watchlistsData } = useAsync(() => api.getWatchlists());
-  const { data: mattersData } = useAsync(() => api.getMatters());
+  const { data: watchlistsData } = useAsync(() => api.getWatchlists(DEFAULT_WORKSPACE_ID));
+  const { data: mattersData } = useAsync(() => api.getMatters(DEFAULT_WORKSPACE_ID));
 
   const [selectedDocs, setSelectedDocs] = useState<Set<number>>(new Set());
   const [title, setTitle] = useState("");
-  const [workspaceId] = useState(2); // Grace & McEwan
+  const [workspaceId] = useState(DEFAULT_WORKSPACE_ID);
   const [watchlistId, setWatchlistId] = useState<number | undefined>();
   const [matterId, setMatterId] = useState<number | undefined>();
   const [generating, setGenerating] = useState(false);

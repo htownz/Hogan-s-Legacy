@@ -5,7 +5,7 @@ import { useAsync } from "../hooks";
 import { DEFAULT_WORKSPACE_ID } from "../constants";
 
 export function WatchlistsPage() {
-  const { data: watchlists, loading, error, refetch } = useAsync(() => api.getWatchlists());
+  const { data: watchlists, loading, error, refetch } = useAsync(() => api.getWatchlists(DEFAULT_WORKSPACE_ID));
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({ name: "", topic: "", description: "" });

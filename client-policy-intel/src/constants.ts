@@ -1,5 +1,5 @@
 /**
  * Default workspace ID used across the application.
- * Change this value when switching workspaces.
+ * Workspace 43 is the clean Texas-first workspace created for local setup.
  */
-export const DEFAULT_WORKSPACE_ID = 1;
+export const DEFAULT_WORKSPACE_ID = 43;

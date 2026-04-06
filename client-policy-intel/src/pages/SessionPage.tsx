@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { api, type SessionDashboard, type SessionMilestone, type ClientAction } from "../api";
 import { useAsync } from "../hooks";
+import { DEFAULT_WORKSPACE_ID } from "../constants";
 
 // ── Phase Badge ──────────────────────────────────────────────────────────────
 
@@ -176,7 +177,7 @@ function ActionCard({ action, onUpdate }: { action: ClientAction; onUpdate: () =
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 export function SessionPage() {
-  const [workspaceId] = useState(1);
+  const [workspaceId] = useState(DEFAULT_WORKSPACE_ID);
   const [transitioning, setTransitioning] = useState(false);
   const [selectedNextPhase, setSelectedNextPhase] = useState("");
 

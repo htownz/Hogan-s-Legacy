@@ -15004,9 +15004,11 @@ function createPolicyIntelRouter() {
       const page = Math.max(1, Number(req.query.page) || 1);
       const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
       const offset = (page - 1) * limit;
+      const workspaceId = req.query.workspaceId ? Number(req.query.workspaceId) : void 0;
+      const where = workspaceId ? eq26(watchlists.workspaceId, workspaceId) : void 0;
       const [rows, [totalRow]] = await Promise.all([
-        policyIntelDb.select().from(watchlists).orderBy(desc20(watchlists.id)).limit(limit).offset(offset),
-        policyIntelDb.select({ count: count11() }).from(watchlists)
+        policyIntelDb.select().from(watchlists).where(where).orderBy(desc20(watchlists.id)).limit(limit).offset(offset),
+        policyIntelDb.select({ count: count11() }).from(watchlists).where(where)
       ]);
       res.json({ data: rows, total: totalRow?.count ?? 0, page, limit, totalPages: Math.ceil((totalRow?.count ?? 0) / limit) });
     } catch (err) {
@@ -15203,10 +15205,12 @@ function createPolicyIntelRouter() {
       const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
       const offset = (page - 1) * limit;
       const status = req.query.status;
+      const workspaceId = req.query.workspaceId ? Number(req.query.workspaceId) : void 0;
       const watchlistId = req.query.watchlistId ? Number(req.query.watchlistId) : void 0;
       const minScore = req.query.minScore ? Number(req.query.minScore) : void 0;
       const search = req.query.search;
       const conditions = [];
+      if (workspaceId) conditions.push(eq26(alerts.workspaceId, workspaceId));
       if (status && status !== "all") conditions.push(eq26(alerts.status, status));
       if (watchlistId) conditions.push(eq26(alerts.watchlistId, watchlistId));
       if (minScore !== void 0) conditions.push(gte15(alerts.relevanceScore, minScore));
@@ -15753,9 +15757,10 @@ function createPolicyIntelRouter() {
       next(err);
     }
   });
-  router.get("/matters", async (_req, res, next) => {
+  router.get("/matters", async (req, res, next) => {
     try {
-      const rows = await policyIntelDb.select().from(matters).orderBy(desc20(matters.id));
+      const workspaceId = req.query.workspaceId ? Number(req.query.workspaceId) : void 0;
+      const rows = await policyIntelDb.select().from(matters).where(workspaceId ? eq26(matters.workspaceId, workspaceId) : void 0).orderBy(desc20(matters.id));
       res.json(rows);
     } catch (err) {
       next(err);
@@ -15917,9 +15922,10 @@ function createPolicyIntelRouter() {
       next(err);
     }
   });
-  router.get("/stakeholders", async (_req, res, next) => {
+  router.get("/stakeholders", async (req, res, next) => {
     try {
-      const rows = await policyIntelDb.select().from(stakeholders).orderBy(desc20(stakeholders.id));
+      const workspaceId = req.query.workspaceId ? Number(req.query.workspaceId) : void 0;
+      const rows = await policyIntelDb.select().from(stakeholders).where(workspaceId ? eq26(stakeholders.workspaceId, workspaceId) : void 0).orderBy(desc20(stakeholders.id));
       res.json(rows);
     } catch (err) {
       next(err);
