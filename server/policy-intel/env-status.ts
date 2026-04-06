@@ -63,6 +63,36 @@ const ENVIRONMENT_VARIABLES: EnvironmentVariableDefinition[] = [
     description: "Slack alert notifications",
   },
   {
+    key: "CONGRESS_API_KEY",
+    required: false,
+    description: "Congress.gov API (federal bill metadata; optional probes in /ops/integration-probes)",
+  },
+  {
+    key: "FEC_API_KEY",
+    required: false,
+    description: "OpenFEC API (campaign finance; optional probes)",
+  },
+  {
+    key: "PROPUBLICA_API_KEY",
+    required: false,
+    description: "ProPublica Congress API (legacy members endpoint; optional probes)",
+  },
+  {
+    key: "AWS_ACCESS_KEY_ID",
+    required: false,
+    description: "AWS access key (reserved — no S3 usage in policy-intel yet)",
+  },
+  {
+    key: "AWS_SECRET_ACCESS_KEY",
+    required: false,
+    description: "AWS secret key (reserved — no S3 usage in policy-intel yet)",
+  },
+  {
+    key: "AWS_REGION",
+    required: false,
+    description: "AWS region when using AWS credentials",
+  },
+  {
     key: "SCHEDULER_ENABLED",
     required: false,
     description: "Enable/disable scheduled jobs (default: true)",

@@ -59,6 +59,7 @@ import { recordFeedback, getChampionStatus, getChampionHistory, runRetraining, b
 import type { FeedbackOutcome } from "./engine/champion";
 import { notifySlack } from "./notify";
 import { getEnvironmentStatusReport } from "./env-status";
+import { runFederalIntegrationProbes } from "./services/federal-open-data-probes";
 import { generateClientAlert, generateWeeklyReport, generateHearingMemo } from "./services/deliverable-service";
 import { runSwarm } from "./engine/intelligence/swarm-coordinator";
 import { analyzeVelocity } from "./engine/intelligence/velocity-analyzer";
@@ -2028,6 +2029,18 @@ export function createPolicyIntelRouter() {
 
   router.get("/ops/environment", (_req, res) => {
     res.json(getEnvironmentStatusReport());
+  });
+
+  /**
+   * GET /ops/integration-probes — optional HTTP checks for CONGRESS_API_KEY, FEC_API_KEY,
+   * PROPUBLICA_API_KEY, plus AWS credential presence (no AWS API call).
+   */
+  router.get("/ops/integration-probes", async (_req, res, next) => {
+    try {
+      res.json(await runFederalIntegrationProbes());
+    } catch (err: unknown) {
+      next(err);
+    }
   });
 
   router.post("/scheduler/trigger/:jobName", async (req, res, next) => {

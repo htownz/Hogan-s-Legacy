@@ -13585,6 +13585,36 @@ var ENVIRONMENT_VARIABLES = [
     description: "Slack alert notifications"
   },
   {
+    key: "CONGRESS_API_KEY",
+    required: false,
+    description: "Congress.gov API (federal bill metadata; optional probes in /ops/integration-probes)"
+  },
+  {
+    key: "FEC_API_KEY",
+    required: false,
+    description: "OpenFEC API (campaign finance; optional probes)"
+  },
+  {
+    key: "PROPUBLICA_API_KEY",
+    required: false,
+    description: "ProPublica Congress API (legacy members endpoint; optional probes)"
+  },
+  {
+    key: "AWS_ACCESS_KEY_ID",
+    required: false,
+    description: "AWS access key (reserved \u2014 no S3 usage in policy-intel yet)"
+  },
+  {
+    key: "AWS_SECRET_ACCESS_KEY",
+    required: false,
+    description: "AWS secret key (reserved \u2014 no S3 usage in policy-intel yet)"
+  },
+  {
+    key: "AWS_REGION",
+    required: false,
+    description: "AWS region when using AWS credentials"
+  },
+  {
     key: "SCHEDULER_ENABLED",
     required: false,
     description: "Enable/disable scheduled jobs (default: true)"
@@ -13623,6 +13653,127 @@ function getEnvironmentStatusReport() {
       missingRequired
     },
     variables
+  };
+}
+
+// server/policy-intel/services/federal-open-data-probes.ts
+import axios7 from "axios";
+function trimEnv(name) {
+  const v = process.env[name];
+  return typeof v === "string" ? v.trim() : "";
+}
+async function probeCongressGov() {
+  const key = trimEnv("CONGRESS_API_KEY");
+  if (!key) {
+    return { configured: false, reachable: false, message: "CONGRESS_API_KEY not set" };
+  }
+  try {
+    const res = await axios7.get("https://api.congress.gov/v3/bill", {
+      params: { limit: 1, format: "json" },
+      headers: { "X-API-Key": key },
+      timeout: 15e3,
+      validateStatus: () => true
+    });
+    const ok = res.status >= 200 && res.status < 300;
+    return {
+      configured: true,
+      reachable: ok,
+      httpStatus: res.status,
+      message: ok ? "Congress.gov API accepted the key" : `HTTP ${res.status} from Congress.gov`
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      configured: true,
+      reachable: false,
+      message: `Request failed: ${msg}`
+    };
+  }
+}
+async function probeFec() {
+  const key = trimEnv("FEC_API_KEY");
+  if (!key) {
+    return { configured: false, reachable: false, message: "FEC_API_KEY not set" };
+  }
+  try {
+    const res = await axios7.get("https://api.open.fec.gov/v1/candidates/", {
+      params: { api_key: key, per_page: 1, state: "TX" },
+      timeout: 15e3,
+      validateStatus: () => true
+    });
+    const ok = res.status >= 200 && res.status < 300;
+    return {
+      configured: true,
+      reachable: ok,
+      httpStatus: res.status,
+      message: ok ? "OpenFEC API accepted the key" : `HTTP ${res.status} from OpenFEC`
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      configured: true,
+      reachable: false,
+      message: `Request failed: ${msg}`
+    };
+  }
+}
+async function probeProPublicaCongress() {
+  const key = trimEnv("PROPUBLICA_API_KEY");
+  if (!key) {
+    return { configured: false, reachable: false, message: "PROPUBLICA_API_KEY not set" };
+  }
+  try {
+    const res = await axios7.get(
+      "https://api.propublica.org/congress/v1/members/senate/TX/current.json",
+      {
+        headers: { "X-API-Key": key },
+        timeout: 15e3,
+        validateStatus: () => true
+      }
+    );
+    const ok = res.status >= 200 && res.status < 300;
+    return {
+      configured: true,
+      reachable: ok,
+      httpStatus: res.status,
+      message: ok ? "ProPublica Congress API accepted the key" : `HTTP ${res.status} from ProPublica (endpoint may have changed or key invalid)`
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      configured: true,
+      reachable: false,
+      message: `Request failed: ${msg}`
+    };
+  }
+}
+function getAwsEnvStatus() {
+  const region = trimEnv("AWS_REGION");
+  const id = trimEnv("AWS_ACCESS_KEY_ID");
+  const secret = trimEnv("AWS_SECRET_ACCESS_KEY");
+  if (!id && !secret) {
+    return { configured: false, message: "AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY not set" };
+  }
+  if (!id || !secret) {
+    return { configured: false, message: "Set both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY (or leave both empty)" };
+  }
+  return {
+    configured: true,
+    message: region ? `AWS credentials present (region ${region}); policy-intel does not call S3 yet` : "AWS credentials present; consider setting AWS_REGION"
+  };
+}
+async function runFederalIntegrationProbes() {
+  const [congressGov, openFec, proPublica] = await Promise.all([
+    probeCongressGov(),
+    probeFec(),
+    probeProPublicaCongress()
+  ]);
+  return {
+    checkedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    congressGov,
+    openFec,
+    proPublica,
+    aws: getAwsEnvStatus()
   };
 }
 
@@ -16014,6 +16165,13 @@ function createPolicyIntelRouter() {
   });
   router.get("/ops/environment", (_req, res) => {
     res.json(getEnvironmentStatusReport());
+  });
+  router.get("/ops/integration-probes", async (_req, res, next) => {
+    try {
+      res.json(await runFederalIntegrationProbes());
+    } catch (err) {
+      next(err);
+    }
   });
   router.post("/scheduler/trigger/:jobName", async (req, res, next) => {
     try {
