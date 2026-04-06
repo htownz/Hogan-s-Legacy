@@ -1,3 +1,6 @@
+# API keys (OPENAI_API_KEY, ANTHROPIC_API_KEY, LEGISCAN_API_KEY, OPENSTATES_API_KEY)
+# belong in .env.policy-intel at the repo root — not in this file. See README "Local development".
+
 services:
   policy-intel-migrate:
     profiles: ["manual"]

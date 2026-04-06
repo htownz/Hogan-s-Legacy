@@ -33,8 +33,17 @@ Do not trust bundled `node_modules` from a zip snapshot or another machine.
 
 ## Local development
 
-1. Copy `.env.policy-intel.example` to `.env.policy-intel`
-2. Start the stack:
+**Environment file (important):** Docker Compose reads **only** `.env.policy-intel`. The `.example` file is a safe template with no secrets. Putting API keys in `*.example` does not configure the app and risks leaking credentials if that file is committed.
+
+1. Create your local env file (once): `npm run policy-intel:env`  
+   This copies `.env.policy-intel.example` → `.env.policy-intel` if the latter does not exist.
+2. Edit **`.env.policy-intel`** and set at least:
+   - `OPENAI_API_KEY` (committee transcription, etc.)
+   - `ANTHROPIC_API_KEY` (LLM-enhanced briefs)
+   - `LEGISCAN_API_KEY` (Texas bills)
+   - `OPENSTATES_API_KEY` (OpenStates-backed imports)
+3. Leave `POLICY_INTEL_API_TOKEN` empty for local dev unless you want to test bearer auth.
+4. Start the stack:
 
 ```bash
 docker compose -f docker-compose.policy-intel.yml up --build
