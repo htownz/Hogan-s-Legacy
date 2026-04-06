@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
   api,
@@ -74,7 +74,11 @@ function getMemoResultQuality(result: DeliverableResult) {
   }
 }
 
-export function HearingMemoPage() {
+interface HearingMemoPageProps {
+  hearingId?: number;
+}
+
+export function HearingMemoPage({ hearingId }: HearingMemoPageProps) {
   const hearingWindow = useMemo(() => {
     const from = new Date();
     from.setDate(from.getDate() - 45);
@@ -96,7 +100,7 @@ export function HearingMemoPage() {
     data: sessions,
     error: sessionsError,
   } = useAsync(() => api.getCommitteeIntelSessions({ workspaceId: DEFAULT_WORKSPACE_ID }), []);
-  const [selectedHearing, setSelectedHearing] = useState<number | null>(null);
+  const [selectedHearing, setSelectedHearing] = useState<number | null>(hearingId ?? null);
   const [recipientName, setRecipientName] = useState("");
   const [firmName, setFirmName] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -111,6 +115,12 @@ export function HearingMemoPage() {
     () => selectedSession ? api.getCommitteeIntelSession(selectedSession.id) : Promise.resolve(null),
     [selectedSession?.id ?? 0],
   );
+
+  useEffect(() => {
+    if (hearingId && hearingId !== selectedHearing) {
+      setSelectedHearing(hearingId);
+    }
+  }, [hearingId, selectedHearing]);
 
   async function generate() {
     if (!selectedHearing) return;
@@ -199,21 +209,44 @@ export function HearingMemoPage() {
       >
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
           <h3 style={{ margin: 0 }}>Select Hearing</h3>
-          <button
-            onClick={handleSyncHearings}
-            disabled={syncingHearings}
-            style={{
-              background: "#fff",
-              border: "1px solid #cbd5e1",
-              borderRadius: 6,
-              padding: "8px 14px",
-              fontSize: 13,
-              cursor: syncingHearings ? "not-allowed" : "pointer",
-              fontWeight: 600,
-            }}
-          >
-            {syncingHearings ? "Syncing..." : "Sync Workspace Hearings"}
-          </button>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {selectedHearing && (
+              <Link href={`/committee-intel/hearing/${selectedHearing}`}>
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "#ecfeff",
+                    border: "1px solid #a5f3fc",
+                    borderRadius: 6,
+                    padding: "8px 14px",
+                    fontSize: 13,
+                    cursor: "pointer",
+                    fontWeight: 600,
+                    color: "#155e75",
+                  }}
+                >
+                  Open Committee Intel
+                </span>
+              </Link>
+            )}
+            <button
+              onClick={handleSyncHearings}
+              disabled={syncingHearings}
+              style={{
+                background: "#fff",
+                border: "1px solid #cbd5e1",
+                borderRadius: 6,
+                padding: "8px 14px",
+                fontSize: 13,
+                cursor: syncingHearings ? "not-allowed" : "pointer",
+                fontWeight: 600,
+              }}
+            >
+              {syncingHearings ? "Syncing..." : "Sync Workspace Hearings"}
+            </button>
+          </div>
         </div>
 
         <div style={{ marginBottom: 14 }}>

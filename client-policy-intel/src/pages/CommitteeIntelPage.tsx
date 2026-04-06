@@ -966,6 +966,13 @@ export function CommitteeIntelPage({ hearingId, sessionId }: CommitteeIntelPageP
                   </button>
                 )}
                 {selectedHearing && (
+                  <Link href={`/hearing-memo/hearing/${selectedHearing.id}`}>
+                    <span style={{ ...secondaryButtonStyle, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                      Open Hearing Memo
+                    </span>
+                  </Link>
+                )}
+                {selectedHearing && (
                   <Link href="/calendar">
                     <span style={{ ...secondaryButtonStyle, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
                       Open Calendar

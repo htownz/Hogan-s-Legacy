@@ -2328,10 +2328,23 @@ export function createPolicyIntelRouter() {
 
         // Upsert by external id
         const extId = `tlo-hearing-${workspaceId}-${doc.id}`;
+        const legacyExtId = `tlo-hearing-${doc.id}`;
         const [existing] = await policyIntelDb
           .select({ id: hearingEvents.id })
           .from(hearingEvents)
-          .where(eq(hearingEvents.externalId, extId));
+          .where(
+            or(
+              eq(hearingEvents.externalId, extId),
+              and(
+                eq(hearingEvents.workspaceId, workspaceId),
+                eq(hearingEvents.sourceDocumentId, doc.id),
+              ),
+              and(
+                eq(hearingEvents.workspaceId, workspaceId),
+                eq(hearingEvents.externalId, legacyExtId),
+              ),
+            ),
+          );
 
         if (existing) { skipped++; continue; }
 

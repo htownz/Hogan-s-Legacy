@@ -312,6 +312,7 @@ export function App() {
               <Route path="/committee-intel"><CommitteeIntelPage /></Route>
               <Route path="/committee-intel/hearing/:id">{(params) => <CommitteeIntelPage hearingId={Number(params.id)} />}</Route>
               <Route path="/committee-intel/session/:id">{(params) => <CommitteeIntelPage sessionId={Number(params.id)} />}</Route>
+              <Route path="/hearing-memo/hearing/:id">{(params) => <HearingMemoPage hearingId={Number(params.id)} />}</Route>
               <Route path="/matters" component={MattersPage} />
               <Route path="/matters/:id">{(params) => <MatterDetailPage id={Number(params.id)} />}</Route>
               <Route path="/alerts" component={AlertQueuePage} />

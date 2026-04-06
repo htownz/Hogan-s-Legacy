@@ -149,7 +149,7 @@ export function CalendarPage() {
           >
             {view === "week" ? "Month View" : "Week View"}
           </button>
-          <Link href="/hearing-memo">
+          <Link href={selectedHearing ? `/hearing-memo/hearing/${selectedHearing.id}` : "/hearing-memo"}>
             <span style={{
               padding: "6px 14px", borderRadius: 6, border: "none", fontSize: 13, cursor: "pointer", background: "#6a1b9a", color: "#fff", fontWeight: 600, display: "inline-block",
             }}>
@@ -274,7 +274,7 @@ export function CalendarPage() {
                 Launch Committee Intel
               </span>
             </Link>
-            <Link href="/hearing-memo">
+            <Link href={`/hearing-memo/hearing/${selectedHearing.id}`}>
               <span style={{
                 padding: "8px 14px",
                 borderRadius: 8,
