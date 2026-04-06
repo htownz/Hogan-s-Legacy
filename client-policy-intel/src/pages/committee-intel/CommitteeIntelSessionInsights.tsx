@@ -22,6 +22,30 @@ const POSITION_COLORS: Record<string, string> = {
   unknown: "#6b7280",
 };
 
+function getSourceQuality(
+  sessionDetail: CommitteeIntelSessionDetail,
+): { label: string; color: string; description: string } {
+  if (sessionDetail.analysis.totalSegments > 0) {
+    return {
+      label: "Transcript-backed",
+      color: "#0f766e",
+      description: "Analysis is backed by ingested transcript segments and extracted signals.",
+    };
+  }
+  if (sessionDetail.session.transcriptSourceType !== "manual" || sessionDetail.session.autoIngestEnabled) {
+    return {
+      label: "Needs ingest",
+      color: "#b45309",
+      description: "A transcript source is configured, but the session has not produced transcript-backed analysis yet.",
+    };
+  }
+  return {
+    label: "Metadata only",
+    color: "#64748b",
+    description: "This session is currently relying on hearing metadata or analyst setup only.",
+  };
+}
+
 interface CommitteeIntelSessionInsightsProps {
   primarySession: CommitteeIntelSessionDetail["session"];
   sessionDetail: CommitteeIntelSessionDetail;
@@ -48,6 +72,7 @@ export function CommitteeIntelSessionInsights(props: CommitteeIntelSessionInsigh
     onGenerateRecap,
     generatingRecap,
   } = props;
+  const sourceQuality = getSourceQuality(sessionDetail);
 
   function handleBriefSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -82,7 +107,10 @@ export function CommitteeIntelSessionInsights(props: CommitteeIntelSessionInsigh
 
         <div style={{ fontSize: 14, color: "#334155", lineHeight: 1.7 }}>{sessionDetail.analysis.summary}</div>
 
+        <div style={{ marginTop: 12, fontSize: 12, color: "#475569", lineHeight: 1.6 }}>{sourceQuality.description}</div>
+
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
+          <Badge label={sourceQuality.label} color={sourceQuality.color} />
           <Badge label={`feed ${statusLabel(primarySession.autoIngestStatus)}`} color={primarySession.autoIngestStatus === "error" ? "#b91c1c" : primarySession.autoIngestEnabled ? "#0f766e" : "#64748b"} />
           {primarySession.autoIngestEnabled && <Badge label={`every ${primarySession.autoIngestIntervalSeconds}s`} color="#1d4ed8" />}
           {primarySession.transcriptSourceType !== "manual" && <Badge label={primarySession.transcriptSourceType} color="#0f766e" />}

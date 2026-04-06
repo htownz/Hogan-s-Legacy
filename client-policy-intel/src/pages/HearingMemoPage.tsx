@@ -1,16 +1,116 @@
-import { useState } from "react";
-import { api, type HearingEvent, type DeliverableResult } from "../api";
+import { useMemo, useState } from "react";
+import { Link } from "wouter";
+import {
+  api,
+  type CommitteeIntelSession,
+  type CommitteeIntelSessionDetail,
+  type DeliverableResult,
+  type HearingEvent,
+} from "../api";
 import { useAsync } from "../hooks";
 import { DEFAULT_WORKSPACE_ID } from "../constants";
 
+function QualityBadge({
+  label,
+  color,
+  background,
+}: {
+  label: string;
+  color: string;
+  background?: string;
+}) {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        padding: "4px 9px",
+        borderRadius: 999,
+        fontSize: 11,
+        fontWeight: 700,
+        color,
+        background: background ?? `${color}18`,
+        textTransform: "uppercase",
+        letterSpacing: 0.4,
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
+function getSessionQuality(detail: CommitteeIntelSessionDetail | null, session: CommitteeIntelSession | null) {
+  if (detail?.analysis.totalSegments) {
+    return {
+      label: "Transcript-backed",
+      description: `Linked committee session has ${detail.analysis.totalSegments} segment(s) and ${detail.analysis.totalSignals} extracted signal(s).`,
+      color: "#0f766e",
+    };
+  }
+  if (session) {
+    return {
+      label: "Needs ingest",
+      description: "A linked committee session exists, but it has not produced transcript-backed analysis yet.",
+      color: "#b45309",
+    };
+  }
+  return {
+    label: "Metadata only",
+    description: "No linked committee session exists yet, so the memo will rely on hearing metadata and source documents only.",
+    color: "#64748b",
+  };
+}
+
+function getMemoResultQuality(result: DeliverableResult) {
+  switch (result.sourceQuality) {
+    case "transcript_backed":
+      return { label: result.sourceQualityLabel ?? "Transcript-backed", color: "#0f766e" };
+    case "mixed_source":
+      return { label: result.sourceQualityLabel ?? "Mixed transcript + hearing record", color: "#7c3aed" };
+    case "source_docs_only":
+      return { label: result.sourceQualityLabel ?? "Hearing metadata + source docs", color: "#1d4ed8" };
+    default:
+      return { label: result.sourceQualityLabel ?? "Hearing metadata only", color: "#64748b" };
+  }
+}
+
 export function HearingMemoPage() {
-  const { data: hearings, loading } = useAsync(() => api.getHearings());
+  const hearingWindow = useMemo(() => {
+    const from = new Date();
+    from.setDate(from.getDate() - 45);
+    const to = new Date();
+    to.setDate(to.getDate() + 120);
+    return { from: from.toISOString(), to: to.toISOString() };
+  }, []);
+
+  const {
+    data: hearings,
+    loading,
+    error: hearingsError,
+    refetch: refetchHearings,
+  } = useAsync(
+    () => api.getHearings({ workspaceId: DEFAULT_WORKSPACE_ID, from: hearingWindow.from, to: hearingWindow.to }),
+    [hearingWindow.from, hearingWindow.to],
+  );
+  const {
+    data: sessions,
+    error: sessionsError,
+  } = useAsync(() => api.getCommitteeIntelSessions({ workspaceId: DEFAULT_WORKSPACE_ID }), []);
   const [selectedHearing, setSelectedHearing] = useState<number | null>(null);
   const [recipientName, setRecipientName] = useState("");
   const [firmName, setFirmName] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [syncingHearings, setSyncingHearings] = useState(false);
   const [result, setResult] = useState<DeliverableResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const selectedSession = useMemo(() => {
+    return (sessions ?? []).find((session) => session.hearingId === selectedHearing) ?? null;
+  }, [selectedHearing, sessions]);
+  const { data: selectedSessionDetail } = useAsync<CommitteeIntelSessionDetail | null>(
+    () => selectedSession ? api.getCommitteeIntelSession(selectedSession.id) : Promise.resolve(null),
+    [selectedSession?.id ?? 0],
+  );
 
   async function generate() {
     if (!selectedHearing) return;
@@ -32,7 +132,19 @@ export function HearingMemoPage() {
     }
   }
 
-  // Group hearings by upcoming first
+  async function handleSyncHearings() {
+    setSyncingHearings(true);
+    setError(null);
+    try {
+      await api.syncHearings(DEFAULT_WORKSPACE_ID);
+      await refetchHearings();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSyncingHearings(false);
+    }
+  }
+
   const now = new Date();
   const upcoming = (hearings ?? [])
     .filter((h: HearingEvent) => new Date(h.hearingDate) >= now)
@@ -60,6 +172,21 @@ export function HearingMemoPage() {
         </div>
       </div>
 
+      {(hearingsError || sessionsError) && (
+        <div
+          style={{
+            background: "#fef2f2",
+            border: "1px solid #fca5a5",
+            borderRadius: 8,
+            padding: 14,
+            color: "#b91c1c",
+            marginBottom: 20,
+          }}
+        >
+          {[hearingsError, sessionsError].filter(Boolean).join(" | ")}
+        </div>
+      )}
+
       {/* Configuration */}
       <div
         style={{
@@ -70,7 +197,24 @@ export function HearingMemoPage() {
           marginBottom: 24,
         }}
       >
-        <h3 style={{ margin: "0 0 16px" }}>Select Hearing</h3>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
+          <h3 style={{ margin: 0 }}>Select Hearing</h3>
+          <button
+            onClick={handleSyncHearings}
+            disabled={syncingHearings}
+            style={{
+              background: "#fff",
+              border: "1px solid #cbd5e1",
+              borderRadius: 6,
+              padding: "8px 14px",
+              fontSize: 13,
+              cursor: syncingHearings ? "not-allowed" : "pointer",
+              fontWeight: 600,
+            }}
+          >
+            {syncingHearings ? "Syncing..." : "Sync Workspace Hearings"}
+          </button>
+        </div>
 
         <div style={{ marginBottom: 14 }}>
           <label style={{ display: "block", fontWeight: 600, marginBottom: 4, fontSize: 13 }}>
@@ -79,7 +223,7 @@ export function HearingMemoPage() {
           {loading ? (
             <p style={{ color: "#888" }}>Loading hearings...</p>
           ) : sorted.length === 0 ? (
-            <p style={{ color: "#888" }}>No hearings available. Sync hearings from the Calendar page first.</p>
+            <p style={{ color: "#888" }}>No hearings are loaded for this workspace window yet. Sync Texas hearings to continue.</p>
           ) : (
             <select
               value={selectedHearing ?? ""}
@@ -117,7 +261,12 @@ export function HearingMemoPage() {
 
         {/* Selected hearing details */}
         {selectedHearing && (
-          <HearingPreview hearingId={selectedHearing} hearings={sorted} />
+          <HearingPreview
+            hearingId={selectedHearing}
+            hearings={sorted}
+            linkedSession={selectedSession}
+            linkedSessionDetail={selectedSessionDetail}
+          />
         )}
 
         <div style={{ display: "flex", gap: 14, marginBottom: 14, marginTop: 14 }}>
@@ -228,6 +377,12 @@ export function HearingMemoPage() {
               >
                 HEARING MEMO
               </span>
+              <span style={{ marginLeft: 12 }}>
+                <QualityBadge
+                  label={getMemoResultQuality(result).label}
+                  color={getMemoResultQuality(result).color}
+                />
+              </span>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button
@@ -269,6 +424,26 @@ export function HearingMemoPage() {
               </button>
             </div>
           </div>
+          {(result.provenanceSummary || result.evidenceCounts) && (
+            <div
+              style={{
+                padding: "14px 20px",
+                background: "#faf5ff",
+                borderTop: "1px solid #e9d5ff",
+                fontSize: 13,
+                color: "#4c1d95",
+                lineHeight: 1.6,
+              }}
+            >
+              {result.provenanceSummary && <div>{result.provenanceSummary}</div>}
+              {result.evidenceCounts && (
+                <div style={{ marginTop: 6 }}>
+                  Evidence counts: {result.evidenceCounts.segments} transcript segment(s), {result.evidenceCounts.signals} signal(s), {result.evidenceCounts.sourceDocuments} source document(s)
+                  {typeof result.committeeSessionId === "number" ? `, committee session #${result.committeeSessionId}` : ""}.
+                </div>
+              )}
+            </div>
+          )}
           <div
             style={{
               padding: 20,
@@ -291,14 +466,19 @@ export function HearingMemoPage() {
 function HearingPreview({
   hearingId,
   hearings,
+  linkedSession,
+  linkedSessionDetail,
 }: {
   hearingId: number;
   hearings: HearingEvent[];
+  linkedSession: CommitteeIntelSession | null;
+  linkedSessionDetail: CommitteeIntelSessionDetail | null;
 }) {
   const h = hearings.find((x) => x.id === hearingId);
   if (!h) return null;
 
   const bills = (h.relatedBillIds as string[] | null) ?? [];
+  const quality = getSessionQuality(linkedSessionDetail, linkedSession);
 
   return (
     <div
@@ -310,6 +490,30 @@ function HearingPreview({
         marginTop: 8,
       }}
     >
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
+        <QualityBadge label={quality.label} color={quality.color} />
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <Link href={`/committee-intel/hearing/${hearingId}`}>
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "6px 10px",
+                borderRadius: 6,
+                background: "#ecfeff",
+                border: "1px solid #a5f3fc",
+                color: "#155e75",
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              Open Committee Intel
+            </span>
+          </Link>
+        </div>
+      </div>
       <div style={{ display: "flex", gap: 24, flexWrap: "wrap", fontSize: 13 }}>
         <div>
           <span style={{ color: "#888" }}>Committee:</span>{" "}
@@ -337,6 +541,17 @@ function HearingPreview({
           </div>
         )}
       </div>
+      <p style={{ marginTop: 10, marginBottom: 0, fontSize: 13, color: "#475569" }}>
+        {quality.description}
+      </p>
+      {linkedSession && (
+        <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <QualityBadge label={`Session ${linkedSession.status.replace(/_/g, " ")}`} color="#1d4ed8" />
+          {linkedSession.autoIngestEnabled && (
+            <QualityBadge label={`feed ${linkedSession.autoIngestStatus.replace(/_/g, " ")}`} color="#0f766e" />
+          )}
+        </div>
+      )}
       {bills.length > 0 && (
         <div style={{ marginTop: 8, fontSize: 13 }}>
           <span style={{ color: "#888" }}>Bills:</span>{" "}

@@ -24,7 +24,12 @@ import {
   hearingEvents,
   stakeholders,
   committeeMembers,
+  committeeIntelSessions,
 } from "@shared/schema-policy-intel";
+import {
+  refreshCommitteeIntelSession,
+  type CommitteeIntelSessionDetail,
+} from "./committee-intel-service";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -58,6 +63,83 @@ export interface DeliverableResult {
   title: string;
   bodyMarkdown: string;
   generatedBy: string;
+  sourceQuality?: "transcript_backed" | "mixed_source" | "source_docs_only" | "hearing_metadata_only";
+  sourceQualityLabel?: string;
+  provenanceSummary?: string;
+  committeeSessionId?: number | null;
+  transcriptBacked?: boolean;
+  evidenceCounts?: {
+    sourceDocuments: number;
+    segments: number;
+    signals: number;
+  };
+}
+
+type HearingMemoSourceQuality =
+  | "transcript_backed"
+  | "mixed_source"
+  | "source_docs_only"
+  | "hearing_metadata_only";
+
+interface HearingMemoSourceProfile {
+  sourceQuality: HearingMemoSourceQuality;
+  sourceQualityLabel: string;
+  provenanceSummary: string;
+  transcriptBacked: boolean;
+}
+
+function dedupeById<T extends { id: number }>(rows: T[]): T[] {
+  const seen = new Set<number>();
+  return rows.filter((row) => {
+    if (seen.has(row.id)) return false;
+    seen.add(row.id);
+    return true;
+  });
+}
+
+function getHearingMemoSourceProfile(
+  committeeDetail: CommitteeIntelSessionDetail | null,
+  relatedSourceDocumentCount: number,
+): HearingMemoSourceProfile {
+  const transcriptBacked = Boolean(committeeDetail && committeeDetail.analysis.totalSegments > 0);
+
+  if (transcriptBacked && relatedSourceDocumentCount > 0) {
+    return {
+      sourceQuality: "mixed_source",
+      sourceQualityLabel: "Mixed transcript + hearing record",
+      provenanceSummary:
+        "This memo combines transcript-derived committee intelligence with the hearing calendar and related source documents.",
+      transcriptBacked: true,
+    };
+  }
+
+  if (transcriptBacked) {
+    return {
+      sourceQuality: "transcript_backed",
+      sourceQualityLabel: "Transcript-backed",
+      provenanceSummary:
+        "This memo is primarily grounded in transcript-derived committee intelligence from the linked monitoring session.",
+      transcriptBacked: true,
+    };
+  }
+
+  if (relatedSourceDocumentCount > 0) {
+    return {
+      sourceQuality: "source_docs_only",
+      sourceQualityLabel: "Hearing metadata + source docs",
+      provenanceSummary:
+        "This memo is based on the hearing calendar record and related source documents because no transcript-backed committee session is available yet.",
+      transcriptBacked: false,
+    };
+  }
+
+  return {
+    sourceQuality: "hearing_metadata_only",
+    sourceQualityLabel: "Hearing metadata only",
+    provenanceSummary:
+      "This memo is based on hearing metadata only. Create or ingest a committee-intel session to upgrade the memo with transcript-backed analysis.",
+    transcriptBacked: false,
+  };
 }
 
 // ── 1. Client Alert Generator ────────────────────────────────────────────────
@@ -571,43 +653,64 @@ export async function generateWeeklyReport(
 export async function generateHearingMemo(
   req: HearingMemoRequest,
 ): Promise<DeliverableResult> {
-  // Load hearing
   const [hearing] = await policyIntelDb
     .select()
     .from(hearingEvents)
-    .where(eq(hearingEvents.id, req.hearingId));
+    .where(and(
+      eq(hearingEvents.id, req.hearingId),
+      eq(hearingEvents.workspaceId, req.workspaceId),
+    ));
 
-  if (!hearing) throw new Error(`Hearing ${req.hearingId} not found`);
+  if (!hearing) {
+    throw new Error(`Hearing ${req.hearingId} was not found in workspace ${req.workspaceId}`);
+  }
 
-  // Related bills → source documents
+  const [committeeSessionRow] = await policyIntelDb
+    .select({ id: committeeIntelSessions.id })
+    .from(committeeIntelSessions)
+    .where(and(
+      eq(committeeIntelSessions.workspaceId, req.workspaceId),
+      eq(committeeIntelSessions.hearingId, req.hearingId),
+    ));
+
+  const committeeDetail = committeeSessionRow
+    ? await refreshCommitteeIntelSession(committeeSessionRow.id)
+    : null;
+
   const relatedBills = (hearing.relatedBillIds as string[] | null) ?? [];
-  let relatedDocs: (typeof sourceDocuments.$inferSelect)[] = [];
+  const relatedDocCandidates: (typeof sourceDocuments.$inferSelect)[] = [];
+
+  if (hearing.sourceDocumentId) {
+    const [hearingSourceDocument] = await policyIntelDb
+      .select()
+      .from(sourceDocuments)
+      .where(eq(sourceDocuments.id, hearing.sourceDocumentId));
+    if (hearingSourceDocument) {
+      relatedDocCandidates.push(hearingSourceDocument);
+    }
+  }
+
   if (relatedBills.length > 0) {
-    // Search for source documents mentioning these bill IDs
-    const conditions = relatedBills.map((bill) =>
-      eq(sourceDocuments.title, bill),
-    );
-    // Use a broader search: bills in title
     const allDocs = await policyIntelDb
       .select()
       .from(sourceDocuments)
       .limit(500);
-    relatedDocs = allDocs.filter((d) =>
+    relatedDocCandidates.push(...allDocs.filter((d) =>
       relatedBills.some(
         (bill) =>
           d.title.toLowerCase().includes(bill.toLowerCase()) ||
           (d.normalizedText ?? "").toLowerCase().includes(bill.toLowerCase()),
       ),
-    );
+    ));
   }
 
-  // Committee members
+  const relatedDocs = dedupeById(relatedDocCandidates);
+
   const members = await policyIntelDb
     .select()
     .from(committeeMembers)
     .where(eq(committeeMembers.committeeName, hearing.committee));
 
-  // Load stakeholders for committee members
   const memberStakeholderIds = members
     .filter((m) => m.stakeholderId)
     .map((m) => m.stakeholderId!);
@@ -619,23 +722,29 @@ export async function generateHearingMemo(
           .where(inArray(stakeholders.id, memberStakeholderIds))
       : [];
 
-  // Related alerts
   const billAlerts =
     relatedDocs.length > 0
       ? await policyIntelDb
           .select()
           .from(alerts)
-          .where(
+          .where(and(
+            eq(alerts.workspaceId, req.workspaceId),
             inArray(
               alerts.sourceDocumentId,
               relatedDocs.map((d) => d.id),
             ),
-          )
+          ))
           .orderBy(desc(alerts.relevanceScore))
           .limit(10)
       : [];
 
-  // Build memo
+  const sourceProfile = getHearingMemoSourceProfile(committeeDetail, relatedDocs.length);
+  const issueCoverage = committeeDetail?.analysis.issueCoverage.slice(0, 5) ?? [];
+  const keyMoments = committeeDetail?.analysis.keyMoments.slice(0, 5) ?? [];
+  const witnessRankings = committeeDetail?.analysis.witnessRankings.slice(0, 5) ?? [];
+  const electedFocus = committeeDetail?.analysis.electedFocus.slice(0, 5) ?? [];
+  const recap = committeeDetail?.analysis.postHearingRecap ?? null;
+
   const firm = req.firmName ?? "Grace & McEwan LLP";
   const recipient = req.recipientName ?? "Client";
   const hearingDate = new Date(hearing.hearingDate).toLocaleDateString(
@@ -646,22 +755,26 @@ export async function generateHearingMemo(
 
   const sections: string[] = [];
 
-  // Header
   sections.push(`# ${title}\n`);
   sections.push(`**${firm}** — Government Affairs & Policy Intelligence\n`);
   sections.push(`**Committee:** ${hearing.committee}  `);
   sections.push(`**Chamber:** ${hearing.chamber}  `);
   sections.push(`**Date:** ${hearingDate}  `);
-  if (hearing.timeDescription)
-    sections.push(`**Time:** ${hearing.timeDescription}  `);
+  sections.push(`**Source Quality:** ${sourceProfile.sourceQualityLabel}  `);
+  if (hearing.timeDescription) sections.push(`**Time:** ${hearing.timeDescription}  `);
   if (hearing.location) sections.push(`**Location:** ${hearing.location}  `);
   sections.push(`**Status:** ${(hearing.status ?? "scheduled").replace(/_/g, " ").toUpperCase()}  `);
+  if (committeeDetail) sections.push(`**Committee Intel Session:** ${committeeDetail.session.title}  `);
   sections.push(`**Prepared for:** ${recipient}\n`);
   sections.push(`---\n`);
 
-  // Hearing Overview
   sections.push(`## Hearing Overview\n`);
-  if (hearing.description) {
+  if (committeeDetail?.analysis.summary && sourceProfile.transcriptBacked) {
+    sections.push(committeeDetail.analysis.summary + "\n");
+    if (hearing.description) {
+      sections.push(`Calendar context: ${hearing.description}\n`);
+    }
+  } else if (hearing.description) {
     sections.push(hearing.description + "\n");
   } else {
     sections.push(
@@ -670,15 +783,103 @@ export async function generateHearingMemo(
         `. ${relatedBills.length > 0 ? `${relatedBills.length} bill(s) are on the agenda.` : "Agenda details to follow."}\n`,
     );
   }
+  sections.push(sourceProfile.provenanceSummary + "\n");
 
-  // Bills on Agenda
+  if (committeeDetail) {
+    sections.push(`## Committee Intelligence Snapshot\n`);
+    sections.push(`- Session status: ${committeeDetail.session.status.replace(/_/g, " ")}`);
+    sections.push(`- Transcript segments analyzed: ${committeeDetail.analysis.totalSegments}`);
+    sections.push(`- Signals extracted: ${committeeDetail.analysis.totalSignals}`);
+    sections.push(`- Tracked entities: ${committeeDetail.analysis.trackedEntities}`);
+    if (committeeDetail.session.lastAnalyzedAt) {
+      sections.push(
+        `- Last refreshed: ${new Date(committeeDetail.session.lastAnalyzedAt).toLocaleString("en-US", {
+          month: "short",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+        })}`,
+      );
+    }
+    if (committeeDetail.session.autoIngestError) {
+      sections.push(`- Feed issue: ${committeeDetail.session.autoIngestError}`);
+    }
+    sections.push("");
+  }
+
+  if (issueCoverage.length > 0) {
+    sections.push(`## Top Issues From Committee Intel\n`);
+    for (const issue of issueCoverage) {
+      sections.push(
+        `- **${issue.label}** — ${issue.mentionCount} mentions; support ${issue.supportCount}, oppose ${issue.opposeCount}, questions ${issue.questioningCount}`,
+      );
+      if (issue.keyEntities.length > 0) {
+        sections.push(`  Key entities: ${issue.keyEntities.slice(0, 4).join(", ")}`);
+      }
+    }
+    sections.push("");
+  }
+
+  if (keyMoments.length > 0) {
+    sections.push(`## Key Transcript Moments\n`);
+    for (const moment of keyMoments) {
+      sections.push(
+        `- **${moment.timestampLabel}** — ${moment.speakerName ?? "Unknown speaker"} (${moment.speakerRole.replace(/_/g, " ")})`,
+      );
+      sections.push(`  ${moment.summary}`);
+    }
+    sections.push("");
+  }
+
+  if (electedFocus.length > 0 || witnessRankings.length > 0) {
+    sections.push(`## Member And Witness Dynamics\n`);
+    if (electedFocus.length > 0) {
+      sections.push(`### Committee Members Driving The Hearing\n`);
+      for (const entry of electedFocus) {
+        sections.push(
+          `- **${entry.entityName}** — ${entry.primaryIssues.slice(0, 3).join(", ") || "No issue cluster yet"} (${entry.mentionCount} mentions)`,
+        );
+      }
+      sections.push("");
+    }
+    if (witnessRankings.length > 0) {
+      sections.push(`### Most Influential Witnesses Or Agencies\n`);
+      for (const entry of witnessRankings) {
+        sections.push(`- **#${entry.rank} ${entry.entityName}** — ${entry.summary}`);
+      }
+      sections.push("");
+    }
+  }
+
+  if (recap && (recap.followUpActions.length > 0 || recap.agencyCommitments.length > 0 || recap.memberPressurePoints.length > 0)) {
+    sections.push(`## Follow-Up Signals\n`);
+    if (recap.memberPressurePoints.length > 0) {
+      sections.push(`### Member Pressure Points\n`);
+      for (const point of recap.memberPressurePoints.slice(0, 5)) {
+        sections.push(`- ${point}`);
+      }
+      sections.push("");
+    }
+    if (recap.agencyCommitments.length > 0) {
+      sections.push(`### Agency Commitments\n`);
+      for (const commitment of recap.agencyCommitments.slice(0, 5)) {
+        sections.push(`- ${commitment}`);
+      }
+      sections.push("");
+    }
+    if (recap.followUpActions.length > 0) {
+      sections.push(`### Recommended Follow-Up\n`);
+      for (const action of recap.followUpActions.slice(0, 5)) {
+        sections.push(`- ${action}`);
+      }
+      sections.push("");
+    }
+  }
+
   if (relatedBills.length > 0) {
     sections.push(`## Bills on Agenda\n`);
     for (const bill of relatedBills) {
-      const doc = relatedDocs.find(
-        (d) =>
-          d.title.toLowerCase().includes(bill.toLowerCase()),
-      );
+      const doc = relatedDocs.find((d) => d.title.toLowerCase().includes(bill.toLowerCase()));
       sections.push(`### ${bill}`);
       if (doc) {
         sections.push(`**Title:** ${doc.title}  `);
@@ -690,9 +891,8 @@ export async function generateHearingMemo(
     }
   }
 
-  // Alert Intelligence
   if (billAlerts.length > 0) {
-    sections.push(`## Intelligence from Alert Pipeline\n`);
+    sections.push(`## Intelligence From Alert Pipeline\n`);
     sections.push(
       `Our monitoring system has flagged ${billAlerts.length} alert(s) related to bills on this agenda:\n`,
     );
@@ -709,17 +909,16 @@ export async function generateHearingMemo(
     sections.push("");
   }
 
-  // Committee Composition
   if (members.length > 0) {
     sections.push(`## Committee Composition\n`);
     sections.push(`| Role | Member | Party |`);
     sections.push(`|------|--------|-------|`);
     for (const m of members) {
-      const s = memberStakeholders.find(
-        (st) => st.id === m.stakeholderId,
-      );
+      const s = memberStakeholders.find((st) => st.id === m.stakeholderId);
       const name = s?.name ?? "Unknown";
-      const party = s?.tagsJson ? ((s.tagsJson as string[]).find((t: string) => t === "R" || t === "D" || t === "I") ?? "") : "";
+      const party = s?.tagsJson
+        ? ((s.tagsJson as string[]).find((t: string) => t === "R" || t === "D" || t === "I") ?? "")
+        : "";
       sections.push(
         `| ${m.role.charAt(0).toUpperCase() + m.role.slice(1)} | ${name} | ${party} |`,
       );
@@ -727,27 +926,28 @@ export async function generateHearingMemo(
     sections.push("");
   }
 
-  // Preparation Notes
   sections.push(`## Preparation Notes\n`);
-  sections.push(`1. Review the bills listed above for specific language affecting client interests`);
-  sections.push(`2. Identify potential testimony opportunities or witness registration deadlines`);
-  sections.push(`3. Note any amendments or substitutes that may be offered`);
+  if (recap?.followUpActions.length) {
+    recap.followUpActions.slice(0, 4).forEach((action, index) => {
+      sections.push(`${index + 1}. ${action}`);
+    });
+  } else {
+    sections.push(`1. Review the bills listed above for specific language affecting client interests`);
+    sections.push(`2. Identify potential testimony opportunities or witness registration deadlines`);
+    sections.push(`3. Note any amendments or substitutes that may be offered`);
+  }
   if (members.length > 0) {
-    const chair = members.find(
-      (m) => (m.role ?? "").toLowerCase().includes("chair"),
-    );
+    const chair = members.find((m) => (m.role ?? "").toLowerCase().includes("chair"));
     if (chair) {
       const chairName =
-        memberStakeholders.find((s) => s.id === chair.stakeholderId)
-          ?.name ?? "the Chair";
+        memberStakeholders.find((s) => s.id === chair.stakeholderId)?.name ?? "the Chair";
       sections.push(
-        `4. ${chairName} chairs this committee — review voting history and stated positions`,
+        `${recap?.followUpActions.length ? recap.followUpActions.slice(0, 4).length + 1 : 4}. ${chairName} chairs this committee — review voting history and stated positions`,
       );
     }
   }
   sections.push("");
 
-  // Footer
   sections.push(`---\n`);
   sections.push(
     `*This memo was prepared by ${firm} using automated policy intelligence monitoring. ` +
@@ -759,8 +959,31 @@ export async function generateHearingMemo(
 
   const bodyMarkdown = sections.join("\n");
   const sourceDocumentIds = relatedDocs.map((d) => d.id);
+  const citationsJson = [
+    ...(committeeDetail ? [{
+      sourceKind: "committee_intel_session",
+      committeeSessionId: committeeDetail.session.id,
+      title: committeeDetail.session.title,
+      transcriptBacked: sourceProfile.transcriptBacked,
+      totalSegments: committeeDetail.analysis.totalSegments,
+      totalSignals: committeeDetail.analysis.totalSignals,
+      accessedAt: new Date().toISOString(),
+    }] : []),
+    ...relatedDocs.map((d) => ({
+      sourceKind: "source_document",
+      sourceDocumentId: d.id,
+      title: d.title,
+      publisher: d.publisher,
+      sourceUrl: d.sourceUrl,
+      accessedAt: new Date().toISOString(),
+    })),
+  ];
+  const generatedBy = committeeDetail
+    ? sourceProfile.transcriptBacked
+      ? "committee_intel"
+      : "committee_intel_fallback"
+    : "template";
 
-  // Store deliverable
   const [deliverable] = await policyIntelDb
     .insert(deliverables)
     .values({
@@ -770,23 +993,16 @@ export async function generateHearingMemo(
       title,
       bodyMarkdown,
       sourceDocumentIds,
-      citationsJson: relatedDocs.map((d) => ({
-        sourceDocumentId: d.id,
-        title: d.title,
-        publisher: d.publisher,
-        sourceUrl: d.sourceUrl,
-        accessedAt: new Date().toISOString(),
-      })),
-      generatedBy: "template",
+      citationsJson,
+      generatedBy,
     })
     .returning();
 
-  // Log activity
   await policyIntelDb.insert(activities).values({
     workspaceId: req.workspaceId,
     matterId: req.matterId ?? null,
     type: "brief_drafted",
-    summary: `Hearing memo generated for ${hearing.committee} on ${hearingDate}`,
+    summary: `Hearing memo generated for ${hearing.committee} on ${hearingDate} (${sourceProfile.sourceQualityLabel})`,
   });
 
   return {
@@ -794,6 +1010,16 @@ export async function generateHearingMemo(
     type: "hearing_memo",
     title,
     bodyMarkdown,
-    generatedBy: "template",
+    generatedBy,
+    sourceQuality: sourceProfile.sourceQuality,
+    sourceQualityLabel: sourceProfile.sourceQualityLabel,
+    provenanceSummary: sourceProfile.provenanceSummary,
+    committeeSessionId: committeeDetail?.session.id ?? null,
+    transcriptBacked: sourceProfile.transcriptBacked,
+    evidenceCounts: {
+      sourceDocuments: relatedDocs.length,
+      segments: committeeDetail?.analysis.totalSegments ?? 0,
+      signals: committeeDetail?.analysis.totalSignals ?? 0,
+    },
   };
 }

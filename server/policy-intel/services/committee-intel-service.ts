@@ -2767,6 +2767,7 @@ export async function listCommitteeIntelSessions(filters?: {
   hearingId?: number;
   status?: CommitteeIntelSessionRow["status"];
   from?: string;
+  to?: string;
 }): Promise<CommitteeIntelSessionRow[]> {
   const conditions = [];
   if (filters?.workspaceId) conditions.push(eq(committeeIntelSessions.workspaceId, filters.workspaceId));
@@ -2775,6 +2776,10 @@ export async function listCommitteeIntelSessions(filters?: {
   if (filters?.from) {
     const fromDate = toDate(filters.from);
     if (fromDate) conditions.push(gte(committeeIntelSessions.hearingDate, fromDate));
+  }
+  if (filters?.to) {
+    const toDateValue = toDate(filters.to);
+    if (toDateValue) conditions.push(sql`${committeeIntelSessions.hearingDate} <= ${toDateValue}`);
   }
 
   return policyIntelDb

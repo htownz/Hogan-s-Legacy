@@ -184,8 +184,9 @@ export const api = {
     apiFetch<{ sent: boolean; message: string }>("/notifications/test-slack", { method: "POST", body: JSON.stringify({}) }),
 
   // Hearings & Calendar
-  getHearings: (params?: { from?: string; to?: string; chamber?: string; committee?: string }) => {
+  getHearings: (params?: { workspaceId?: number; from?: string; to?: string; chamber?: string; committee?: string }) => {
     const q = new URLSearchParams();
+    if (params?.workspaceId) q.set("workspaceId", String(params.workspaceId));
     if (params?.from) q.set("from", params.from);
     if (params?.to) q.set("to", params.to);
     if (params?.chamber) q.set("chamber", params.chamber);
@@ -193,9 +194,14 @@ export const api = {
     const qs = q.toString();
     return apiFetch<HearingEvent[]>(`/hearings${qs ? `?${qs}` : ""}`);
   },
-  getThisWeekHearings: () => apiFetch<ThisWeekResponse>("/hearings/this-week"),
+  getThisWeekHearings: (workspaceId?: number) =>
+    apiFetch<ThisWeekResponse>(`/hearings/this-week${workspaceId ? `?workspaceId=${workspaceId}` : ""}`),
   getHearing: (id: number) => apiFetch<HearingEvent>(`/hearings/${id}`),
-  syncHearings: () => apiFetch<{ totalDocs: number; created: number; skipped: number }>("/hearings/sync", { method: "POST" }),
+  syncHearings: (workspaceId?: number) =>
+    apiFetch<{ totalDocs: number; created: number; skipped: number }>("/hearings/sync", {
+      method: "POST",
+      body: JSON.stringify(workspaceId ? { workspaceId } : {}),
+    }),
 
   // Committee Members
   getCommitteeMembers: (params?: { stakeholderId?: number; committee?: string; chamber?: string }) => {
@@ -244,12 +250,13 @@ export const api = {
   }) => apiFetch<DeliverableResult>("/deliverables/generate-hearing-memo", { method: "POST", body: JSON.stringify(body) }),
 
   // Committee intelligence
-  getCommitteeIntelSessions: (params?: { workspaceId?: number; hearingId?: number; status?: string; from?: string }) => {
+  getCommitteeIntelSessions: (params?: { workspaceId?: number; hearingId?: number; status?: string; from?: string; to?: string }) => {
     const q = new URLSearchParams();
     if (params?.workspaceId) q.set("workspaceId", String(params.workspaceId));
     if (params?.hearingId) q.set("hearingId", String(params.hearingId));
     if (params?.status) q.set("status", params.status);
     if (params?.from) q.set("from", params.from);
+    if (params?.to) q.set("to", params.to);
     const qs = q.toString();
     return apiFetch<CommitteeIntelSession[]>(`/committee-intel/sessions${qs ? `?${qs}` : ""}`);
   },
@@ -599,6 +606,16 @@ export interface DeliverableResult {
   title: string;
   bodyMarkdown: string;
   generatedBy: string;
+  sourceQuality?: "transcript_backed" | "mixed_source" | "source_docs_only" | "hearing_metadata_only";
+  sourceQualityLabel?: string;
+  provenanceSummary?: string;
+  committeeSessionId?: number | null;
+  transcriptBacked?: boolean;
+  evidenceCounts?: {
+    sourceDocuments: number;
+    segments: number;
+    signals: number;
+  };
 }
 
 export interface Watchlist {

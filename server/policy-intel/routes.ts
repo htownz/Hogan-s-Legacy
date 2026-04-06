@@ -2176,7 +2176,9 @@ export function createPolicyIntelRouter() {
   router.get("/hearings", async (req, res, next) => {
     try {
       const { from, to, chamber, committee } = req.query;
+      const workspaceId = req.query.workspaceId ? parseId(String(req.query.workspaceId)) : null;
       const conditions = [];
+      if (workspaceId) conditions.push(eq(hearingEvents.workspaceId, workspaceId));
       if (from) conditions.push(gte(hearingEvents.hearingDate, new Date(from as string)));
       if (to) conditions.push(lt(hearingEvents.hearingDate, new Date(to as string)));
       if (chamber) conditions.push(eq(hearingEvents.chamber, chamber as string));
@@ -2199,6 +2201,7 @@ export function createPolicyIntelRouter() {
    */
   router.get("/hearings/this-week", async (req, res, next) => {
     try {
+      const workspaceId = req.query.workspaceId ? parseId(String(req.query.workspaceId)) : null;
       const now = new Date();
       const dayOfWeek = now.getDay();
       const monday = new Date(now);
@@ -2211,6 +2214,7 @@ export function createPolicyIntelRouter() {
         .select()
         .from(hearingEvents)
         .where(and(
+          ...(workspaceId ? [eq(hearingEvents.workspaceId, workspaceId)] : []),
           gte(hearingEvents.hearingDate, monday),
           lt(hearingEvents.hearingDate, nextMonday),
         ))
@@ -2242,6 +2246,12 @@ export function createPolicyIntelRouter() {
    */
   router.post("/hearings/sync", async (req, res, next) => {
     try {
+      const workspaceId =
+        (typeof req.body?.workspaceId === "number" && Number.isFinite(req.body.workspaceId) && req.body.workspaceId > 0
+          ? Math.floor(req.body.workspaceId)
+          : null)
+        ?? (req.query.workspaceId ? parseId(String(req.query.workspaceId)) : null)
+        ?? 1;
       const docs = await policyIntelDb
         .select()
         .from(sourceDocuments)
@@ -2288,7 +2298,7 @@ export function createPolicyIntelRouter() {
         }
 
         // Upsert by external id
-        const extId = `tlo-hearing-${doc.id}`;
+        const extId = `tlo-hearing-${workspaceId}-${doc.id}`;
         const [existing] = await policyIntelDb
           .select({ id: hearingEvents.id })
           .from(hearingEvents)
@@ -2297,7 +2307,7 @@ export function createPolicyIntelRouter() {
         if (existing) { skipped++; continue; }
 
         await policyIntelDb.insert(hearingEvents).values({
-          workspaceId: 1,
+          workspaceId,
           sourceDocumentId: doc.id,
           committee,
           chamber,
@@ -2326,12 +2336,14 @@ export function createPolicyIntelRouter() {
       const hearingId = req.query.hearingId ? parseId(String(req.query.hearingId)) : null;
       const status = typeof req.query.status === "string" ? req.query.status : undefined;
       const from = typeof req.query.from === "string" ? req.query.from : undefined;
+      const to = typeof req.query.to === "string" ? req.query.to : undefined;
 
       const rows = await listCommitteeIntelSessions({
         workspaceId: workspaceId ?? undefined,
         hearingId: hearingId ?? undefined,
         status: status as any,
         from,
+        to,
       });
 
       res.json(rows);

@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { Link } from "wouter";
 import { api, type HearingEvent } from "../api";
 import { useAsync } from "../hooks";
+import { DEFAULT_WORKSPACE_ID } from "../constants";
 
 const CHAMBER_COLORS: Record<string, string> = {
   House: "#2980b9",
@@ -82,7 +83,7 @@ export function CalendarPage() {
   }, [view, currentDate]);
 
   const { data: hearings, loading } = useAsync(
-    () => api.getHearings({ from: dateRange.from, to: dateRange.to }),
+    () => api.getHearings({ workspaceId: DEFAULT_WORKSPACE_ID, from: dateRange.from, to: dateRange.to }),
     [dateRange.from, dateRange.to],
   );
 

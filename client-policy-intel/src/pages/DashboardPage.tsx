@@ -221,7 +221,7 @@ export function DashboardPage() {
   const [champion, setChampion] = useState<ChampionStatus | null>(null);
   const [retraining, setRetraining] = useState(false);
   const [retrainResult, setRetrainResult] = useState<RetrainResult | null>(null);
-  const { data: thisWeekData } = useAsync(() => api.getThisWeekHearings());
+  const { data: thisWeekData } = useAsync(() => api.getThisWeekHearings(DEFAULT_WORKSPACE_ID));
   const { data: powerNetwork } = useAsync(() => api.getPowerNetworkReport());
   const { data: predictions } = useAsync(() => api.getLegislationPredictions());
   const { data: briefing } = useAsync(() => api.getIntelligenceBriefing());

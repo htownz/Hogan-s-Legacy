@@ -21,6 +21,13 @@ const STATUS_COLORS: Record<string, string> = {
   completed: "#6b7280",
 };
 
+const SESSION_STATUS_PRIORITY: Record<string, number> = {
+  monitoring: 0,
+  planned: 1,
+  paused: 2,
+  completed: 3,
+};
+
 const POSITION_COLORS: Record<string, string> = {
   support: "#047857",
   oppose: "#b91c1c",
@@ -131,20 +138,21 @@ interface CommitteeIntelPageProps {
 export function CommitteeIntelPage({ hearingId, sessionId }: CommitteeIntelPageProps) {
   const hearingWindow = useMemo(() => {
     const from = new Date();
-    from.setDate(from.getDate() - 7);
+    from.setDate(from.getDate() - 45);
     const to = new Date();
-    to.setDate(to.getDate() + 60);
+    to.setDate(to.getDate() + 120);
     return { from: from.toISOString(), to: to.toISOString() };
   }, []);
 
   const [sessionRefreshNonce, setSessionRefreshNonce] = useState(0);
-  const { data: hearings, loading: hearingsLoading, error: hearingsError } = useAsync(
-    () => api.getHearings({ from: hearingWindow.from, to: hearingWindow.to }),
+  const [syncingHearings, setSyncingHearings] = useState(false);
+  const { data: hearings, loading: hearingsLoading, error: hearingsError, refetch: refetchHearings } = useAsync(
+    () => api.getHearings({ workspaceId: DEFAULT_WORKSPACE_ID, from: hearingWindow.from, to: hearingWindow.to }),
     [hearingWindow.from, hearingWindow.to],
   );
   const { data: sessions, loading: sessionsLoading, error: sessionsError, refetch: refetchSessions } = useAsync(
-    () => api.getCommitteeIntelSessions({ workspaceId: DEFAULT_WORKSPACE_ID, from: hearingWindow.from }),
-    [hearingWindow.from, sessionRefreshNonce],
+    () => api.getCommitteeIntelSessions({ workspaceId: DEFAULT_WORKSPACE_ID }),
+    [sessionRefreshNonce],
   );
 
   const [selectedHearingId, setSelectedHearingId] = useState<number | null>(hearingId ?? null);
@@ -193,19 +201,47 @@ export function CommitteeIntelPage({ hearingId, sessionId }: CommitteeIntelPageP
   const [briefIssue, setBriefIssue] = useState("");
 
   const upcomingHearings = useMemo(() => {
-    return [...(hearings ?? [])].sort(
-      (left, right) => new Date(left.hearingDate).getTime() - new Date(right.hearingDate).getTime(),
-    );
+    const now = Date.now();
+    return [...(hearings ?? [])]
+      .filter((hearing) => new Date(hearing.hearingDate).getTime() >= now)
+      .sort((left, right) => new Date(left.hearingDate).getTime() - new Date(right.hearingDate).getTime());
   }, [hearings]);
 
+  const recentHearings = useMemo(() => {
+    const now = Date.now();
+    return [...(hearings ?? [])]
+      .filter((hearing) => new Date(hearing.hearingDate).getTime() < now)
+      .sort((left, right) => new Date(right.hearingDate).getTime() - new Date(left.hearingDate).getTime())
+      .slice(0, 8);
+  }, [hearings]);
+
+  const availableHearings = useMemo(() => {
+    return [...upcomingHearings, ...recentHearings];
+  }, [recentHearings, upcomingHearings]);
+
   const selectedHearing = useMemo(() => {
-    return upcomingHearings.find((hearing) => hearing.id === selectedHearingId) ?? null;
-  }, [selectedHearingId, upcomingHearings]);
+    return availableHearings.find((hearing) => hearing.id === selectedHearingId) ?? null;
+  }, [availableHearings, selectedHearingId]);
 
   const orderedSessions = useMemo(() => {
-    return [...(sessions ?? [])].sort(
-      (left, right) => new Date(left.hearingDate).getTime() - new Date(right.hearingDate).getTime(),
-    );
+    const now = Date.now();
+    return [...(sessions ?? [])].sort((left, right) => {
+      const statusDelta =
+        (SESSION_STATUS_PRIORITY[left.status] ?? 99) -
+        (SESSION_STATUS_PRIORITY[right.status] ?? 99);
+      if (statusDelta !== 0) return statusDelta;
+
+      const leftTime = new Date(left.hearingDate).getTime();
+      const rightTime = new Date(right.hearingDate).getTime();
+      const leftIsFuture = leftTime >= now;
+      const rightIsFuture = rightTime >= now;
+
+      if (leftIsFuture !== rightIsFuture) {
+        return leftIsFuture ? -1 : 1;
+      }
+
+      return leftIsFuture ? leftTime - rightTime : rightTime - leftTime;
+    });
   }, [sessions]);
 
   useEffect(() => {
@@ -221,10 +257,10 @@ export function CommitteeIntelPage({ hearingId, sessionId }: CommitteeIntelPageP
   }, [sessionId, selectedSessionId]);
 
   useEffect(() => {
-    if (!selectedHearingId && upcomingHearings.length > 0) {
-      setSelectedHearingId(hearingId ?? upcomingHearings[0].id);
+    if (!selectedHearingId && availableHearings.length > 0) {
+      setSelectedHearingId(hearingId ?? availableHearings[0].id);
     }
-  }, [selectedHearingId, upcomingHearings, hearingId]);
+  }, [selectedHearingId, availableHearings, hearingId]);
 
   useEffect(() => {
     if (!sessions || !hearingId) return;
@@ -320,6 +356,23 @@ export function CommitteeIntelPage({ hearingId, sessionId }: CommitteeIntelPageP
     setActionError(null);
     setSessionRefreshNonce((value) => value + 1);
     refetchSessions();
+  }
+
+  async function handleSyncHearings() {
+    setSyncingHearings(true);
+    setActionError(null);
+    setMaintenanceNotice(null);
+    try {
+      const result = await api.syncHearings(DEFAULT_WORKSPACE_ID);
+      await refetchHearings();
+      setMaintenanceNotice(
+        `Synced hearings for workspace ${DEFAULT_WORKSPACE_ID}: created ${result.created} and skipped ${result.skipped} existing record${result.skipped === 1 ? "" : "s"}.`,
+      );
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSyncingHearings(false);
+    }
   }
 
   async function handleCreateSession() {
@@ -601,17 +654,25 @@ export function CommitteeIntelPage({ hearingId, sessionId }: CommitteeIntelPageP
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 18 }}>
         <SectionCard
-          title="Upcoming Hearings"
-          subtitle="Pick a hearing to launch or pre-stage a monitoring session"
+          title="Hearings In Scope"
+          subtitle="Upcoming hearings first, followed by recent past hearings for transcript-backed follow-up"
+          actions={(
+            <button type="button" onClick={handleSyncHearings} disabled={syncingHearings} style={secondaryButtonStyle}>
+              {syncingHearings ? "Syncing..." : "Sync Hearings"}
+            </button>
+          )}
         >
           <div style={{ display: "grid", gap: 10 }}>
             {hearingsLoading && <div style={{ fontSize: 13, color: "#64748b" }}>Loading hearings...</div>}
-            {!hearingsLoading && upcomingHearings.length === 0 && (
-              <div style={{ fontSize: 13, color: "#64748b" }}>No hearings are loaded for the current window.</div>
+            {!hearingsLoading && availableHearings.length === 0 && (
+              <div style={{ fontSize: 13, color: "#64748b" }}>
+                No hearings are loaded for the current workspace window yet. Use sync to pull the latest Texas hearing records into this workspace.
+              </div>
             )}
-            {upcomingHearings.slice(0, 12).map((hearing) => {
+            {availableHearings.slice(0, 14).map((hearing) => {
               const selected = hearing.id === selectedHearingId;
               const existingSession = orderedSessions.find((session) => session.hearingId === hearing.id) ?? null;
+              const isUpcoming = new Date(hearing.hearingDate).getTime() >= Date.now();
               return (
                 <button
                   key={hearing.id}
@@ -634,18 +695,23 @@ export function CommitteeIntelPage({ hearingId, sessionId }: CommitteeIntelPageP
                       <div style={{ fontWeight: 700, fontSize: 14, color: "#0f172a" }}>{hearing.committee}</div>
                       <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>{formatHearingDate(hearing.hearingDate)}</div>
                     </div>
-                    <Badge label={hearing.chamber} color="#1d4ed8" />
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                      <Badge label={isUpcoming ? "Upcoming" : "Recent"} color={isUpcoming ? "#0f766e" : "#b45309"} />
+                      <Badge label={hearing.chamber} color="#1d4ed8" />
+                    </div>
                   </div>
                   {hearing.location && (
                     <div style={{ fontSize: 12, color: "#334155", marginTop: 8 }}>{hearing.location}</div>
                   )}
                   {existingSession && (
-                    <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                    <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                       <Badge
                         label={`Session ${statusLabel(existingSession.status)}`}
                         color={STATUS_COLORS[existingSession.status] ?? "#475569"}
                       />
-                      <span style={{ fontSize: 12, color: "#0f766e", fontWeight: 700 }}>Open monitoring session</span>
+                      <span style={{ fontSize: 12, color: existingSession.liveSummary ? "#0f766e" : "#92400e", fontWeight: 700 }}>
+                        {existingSession.liveSummary ? "Transcript-backed intel available" : "Session exists - ingest or analyze next"}
+                      </span>
                     </div>
                   )}
                 </button>
