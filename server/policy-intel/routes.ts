@@ -215,6 +215,35 @@ async function buildWorkspaceDigestPayload(workspaceId: number, weekParam?: stri
   };
 }
 
+function looksLikeBusinessAndCommerce(value: string | null | undefined) {
+  return Boolean(value && /business\s*&?\s*commerce/i.test(value));
+}
+
+function buildMarketBriefingSummary(briefing: Awaited<ReturnType<typeof runSwarm>>) {
+  return {
+    generatedAt: briefing.generatedAt,
+    executiveSummary: briefing.executiveSummary,
+    priorityInsights: [...briefing.insights]
+      .sort((left, right) => left.priority - right.priority)
+      .slice(0, 4),
+    topRisks: briefing.risk.criticalRisks.slice(0, 4).map((risk) => ({
+      billId: risk.billId,
+      title: risk.title,
+      riskLevel: risk.riskLevel,
+      passageProbability: risk.passageProbability,
+      narrative: risk.narrative,
+      recommendations: risk.recommendations,
+    })),
+    anomalies: briefing.anomalies.anomalies.slice(0, 4).map((anomaly) => ({
+      type: anomaly.type,
+      severity: anomaly.severity,
+      subject: anomaly.subject,
+      narrative: anomaly.narrative,
+      detectedAt: anomaly.detectedAt,
+    })),
+  };
+}
+
 export function createPolicyIntelRouter() {
   const router = Router();
 
@@ -3510,6 +3539,7 @@ export function createPolicyIntelRouter() {
       const minRelationshipStrength = req.query.minRelationshipStrength
         ? Number(req.query.minRelationshipStrength)
         : 0.35;
+      const hearingFloor = committeeFrom ? new Date(committeeFrom) : new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
 
       const [
         { getPredictionDashboard },
@@ -3542,6 +3572,119 @@ export function createPolicyIntelRouter() {
           .limit(issueRoomLimit),
       ]);
 
+      const [briefingResult, alertsResult, hearingsResult] = await Promise.allSettled([
+        runSwarm(),
+        (async () => {
+          const topAlertRows = await policyIntelDb
+            .select({
+              id: alerts.id,
+              workspaceId: alerts.workspaceId,
+              watchlistId: alerts.watchlistId,
+              sourceDocumentId: alerts.sourceDocumentId,
+              issueRoomId: alerts.issueRoomId,
+              title: alerts.title,
+              summary: alerts.summary,
+              whyItMatters: alerts.whyItMatters,
+              status: alerts.status,
+              relevanceScore: alerts.relevanceScore,
+              confidenceScore: alerts.confidenceScore,
+              reasonsJson: alerts.reasonsJson,
+              reviewerNote: alerts.reviewerNote,
+              createdAt: alerts.createdAt,
+              reviewedAt: alerts.reviewedAt,
+            })
+            .from(alerts)
+            .where(eq(alerts.workspaceId, workspaceId))
+            .orderBy(desc(alerts.relevanceScore), desc(alerts.createdAt))
+            .limit(8);
+
+          const watchlistIds = Array.from(new Set(topAlertRows.map((row) => row.watchlistId).filter((id): id is number => id !== null)));
+          const issueRoomIds = Array.from(new Set(topAlertRows.map((row) => row.issueRoomId).filter((id): id is number => id !== null)));
+
+          const [watchlistRows, alertRoomRows] = await Promise.all([
+            watchlistIds.length > 0
+              ? policyIntelDb
+                  .select({ id: watchlists.id, name: watchlists.name })
+                  .from(watchlists)
+                  .where(inArray(watchlists.id, watchlistIds))
+              : Promise.resolve([]),
+            issueRoomIds.length > 0
+              ? policyIntelDb
+                  .select({ id: issueRooms.id, title: issueRooms.title })
+                  .from(issueRooms)
+                  .where(inArray(issueRooms.id, issueRoomIds))
+              : Promise.resolve([]),
+          ]);
+
+          const watchlistNameMap = new Map(watchlistRows.map((row) => [row.id, row.name]));
+          const issueRoomNameMap = new Map(alertRoomRows.map((row) => [row.id, row.title]));
+
+          return topAlertRows.map((row) => ({
+            ...row,
+            watchlistName: row.watchlistId ? watchlistNameMap.get(row.watchlistId) ?? null : null,
+            issueRoomTitle: row.issueRoomId ? issueRoomNameMap.get(row.issueRoomId) ?? null : null,
+          }));
+        })(),
+        (async () => {
+          const hearingRows = await policyIntelDb
+            .select()
+            .from(hearingEvents)
+            .where(and(
+              eq(hearingEvents.workspaceId, workspaceId),
+              gte(hearingEvents.hearingDate, hearingFloor),
+            ))
+            .orderBy(hearingEvents.hearingDate)
+            .limit(8);
+
+          const linkedSessionMap = new Map(
+            committeeSessions
+              .filter((session) => session.hearingId !== null)
+              .map((session) => [session.hearingId as number, session]),
+          );
+
+          return hearingRows.map((row) => {
+            const linkedSession = linkedSessionMap.get(row.id) ?? null;
+            return {
+              ...row,
+              linkedSessionId: linkedSession?.id ?? null,
+              linkedSessionTitle: linkedSession?.title ?? null,
+            };
+          });
+        })(),
+      ]);
+
+      const marketAlerts = alertsResult.status === "fulfilled" ? alertsResult.value : [];
+      const marketHearings = hearingsResult.status === "fulfilled" ? hearingsResult.value : [];
+      const featuredSession = committeeSessions.find((session) =>
+        looksLikeBusinessAndCommerce(`${session.committee} ${session.title}`),
+      ) ?? null;
+      const featuredHearing = marketHearings.find((hearing) =>
+        looksLikeBusinessAndCommerce(`${hearing.committee} ${hearing.description ?? ""}`),
+      ) ?? null;
+      const featuredPreset = featuredSession
+        ? {
+            id: `committee:${featuredSession.id}`,
+            label: "Business & Commerce Preset",
+            kind: "committee_session",
+            committee: featuredSession.committee,
+            title: featuredSession.title,
+            note: "Use the strongest live committee-intel proof point as the default market lens.",
+            sessionId: featuredSession.id,
+            hearingId: featuredSession.hearingId ?? null,
+          }
+        : featuredHearing
+          ? {
+              id: `hearing:${featuredHearing.id}`,
+              label: "Business & Commerce Preset",
+              kind: "hearing",
+              committee: featuredHearing.committee,
+              title: `${featuredHearing.chamber} ${featuredHearing.committee}`,
+              note: "Use the strongest live Texas committee hearing as the default market lens.",
+              sessionId: featuredHearing.linkedSessionId ?? null,
+              hearingId: featuredHearing.id,
+            }
+          : null;
+
       res.json({
         workspaceId,
         generatedAt: new Date().toISOString(),
@@ -3560,6 +3703,10 @@ export function createPolicyIntelRouter() {
           : { message: "No active session. Initialize a session first.", session: null },
         relationships: relationshipNetwork,
         digest,
+        briefing: briefingResult.status === "fulfilled" ? buildMarketBriefingSummary(briefingResult.value) : null,
+        alerts: marketAlerts,
+        hearings: marketHearings,
+        featuredPreset,
         committeeSessions: committeeSessions.slice(0, committeeLimit),
         issueRooms: roomRows,
       });

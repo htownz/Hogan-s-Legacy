@@ -16,6 +16,9 @@ export const api = {
   // Health
   health: () => apiFetch<{ ok: boolean }>("/health"),
 
+  // Workspaces
+  getWorkspaces: () => apiFetch<PolicyIntelWorkspace[]>("/workspaces"),
+
   // Matters
   getMatters: (workspaceId?: number) => apiFetch<Matter[]>(`/matters${workspaceId ? `?workspaceId=${workspaceId}` : ""}`),
   getMatter: (id: number) => apiFetch<Matter>(`/matters/${id}`),
@@ -447,6 +450,15 @@ export interface Matter {
   description: string | null;
   tagsJson: string[];
   createdAt: string;
+}
+
+export interface PolicyIntelWorkspace {
+  id: number;
+  slug: string;
+  name: string;
+  jurisdictionScope: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Alert {
@@ -1833,6 +1845,48 @@ export interface PredictionDashboard {
   analyzedAt: string;
 }
 
+export interface MarketBriefingSummary {
+  generatedAt: string;
+  executiveSummary: string;
+  priorityInsights: StrategicInsight[];
+  topRisks: Array<{
+    billId: string;
+    title: string;
+    riskLevel: string;
+    passageProbability: number;
+    narrative: string;
+    recommendations: string[];
+  }>;
+  anomalies: Array<{
+    type: string;
+    severity: string;
+    subject: string;
+    narrative: string;
+    detectedAt: string;
+  }>;
+}
+
+export interface MarketAlert extends Alert {
+  watchlistName: string | null;
+  issueRoomTitle: string | null;
+}
+
+export interface MarketHearing extends HearingEvent {
+  linkedSessionId: number | null;
+  linkedSessionTitle: string | null;
+}
+
+export interface MarketFeaturedPreset {
+  id: string;
+  label: string;
+  kind: "committee_session" | "hearing";
+  committee: string;
+  title: string;
+  note: string;
+  sessionId: number | null;
+  hearingId: number | null;
+}
+
 export interface MarketDashboard {
   workspaceId: number;
   generatedAt: string;
@@ -1849,6 +1903,10 @@ export interface MarketDashboard {
   session: SessionDashboard | { message?: string; session: null };
   relationships: NetworkGraph;
   digest: Digest;
+  briefing: MarketBriefingSummary | null;
+  alerts: MarketAlert[];
+  hearings: MarketHearing[];
+  featuredPreset: MarketFeaturedPreset | null;
   committeeSessions: CommitteeIntelSession[];
   issueRooms: IssueRoom[];
 }

@@ -2,11 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
   api,
+  type MarketAlert,
   type CommitteeIntelSession,
   type Digest,
   type IssueRoom,
   type MarketDashboard,
+  type MarketHearing,
   type NetworkGraph,
+  type PolicyIntelWorkspace,
   type PredictionDashboard,
   type PredictionResult,
   type SessionDashboard,
@@ -91,6 +94,7 @@ type MarketFocusItem =
 type PredictionFocusItem = Extract<MarketFocusItem, { kind: "prediction" }>;
 type CommitteeFocusItem = Extract<MarketFocusItem, { kind: "committee" }>;
 type IssueRoomFocusItem = Extract<MarketFocusItem, { kind: "issueRoom" }>;
+type MarketFocusMode = "all" | "prediction" | "committee" | "issueRoom";
 
 type CatalystItem = {
   id: string;
@@ -101,6 +105,14 @@ type CatalystItem = {
   toneColor: string;
   href?: string;
 };
+
+const FOCUS_MODE_OPTIONS: Array<{ id: MarketFocusMode; label: string }> = [
+  { id: "all", label: "All Market" },
+  { id: "prediction", label: "Bills" },
+  { id: "committee", label: "Committee" },
+  { id: "issueRoom", label: "Issue Rooms" },
+];
+const MARKET_WORKSPACE_STORAGE_KEY = "policy-intel-market-workspace-id";
 
 function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(() =>
@@ -166,6 +178,22 @@ function niceLabel(value: string): string {
 
 function sortByDateDesc<T extends { at: string }>(items: T[]): T[] {
   return [...items].sort((left, right) => new Date(right.at).getTime() - new Date(left.at).getTime());
+}
+
+function alertToneColor(score: number): string {
+  if (score >= 80) return CRIMSON;
+  if (score >= 65) return GOLD;
+  return SKY;
+}
+
+function anomalyToneColor(severity: string): string {
+  if (severity === "critical" || severity === "high") return CRIMSON;
+  if (severity === "medium") return GOLD;
+  return SKY;
+}
+
+function focusModeMatches(mode: MarketFocusMode, item: MarketFocusItem): boolean {
+  return mode === "all" || mode === item.kind;
 }
 
 function Panel(props: {
@@ -401,6 +429,7 @@ function FocusHero({ item }: { item: MarketFocusItem }) {
 function FocusDetail(props: {
   item: MarketFocusItem;
   digest: Digest | null;
+  marketAlerts: MarketAlert[];
   sessionDashboard: SessionDashboard | null;
   stacked: boolean;
 }) {
@@ -530,6 +559,7 @@ function FocusDetail(props: {
   }
 
   const room = props.item.issueRoom;
+  const roomAlerts = props.marketAlerts.filter((alert) => alert.issueRoomId === room.id);
   return (
     <div style={{ display: "grid", gridTemplateColumns: detailColumns, gap: 18, marginTop: 20 }}>
       <Panel title="Issue Thesis" subtitle="What we think is happening and how we plan to play it">
@@ -560,6 +590,27 @@ function FocusDetail(props: {
             <div style={{ marginTop: 6, fontSize: 13, color: MUTED }}>
               {room.relatedBillIds.length > 0 ? room.relatedBillIds.join(", ") : "Attach related legislation to turn this into a tradeable issue room."}
             </div>
+          </div>
+          <div style={{ padding: 12, borderRadius: 12, background: "#f7fbff" }}>
+            <strong style={{ color: INK }}>Alert Pressure</strong>
+            <div style={{ marginTop: 6, fontSize: 13, color: MUTED }}>
+              {roomAlerts.length > 0
+                ? `${roomAlerts.length} top market alert${roomAlerts.length === 1 ? "" : "s"} currently link to this room.`
+                : "No top market alerts are linked to this room yet."}
+            </div>
+            {roomAlerts.length > 0 ? (
+              <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+                {roomAlerts.slice(0, 2).map((alert) => (
+                  <div key={alert.id} style={{ padding: 10, borderRadius: 12, background: "#fff", border: `1px solid ${BORDER}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                      <strong style={{ color: INK }}>{alert.title}</strong>
+                      <span style={{ color: alertToneColor(alert.relevanceScore), fontWeight: 700 }}>{alert.relevanceScore}</span>
+                    </div>
+                    <div style={{ marginTop: 4, fontSize: 12, color: MUTED }}>{alert.whyItMatters || alert.summary || "No rationale captured yet."}</div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
         </div>
       </Panel>
@@ -600,8 +651,14 @@ function buildPlaybook(item: MarketFocusItem, sessionDashboard: SessionDashboard
 }
 
 export function PolicyMarketPage() {
-  const workspaceId = DEFAULT_WORKSPACE_ID;
+  const [workspaceId, setWorkspaceId] = useState<number>(() => {
+    if (typeof window === "undefined") return DEFAULT_WORKSPACE_ID;
+    const raw = window.localStorage.getItem(MARKET_WORKSPACE_STORAGE_KEY);
+    const parsed = raw ? Number(raw) : NaN;
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_WORKSPACE_ID;
+  });
   const stackedLayout = useMediaQuery("(max-width: 1180px)");
+  const [focusMode, setFocusMode] = useState<MarketFocusMode>("all");
   const hearingWindowStart = useMemo(() => {
     const from = new Date();
     from.setDate(from.getDate() - 14);
@@ -617,15 +674,34 @@ export function PolicyMarketPage() {
     }),
     [workspaceId, hearingWindowStart],
   );
+  const { data: workspaces } = useAsync<PolicyIntelWorkspace[]>(
+    () => api.getWorkspaces(),
+    [],
+  );
 
   const predictionDashboard = marketData?.predictions ?? null;
   const committeeSessions = marketData?.committeeSessions ?? null;
   const issueRooms = marketData?.issueRooms ?? null;
   const digest = marketData?.digest ?? null;
+  const briefing = marketData?.briefing ?? null;
+  const marketAlerts = marketData?.alerts ?? [];
+  const marketHearings = marketData?.hearings ?? [];
+  const featuredPreset = marketData?.featuredPreset ?? null;
   const network = marketData?.relationships ?? null;
   const sessionValue = marketData?.session ?? null;
   const sessionDashboard: SessionDashboard | null = isSessionDashboard(sessionValue) ? sessionValue : null;
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const selectedWorkspace = useMemo(
+    () => workspaces?.find((workspace) => workspace.id === workspaceId) ?? null,
+    [workspaceId, workspaces],
+  );
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(MARKET_WORKSPACE_STORAGE_KEY, String(workspaceId));
+    }
+    setSelectedKey(null);
+  }, [workspaceId]);
 
   const predictionItems = useMemo<PredictionFocusItem[]>(() => {
     const dashboard = predictionDashboard;
@@ -673,17 +749,24 @@ export function PolicyMarketPage() {
   }, [issueRooms]);
 
   const allItems = useMemo(() => [...predictionItems, ...committeeItems, ...issueRoomItems], [predictionItems, committeeItems, issueRoomItems]);
-  const selectedItem = useMemo(() => allItems.find((item) => item.key === selectedKey) ?? allItems[0] ?? null, [allItems, selectedKey]);
+  const visibleItems = useMemo(
+    () => allItems.filter((item) => focusModeMatches(focusMode, item)),
+    [allItems, focusMode],
+  );
+  const selectedItem = useMemo(
+    () => visibleItems.find((item) => item.key === selectedKey) ?? visibleItems[0] ?? null,
+    [selectedKey, visibleItems],
+  );
 
   useEffect(() => {
-    if (!allItems.length) {
+    if (!visibleItems.length) {
       if (selectedKey !== null) setSelectedKey(null);
       return;
     }
-    if (!selectedKey || !allItems.some((item) => item.key === selectedKey)) {
-      setSelectedKey(allItems[0].key);
+    if (!selectedKey || !visibleItems.some((item) => item.key === selectedKey)) {
+      setSelectedKey(visibleItems[0].key);
     }
-  }, [allItems, selectedKey]);
+  }, [selectedKey, visibleItems]);
 
   const catalysts = useMemo(() => {
     const digestCatalysts: CatalystItem[] = sortByDateDesc(
@@ -723,6 +806,20 @@ export function PolicyMarketPage() {
   const refreshAll = useCallback(() => {
     refetch();
   }, [refetch]);
+
+  const applyFeaturedPreset = useCallback(() => {
+    if (!featuredPreset) return;
+    setFocusMode("committee");
+    if (featuredPreset.sessionId) {
+      setSelectedKey(`committee:${featuredPreset.sessionId}`);
+    }
+  }, [featuredPreset]);
+
+  const focusHearing = useCallback((hearing: MarketHearing) => {
+    if (!hearing.linkedSessionId) return;
+    setFocusMode("committee");
+    setSelectedKey(`committee:${hearing.linkedSessionId}`);
+  }, []);
 
   const topMetrics = useMemo(() => {
     const tracked = marketData?.summary.trackedBills ?? ((predictionDashboard?.totalTracked ?? 0) + (committeeSessions?.length ?? 0) + (issueRooms?.length ?? 0));
@@ -790,10 +887,235 @@ export function PolicyMarketPage() {
             </div>
           ))}
         </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 18 }}>
+          <label
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "8px 12px",
+              borderRadius: 999,
+              border: "1px solid rgba(255,255,255,0.24)",
+              background: "rgba(255,255,255,0.06)",
+              color: "#fff",
+              fontSize: 12,
+              fontWeight: 700,
+            }}
+          >
+            <span>Workspace</span>
+            <select
+              value={workspaceId}
+              onChange={(event) => setWorkspaceId(Number(event.target.value))}
+              style={{
+                border: "none",
+                background: "transparent",
+                color: "#fff",
+                fontSize: 12,
+                fontWeight: 700,
+                outline: "none",
+                cursor: "pointer",
+              }}
+            >
+              {(workspaces ?? []).map((workspace) => (
+                <option key={workspace.id} value={workspace.id} style={{ color: INK }}>
+                  {workspace.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          {FOCUS_MODE_OPTIONS.map((option) => {
+            const active = focusMode === option.id;
+            return (
+              <button
+                key={option.id}
+                onClick={() => setFocusMode(option.id)}
+                style={{
+                  padding: "9px 14px",
+                  borderRadius: 999,
+                  border: active ? "1px solid #fff" : "1px solid rgba(255,255,255,0.24)",
+                  background: active ? "#fff" : "rgba(255,255,255,0.06)",
+                  color: active ? NAVY : "#fff",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+          {featuredPreset ? (
+            <button
+              onClick={applyFeaturedPreset}
+              style={{
+                padding: "9px 14px",
+                borderRadius: 999,
+                border: "1px solid rgba(255,255,255,0.24)",
+                background: "rgba(255,255,255,0.12)",
+                color: "#fff",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              {featuredPreset.label}
+            </button>
+          ) : null}
+        </div>
       </section>
+
+      <div style={{ display: "grid", gridTemplateColumns: stackedLayout ? "1fr" : "1.1fr 1fr", gap: 20, alignItems: "start" }}>
+        <Panel
+          title="Committee Day"
+          subtitle="Hearings and featured committee context that should shape the current market lens"
+          actions={
+            <Link href="/calendar">
+              <span style={{ display: "inline-flex", alignItems: "center", padding: "8px 12px", borderRadius: 999, background: NAVY, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                Open Calendar
+              </span>
+            </Link>
+          }
+        >
+          {featuredPreset ? (
+            <div style={{ padding: 14, borderRadius: 16, background: "#f7fbff", border: `1px solid ${BORDER}` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
+                <div>
+                  <TonePill label={featuredPreset.label} color={SKY} />
+                  <div style={{ marginTop: 10, fontSize: 18, fontWeight: 700, color: INK }}>{featuredPreset.title}</div>
+                  <div style={{ marginTop: 4, fontSize: 13, color: MUTED }}>{featuredPreset.committee}</div>
+                  <div style={{ marginTop: 8, fontSize: 13, color: MUTED, lineHeight: 1.5 }}>{featuredPreset.note}</div>
+                </div>
+                {featuredPreset.sessionId ? (
+                  <button
+                    onClick={applyFeaturedPreset}
+                    style={{ padding: "10px 14px", borderRadius: 999, border: `1px solid ${SKY}`, background: "#edf5ff", color: NAVY, fontWeight: 700, cursor: "pointer" }}
+                  >
+                    Load Preset
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+          <div style={{ display: "grid", gap: 10, marginTop: featuredPreset ? 14 : 0 }}>
+            {marketHearings.length > 0 ? marketHearings.map((hearing) => {
+              const card = (
+                <div style={{ padding: 14, borderRadius: 14, border: `1px solid ${BORDER}`, background: "#fff" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
+                    <div>
+                      <div style={{ fontWeight: 700, color: INK }}>{hearing.chamber} {hearing.committee}</div>
+                      <div style={{ marginTop: 4, fontSize: 12, color: MUTED }}>{formatDate(hearing.hearingDate)}{hearing.location ? ` · ${hearing.location}` : ""}</div>
+                    </div>
+                    <TonePill label={niceLabel(hearing.status)} color={hearing.linkedSessionId ? MINT : GOLD} />
+                  </div>
+                  <div style={{ marginTop: 8, fontSize: 13, color: MUTED, lineHeight: 1.5 }}>
+                    {hearing.description || hearing.timeDescription || "No hearing detail captured yet."}
+                  </div>
+                  <div style={{ marginTop: 8, fontSize: 12, color: hearing.linkedSessionId ? MINT : MUTED }}>
+                    {hearing.linkedSessionId ? `Linked committee session: ${hearing.linkedSessionTitle || hearing.linkedSessionId}` : "No linked committee session yet"}
+                  </div>
+                </div>
+              );
+              if (hearing.linkedSessionId) {
+                return (
+                  <button
+                    key={hearing.id}
+                    onClick={() => focusHearing(hearing)}
+                    style={{ padding: 0, border: "none", background: "transparent", textAlign: "left", cursor: "pointer" }}
+                  >
+                    {card}
+                  </button>
+                );
+              }
+              return (
+                <Link key={hearing.id} href="/calendar">
+                  <div style={{ cursor: "pointer" }}>{card}</div>
+                </Link>
+              );
+            }) : (
+              <EmptyPanelState
+                title="No hearing radar yet"
+                detail={`${selectedWorkspace?.name ?? `Workspace ${workspaceId}`} does not currently have hearing radar or a featured committee preset. Switch workspaces or sync hearings to populate this panel.`}
+                href="/calendar"
+                actionLabel="Open Calendar"
+              />
+            )}
+          </div>
+        </Panel>
+
+        <Panel
+          title="Operator Briefing"
+          subtitle="The direct intelligence readout for what matters now, why now, and where to act"
+          actions={
+            <Link href="/intelligence">
+              <span style={{ display: "inline-flex", alignItems: "center", padding: "8px 12px", borderRadius: 999, background: NAVY, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                Open Intelligence Hub
+              </span>
+            </Link>
+          }
+        >
+          {briefing ? (
+            <div style={{ display: "grid", gap: 16 }}>
+              <div style={{ padding: 14, borderRadius: 16, background: "#f7fbff" }}>
+                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", color: SKY }}>Executive Summary</div>
+                <div style={{ marginTop: 8, fontSize: 14, lineHeight: 1.7, color: INK }}>{briefing.executiveSummary}</div>
+                <div style={{ marginTop: 8, fontSize: 12, color: MUTED }}>Generated {formatRelative(briefing.generatedAt)}</div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: stackedLayout ? "1fr" : "1.1fr 0.9fr", gap: 14 }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", color: MUTED }}>Priority Insights</div>
+                  <div style={{ marginTop: 8, display: "grid", gap: 10 }}>
+                    {briefing.priorityInsights.slice(0, 3).map((insight) => (
+                      <div key={`${insight.category}-${insight.title}`} style={{ padding: 12, borderRadius: 14, border: `1px solid ${BORDER}`, background: "#fff" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                          <strong style={{ color: INK }}>{insight.title}</strong>
+                          <span style={{ color: NAVY, fontWeight: 700 }}>P{insight.priority}</span>
+                        </div>
+                        <div style={{ marginTop: 4, fontSize: 12, color: MUTED }}>{insight.category}</div>
+                        <div style={{ marginTop: 8, fontSize: 13, color: MUTED, lineHeight: 1.55 }}>{insight.narrative}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ display: "grid", gap: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", color: MUTED }}>Top Risks</div>
+                    <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
+                      {briefing.topRisks.slice(0, 3).map((risk) => (
+                        <div key={risk.billId} style={{ padding: 12, borderRadius: 14, background: "#fff4ef" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                            <strong style={{ color: INK }}>{risk.billId}</strong>
+                            <span style={{ color: CRIMSON, fontWeight: 700 }}>{Math.round(risk.passageProbability * 100)}%</span>
+                          </div>
+                          <div style={{ marginTop: 4, fontSize: 12, color: MUTED }}>{risk.title}</div>
+                          <div style={{ marginTop: 6, fontSize: 12, color: MUTED }}>{risk.riskLevel}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", color: MUTED }}>Anomalies</div>
+                    <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
+                      {briefing.anomalies.slice(0, 2).map((anomaly) => (
+                        <div key={`${anomaly.type}-${anomaly.subject}`} style={{ padding: 12, borderRadius: 14, background: "#fbfdff", border: `1px solid ${BORDER}` }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                            <strong style={{ color: INK }}>{anomaly.subject}</strong>
+                            <span style={{ color: anomalyToneColor(anomaly.severity), fontWeight: 700 }}>{niceLabel(anomaly.severity)}</span>
+                          </div>
+                          <div style={{ marginTop: 6, fontSize: 12, color: MUTED, lineHeight: 1.5 }}>{anomaly.narrative}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <EmptyPanelState title="Briefing unavailable" detail="The intelligence briefing is optional in the market payload. Use the Intelligence Hub when the swarm run is unavailable." href="/intelligence" actionLabel="Open Intelligence Hub" />
+          )}
+        </Panel>
+      </div>
 
       <div style={{ display: "grid", gridTemplateColumns: stackedLayout ? "1fr" : "320px minmax(0, 1fr) 320px", gap: 20, alignItems: "start" }}>
         <div style={{ display: "grid", gap: 18 }}>
+          {(focusMode === "all" || focusMode === "prediction") ? (
           <Panel title="Market Movers" subtitle="Bills with the sharpest current odds signal">
             {predictionItems.length > 0 ? (
               <div style={{ display: "grid", gap: 10 }}>
@@ -816,7 +1138,9 @@ export function PolicyMarketPage() {
               <EmptyPanelState title="No priced instruments yet" detail="The predictions infrastructure is live now. Start discovery to populate bills and implied odds here." href="/predictions" actionLabel="Open Predictions" />
             )}
           </Panel>
+          ) : null}
 
+          {(focusMode === "all" || focusMode === "committee") ? (
           <Panel title="Committee Tape" subtitle="Hearings and feed-backed committee instruments">
             {committeeItems.length > 0 ? (
               <div style={{ display: "grid", gap: 10 }}>
@@ -836,7 +1160,9 @@ export function PolicyMarketPage() {
               <EmptyPanelState title="No committee instruments" detail="Committee Intel is one of the strongest parts of the product. Surface more of those sessions here as market objects." href="/committee-intel" actionLabel="Open Committee Intel" />
             )}
           </Panel>
+          ) : null}
 
+          {(focusMode === "all" || focusMode === "issueRoom") ? (
           <Panel title="Issue Pressure" subtitle="Current rooms that can become market positions">
             {issueRoomItems.length > 0 ? (
               <div style={{ display: "grid", gap: 10 }}>
@@ -856,6 +1182,7 @@ export function PolicyMarketPage() {
               <EmptyPanelState title="No active issue rooms" detail="Issue rooms are where the product stops being a tracker and starts being an operating desk." href="/issue-rooms" actionLabel="Open Issue Rooms" />
             )}
           </Panel>
+          ) : null}
         </div>
 
         <div style={{ display: "grid", gap: 18 }}>
@@ -872,7 +1199,7 @@ export function PolicyMarketPage() {
               }
             >
               <FocusHero item={selectedItem} />
-              <FocusDetail item={selectedItem} digest={digest ?? null} sessionDashboard={sessionDashboard} stacked={stackedLayout} />
+              <FocusDetail item={selectedItem} digest={digest ?? null} marketAlerts={marketAlerts} sessionDashboard={sessionDashboard} stacked={stackedLayout} />
             </Panel>
           ) : (
             <Panel title="Instrument Focus" subtitle="Select a mover from the left rail">
@@ -923,6 +1250,31 @@ export function PolicyMarketPage() {
               </div>
             ) : (
               <EmptyPanelState title="No playbook yet" detail="Select a bill, committee session, or issue room to see the recommended next moves." />
+            )}
+          </Panel>
+
+          <Panel title="Alert Pressure" subtitle="High-signal alerts that should shape the next operator move">
+            {marketAlerts.length > 0 ? (
+              <div style={{ display: "grid", gap: 10 }}>
+                {marketAlerts.slice(0, 5).map((alert) => (
+                  <Link key={alert.id} href={`/alerts/${alert.id}`}>
+                    <div style={{ padding: 12, borderRadius: 14, border: `1px solid ${BORDER}`, background: "#fff", cursor: "pointer" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                        <strong style={{ color: INK }}>{alert.title}</strong>
+                        <span style={{ color: alertToneColor(alert.relevanceScore), fontWeight: 700 }}>{alert.relevanceScore}</span>
+                      </div>
+                      <div style={{ marginTop: 6, fontSize: 12, color: MUTED }}>
+                        {alert.watchlistName || alert.issueRoomTitle || niceLabel(alert.status)}
+                      </div>
+                      <div style={{ marginTop: 8, fontSize: 13, color: MUTED, lineHeight: 1.5 }}>
+                        {alert.whyItMatters || alert.summary || "No operator rationale written yet."}
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <EmptyPanelState title="No alert pressure surfaced" detail="Direct high-signal alerts should appear here so the market screen does not rely only on digest counts." href="/alerts" actionLabel="Open Alert Queue" />
             )}
           </Panel>
 
